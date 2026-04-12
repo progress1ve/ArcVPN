@@ -29,9 +29,9 @@ def group_view_kb(group_id: int) -> InlineKeyboardMarkup:
         group_id: ID группы
     """
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='Переименовать', icon_custom_emoji_id='5870676941614354370', callback_data=f'admin_group_edit:{group_id}'))
+    builder.row(InlineKeyboardButton(text='Переименовать', callback_data=f'admin_group_edit:{group_id}', icon_custom_emoji_id='5870676941614354370'))
     if group_id != 1:
-        builder.row(InlineKeyboardButton(text='Удалить группу', icon_custom_emoji_id='5870875489362513438', callback_data=f'admin_group_delete:{group_id}'))
+        builder.row(InlineKeyboardButton(text='Удалить группу', callback_data=f'admin_group_delete:{group_id}', icon_custom_emoji_id='5870875489362513438'))
     builder.row(back_button('admin_groups'), home_button())
     return builder.as_markup()
 
@@ -43,8 +43,8 @@ def group_delete_confirm_kb(group_id: int) -> InlineKeyboardMarkup:
         group_id: ID группы
     """
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='Да, удалить', icon_custom_emoji_id='5870633910337015697', callback_data=f'admin_group_delete_confirm:{group_id}'))
-    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data=f'admin_group_view:{group_id}'))
+    builder.row(InlineKeyboardButton(text='Да, удалить', callback_data=f'admin_group_delete_confirm:{group_id}', icon_custom_emoji_id='5870633910337015697'))
+    builder.row(InlineKeyboardButton(text='Отмена', callback_data=f'admin_group_view:{group_id}', icon_custom_emoji_id='5870657884844462243'))
     return builder.as_markup()
 
 def group_select_kb(groups: List[Dict[str, Any]], callback_prefix: str, back_callback: str) -> InlineKeyboardMarkup:
@@ -59,5 +59,5 @@ def group_select_kb(groups: List[Dict[str, Any]], callback_prefix: str, back_cal
     builder = InlineKeyboardBuilder()
     for group in groups:
         builder.row(InlineKeyboardButton(text=f"📂 {group['name']}", callback_data=f"{callback_prefix}:{group['id']}"))
-    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data=back_callback))
+    builder.row(InlineKeyboardButton(text='Отмена', callback_data=back_callback, icon_custom_emoji_id='5870657884844462243'))
     return builder.as_markup()

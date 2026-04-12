@@ -54,14 +54,14 @@ def tariff_view_kb(tariff_id: int, is_active: bool, show_group_button: bool=Fals
         show_group_button: Показывать ли кнопку «Изменить группу» (при >1 группе)
     """
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='Изменить', icon_custom_emoji_id='5870676941614354370', callback_data=f'admin_tariff_edit:{tariff_id}'))
+    builder.row(InlineKeyboardButton(text='Изменить', callback_data=f'admin_tariff_edit:{tariff_id}', icon_custom_emoji_id='5870676941614354370'))
     if is_active:
         toggle_text = '👁️\u200d🗨️ Скрыть'
     else:
         toggle_text = '👁️ Показать'
     builder.row(InlineKeyboardButton(text=toggle_text, callback_data=f'admin_tariff_toggle:{tariff_id}'))
     if show_group_button:
-        builder.row(InlineKeyboardButton(text='Изменить группу', icon_custom_emoji_id='5884479287171485878', callback_data=f'admin_tariff_change_group:{tariff_id}'))
+        builder.row(InlineKeyboardButton(text='Изменить группу', callback_data=f'admin_tariff_change_group:{tariff_id}', icon_custom_emoji_id='5884479287171485878'))
     builder.row(back_button('admin_tariffs'), home_button())
     return builder.as_markup()
 
@@ -74,14 +74,14 @@ def add_tariff_step_kb(step: int, total_steps: int) -> InlineKeyboardMarkup:
         total_steps: Общее количество шагов
     """
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='admin_tariffs'))
+    builder.row(InlineKeyboardButton(text='Отмена', callback_data='admin_tariffs', icon_custom_emoji_id='5870657884844462243'))
     return builder.as_markup()
 
 def add_tariff_confirm_kb() -> InlineKeyboardMarkup:
     """Клавиатура подтверждения добавления тарифа."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='Сохранить', icon_custom_emoji_id='5870633910337015697', callback_data='admin_tariff_add_save'))
-    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='admin_tariffs'))
+    builder.row(InlineKeyboardButton(text='Сохранить', callback_data='admin_tariff_add_save', icon_custom_emoji_id='5870633910337015697'))
+    builder.row(InlineKeyboardButton(text='Отмена', callback_data='admin_tariffs', icon_custom_emoji_id='5870657884844462243'))
     return builder.as_markup()
 
 def edit_tariff_kb(current_param: int, total_params: int) -> InlineKeyboardMarkup:
@@ -103,5 +103,5 @@ def edit_tariff_kb(current_param: int, total_params: int) -> InlineKeyboardMarku
     else:
         nav_buttons.append(InlineKeyboardButton(text='—', callback_data='noop'))
     builder.row(*nav_buttons)
-    builder.row(InlineKeyboardButton(text='Готово', icon_custom_emoji_id='5870633910337015697', callback_data='admin_tariff_edit_done'))
+    builder.row(InlineKeyboardButton(text='Готово', callback_data='admin_tariff_edit_done', icon_custom_emoji_id='5870633910337015697'))
     return builder.as_markup()
