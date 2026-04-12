@@ -13,7 +13,7 @@ from config import ADMIN_IDS
 from database.requests import get_all_servers
 from bot.services.vpn_api import get_client_from_server_data, format_traffic
 from bot.states.admin_states import AdminStates
-from bot.keyboards.admin import admin_main_menu_kb, home_only_kb, author_support_kb
+from bot.keyboards.admin import admin_main_menu_kb
 from bot.utils.admin import is_admin
 from bot.utils.text import safe_edit_or_send
 
@@ -110,43 +110,8 @@ async def show_admin_panel(callback: CallbackQuery, state: FSMContext):
 
 
 # ============================================================================
-# РАЗДЕЛ ПОДДЕРЖКИ
-# ============================================================================
-
-@router.callback_query(F.data == "admin_author_support")
-async def show_author_support(callback: CallbackQuery):
-    """Показывает экран поддержки автора."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-        
-    await callback.answer()
-    
-    text = (
-        "👤 <b>Автор и поддержка</b>\n\n"
-        "<b>Разработчик</b>: <a href=\"https://t.me/plushkin_blog\">Plushkin Blog</a>\n\n"
-        "Я собираю деньги на разработку игры в жанре MMORTS с честной экономикой и никакого pay2win. Т.е. нельзя будет ничего купить у автора игры, никаких эксклюзивных вещей или бесконечных ресурсов для богатых.\n\n"
-        "Очень нужна ваша поддержка, даже 100р уже вперед. как говорится с мира по нитке ;)\n"
-        "💳 <b>Карты РФ</b>: https://yoomoney.ru/fundraise/1GJ73GGRJBC.260318\n"
-        "💰 <b>USDT (TON/BSC/ARBITRUM)</b>: https://t.me/Ya_SellerBot?start=item-40\n\n"
-        "‼️Другие полезные для тебя боты\n\n"
-        "@Ya_FooterBot - <i>сделай автоматическую подпись ко всем постам в своем канале, добавь туда ссылку на свой VPN</i>"
-    )
-    
-    try:
-        await safe_edit_or_send(
-            callback.message, 
-            text,
-            reply_markup=author_support_kb()
-        )
-    except TelegramBadRequest as e:
-        if "is not modified" not in str(e):
-            logger.error(f"Ошибка при показе поддержки автора: {e}")
-
-# ============================================================================
 # ПЕРЕАДРЕСАЦИЯ НА ПОДРОУТЕРЫ
 # ============================================================================
 
 # Раздел «Пользователи» реализован в users.py
 # Раздел «Настройки бота» реализован в system.py
-

@@ -117,10 +117,7 @@ def migration_1(conn: sqlite3.Connection) -> None:
             "Hiddify или v2rayNG или V2Box\n"
             "Подробная инструкция по настройке VPN👇 https://telegra\\.ph/Kak\\-nastroit\\-VPN\\-Gajd\\-za\\-2\\-minuty\\-01\\-23\n\n"
             "3\\. Импортируйте ключ в приложение\n\n"
-            "4\\. Подключайтесь и наслаждайтесь\\! 🚀\n\n"
-            "\\-\\-\\-\n"
-            "Разработчик @plushkin\\_blog\n"
-            "\\-\\-\\-"
+            "4\\. Подключайтесь и наслаждайтесь\\! 🚀"
         )),
         ('news_channel_link', 'https://t.me/ArcVPN'),
         ('support_channel_link', 'https://t.me/ArcVPN_support'),
@@ -1010,10 +1007,7 @@ def migration_15(conn: sqlite3.Connection) -> None:
         "Hiddify или v2rayNG или V2Box\n"
         "Подробная инструкция по настройке VPN👇 https://telegra\\.ph/Kak\\-nastroit\\-VPN\\-Gajd\\-za\\-2\\-minuty\\-01\\-23\n\n"
         "3\\. Импортируйте ключ в приложение\n\n"
-        "4\\. Подключайтесь и наслаждайтесь\\! 🚀\n\n"
-        "\\-\\-\\-\n"
-        "Разработчик @plushkin\\_blog\n"
-        "\\-\\-\\-"
+        "4\\. Подключайтесь и наслаждайтесь\\! 🚀"
     )
     html_help = (
         "🔐 Этот бот предоставляет доступ к VPN-сервису.\n\n"
@@ -1023,10 +1017,7 @@ def migration_15(conn: sqlite3.Connection) -> None:
         "Hiddify или v2rayNG или V2Box\n"
         "Подробная инструкция по настройке VPN👇 https://telegra.ph/Kak-nastroit-VPN-Gajd-za-2-minuty-01-23\n\n"
         "3. Импортируйте ключ в приложение\n\n"
-        "4. Подключайтесь и наслаждайтесь! 🚀\n\n"
-        "---\n"
-        "Разработчик @plushkin_blog\n"
-        "---"
+        "4. Подключайтесь и наслаждайтесь! 🚀"
     )
     result = _migrate_setting_text(conn, 'help_page_text', md_help, html_help)
     logger.info(f"help_page_text: {result}")
