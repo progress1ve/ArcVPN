@@ -85,6 +85,11 @@ async def main():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
     
+    # Регистрируем middleware для проверки подписки
+    from bot.middlewares.subscription_check import SubscriptionCheckMiddleware
+    dp.message.middleware(SubscriptionCheckMiddleware())
+    dp.callback_query.middleware(SubscriptionCheckMiddleware())
+    
     # Регистрируем роутеры
     # Порядок важен: сначала более специфичные, потом общие
     dp.include_router(admin_router)           # Админ-панель (общая)

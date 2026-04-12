@@ -17,8 +17,12 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-def get_welcome_text(is_admin: bool=False) -> tuple:
-    """Формирует приветственный текст с реальными тарифами из БД.
+def get_welcome_text(user: dict, is_admin: bool=False) -> tuple:
+    """Формирует приветственный текст с информацией о пользователе и тарифами.
+    
+    Args:
+        user: Словарь с данными пользователя
+        is_admin: Является ли пользователь администратором
     
     Returns:
         Кортеж (text, photo_file_id) — текст и опциональное фото
@@ -26,9 +30,25 @@ def get_welcome_text(is_admin: bool=False) -> tuple:
     from database.requests import get_all_tariffs, get_setting, is_crypto_configured, is_stars_enabled, is_cards_enabled, is_yookassa_qr_configured, is_demo_payment_enabled
     from bot.utils.text import escape_html
     from bot.utils.message_editor import get_message_data
-    welcome_data = get_message_data('main_page_text', '🔐 <b>Добро пожаловать в ArcVPN!</b>')
-    welcome_text = welcome_data.get('text', '🔐 <b>Добро пожаловать в ArcVPN!</b>')
+    
+    # Получаем имя пользователя
+    first_name = escape_html(user.get('first_name', 'Пользователь'))
+    user_id = user.get('telegram_id', 0)
+    balance = user.get('personal_balance', 0) / 100  # Конвертируем копейки в рубли
+    
+    # Формируем приветствие
+    greeting = (
+        f"Привет, {first_name}!\n\n"
+        f"<blockquote>— Ваш ID: {user_id}\n"
+        f"— Ваш баланс: {balance:.2f} ₽</blockquote>\n\n"
+        f"<b>Новостной канал</b> — @arcvpn1\n"
+        f"<b>Техническая поддержка</b> — @progressive_dev"
+    )
+    
+    welcome_data = get_message_data('main_page_text', greeting)
+    welcome_text = welcome_data.get('text', greeting)
     photo_file_id = welcome_data.get('photo_file_id')
+    
     crypto_enabled = is_crypto_configured()
     stars_enabled = is_stars_enabled()
     cards_enabled = is_cards_enabled()
@@ -36,8 +56,9 @@ def get_welcome_text(is_admin: bool=False) -> tuple:
     demo_enabled = is_demo_payment_enabled()
     tariffs = get_all_tariffs()
     tariff_lines = []
+    
     if tariffs:
-        tariff_lines.append('📋 <b>Тарифы:</b>')
+        tariff_lines.append('\n\n📋 <b>Тарифы:</b>')
         for tariff in tariffs:
             prices = []
             if crypto_enabled:
@@ -50,11 +71,14 @@ def get_welcome_text(is_admin: bool=False) -> tuple:
                 prices.append(f"{int(tariff['price_rub'])} ₽")
             price_display = ' / '.join(prices) if prices else 'Цена не установлена'
             tariff_lines.append(f"• {escape_html(tariff['name'])} — {price_display}")
+    
     tariff_text = '\n'.join(tariff_lines)
+    
     if '%без_тарифов%' in welcome_text:
         return (welcome_text.replace('%без_тарифов%', ''), photo_file_id)
     if '%тарифы%' not in welcome_text:
         welcome_text = f'{welcome_text}\n\n%тарифы%'
+    
     return (welcome_text.replace('%тарифы%', tariff_text), photo_file_id)
 
 @router.message(Command('start'), StateFilter('*'))
@@ -77,8 +101,15 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     if user.get('is_banned'):
         await safe_edit_or_send(message, '⛔ <b>Доступ заблокирован</b>\n\nВаш аккаунт заблокирован. Обратитесь в поддержку.', force_new=True)
         return
+    
+    # Сохраняем имя пользователя
+    if message.from_user.first_name:
+        from database.requests import update_user_name
+        update_user_name(user_id, message.from_user.first_name)
+        user['first_name'] = message.from_user.first_name
+    
     is_admin = user_id in ADMIN_IDS
-    (text, welcome_photo) = get_welcome_text(is_admin)
+    (text, welcome_photo) = get_welcome_text(user, is_admin)
     args = command.args
     if args and args.startswith('bill'):
         from bot.services.billing import process_crypto_payment
@@ -125,8 +156,16 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
         await callback.answer('⛔ Доступ заблокирован', show_alert=True)
         return
     await state.clear()
+    
+    # Получаем данные пользователя
+    from database.requests import get_user
+    user = get_user(user_id)
+    if not user:
+        await callback.answer('❌ Ошибка получения данных', show_alert=True)
+        return
+    
     is_admin = user_id in ADMIN_IDS
-    (text, welcome_photo) = get_welcome_text(is_admin)
+    (text, welcome_photo) = get_welcome_text(user, is_admin)
     from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial
     show_trial = is_trial_enabled() and get_trial_tariff_id() is not None and (not has_used_trial(user_id))
     show_referral = is_referral_enabled()
@@ -186,3 +225,28 @@ async def help_handler(callback: CallbackQuery):
 async def noop_handler(callback: CallbackQuery):
     """Заглушка: нажатие на заголовок группы ничего не делает."""
     await callback.answer()
+
+@router.callback_query(F.data == 'check_subscribe')
+async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
+    """Проверяет подписку пользователя на канал."""
+    from bot.middlewares.subscription_check import REQUIRED_CHANNEL_ID
+    
+    user_id = callback.from_user.id
+    bot = callback.bot
+    
+    try:
+        member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL_ID, user_id=user_id)
+        
+        if member.status in ["left", "kicked"]:
+            await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
+            return
+        
+        # Пользователь подписан, показываем главное меню
+        await callback.answer("✅ Спасибо за подписку!")
+        
+        # Перенаправляем на /start
+        await cmd_start(callback.message, state, CommandObject(command="start", args=None))
+        
+    except Exception as e:
+        logger.error(f"Ошибка проверки подписки: {e}")
+        await callback.answer("❌ Ошибка проверки подписки", show_alert=True)

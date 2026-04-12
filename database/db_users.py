@@ -34,6 +34,8 @@ __all__ = [
     'deduct_from_balance',
     'get_user_referral_coefficient',
     'set_user_referral_coefficient',
+    'update_user_name',
+    'get_user',
 ]
 
 def _generate_referral_code() -> str:
@@ -144,6 +146,38 @@ def mark_trial_used(user_id: int) -> None:
             (user_id,)
         )
         logger.info(f"Пользователь ID {user_id} использовал пробный период")
+
+def update_user_name(telegram_id: int, first_name: str) -> None:
+    """
+    Обновляет имя пользователя.
+    
+    Args:
+        telegram_id: Telegram ID пользователя
+        first_name: Имя пользователя
+    """
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET first_name = ? WHERE telegram_id = ?",
+            (first_name, telegram_id)
+        )
+
+def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Получает данные пользователя по Telegram ID.
+    
+    Args:
+        telegram_id: Telegram ID пользователя
+        
+    Returns:
+        Словарь с данными пользователя или None
+    """
+    with get_db() as conn:
+        cursor = conn.execute(
+            "SELECT * FROM users WHERE telegram_id = ?",
+            (telegram_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
 def get_all_users_count() -> int:
     """

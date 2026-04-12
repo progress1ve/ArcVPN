@@ -18,26 +18,34 @@ def main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral
     """
     builder = InlineKeyboardBuilder()
     
+    # Первая строка: Мои подписки
     builder.row(
-        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
-        InlineKeyboardButton(text="💳 Купить ключ", callback_data="buy_key")
+        InlineKeyboardButton(text="� Мои подписки", callback_data="my_keys")
     )
     
+    # Вторая строка: Купить подписку
+    builder.row(
+        InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key")
+    )
+    
+    # Третья строка: Партнерская программа (если включена)
+    if show_referral:
+        builder.row(
+            InlineKeyboardButton(text="🤝 Партнерская программа", callback_data="referral_system")
+        )
+    
+    # Четвертая строка: О сервисе
+    builder.row(
+        InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help")
+    )
+    
+    # Пробная подписка (если доступна)
     if show_trial:
         builder.row(
             InlineKeyboardButton(text="🎁 Пробная подписка", callback_data="trial_subscription")
         )
     
-    if show_referral:
-        builder.row(
-            InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="referral_system"),
-            InlineKeyboardButton(text="❓ Справка", callback_data="help")
-        )
-    else:
-        builder.row(
-            InlineKeyboardButton(text="❓ Справка", callback_data="help")
-        )
-    
+    # Админ-панель (если админ)
     if is_admin:
         builder.row(
             InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin_panel")

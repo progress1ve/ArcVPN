@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 15
+LATEST_VERSION = 16
 
 
 def get_current_version() -> int:
@@ -1166,6 +1166,18 @@ def migration_15(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v15 применена")
 
 
+def migration_16(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v16: Добавляет поле first_name в таблицу users.
+    """
+    logger.info("Применение миграции v16...")
+    
+    # Добавляем поле first_name для хранения имени пользователя
+    _add_column(conn, 'users', 'first_name TEXT')
+    
+    logger.info("Миграция v16 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1182,6 +1194,7 @@ MIGRATIONS = {
     13: migration_13,
     14: migration_14,
     15: migration_15,
+    16: migration_16,
 }
 
 
