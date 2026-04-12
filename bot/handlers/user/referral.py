@@ -77,8 +77,7 @@ async def show_referral_system(callback: CallbackQuery):
         "🤝 <b>Партнёрская программа</b>",
         "",
         "<b>Зарабатывай вместе с нами!</b>",
-        "<blockquote>1) Приглашай друзей по своей уникальной ссылке и получай 50₽ с каждого пополнения.",
-        "2) Используй заработанные средства для оплаты подписки.</blockquote>",
+        "<blockquote>Приглашай друзей по своей уникальной ссылке и получай 50₽ с каждого пополнения.",
         "",
         "🔗 <b>Ваша ссылка:</b>",
         f"<code>{escape_html(referral_link)}</code>",
@@ -86,10 +85,8 @@ async def show_referral_system(callback: CallbackQuery):
         "📊 <b>Ваша статистика:</b>",
         f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
         f"Баланс: {escape_html(format_price_compact(balance))}",
-        "Способ вывода: не задан",
         "Реквизиты: не указаны</blockquote>",
         "",
-        "💎 <i>Вывод доступен от 1000₽</i>",
         "",
         "💰 <b>Текущая ставка: 50₽</b>",
         f"<blockquote>Пример: платёж 540₽ → бонус 50₽</blockquote>",
@@ -113,7 +110,7 @@ async def show_referral_system(callback: CallbackQuery):
     
     # Кнопка "Личный кабинет" (возврат на главную)
     builder.row(
-        InlineKeyboardButton(text="👤 Личный кабинет", callback_data="start")
+        InlineKeyboardButton(text="🏠На главную", callback_data="start")
     )
     
     await safe_edit_or_send(callback.message, 

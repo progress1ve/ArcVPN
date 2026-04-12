@@ -41,8 +41,8 @@ def get_welcome_text(user: dict, is_admin: bool=False) -> tuple:
         f"Привет, {first_name}!\n\n"
         f"<blockquote>— Ваш ID: {user_id}\n"
         f"— Ваш баланс: {balance:.2f} ₽</blockquote>\n\n"
-        f"<b>Новостной канал</b> — @arcvpn1\n"
-        f"<b>Техническая поддержка</b> — @progressive_dev"
+        f"Новостной канал — @arcvpn1\n"
+        f"Техническая поддержка — @progressive_dev"
     )
     
     welcome_data = get_message_data('main_page_text', greeting)
@@ -241,12 +241,63 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
             return
         
-        # Пользователь подписан, показываем главное меню
+        # Пользователь подписан
         await callback.answer("✅ Спасибо за подписку!")
         
-        # Перенаправляем на /start
-        await cmd_start(callback.message, state, CommandObject(command="start", args=None))
+        # Проверяем, новый ли пользователь и доступен ли пробный период
+        from database.requests import get_user, is_trial_enabled, get_trial_tariff_id, has_used_trial
+        user = get_user(user_id)
+        
+        if user and is_trial_enabled() and get_trial_tariff_id() and not has_used_trial(user_id):
+            # Показываем предложение пробного периода
+            await show_trial_offer(callback.message, state)
+        else:
+            # Перенаправляем на главное меню
+            await cmd_start(callback.message, state, CommandObject(command="start", args=None))
         
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")
         await callback.answer("❌ Ошибка проверки подписки", show_alert=True)
+
+
+async def show_trial_offer(message: Message, state: FSMContext):
+    """Показывает предложение пробного периода новому пользователю."""
+    from database.requests import get_trial_tariff_id, get_tariff_by_id
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    
+    trial_tariff_id = get_trial_tariff_id()
+    if not trial_tariff_id:
+        # Если пробный период не настроен, показываем главное меню
+        await cmd_start(message, state, CommandObject(command="start", args=None))
+        return
+    
+    trial_tariff = get_tariff_by_id(trial_tariff_id)
+    if not trial_tariff:
+        await cmd_start(message, state, CommandObject(command="start", args=None))
+        return
+    
+    days = trial_tariff.get('duration_days', 7)
+    
+    text = (
+        f"🎉 <b>Попробуйте ArcVPN бесплатно на {days} дней!</b>\n\n"
+        f"💳 <b>Привязка карты не требуется</b>\n"
+        f"Начните пробный период и наслаждайтесь безопасным интернетом без ограничений\n\n"
+        f"📌 <b>После пробного периода:</b>\n"
+        f"• Ежемесячная подписка: 80₽/месяц\n"
+        f"• Подписка на 3 месяца: 200₽\n\n"
+        f"Продолжая, вы принимаете <a href='https://telegra.ph/Usloviya-ispolzovaniya-ArcVPN-01-01'>Условия использования</a> и\n"
+        f"<a href='https://telegra.ph/Politika-konfidencialnosti-ArcVPN-01-01'>Политику конфиденциальности</a>"
+    )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🎁 Подключить VPN",
+            callback_data="trial"
+        )],
+        [InlineKeyboardButton(
+            text="◀️ Назад",
+            callback_data="start"
+        )]
+    ])
+    
+    await safe_edit_or_send(message, text, reply_markup=keyboard)
