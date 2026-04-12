@@ -35,7 +35,7 @@ def broadcast_confirm_kb(user_count: int) -> InlineKeyboardMarkup:
     """Клавиатура подтверждения рассылки."""
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text=f'✅ Да, разослать ({user_count} чел.)', callback_data='broadcast_confirm'))
-    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_broadcast'))
+    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='admin_broadcast'))
     return builder.as_markup()
 
 def broadcast_notifications_kb(days: int) -> InlineKeyboardMarkup:
@@ -49,11 +49,11 @@ def broadcast_notifications_kb(days: int) -> InlineKeyboardMarkup:
 def broadcast_back_kb() -> InlineKeyboardMarkup:
     """Клавиатура возврата к рассылке."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_broadcast'))
+    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='admin_broadcast'))
     return builder.as_markup()
 
 def broadcast_notify_back_kb() -> InlineKeyboardMarkup:
     """Клавиатура возврата к настройкам уведомлений."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='broadcast_notifications'))
+    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='broadcast_notifications'))
     return builder.as_markup()

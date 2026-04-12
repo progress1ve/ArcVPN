@@ -9,10 +9,10 @@ def bot_settings_kb() -> InlineKeyboardMarkup:
     Клавиатура раздела 'Настройки бота'.
     """
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='🔄 Обновления', callback_data='admin_update_bot'))
-    builder.row(InlineKeyboardButton(text='✏️ Изменить тексты', callback_data='admin_edit_texts'))
-    builder.row(InlineKeyboardButton(text='🔗 Реферальная система', callback_data='admin_referral'))
-    builder.row(InlineKeyboardButton(text='🛑 Остановить бота', callback_data='admin_stop_bot'))
+    builder.row(InlineKeyboardButton(text='Обновления', icon_custom_emoji_id='5870930636742595124', callback_data='admin_update_bot'))
+    builder.row(InlineKeyboardButton(text='Изменить тексты', icon_custom_emoji_id='5870676941614354370', callback_data='admin_edit_texts'))
+    builder.row(InlineKeyboardButton(text='Реферальная система', icon_custom_emoji_id='5769289093221454192', callback_data='admin_referral'))
+    builder.row(InlineKeyboardButton(text='Остановить бота', icon_custom_emoji_id='5870657884844462243', callback_data='admin_stop_bot'))
     builder.row(back_button('admin_panel'), home_button())
     return builder.as_markup()
 
@@ -30,7 +30,7 @@ def trial_settings_kb(enabled: bool, tariff_name: Optional[str]=None) -> InlineK
     else:
         toggle_text = '⚪ Включить'
     builder.row(InlineKeyboardButton(text=toggle_text, callback_data='admin_trial_toggle'))
-    builder.row(InlineKeyboardButton(text='✏️ Изменить текст', callback_data='admin_trial_edit_text'))
+    builder.row(InlineKeyboardButton(text='Изменить текст', icon_custom_emoji_id='5870676941614354370', callback_data='admin_trial_edit_text'))
     tariff_label = tariff_name if tariff_name else 'не задан'
     builder.row(InlineKeyboardButton(text=f'📋 Тариф: {tariff_label}', callback_data='admin_trial_select_tariff'))
     builder.row(back_button('admin_panel'), home_button())
@@ -60,7 +60,7 @@ def trial_tariff_select_kb(tariffs: List[Dict[str, Any]], selected_id: Optional[
 def trial_edit_text_cancel_kb() -> InlineKeyboardMarkup:
     """Клавиатура отмены редактирования текста пробной подписки."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_trial'))
+    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='admin_trial'))
     return builder.as_markup()
 
 def referral_main_kb(enabled: bool, reward_type: str, levels: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
@@ -109,5 +109,5 @@ def referral_level_kb(level_num: int, percent: int, enabled: bool) -> InlineKeyb
 def referral_back_kb() -> InlineKeyboardMarkup:
     """Клавиатура возврата в меню реферальной системы."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_referral'))
+    builder.row(InlineKeyboardButton(text='Отмена', icon_custom_emoji_id='5870657884844462243', callback_data='admin_referral'))
     return builder.as_markup()

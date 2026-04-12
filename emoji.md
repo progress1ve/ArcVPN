@@ -48,3 +48,63 @@
  Код  </> 5940433880585605708
  Загрузка 5345906554510012647
 ◁ Назад, для кнопки назад
+
+
+Пример для инлайн кнопок в сообщениях , в них не должны указываться обычные эмодзи, только премиум
+
+return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="Подписаться",
+            url=CHANNEL_LINK,
+            icon_custom_emoji_id="6039450962865688331"
+        )],
+        [InlineKeyboardButton(
+            text="Проверить подписку",
+            callback_data="check_subscribe",
+            icon_custom_emoji_id="5774022692642492953"
+        )],
+    ])
+
+пример для сообщения 
+
+@dp.callback_query(F.data == "admin_broadcast")
+async def broadcast_callback(callback: CallbackQuery, state: FSMContext):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("✖️ У вас нет доступа", show_alert=True)
+        return
+
+    await callback.message.edit_text(
+        '<b><tg-emoji emoji-id="5370599459661045441">📢</tg-emoji> Отправь сообщение, которое хотите разослать всем пользователям.</b>',
+        parse_mode=ParseMode.HTML,
+        reply_markup=get_broadcast_keyboard()
+    )
+    await state.set_state(BroadcastStates.waiting_for_message)
+    await callback.answer()
+
+а это пример для кнопок в клавиатуры бота, в них тоже не должны указываться обычные эмодзи, только премиум
+
+keyboard = {
+        "keyboard": [
+            [
+                {
+                    "text": "Default"
+                }
+            ],
+            [
+                {
+                    "text": "Blue",
+                    "icon_custom_emoji_id": "5373141891321699086"
+                },
+                {
+                    "text": "Red",
+                    "icon_custom_emoji_id": "5370810157871667232"
+                },
+                {
+                    "text": "Green",
+                    "icon_custom_emoji_id": "5471984997361523302"
+                }
+            ]
+        ],
+        "resize_keyboard": True
+    }
+    return keyboard
