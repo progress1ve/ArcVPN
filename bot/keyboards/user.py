@@ -19,28 +19,28 @@ def main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral
     builder = InlineKeyboardBuilder()
     
     builder.row(
-        InlineKeyboardButton(text="Мои ключи", callback_data="my_keys", icon_custom_emoji_id="6037249452824072506"),
-        InlineKeyboardButton(text="Купить ключ", callback_data="buy_key", icon_custom_emoji_id="5769126056262898415")
+        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="💳 Купить ключ", callback_data="buy_key")
     )
     
     if show_trial:
         builder.row(
-            InlineKeyboardButton(text="Пробная подписка", callback_data="trial_subscription", icon_custom_emoji_id="6032644646587338669")
+            InlineKeyboardButton(text="🎁 Пробная подписка", callback_data="trial_subscription")
         )
     
     if show_referral:
         builder.row(
-            InlineKeyboardButton(text="Реферальная ссылка", callback_data="referral_system", icon_custom_emoji_id="5769289093221454192"),
-            InlineKeyboardButton(text="Справка", callback_data="help", icon_custom_emoji_id="6028435952299413210")
+            InlineKeyboardButton(text="🔗 Реферальная ссылка", callback_data="referral_system"),
+            InlineKeyboardButton(text="❓ Справка", callback_data="help")
         )
     else:
         builder.row(
-            InlineKeyboardButton(text="Справка", callback_data="help", icon_custom_emoji_id="6028435952299413210")
+            InlineKeyboardButton(text="❓ Справка", callback_data="help")
         )
     
     if is_admin:
         builder.row(
-            InlineKeyboardButton(text="Админ-панель", callback_data="admin_panel", icon_custom_emoji_id="5870982283724328568")
+            InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin_panel")
         )
     
     return builder.as_markup()
@@ -71,16 +71,16 @@ def help_kb(
     # Формируем ряд с кнопками-ссылками (только нескрытые)
     visible_buttons = []
     if not news_hidden:
-        visible_buttons.append(InlineKeyboardButton(text=news_name, url=news_link, icon_custom_emoji_id="6039422865189638057"))
+        visible_buttons.append(InlineKeyboardButton(text=news_name, url=news_link))
     if not support_hidden:
-        visible_buttons.append(InlineKeyboardButton(text=support_name, url=support_link, icon_custom_emoji_id="6028435952299413210"))
+        visible_buttons.append(InlineKeyboardButton(text=support_name, url=support_link))
     
     if visible_buttons:
         builder.row(*visible_buttons)
     
     # На главную
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -96,11 +96,11 @@ def support_kb(support_link: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.row(
-        InlineKeyboardButton(text="Support", url=support_link, icon_custom_emoji_id="6028435952299413210")
+        InlineKeyboardButton(text="💬 Support", url=support_link)
     )
     
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -152,7 +152,7 @@ def buy_key_kb(
     if cards_enabled:
         cb_data = f"pay_cards:{order_id}" if order_id else "pay_cards"
         builder.row(
-            InlineKeyboardButton(text="Оплатить картой", callback_data=cb_data, icon_custom_emoji_id="5769126056262898415")
+            InlineKeyboardButton(text="💳 Оплатить картой", callback_data=cb_data)
         )
 
     # QR ЮКасса — переход к выбору тарифа
@@ -178,7 +178,7 @@ def buy_key_kb(
 
     # Кнопка «На главную» — последний ряд
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
 
     return builder.as_markup()
@@ -246,8 +246,7 @@ def balance_payment_kb(
         if 'card' in available_methods:
             builder.row(
                 InlineKeyboardButton(
-                    text="Доплатить картой",
-                    icon_custom_emoji_id="5769126056262898415",
+                    text="💳 Доплатить картой",
                     callback_data=f"pay_card_balance:{tariff_id}:{key_id if key_id else '0'}"
                 )
             )
@@ -262,7 +261,7 @@ def balance_payment_kb(
     
     back_cb = f"key_renew:{key_id}" if key_id else "buy_key"
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=back_cb)
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=back_cb)
     )
     
     return builder.as_markup()
@@ -359,8 +358,8 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
         _add_tariff_buttons(tariffs)
     
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=back_callback),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -370,7 +369,7 @@ def back_button_kb(back_callback: str = "start") -> InlineKeyboardMarkup:
     """Клавиатура с кнопкой 'На главную'."""
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data=back_callback, icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data=back_callback)
     )
     return builder.as_markup()
 
@@ -384,8 +383,8 @@ def back_and_home_kb(back_callback: str) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=back_callback),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     return builder.as_markup()
 
@@ -399,7 +398,7 @@ def cancel_kb(cancel_callback: str) -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="Отмена", callback_data=cancel_callback, icon_custom_emoji_id="5870657884844462243")
+        InlineKeyboardButton(text="❌ Отмена", callback_data=cancel_callback)
     )
     return builder.as_markup()
 
@@ -429,7 +428,7 @@ def my_keys_list_kb(keys: list) -> InlineKeyboardMarkup:
     
     # Кнопка «На главную» — последний ряд
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -450,47 +449,47 @@ def key_manage_kb(key_id: int, is_unconfigured: bool = False, is_active: bool = 
     if not is_active:
         # Для неактивных ключей (даже если не настроен) нет показа и замены, есть удаление
         builder.row(
-            InlineKeyboardButton(text="Продлить", callback_data=f"key_renew:{key_id}", icon_custom_emoji_id="5870921681735781843")
+            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
         )
         
         builder.row(
-            InlineKeyboardButton(text="Удалить", callback_data=f"key_delete:{key_id}", icon_custom_emoji_id="5870875489362513438"),
-            InlineKeyboardButton(text="Переименовать", callback_data=f"key_rename:{key_id}", icon_custom_emoji_id="5870676941614354370")
+            InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"key_delete:{key_id}"),
+            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     elif is_unconfigured:
         # Для ненастроенного активного ключа предлагаем настройку
         builder.row(
-            InlineKeyboardButton(text="Настроить", callback_data=f"key_replace:{key_id}", icon_custom_emoji_id="5870982283724328568"),
-            InlineKeyboardButton(text="Продлить", callback_data=f"key_renew:{key_id}", icon_custom_emoji_id="5870921681735781843")
+            InlineKeyboardButton(text="⚙️ Настроить", callback_data=f"key_replace:{key_id}"),
+            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
         )
         builder.row(
-            InlineKeyboardButton(text="Переименовать", callback_data=f"key_rename:{key_id}", icon_custom_emoji_id="5870676941614354370")
+            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     elif is_traffic_exhausted:
         # Трафик исчерпан — только продлить и удалить
         builder.row(
-            InlineKeyboardButton(text="Продлить", callback_data=f"key_renew:{key_id}", icon_custom_emoji_id="5870921681735781843")
+            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
         )
         builder.row(
-            InlineKeyboardButton(text="Удалить", callback_data=f"key_delete:{key_id}", icon_custom_emoji_id="5870875489362513438"),
-            InlineKeyboardButton(text="Переименовать", callback_data=f"key_rename:{key_id}", icon_custom_emoji_id="5870676941614354370")
+            InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"key_delete:{key_id}"),
+            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     else:
         # Стандартные кнопки активного ключа
         builder.row(
-            InlineKeyboardButton(text="Показать ключ", callback_data=f"key_show:{key_id}", icon_custom_emoji_id="5870528606328852614"),
-            InlineKeyboardButton(text="Продлить", callback_data=f"key_renew:{key_id}", icon_custom_emoji_id="5870921681735781843")
+            InlineKeyboardButton(text="📋 Показать ключ", callback_data=f"key_show:{key_id}"),
+            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
         )
         
         builder.row(
-            InlineKeyboardButton(text="Заменить", callback_data=f"key_replace:{key_id}", icon_custom_emoji_id="5870930636742595124"),
-            InlineKeyboardButton(text="Переименовать", callback_data=f"key_rename:{key_id}", icon_custom_emoji_id="5870676941614354370")
+            InlineKeyboardButton(text="🔄 Заменить", callback_data=f"key_replace:{key_id}"),
+            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     
     # ТРЕТИЙ ряд (унифицированный): Инструкция и Мои ключи
     builder.row(
-        InlineKeyboardButton(text="Мои ключи", callback_data="my_keys", icon_custom_emoji_id="6037249452824072506"),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -575,8 +574,8 @@ def renew_tariff_select_kb(tariffs: list, key_id: int, order_id: str = None, is_
         )
     
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=f"key_renew:{key_id}"),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key_renew:{key_id}"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -632,8 +631,7 @@ def renew_payment_method_kb(
     if cards_enabled:
         builder.row(
             InlineKeyboardButton(
-                text="Оплатить картой",
-                icon_custom_emoji_id="5769126056262898415",
+                text="💳 Оплатить картой",
                 callback_data=f"renew_cards_tariff:{key_id}"
             )
         )
@@ -666,8 +664,8 @@ def renew_payment_method_kb(
 
     # Последний ряд: назад и на главную
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=f"key:{key_id}"),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key:{key_id}"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
 
     return builder.as_markup()
@@ -700,7 +698,7 @@ def replace_server_list_kb(servers: list, key_id: int) -> InlineKeyboardMarkup:
         )
     
     builder.row(
-        InlineKeyboardButton(text="Отмена", callback_data=f"key:{key_id}", icon_custom_emoji_id="5870657884844462243")
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"key:{key_id}")
     )
     
     return builder.as_markup()
@@ -729,7 +727,7 @@ def replace_inbound_list_kb(inbounds: list, key_id: int) -> InlineKeyboardMarkup
         )
     
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=f"key_replace:{key_id}")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key_replace:{key_id}")
     )
     
     return builder.as_markup()
@@ -746,15 +744,13 @@ def replace_confirm_kb(key_id: int) -> InlineKeyboardMarkup:
     
     builder.row(
         InlineKeyboardButton(
-            text="Да, заменить",
-            icon_custom_emoji_id="5870633910337015697",
+            text="✅ Да, заменить",
             callback_data="replace_confirm"
         )
     )
     builder.row(
         InlineKeyboardButton(
-            text="Отмена",
-            icon_custom_emoji_id="5870657884844462243",
+            text="❌ Отмена",
             callback_data=f"key:{key_id}"
         )
     )
@@ -789,7 +785,7 @@ def new_key_server_list_kb(servers: list) -> InlineKeyboardMarkup:
     # но логика бота пока этого не предусматривает -> pending order останется paid но без vpn_key_id.
     # TODO: Реализовать "досоздание" ключа позже.
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -817,7 +813,7 @@ def new_key_inbound_list_kb(inbounds: list) -> InlineKeyboardMarkup:
         )
     
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data="back_to_server_select") # спец. callback для возврата
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_server_select") # спец. callback для возврата
     )
     
     return builder.as_markup()
@@ -835,13 +831,13 @@ def key_issued_kb() -> InlineKeyboardMarkup:
     
     # Первый ряд
     builder.row(
-        InlineKeyboardButton(text="Инструкция", callback_data="help", icon_custom_emoji_id="5870528606328852614"),
-        InlineKeyboardButton(text="Мои ключи", callback_data="my_keys", icon_custom_emoji_id="6037249452824072506")
+        InlineKeyboardButton(text="📄 Инструкция", callback_data="help"),
+        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys")
     )
     
     # Второй ряд
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     return builder.as_markup()
@@ -857,10 +853,10 @@ def trial_sub_kb() -> InlineKeyboardMarkup:
     """
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text="Активировать", callback_data="trial_activate", icon_custom_emoji_id="5870633910337015697")
+        InlineKeyboardButton(text="✅ Активировать", callback_data="trial_activate")
     )
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     return builder.as_markup()
 
@@ -882,15 +878,15 @@ def yookassa_qr_kb(order_id: str, back_callback: str = "buy_key", qr_url: str = 
     
     if qr_url:
         builder.row(
-            InlineKeyboardButton(text="Оплатить", url=qr_url, icon_custom_emoji_id="5769126056262898415")
+            InlineKeyboardButton(text="💳 Оплатить", url=qr_url)
         )
         
     builder.row(
-        InlineKeyboardButton(text="Я оплатил", callback_data=f"check_yookassa_qr:{order_id}", icon_custom_emoji_id="5870633910337015697")
+        InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"check_yookassa_qr:{order_id}")
     )
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data=back_callback),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     return builder.as_markup()
 
@@ -904,8 +900,8 @@ def referral_menu_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.row(
-        InlineKeyboardButton(text="◁ Назад", callback_data="start"),
-        InlineKeyboardButton(text="На главную", callback_data="start", icon_custom_emoji_id="5873147866364514353")
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="start"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     return builder.as_markup()
 
