@@ -115,6 +115,7 @@ async def show_referral_system(callback: CallbackQuery):
     
     await safe_edit_or_send(callback.message, 
         text,
-        reply_markup=builder.as_markup()
+        reply_markup=builder.as_markup(),
+        parse_mode='HTML'
     )
     await callback.answer()

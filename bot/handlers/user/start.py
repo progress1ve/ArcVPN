@@ -36,7 +36,7 @@ def get_welcome_text(user: dict, is_admin: bool=False) -> tuple:
     user_id = user.get('telegram_id', 0)
     balance = user.get('personal_balance', 0) / 100  # Конвертируем копейки в рубли
     
-    # Формируем приветствие
+    # Формируем динамическое приветствие (всегда актуальное)
     greeting = (
         f"Привет, {first_name}!\n\n"
         f"<blockquote>— Ваш ID: {user_id}\n"
@@ -45,9 +45,16 @@ def get_welcome_text(user: dict, is_admin: bool=False) -> tuple:
         f"Техническая поддержка — @progressive_dev"
     )
     
-    welcome_data = get_message_data('main_page_text', greeting)
-    welcome_text = welcome_data.get('text', greeting)
+    # Загружаем кастомное сообщение из БД (если есть)
+    welcome_data = get_message_data('main_page_text')
+    custom_text = welcome_data.get('text', '').strip()
     photo_file_id = welcome_data.get('photo_file_id')
+    
+    # Если в БД есть кастомный текст, используем его вместо дефолтного
+    if custom_text:
+        welcome_text = custom_text
+    else:
+        welcome_text = greeting
     
     crypto_enabled = is_crypto_configured()
     stars_enabled = is_stars_enabled()

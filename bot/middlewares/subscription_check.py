@@ -86,6 +86,6 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
         ])
         
         try:
-            await message.answer(text, reply_markup=keyboard)
+            await message.answer(text, reply_markup=keyboard, parse_mode='HTML')
         except Exception as e:
             logger.error(f"Ошибка отправки сообщения о подписке: {e}")
