@@ -623,15 +623,14 @@ async def process_referral_reward(
     Обработка реферального вознаграждения при оплате.
     Вызывается ПОСЛЕ успешной обработки платежа.
     
+    Начисляет фиксированные 50₽ (5000 копеек) на баланс реферера
+    за каждую покупку приглашенного пользователя.
+    
     Args:
         payer_id: Внутренний ID пользователя, который оплатил
-        period_days: Сколько дней купил реферал
-        amount_raw: СЫРАЯ сумма:
-            - 'stars': количество звёзд (int)
-            - 'crypto': центы USDT (int)
-            - 'cards': копейки рублей (int)
-            - 'yookassa_qr': копейки рублей (int)
-        payment_type: Тип платежа ('stars', 'crypto', 'cards', 'yookassa_qr')
+        period_days: Сколько дней купил реферал (не используется)
+        amount_raw: СЫРАЯ сумма (не используется)
+        payment_type: Тип платежа (не используется)
     
     Note:
         При оплате балансом реферальные вознаграждения НЕ начисляются,
@@ -640,52 +639,27 @@ async def process_referral_reward(
     if not is_referral_enabled():
         return
     
-    reward_type = get_referral_reward_type()
-    levels = get_active_referral_levels()
-    
-    if not levels:
+    # Получаем прямого реферера (уровень 1)
+    referrer_id = get_user_referrer(payer_id)
+    if not referrer_id:
         return
     
-    usd_rub_rate = await get_usd_rub_rate()
-    amount_rub_cents = convert_to_rub_cents(amount_raw, payment_type, usd_rub_rate)
-    
-    current_user_id = payer_id
+    # Фиксированное вознаграждение: 50₽ = 5000 копеек
+    FIXED_REWARD_CENTS = 5000
     
     from bot.services.user_locks import user_locks
     
-    for level_num, percent in levels:
-        referrer_id = get_user_referrer(current_user_id)
-        if not referrer_id:
-            break
-        
-        coefficient = get_user_referral_coefficient(referrer_id)
-        
-        if reward_type == 'balance':
-            base_reward = amount_rub_cents * (percent / 100)
-            final_reward = int(base_reward * coefficient)
-            final_reward = round(final_reward / 100) * 100
-            
-            if final_reward > 0:
-                async with user_locks[referrer_id]:
-                    add_to_balance(referrer_id, final_reward)
-            
-            reward_days = 0
-        else:
-            base_days = period_days * (percent / 100)
-            final_days = base_days * coefficient
-            reward_days = math.ceil(final_days)
-            
-            if reward_days > 0:
-                add_days_to_first_active_key(referrer_id, reward_days)
-            
-            final_reward = 0
-        
-        update_referral_stat(
-            referrer_id, payer_id, level_num,
-            final_reward, reward_days
-        )
-        
-        current_user_id = referrer_id
+    # Начисляем фиксированную сумму на баланс реферера
+    async with user_locks[referrer_id]:
+        add_to_balance(referrer_id, FIXED_REWARD_CENTS)
+    
+    # Обновляем статистику
+    update_referral_stat(
+        referrer_id, payer_id, 1,  # level=1 (только прямые рефералы)
+        FIXED_REWARD_CENTS, 0  # reward_cents=5000, reward_days=0
+    )
+    
+    logger.info(f"Начислено {FIXED_REWARD_CENTS} коп реферу {referrer_id} за покупку реферала {payer_id}")
 
 
 def calculate_balance_discount(user_id: int, tariff_price_cents: int) -> tuple[int, int]:

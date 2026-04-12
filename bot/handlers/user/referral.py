@@ -50,11 +50,11 @@ DEFAULT_CONDITIONS_BALANCE = (
 
 @router.callback_query(F.data == "referral_system")
 async def show_referral_system(callback: CallbackQuery):
-    """Показывает раздел реферальной системы."""
+    """Показывает раздел партнерской программы."""
     telegram_id = callback.from_user.id
     
     if not is_referral_enabled():
-        await callback.answer("❌ Реферальная система недоступна", show_alert=True)
+        await callback.answer("❌ Партнерская программа недоступна", show_alert=True)
         return
     
     user_internal_id = get_user_internal_id(telegram_id)
@@ -66,71 +66,58 @@ async def show_referral_system(callback: CallbackQuery):
     bot_username = callback.bot.my_username if hasattr(callback.bot, 'my_username') else callback.bot.username
     referral_link = f"https://t.me/{bot_username}?start=ref_{referral_code}"
     
-    reward_type = get_referral_reward_type()
-    from bot.utils.message_editor import get_message_data
-    conditions_data = get_message_data('referral_conditions_text', '')
-    conditions_text = conditions_data.get('text', '')
-    conditions_photo = conditions_data.get('photo_file_id')
-    all_levels = get_referral_levels()
-    active_levels = get_active_referral_levels()
     stats = get_referral_stats(user_internal_id)
     balance = get_user_balance(user_internal_id)
     
-    # Весь текст в HTML
+    # Подсчитываем общее количество приглашенных
+    total_invited = sum(s['count'] for s in stats) if stats else 0
+    
+    # Весь текст в HTML с blockquote
     text_lines = [
-        "👥 <b>Реферальная система</b>",
+        "🤝 <b>Партнёрская программа</b>",
         "",
-        "📎 Ваша реферальная ссылка:",
+        "<b>Зарабатывай вместе с нами!</b>",
+        "<blockquote>1) Приглашай друзей по своей уникальной ссылке и получай 50₽ с каждого пополнения.",
+        "2) Используй заработанные средства для оплаты подписки.</blockquote>",
+        "",
+        "🔗 <b>Ваша ссылка:</b>",
         f"<code>{escape_html(referral_link)}</code>",
         "",
+        "📊 <b>Ваша статистика:</b>",
+        f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
+        f"Баланс: {escape_html(format_price_compact(balance))}",
+        "Способ вывода: не задан",
+        "Реквизиты: не указаны</blockquote>",
+        "",
+        "💎 <i>Вывод доступен от 1000₽</i>",
+        "",
+        "💰 <b>Текущая ставка: 50₽</b>",
+        f"<blockquote>Пример: платёж 540₽ → бонус 50₽</blockquote>",
     ]
-    
-    text_lines.append("━━━━━━━━━━━━━━━")
-    text_lines.append("📝 <b>Условия:</b>")
-    if conditions_text:
-        # Текст из редактора уже в HTML
-        text_lines.append(conditions_text)
-    elif reward_type == 'days':
-        text_lines.append(DEFAULT_CONDITIONS_DAYS)
-    else:
-        text_lines.append(DEFAULT_CONDITIONS_BALANCE)
-    text_lines.append("")
-    
-    stats_by_level = {s['level']: s for s in stats} if stats else {}
-    
-    text_lines.append("━━━━━━━━━━━━━━━")
-    text_lines.append("📊 <b>Ваша статистика:</b>")
-    text_lines.append("")
-    
-    for level_num, percent in active_levels:
-        level_stat = stats_by_level.get(level_num)
-        count = level_stat['count'] if level_stat else 0
-        
-        if reward_type == 'days':
-            total_reward = level_stat['total_reward_days'] if level_stat else 0
-            reward_display = escape_html(f"{total_reward} дн.")
-        else:
-            total_reward = level_stat['total_reward_cents'] if level_stat else 0
-            reward_display = escape_html(format_price_compact(total_reward))
-        
-        # Динамические значения экранируются через escape_html
-        text_lines.append(
-            f"Уровень {escape_html(str(level_num))} "
-            f"({escape_html(str(percent))}%): "
-            f"{escape_html(str(count))} чел. — {reward_display}"
-        )
-    text_lines.append("")
-    
-    if reward_type == 'balance':
-        text_lines.append("━━━━━━━━━━━━━━━")
-        text_lines.append(f"💰 <b>Ваш баланс:</b> {escape_html(format_price_compact(balance))}")
-        text_lines.append("")
     
     text = "\n".join(text_lines)
     
+    # Создаем клавиатуру с кнопками
+    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка "Пригласить друзей" с share
+    builder.row(
+        InlineKeyboardButton(
+            text="👥 Пригласить друзей",
+            url=f"https://t.me/share/url?url={referral_link}&text=Присоединяйся к ArcVPN!"
+        )
+    )
+    
+    # Кнопка "Личный кабинет" (возврат на главную)
+    builder.row(
+        InlineKeyboardButton(text="👤 Личный кабинет", callback_data="start")
+    )
+    
     await safe_edit_or_send(callback.message, 
         text,
-        reply_markup=referral_menu_kb(),
-        photo=conditions_photo,
+        reply_markup=builder.as_markup()
     )
     await callback.answer()
