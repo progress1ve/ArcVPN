@@ -82,9 +82,9 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     
     # Создаем ключ без привязки к тарифу (tariff_id=None)
     key_id = create_initial_vpn_key(
-        internal_user_id, 
+        user_id=internal_user_id, 
         tariff_id=None,  # Без тарифа
-        duration_days=trial_days, 
+        days=trial_days, 
         traffic_limit=traffic_limit_bytes
     )
     
