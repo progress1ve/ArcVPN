@@ -203,7 +203,7 @@ def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_r
     
     # Админ-панель (если админ)
     if is_admin:
-        builder.row(InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin"))
+        builder.row(InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin_panel"))
     
     return builder.as_markup()
 
