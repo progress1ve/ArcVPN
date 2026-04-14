@@ -35,11 +35,14 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
         
         # Админы пропускаются без проверки
         if user_id in ADMIN_IDS:
+            logger.debug(f"Admin {user_id} bypassing subscription check")
             return await handler(event, data)
         
         # Пропускаем callback "check_subscribe"
         if isinstance(event, CallbackQuery) and event.data == "check_subscribe":
             return await handler(event, data)
+        
+        logger.debug(f"Checking subscription for user {user_id}")
         
         # Проверяем подписку
         bot = data.get("bot")
@@ -48,6 +51,7 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
         
         try:
             member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL_ID, user_id=user_id)
+            logger.debug(f"User {user_id} subscription status: {member.status}")
             
             # Если пользователь не подписан
             if member.status in ["left", "kicked"]:
