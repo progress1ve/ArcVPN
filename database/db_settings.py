@@ -24,6 +24,10 @@ __all__ = [
     'get_yookassa_credentials',
     'is_trial_enabled',
     'get_trial_tariff_id',
+    'get_trial_days',
+    'set_trial_days',
+    'get_trial_traffic_gb',
+    'set_trial_traffic_gb',
     'is_demo_payment_enabled',
 ]
 
