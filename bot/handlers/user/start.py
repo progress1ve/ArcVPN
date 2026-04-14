@@ -17,17 +17,18 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-def get_welcome_text(user: dict, is_admin: bool=False) -> tuple:
+def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=False) -> tuple:
     """Формирует приветственный текст с информацией о пользователе и тарифами.
     
     Args:
         user: Словарь с данными пользователя
         is_admin: Является ли пользователь администратором
+        show_trial_offer: Показывать ли предложение пробного периода
     
     Returns:
         Кортеж (text, photo_file_id) — текст и опциональное фото
     """
-    from database.requests import get_all_tariffs, get_setting, is_crypto_configured, is_stars_enabled, is_cards_enabled, is_yookassa_qr_configured, is_demo_payment_enabled
+    from database.requests import get_all_tariffs, get_setting, is_crypto_configured, is_stars_enabled, is_cards_enabled, is_yookassa_qr_configured, is_demo_payment_enabled, get_trial_tariff_id, get_tariff_by_id
     from bot.utils.text import escape_html
     from bot.utils.message_editor import get_message_data
     
@@ -81,6 +82,16 @@ def get_welcome_text(user: dict, is_admin: bool=False) -> tuple:
     
     tariff_text = '\n'.join(tariff_lines)
     
+    # Добавляем предложение пробного периода если нужно
+    if show_trial_offer:
+        trial_tariff_id = get_trial_tariff_id()
+        if trial_tariff_id:
+            trial_tariff = get_tariff_by_id(trial_tariff_id)
+            if trial_tariff:
+                days = trial_tariff.get('duration_days', 7)
+                trial_text = f"\n\n<blockquote>🎁 Получи {days} дней бесплатно</blockquote>"
+                welcome_text = welcome_text + trial_text
+    
     if '%без_тарифов%' in welcome_text:
         return (welcome_text.replace('%без_тарифов%', ''), photo_file_id)
     if '%тарифы%' not in welcome_text:
@@ -116,7 +127,12 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         user['first_name'] = message.from_user.first_name
     
     is_admin = user_id in ADMIN_IDS
-    (text, welcome_photo) = get_welcome_text(user, is_admin)
+    
+    # Проверяем доступность пробного периода
+    from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial
+    show_trial = is_trial_enabled() and get_trial_tariff_id() is not None and (not has_used_trial(user_id))
+    
+    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
     args = command.args
     if args and args.startswith('bill'):
         from bot.services.billing import process_crypto_payment
@@ -144,16 +160,54 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         if referrer and referrer['id'] != user['id']:
             if set_user_referrer(user['id'], referrer['id']):
                 logger.info(f"User {user_id} привязан к рефереру {referrer['telegram_id']}")
-    from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial
-    show_trial = is_trial_enabled() and get_trial_tariff_id() is not None and (not has_used_trial(user_id))
+    
     show_referral = is_referral_enabled()
-    kb = main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+    
+    # Создаем клавиатуру с кнопкой пробного периода если нужно
+    kb = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+    
     try:
         await safe_edit_or_send(message, text, reply_markup=kb, photo=welcome_photo, force_new=True)
     except TelegramForbiddenError:
         logger.warning(f'User {user_id} blocked the bot during /start')
     except Exception as e:
         logger.error(f'Error sending start message to {user_id}: {e}')
+
+
+def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral: bool = True) -> InlineKeyboardMarkup:
+    """
+    Создает клавиатуру главного меню с опциональной кнопкой пробного периода.
+    
+    Args:
+        is_admin: Показывать ли кнопку админ-панели
+        show_trial: Показывать ли кнопку пробного периода
+        show_referral: Показывать ли кнопку реферальной программы
+    """
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    
+    builder = InlineKeyboardBuilder()
+    
+    # Если доступен пробный период, показываем его первой кнопкой
+    if show_trial:
+        builder.row(
+            InlineKeyboardButton(text="🎁 Получить 7 дней бесплатно", callback_data="trial")
+        )
+    
+    # Основные кнопки
+    builder.row(InlineKeyboardButton(text="📱 Мои подписки", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key"))
+    
+    if show_referral:
+        builder.row(InlineKeyboardButton(text="🤝 Партнерская программа", callback_data="referral_system"))
+    
+    builder.row(InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help"))
+    
+    # Админ-панель (если админ)
+    if is_admin:
+        builder.row(InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin"))
+    
+    return builder.as_markup()
 
 @router.callback_query(F.data == 'start')
 async def callback_start(callback: CallbackQuery, state: FSMContext):
@@ -172,11 +226,15 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
         return
     
     is_admin = user_id in ADMIN_IDS
-    (text, welcome_photo) = get_welcome_text(user, is_admin)
+    
+    # Проверяем доступность пробного периода
     from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial
     show_trial = is_trial_enabled() and get_trial_tariff_id() is not None and (not has_used_trial(user_id))
+    
+    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
+    
     show_referral = is_referral_enabled()
-    kb = main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+    kb = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
     await safe_edit_or_send(callback.message, text, reply_markup=kb, photo=welcome_photo)
     await callback.answer()
 
@@ -248,63 +306,12 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
             return
         
-        # Пользователь подписан
+        # Пользователь подписан - показываем обычное стартовое сообщение
         await callback.answer("✅ Спасибо за подписку!")
         
-        # Проверяем, новый ли пользователь и доступен ли пробный период
-        from database.requests import get_user, is_trial_enabled, get_trial_tariff_id, has_used_trial
-        user = get_user(user_id)
-        
-        if user and is_trial_enabled() and get_trial_tariff_id() and not has_used_trial(user_id):
-            # Показываем предложение пробного периода
-            await show_trial_offer(callback.message, state)
-        else:
-            # Перенаправляем на главное меню
-            await cmd_start(callback.message, state, CommandObject(command="start", args=None))
+        # Перенаправляем на главное меню (с проверкой пробного периода)
+        await callback_start(callback, state)
         
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")
         await callback.answer("❌ Ошибка проверки подписки", show_alert=True)
-
-
-async def show_trial_offer(message: Message, state: FSMContext):
-    """Показывает предложение пробного периода новому пользователю."""
-    from database.requests import get_trial_tariff_id, get_tariff_by_id
-    from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-    
-    trial_tariff_id = get_trial_tariff_id()
-    if not trial_tariff_id:
-        # Если пробный период не настроен, показываем главное меню
-        await cmd_start(message, state, CommandObject(command="start", args=None))
-        return
-    
-    trial_tariff = get_tariff_by_id(trial_tariff_id)
-    if not trial_tariff:
-        await cmd_start(message, state, CommandObject(command="start", args=None))
-        return
-    
-    days = trial_tariff.get('duration_days', 7)
-    
-    text = (
-        f"🎉 <b>Попробуйте ArcVPN бесплатно на {days} дней!</b>\n\n"
-        f"💳 <b>Привязка карты не требуется</b>\n"
-        f"Начните пробный период и наслаждайтесь безопасным интернетом без ограничений\n\n"
-        f"📌 <b>После пробного периода:</b>\n"
-        f"• Ежемесячная подписка: 80₽/месяц\n"
-        f"• Подписка на 3 месяца: 200₽\n\n"
-        f"Продолжая, вы принимаете <a href='https://telegra.ph/Usloviya-ispolzovaniya-ArcVPN-01-01'>Условия использования</a> и\n"
-        f"<a href='https://telegra.ph/Politika-konfidencialnosti-ArcVPN-01-01'>Политику конфиденциальности</a>"
-    )
-    
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(
-            text="🎁 Подключить VPN",
-            callback_data="trial"
-        )],
-        [InlineKeyboardButton(
-            text="◀️ Назад",
-            callback_data="start"
-        )]
-    ])
-    
-    await safe_edit_or_send(message, text, reply_markup=keyboard)

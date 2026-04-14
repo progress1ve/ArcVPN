@@ -39,11 +39,7 @@ def main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral
         InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help")
     )
     
-    # Пробная подписка (если доступна)
-    if show_trial:
-        builder.row(
-            InlineKeyboardButton(text="🎁 Пробная подписка", callback_data="trial_subscription")
-        )
+    # Пробная подписка - УДАЛЕНО (теперь показывается в стартовом сообщении)
     
     # Админ-панель (если админ)
     if is_admin:
