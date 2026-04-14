@@ -3,10 +3,11 @@ import uuid
 import asyncio
 from datetime import datetime
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramForbiddenError
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from config import ADMIN_IDS
 from database.requests import get_or_create_user, is_user_banned, get_all_servers, get_setting, is_referral_enabled, get_user_by_referral_code, set_user_referrer
 from bot.keyboards.user import main_menu_kb
@@ -183,9 +184,6 @@ def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_r
         show_trial: Показывать ли кнопку пробного периода
         show_referral: Показывать ли кнопку реферальной программы
     """
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
-    
     builder = InlineKeyboardBuilder()
     
     # Если доступен пробный период, показываем его первой кнопкой
