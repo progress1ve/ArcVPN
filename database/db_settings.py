@@ -164,12 +164,57 @@ def is_trial_enabled() -> bool:
 def get_trial_tariff_id() -> Optional[int]:
     """
     Возвращает ID тарифа для пробной подписки.
+    УСТАРЕЛО: Используется для обратной совместимости.
     
     Returns:
         ID тарифа или None если тариф не задан
     """
     val = get_setting('trial_tariff_id', '')
     return int(val) if val and val.isdigit() else None
+
+def get_trial_days() -> int:
+    """
+    Возвращает количество дней пробного периода.
+    
+    Returns:
+        Количество дней (по умолчанию 7)
+    """
+    val = get_setting('trial_days', '7')
+    return int(val) if val and val.isdigit() else 7
+
+def set_trial_days(days: int) -> bool:
+    """
+    Устанавливает количество дней пробного периода.
+    
+    Args:
+        days: Количество дней
+        
+    Returns:
+        True если успешно
+    """
+    return set_setting('trial_days', str(days)) is not None
+
+def get_trial_traffic_gb() -> int:
+    """
+    Возвращает количество гигабайт трафика для пробного периода.
+    
+    Returns:
+        Количество гигабайт (по умолчанию 10, 0 = безлимит)
+    """
+    val = get_setting('trial_traffic_gb', '10')
+    return int(val) if val and val.isdigit() else 10
+
+def set_trial_traffic_gb(gb: int) -> bool:
+    """
+    Устанавливает количество гигабайт трафика для пробного периода.
+    
+    Args:
+        gb: Количество гигабайт (0 = безлимит)
+        
+    Returns:
+        True если успешно
+    """
+    return set_setting('trial_traffic_gb', str(gb)) is not None
 
 def is_demo_payment_enabled() -> bool:
     """Включена ли демонстрационная оплата РФ картой."""

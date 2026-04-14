@@ -16,24 +16,30 @@ def bot_settings_kb() -> InlineKeyboardMarkup:
     builder.row(back_button('admin_panel'), home_button())
     return builder.as_markup()
 
-def trial_settings_kb(enabled: bool, tariff_name: Optional[str]=None) -> InlineKeyboardMarkup:
+def trial_settings_kb(enabled: bool) -> InlineKeyboardMarkup:
     """
     Клавиатура управления пробной подпиской.
     
     Args:
         enabled: Включена ли пробная подписка
-        tariff_name: Название выбранного тарифа или None
     """
     builder = InlineKeyboardBuilder()
+    
+    # Кнопка включения/выключения
     if enabled:
         toggle_text = '🟢 Выключить'
     else:
         toggle_text = '⚪ Включить'
     builder.row(InlineKeyboardButton(text=toggle_text, callback_data='admin_trial_toggle'))
+    
+    # Кнопки настройки
+    builder.row(InlineKeyboardButton(text='⏱ Настроить дни', callback_data='admin_trial_set_days'))
+    builder.row(InlineKeyboardButton(text='📊 Настроить трафик', callback_data='admin_trial_set_traffic'))
     builder.row(InlineKeyboardButton(text='✏️ Изменить текст', callback_data='admin_trial_edit_text'))
-    tariff_label = tariff_name if tariff_name else 'не задан'
-    builder.row(InlineKeyboardButton(text=f'📋 Тариф: {tariff_label}', callback_data='admin_trial_select_tariff'))
+    
+    # Кнопки навигации
     builder.row(back_button('admin_panel'), home_button())
+    
     return builder.as_markup()
 
 def trial_tariff_select_kb(tariffs: List[Dict[str, Any]], selected_id: Optional[int]=None) -> InlineKeyboardMarkup:

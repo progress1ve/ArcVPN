@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=False) -> tuple:
-    """Формирует приветственный текст с информацией о пользователе и тарифами.
+    """Формирует приветственный текст с информацией о пользователе.
     
     Args:
         user: Словарь с данными пользователя
@@ -29,7 +29,6 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     Returns:
         Кортеж (text, photo_file_id) — текст и опциональное фото
     """
-    from database.requests import get_all_tariffs, get_setting, is_crypto_configured, is_stars_enabled, is_cards_enabled, is_yookassa_qr_configured, is_demo_payment_enabled, get_trial_tariff_id, get_tariff_by_id
     from bot.utils.text import escape_html
     from bot.utils.message_editor import get_message_data
     
@@ -58,47 +57,14 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     else:
         welcome_text = greeting
     
-    crypto_enabled = is_crypto_configured()
-    stars_enabled = is_stars_enabled()
-    cards_enabled = is_cards_enabled()
-    yookassa_qr_enabled = is_yookassa_qr_configured()
-    demo_enabled = is_demo_payment_enabled()
-    tariffs = get_all_tariffs()
-    tariff_lines = []
-    
-    if tariffs:
-        tariff_lines.append('\n\n📋 <b>Тарифы:</b>')
-        for tariff in tariffs:
-            prices = []
-            if crypto_enabled:
-                price_usd = tariff['price_cents'] / 100
-                price_str = f'{price_usd:g}'.replace('.', ',')
-                prices.append(f'${escape_html(price_str)}')
-            if stars_enabled:
-                prices.append(f"{tariff['price_stars']} ⭐")
-            if (cards_enabled or yookassa_qr_enabled or demo_enabled) and tariff.get('price_rub', 0) > 0:
-                prices.append(f"{int(tariff['price_rub'])} ₽")
-            price_display = ' / '.join(prices) if prices else 'Цена не установлена'
-            tariff_lines.append(f"• {escape_html(tariff['name'])} — {price_display}")
-    
-    tariff_text = '\n'.join(tariff_lines)
-    
     # Добавляем предложение пробного периода если нужно
     if show_trial_offer:
-        trial_tariff_id = get_trial_tariff_id()
-        if trial_tariff_id:
-            trial_tariff = get_tariff_by_id(trial_tariff_id)
-            if trial_tariff:
-                days = trial_tariff.get('duration_days', 7)
-                trial_text = f"\n\n<blockquote>🎁 Получи {days} дней бесплатно</blockquote>"
-                welcome_text = welcome_text + trial_text
+        from database.requests import get_trial_days
+        days = get_trial_days()
+        trial_text = f"\n\n<blockquote>🎁 Получи {days} дней бесплатно</blockquote>"
+        welcome_text = welcome_text + trial_text
     
-    if '%без_тарифов%' in welcome_text:
-        return (welcome_text.replace('%без_тарифов%', ''), photo_file_id)
-    if '%тарифы%' not in welcome_text:
-        welcome_text = f'{welcome_text}\n\n%тарифы%'
-    
-    return (welcome_text.replace('%тарифы%', tariff_text), photo_file_id)
+    return (welcome_text, photo_file_id)
 
 @router.message(Command('start'), StateFilter('*'))
 async def cmd_start(message: Message, state: FSMContext, command: CommandObject):
@@ -130,8 +96,8 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     is_admin = user_id in ADMIN_IDS
     
     # Проверяем доступность пробного периода
-    from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial
-    show_trial = is_trial_enabled() and get_trial_tariff_id() is not None and (not has_used_trial(user_id))
+    from database.requests import is_trial_enabled, has_used_trial
+    show_trial = is_trial_enabled() and not has_used_trial(user_id)
     
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
     args = command.args
@@ -189,7 +155,7 @@ def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_r
     # Если доступен пробный период, показываем его первой кнопкой
     if show_trial:
         builder.row(
-            InlineKeyboardButton(text="🎁 Получить 7 дней бесплатно", callback_data="trial")
+            InlineKeyboardButton(text="🎁 Получить 7 дней бесплатно", callback_data="trial_activate")
         )
     
     # Основные кнопки
@@ -226,8 +192,8 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
     is_admin = user_id in ADMIN_IDS
     
     # Проверяем доступность пробного периода
-    from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial
-    show_trial = is_trial_enabled() and get_trial_tariff_id() is not None and (not has_used_trial(user_id))
+    from database.requests import is_trial_enabled, has_used_trial
+    show_trial = is_trial_enabled() and not has_used_trial(user_id)
     
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
     

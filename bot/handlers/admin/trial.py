@@ -3,8 +3,9 @@
 
 Управление функцией пробного периода:
 - Включение/выключение
+- Настройка количества дней
+- Настройка лимита трафика
 - Редактирование текста страницы
-- Выбор тарифа (включая неактивные, кроме Admin Tariff)
 """
 import logging
 from aiogram import Router, F
@@ -30,37 +31,32 @@ router = Router()
 async def show_trial_menu(callback: CallbackQuery):
     """Показывает меню настроек пробной подписки."""
     from database.requests import (
-        get_setting, is_trial_enabled, get_trial_tariff_id, get_tariff_by_id
+        is_trial_enabled, get_trial_days, get_trial_traffic_gb
     )
     from bot.keyboards.admin import trial_settings_kb
 
     enabled = is_trial_enabled()
-    tariff_id = get_trial_tariff_id()
-    tariff_name = None
-
-    if tariff_id:
-        tariff = get_tariff_by_id(tariff_id)
-        if tariff:
-            status = "🟢" if tariff['is_active'] else "🔴"
-            tariff_name = f"{status} {tariff['name']} ({tariff['duration_days']} дн.)"
+    days = get_trial_days()
+    traffic_gb = get_trial_traffic_gb()
 
     status_text = "✅ Включена" if enabled else "❌ Выключена"
-    tariff_text = tariff_name if tariff_name else "_не задан_"
+    traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "Безлимит"
 
     text = (
         "🎁 <b>Пробная подписка</b>\n\n"
         "Управление функцией пробного доступа для новых пользователей.\n\n"
         f"📌 <b>Статус:</b> {escape_html(status_text)}\n"
-        f"📋 <b>Тариф:</b> {tariff_text}\n\n"
+        f"⏱ <b>Длительность:</b> {days} дней\n"
+        f"📊 <b>Трафик:</b> {traffic_text}\n\n"
         "❓ <b>Как работает:</b>\n"
-        "• Если включено и тариф задан — кнопка «🎁 Пробная подписка» появляется на главной у пользователей, которые ещё не использовали пробный период.\n"
-        "• При активации — пользователю выдаётся ключ с выбранным тарифом.\n"
+        "• Если включено — кнопка «🎁 Получить X дней бесплатно» появляется на главной у пользователей, которые ещё не использовали пробный период.\n"
+        "• При активации — пользователю выдаётся ключ с указанными параметрами.\n"
         "• Каждый пользователь может активировать пробный период только один раз."
     )
 
     await safe_edit_or_send(callback.message, 
         text,
-        reply_markup=trial_settings_kb(enabled, tariff_name)
+        reply_markup=trial_settings_kb(enabled)
     )
     await callback.answer()
 
@@ -120,62 +116,133 @@ async def admin_trial_edit_text_start(callback: CallbackQuery, state: FSMContext
     await callback.answer()
 
 
-
 # ============================================================================
-# ВЫБОР ТАРИФА
+# НАСТРОЙКА КОЛИЧЕСТВА ДНЕЙ
 # ============================================================================
 
-@router.callback_query(F.data == "admin_trial_select_tariff")
-async def admin_trial_select_tariff(callback: CallbackQuery):
-    """Показывает список тарифов для выбора пробного периода."""
+@router.callback_query(F.data == "admin_trial_set_days")
+async def admin_trial_set_days_start(callback: CallbackQuery, state: FSMContext):
+    """Начинает процесс изменения количества дней."""
     if not is_admin(callback.from_user.id):
         return
 
-    from database.requests import get_all_tariffs, get_trial_tariff_id
-    from bot.keyboards.admin import trial_tariff_select_kb
+    from database.requests import get_trial_days
+    from bot.keyboards.admin import back_button, home_button
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-    # Получаем ВСЕ тарифы включая неактивные
-    tariffs = get_all_tariffs(include_hidden=True)
-    selected_id = get_trial_tariff_id()
+    current_days = get_trial_days()
 
-    # Фильтруем Admin Tariff
-    available = [t for t in tariffs if t.get('name') != 'Admin Tariff']
+    builder = InlineKeyboardBuilder()
+    builder.row(back_button("admin_trial"))
+    builder.row(home_button())
 
-    if not available:
-        await callback.answer("❌ Нет доступных тарифов", show_alert=True)
-        return
-
-    await safe_edit_or_send(callback.message, 
-        "📋 <b>Выбор тарифа для пробной подписки</b>\n\n"
-        "Выберите тариф, который будет выдаваться пользователям.\n"
-        "Отображаются все тарифы, включая неактивные для покупки.\n\n"
-        "🟢 — активный тариф  |  🔴 — неактивный тариф\n"
-        "🔘 — текущий выбор",
-        reply_markup=trial_tariff_select_kb(available, selected_id)
+    await safe_edit_or_send(callback.message,
+        f"⏱ <b>Настройка длительности пробного периода</b>\n\n"
+        f"Текущее значение: <b>{current_days} дней</b>\n\n"
+        f"Отправьте новое количество дней (число от 1 до 365):",
+        reply_markup=builder.as_markup()
     )
+
+    await state.set_state(AdminStates.trial_set_days)
     await callback.answer()
 
 
-@router.callback_query(F.data.startswith("admin_trial_set_tariff:"))
-async def admin_trial_set_tariff(callback: CallbackQuery):
-    """Устанавливает выбранный тариф для пробной подписки."""
+@router.message(StateFilter(AdminStates.trial_set_days))
+async def admin_trial_set_days_process(message: Message, state: FSMContext):
+    """Обрабатывает ввод количества дней."""
+    if not is_admin(message.from_user.id):
+        return
+
+    from database.requests import set_trial_days
+    from bot.keyboards.admin import back_button, home_button
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    try:
+        days = int(message.text.strip())
+        if days < 1 or days > 365:
+            raise ValueError("Число вне диапазона")
+
+        set_trial_days(days)
+        logger.info(f"Длительность пробного периода изменена на {days} дней (admin: {message.from_user.id})")
+
+        builder = InlineKeyboardBuilder()
+        builder.row(back_button("admin_trial"))
+
+        await message.answer(
+            f"✅ Длительность пробного периода установлена: <b>{days} дней</b>",
+            reply_markup=builder.as_markup()
+        )
+        await state.clear()
+
+    except ValueError:
+        await message.answer(
+            "❌ Неверный формат. Отправьте число от 1 до 365:"
+        )
+
+
+# ============================================================================
+# НАСТРОЙКА ЛИМИТА ТРАФИКА
+# ============================================================================
+
+@router.callback_query(F.data == "admin_trial_set_traffic")
+async def admin_trial_set_traffic_start(callback: CallbackQuery, state: FSMContext):
+    """Начинает процесс изменения лимита трафика."""
     if not is_admin(callback.from_user.id):
         return
 
-    from database.requests import set_setting, get_tariff_by_id
+    from database.requests import get_trial_traffic_gb
+    from bot.keyboards.admin import back_button, home_button
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-    tariff_id = int(callback.data.split(":")[1])
-    tariff = get_tariff_by_id(tariff_id)
+    current_traffic = get_trial_traffic_gb()
+    traffic_text = f"{current_traffic} ГБ" if current_traffic > 0 else "Безлимит"
 
-    if not tariff:
-        await callback.answer("❌ Тариф не найден", show_alert=True)
-        return
+    builder = InlineKeyboardBuilder()
+    builder.row(back_button("admin_trial"))
+    builder.row(home_button())
 
-    set_setting('trial_tariff_id', str(tariff_id))
-    logger.info(
-        f"Тариф пробной подписки изменён на ID={tariff_id} "
-        f"({tariff['name']}) (admin: {callback.from_user.id})"
+    await safe_edit_or_send(callback.message,
+        f"📊 <b>Настройка лимита трафика</b>\n\n"
+        f"Текущее значение: <b>{traffic_text}</b>\n\n"
+        f"Отправьте новое количество гигабайт (число от 0 до 1000):\n"
+        f"• 0 = безлимит\n"
+        f"• 1-1000 = лимит в ГБ",
+        reply_markup=builder.as_markup()
     )
 
-    await callback.answer(f"✅ Тариф «{tariff['name']}» выбран", show_alert=False)
-    await show_trial_menu(callback)
+    await state.set_state(AdminStates.trial_set_traffic)
+    await callback.answer()
+
+
+@router.message(StateFilter(AdminStates.trial_set_traffic))
+async def admin_trial_set_traffic_process(message: Message, state: FSMContext):
+    """Обрабатывает ввод лимита трафика."""
+    if not is_admin(message.from_user.id):
+        return
+
+    from database.requests import set_trial_traffic_gb
+    from bot.keyboards.admin import back_button, home_button
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+    try:
+        traffic_gb = int(message.text.strip())
+        if traffic_gb < 0 or traffic_gb > 1000:
+            raise ValueError("Число вне диапазона")
+
+        set_trial_traffic_gb(traffic_gb)
+        traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "Безлимит"
+        logger.info(f"Лимит трафика пробного периода изменен на {traffic_text} (admin: {message.from_user.id})")
+
+        builder = InlineKeyboardBuilder()
+        builder.row(back_button("admin_trial"))
+
+        await message.answer(
+            f"✅ Лимит трафика установлен: <b>{traffic_text}</b>",
+            reply_markup=builder.as_markup()
+        )
+        await state.clear()
+
+    except ValueError:
+        await message.answer(
+            "❌ Неверный формат. Отправьте число от 0 до 1000:"
+        )

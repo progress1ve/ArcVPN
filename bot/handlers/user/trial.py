@@ -44,38 +44,65 @@ async def show_trial_subscription(callback: CallbackQuery):
 
 @router.callback_query(F.data == 'trial_activate')
 async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext):
-    """Активирует пробную подписку: создаёт ключ через стандартный механизм."""
-    from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial, get_tariff_by_id, get_or_create_user, mark_trial_used, create_initial_vpn_key, create_pending_order, complete_order
+    """Активирует пробную подписку: создаёт ключ с настроенными днями и трафиком."""
+    from database.requests import (
+        is_trial_enabled, has_used_trial, get_or_create_user, 
+        mark_trial_used, create_initial_vpn_key, create_pending_order, 
+        complete_order, get_trial_days, get_trial_traffic_gb
+    )
     from bot.handlers.user.payments.keys_config import start_new_key_config
     from bot.keyboards.admin import home_only_kb
+    
     user_id = callback.from_user.id
+    
+    # Проверки
     if not is_trial_enabled():
         await callback.answer('❌ Пробная подписка недоступна', show_alert=True)
         return
-    tariff_id = get_trial_tariff_id()
-    if tariff_id is None:
-        await callback.answer('❌ Тариф не настроен', show_alert=True)
-        return
+    
     if has_used_trial(user_id):
         await callback.answer('ℹ️ Вы уже использовали пробный период', show_alert=True)
         return
-    tariff = get_tariff_by_id(tariff_id)
-    if not tariff:
-        await callback.answer('❌ Тариф не найден', show_alert=True)
-        return
+    
+    # Получаем настройки пробного периода
+    trial_days = get_trial_days()
+    trial_traffic_gb = get_trial_traffic_gb()
+    
+    # Получаем пользователя
     (user, _) = get_or_create_user(user_id, callback.from_user.username)
     internal_user_id = user['id']
+    
+    # Помечаем что пробный период использован
     mark_trial_used(internal_user_id)
-    logger.info(f'Пользователь {user_id} активировал пробный период (тариф ID={tariff_id})')
-    duration_days = tariff['duration_days']
-    traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
-    key_id = create_initial_vpn_key(internal_user_id, tariff_id, duration_days, traffic_limit=traffic_limit_bytes)
-    (_, order_id) = create_pending_order(user_id=internal_user_id, tariff_id=tariff_id, payment_type='trial', vpn_key_id=key_id)
+    
+    logger.info(f'Пользователь {user_id} активировал пробный период ({trial_days} дней, {trial_traffic_gb} ГБ)')
+    
+    # Конвертируем трафик в байты (0 = безлимит)
+    traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
+    
+    # Создаем ключ без привязки к тарифу (tariff_id=None)
+    key_id = create_initial_vpn_key(
+        internal_user_id, 
+        tariff_id=None,  # Без тарифа
+        duration_days=trial_days, 
+        traffic_limit=traffic_limit_bytes
+    )
+    
+    # Создаем ордер для истории
+    (_, order_id) = create_pending_order(
+        user_id=internal_user_id, 
+        tariff_id=None,  # Без тарифа
+        payment_type='trial', 
+        vpn_key_id=key_id
+    )
     complete_order(order_id)
+    
     await state.update_data(new_key_order_id=order_id, new_key_id=key_id)
     await callback.answer()
+    
     try:
         await callback.message.delete()
     except Exception:
         pass
+    
     await start_new_key_config(callback.message, state, order_id, key_id)
