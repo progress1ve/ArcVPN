@@ -81,9 +81,11 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
     
     # Создаем ключ без привязки к тарифу (tariff_id=None)
+    # Для пробного периода используем tariff_id=None, но функция требует int
+    # Поэтому создаем временный "пробный тариф" или используем 0
     key_id = create_initial_vpn_key(
         user_id=internal_user_id, 
-        tariff_id=None,  # Без тарифа
+        tariff_id=0,  # 0 означает пробный период без тарифа
         days=trial_days, 
         traffic_limit=traffic_limit_bytes
     )
@@ -91,7 +93,7 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     # Создаем ордер для истории
     (_, order_id) = create_pending_order(
         user_id=internal_user_id, 
-        tariff_id=None,  # Без тарифа
+        tariff_id=0,  # 0 для пробного периода
         payment_type='trial', 
         vpn_key_id=key_id
     )

@@ -16,6 +16,7 @@ __all__ = [
     'update_tariff',
     'update_tariff_field',
     'toggle_tariff_active',
+    'delete_tariff',
     'get_tariffs_count',
     'get_admin_tariff',
     'get_exchange_rate',
@@ -199,6 +200,27 @@ def toggle_tariff_active(tariff_id: int) -> Optional[bool]:
         status_text = "активирован" if new_status else "скрыт"
         logger.info(f"Тариф ID {tariff_id}: {status_text}")
         return bool(new_status)
+
+
+def delete_tariff(tariff_id: int) -> bool:
+    """
+    Удаляет тариф из базы данных.
+    
+    Args:
+        tariff_id: ID тарифа
+        
+    Returns:
+        True если успешно удален
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            DELETE FROM tariffs
+            WHERE id = ?
+        """, (tariff_id,))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(f"Тариф ID {tariff_id} удален")
+        return success
 
 def get_tariffs_count() -> int:
     """

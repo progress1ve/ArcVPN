@@ -54,14 +54,15 @@ def tariff_view_kb(tariff_id: int, is_active: bool, show_group_button: bool=Fals
         show_group_button: Показывать ли кнопку «Изменить группу» (при >1 группе)
     """
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='Изменить', callback_data=f'admin_tariff_edit:{tariff_id}'))
+    builder.row(InlineKeyboardButton(text='✏️ Изменить', callback_data=f'admin_tariff_edit:{tariff_id}'))
     if is_active:
-        toggle_text = '👁️\u200d🗨️ Скрыть'
+        toggle_text = '👁️‍🗨️ Скрыть'
     else:
         toggle_text = '👁️ Показать'
     builder.row(InlineKeyboardButton(text=toggle_text, callback_data=f'admin_tariff_toggle:{tariff_id}'))
     if show_group_button:
-        builder.row(InlineKeyboardButton(text='Изменить группу', callback_data=f'admin_tariff_change_group:{tariff_id}'))
+        builder.row(InlineKeyboardButton(text='📂 Изменить группу', callback_data=f'admin_tariff_change_group:{tariff_id}'))
+    builder.row(InlineKeyboardButton(text='🗑️ Удалить тариф', callback_data=f'admin_tariff_delete:{tariff_id}'))
     builder.row(back_button('admin_tariffs'), home_button())
     return builder.as_markup()
 

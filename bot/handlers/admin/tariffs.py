@@ -44,6 +44,7 @@ from bot.keyboards.admin import (
     back_and_home_kb,
     group_select_kb
 )
+from bot.utils.text import escape_html
 
 logger = logging.getLogger(__name__)
 
@@ -212,8 +213,69 @@ async def toggle_tariff(callback: CallbackQuery, state: FSMContext):
     await callback.answer(f"Тариф {status_text}")
     
     # Обновляем экран просмотра
-    # Обновляем экран просмотра
     await render_tariff_view(callback.message, tariff_id, state)
+
+
+# ============================================================================
+# УДАЛЕНИЕ ТАРИФА
+# ============================================================================
+
+@router.callback_query(F.data.startswith("admin_tariff_delete:"))
+async def delete_tariff_confirm(callback: CallbackQuery):
+    """Запрашивает подтверждение удаления тарифа."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    tariff_id = int(callback.data.split(":")[1])
+    tariff = get_tariff_by_id(tariff_id)
+    
+    if not tariff:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"admin_tariff_delete_confirm:{tariff_id}")
+    )
+    builder.row(
+        InlineKeyboardButton(text="❌ Отмена", callback_data=f"admin_tariff_view:{tariff_id}")
+    )
+    
+    await safe_edit_or_send(callback.message,
+        f"🗑️ <b>Удаление тарифа</b>\n\n"
+        f"Вы уверены, что хотите удалить тариф <b>«{escape_html(tariff['name'])}»</b>?\n\n"
+        f"⚠️ <b>Внимание:</b> Это действие нельзя отменить!",
+        reply_markup=builder.as_markup()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("admin_tariff_delete_confirm:"))
+async def delete_tariff_execute(callback: CallbackQuery):
+    """Выполняет удаление тарифа."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    tariff_id = int(callback.data.split(":")[1])
+    tariff = get_tariff_by_id(tariff_id)
+    
+    if not tariff:
+        await callback.answer("❌ Тариф не найден", show_alert=True)
+        return
+    
+    from database.requests import delete_tariff
+    
+    if delete_tariff(tariff_id):
+        await callback.answer(f"✅ Тариф «{tariff['name']}» удален", show_alert=True)
+        # Возвращаемся к списку тарифов
+        await show_tariffs_list(callback)
+    else:
+        await callback.answer("❌ Ошибка удаления тарифа", show_alert=True)
 
 
 # ============================================================================
