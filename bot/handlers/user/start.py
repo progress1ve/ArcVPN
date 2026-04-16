@@ -37,8 +37,8 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     user_id = user.get('telegram_id', 0)
     balance = user.get('personal_balance', 0) / 100  # Конвертируем копейки в рубли
     
-    # Формируем динамическое приветствие (всегда актуальное)
-    greeting = (
+    # Формируем блок с информацией пользователя (всегда добавляется в конец)
+    user_info_block = (
         f"Привет, {first_name}!\n\n"
         f"<blockquote>— Ваш ID: {user_id}\n"
         f"— Ваш баланс: {balance:.2f} ₽</blockquote>\n\n"
@@ -51,11 +51,13 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     custom_text = welcome_data.get('text', '').strip()
     photo_file_id = welcome_data.get('photo_file_id')
     
-    # Если в БД есть кастомный текст, используем его вместо дефолтного
+    # Формируем итоговый текст
     if custom_text:
-        welcome_text = custom_text
+        # Если есть кастомный текст, добавляем блок пользователя в конец
+        welcome_text = custom_text + "\n\n" + user_info_block
     else:
-        welcome_text = greeting
+        # Если кастомного текста нет, используем только блок пользователя
+        welcome_text = user_info_block
     
     # Добавляем предложение пробного периода если нужно
     if show_trial_offer:
