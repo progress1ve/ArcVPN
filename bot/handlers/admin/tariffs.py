@@ -255,25 +255,33 @@ async def delete_tariff_confirm(callback: CallbackQuery):
 
 
 @router.callback_query(F.data.startswith("admin_tariff_delete_confirm:"))
-async def delete_tariff_execute(callback: CallbackQuery):
+async def delete_tariff_execute(callback: CallbackQuery, state: FSMContext):
     """Выполняет удаление тарифа."""
+    logger.info(f"delete_tariff_execute вызван для callback_data: {callback.data}")
+    
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ Доступ запрещён", show_alert=True)
         return
     
     tariff_id = int(callback.data.split(":")[1])
+    logger.info(f"Удаление тарифа ID: {tariff_id}")
+    
     tariff = get_tariff_by_id(tariff_id)
     
     if not tariff:
+        logger.warning(f"Тариф ID {tariff_id} не найден")
         await callback.answer("❌ Тариф не найден", show_alert=True)
         return
     
     from database.requests import delete_tariff
     
-    if delete_tariff(tariff_id):
+    result = delete_tariff(tariff_id)
+    logger.info(f"Результат удаления тарифа {tariff_id}: {result}")
+    
+    if result:
         await callback.answer(f"✅ Тариф «{tariff['name']}» удален", show_alert=True)
         # Возвращаемся к списку тарифов
-        await show_tariffs_list(callback)
+        await show_tariffs_list(callback, state)
     else:
         await callback.answer("❌ Ошибка удаления тарифа", show_alert=True)
 
