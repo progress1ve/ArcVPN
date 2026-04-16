@@ -123,6 +123,8 @@ def buy_key_kb(
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура для страницы «Купить ключ».
+    УСТАРЕЛА - используется только для обратной совместимости.
+    Новая логика: buy_key -> tariff_select_kb -> payment_method_kb
 
     Args:
         crypto_url: URL для оплаты криптой (только для стандартного режима)
@@ -181,6 +183,107 @@ def buy_key_kb(
         )
 
     # Кнопка «На главную» — последний ряд
+    builder.row(
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+    )
+
+    return builder.as_markup()
+
+
+def payment_method_kb(
+    tariff_id: int,
+    crypto_url: str = None,
+    crypto_mode: str = 'standard',
+    crypto_configured: bool = False,
+    stars_enabled: bool = False,
+    cards_enabled: bool = False,
+    yookassa_qr_enabled: bool = False,
+    order_id: str = None,
+    show_balance_button: bool = False,
+    demo_enabled: bool = False
+) -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора способа оплаты для конкретного тарифа.
+
+    Args:
+        tariff_id: ID выбранного тарифа
+        crypto_url: URL для оплаты криптой (только для стандартного режима)
+        crypto_mode: Режим интеграции с Ya.Seller ('simple' или 'standard')
+        crypto_configured: Настроена ли крипто-оплата
+        stars_enabled: Показывать ли кнопку оплаты Stars
+        cards_enabled: Показывать ли кнопку оплаты картой ЮКасса
+        yookassa_qr_enabled: Показывать ли кнопку QR-оплаты через ЮКассу
+        order_id: ID созданного ордера
+        show_balance_button: Показывать ли кнопку «Использовать баланс»
+        demo_enabled: Показывать ли демо-оплату
+    """
+    builder = InlineKeyboardBuilder()
+
+    # USDT
+    if crypto_configured:
+        if crypto_mode == 'simple':
+            builder.row(
+                InlineKeyboardButton(
+                    text="🪙 Оплатить USDT", 
+                    callback_data=f"pay_crypto_tariff:{tariff_id}:{order_id}"
+                )
+            )
+        elif crypto_url:
+            builder.row(
+                InlineKeyboardButton(text="🪙 Оплатить USDT", url=crypto_url)
+            )
+
+    # Stars
+    if stars_enabled:
+        builder.row(
+            InlineKeyboardButton(
+                text="⭐ Оплатить звёздами",
+                callback_data=f"pay_stars_tariff:{tariff_id}:{order_id}"
+            )
+        )
+
+    # Карты (Telegram Payments)
+    if cards_enabled:
+        builder.row(
+            InlineKeyboardButton(
+                text="💳 Оплатить картой",
+                callback_data=f"pay_cards_tariff:{tariff_id}:{order_id}"
+            )
+        )
+
+    # QR ЮКасса
+    if yookassa_qr_enabled:
+        builder.row(
+            InlineKeyboardButton(
+                text="📱 QR-оплата (Карта/СБП)", 
+                callback_data=f"pay_qr_tariff:{tariff_id}:{order_id}"
+            )
+        )
+
+    # Демо оплата
+    if demo_enabled:
+        builder.row(
+            InlineKeyboardButton(
+                text="🏦 Демо оплата (РФ карта)", 
+                callback_data=f"demo_pay_tariff:{tariff_id}:{order_id}"
+            )
+        )
+
+    # Использовать баланс
+    if show_balance_button:
+        builder.row(
+            InlineKeyboardButton(
+                text="💎 Использовать баланс", 
+                callback_data=f"pay_balance_tariff:{tariff_id}"
+            )
+        )
+
+    # Назад к списку тарифов
+    builder.row(
+        InlineKeyboardButton(text="◀️ Назад", callback_data="buy_key")
+    )
+    
+    # На главную
     builder.row(
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
@@ -271,7 +374,7 @@ def balance_payment_kb(
     return builder.as_markup()
 
 
-def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: str = None, is_cards: bool = False, is_crypto: bool = False, is_balance: bool = False, is_qr: bool = False, groups_data: list = None, is_demo: bool = False) -> InlineKeyboardMarkup:
+def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: str = None, is_cards: bool = False, is_crypto: bool = False, is_balance: bool = False, is_qr: bool = False, groups_data: list = None, is_demo: bool = False, is_select_only: bool = False) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора тарифа для оплаты Stars, Картами, Криптой или Балансом.
     
@@ -284,6 +387,7 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
         is_balance: True если выбор тарифа для оплаты с баланса
         is_qr: True если выбор тарифа для QR-оплаты (ЮКасса)
         is_demo: True если выбор тарифа для демонстрационной РФ оплаты
+        is_select_only: True если просто выбор тарифа (без привязки к способу оплаты)
         groups_data: Список dict с ключами 'group' и 'tariffs' для группировки.
                      Если None — tariffs отображаются без группировки.
     """
@@ -292,6 +396,25 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
     def _add_tariff_buttons(tariff_list):
         """Добавляет кнопки тарифов в builder."""
         for tariff in tariff_list:
+            # Если is_select_only - показываем все тарифы с callback select_tariff
+            if is_select_only:
+                price_usd = tariff['price_cents'] / 100
+                price_str = f"{price_usd:g}".replace('.', ',')
+                price_rub = tariff.get('price_rub', 0)
+                price_stars = tariff['price_stars']
+                
+                traffic_gb = tariff.get('traffic_limit_gb', 0)
+                traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "∞"
+                
+                text = f"📋 {tariff['name']} — {tariff['duration_days']} дн. / {traffic_text}"
+                cb_data = f"select_tariff:{tariff['id']}"
+                
+                builder.row(
+                    InlineKeyboardButton(text=text, callback_data=cb_data)
+                )
+                continue
+            
+            # Старая логика для конкретных способов оплаты
             if is_crypto:
                 price_usd = tariff['price_cents'] / 100
                 price_str = f"{price_usd:g}".replace('.', ',')
