@@ -58,7 +58,15 @@ def generate_json(config: Dict[str, Any]) -> str:
 # ============================================================================
 
 def _get_remark(config: Dict[str, Any]) -> str:
-    """Формирует имя подключения (remark)."""
+    """Формирует имя подключения (remark) с эмодзи флага."""
+    # Получаем название сервера (может содержать флаг)
+    server_name = config.get('server_name', '')
+    
+    # Если есть название сервера, используем его
+    if server_name:
+        return server_name
+    
+    # Иначе используем старый формат
     remark_part = config.get('inbound_name', 'VPN')
     email_part = config.get('email', '')
     return f"{remark_part}-{email_part}"

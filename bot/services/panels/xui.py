@@ -883,6 +883,7 @@ class XUIClient(BaseVPNClient):
                         "host": self.server["host"],
                         "stream_settings": stream_settings,
                         "inbound_name": inbound.get("remark", "VPN"),
+                        "server_name": self.server.get("name", "VPN Server"),  # Добавляем название сервера
                         "sub_id": target_client.get("subId", ""),
                         "flow": target_client.get("flow", "")
                     }
