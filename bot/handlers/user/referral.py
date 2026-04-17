@@ -84,7 +84,7 @@ async def show_referral_system(callback: CallbackQuery):
         "",
         "📊 <b>Ваша статистика:</b>",
         f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
-        f"Баланс: {escape_html(format_price_compact(balance))}",
+        f"Баланс: {escape_html(format_price_compact(balance))}</blockquote>",
     ]
     
     text = "\n".join(text_lines)
