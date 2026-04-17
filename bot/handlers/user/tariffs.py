@@ -150,26 +150,23 @@ async def select_tariff_handler(callback: CallbackQuery):
     traffic_gb = tariff.get('traffic_limit_gb', 0)
     traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "Безлимит"
     
-    # Если есть кастомный текст, используем его с подстановками
+    # Обязательный блок с информацией о тарифе (всегда добавляется)
+    tariff_info_block = (
+        f"💳 <b>Оплата подписки</b>\n\n"
+        f"<blockquote>Тариф: {escape_html(tariff['name'])}\n"
+        f"Стоимость: {tariff.get('price_rub', 0)} ₽\n"
+        f"Цена: ~${price_str} ₽\n"
+        f"Срок: {tariff['duration_days']} дней\n"
+        f"Трафик: {traffic_text}</blockquote>\n\n"
+        f"Выберите способ оплаты:"
+    )
+    
+    # Если есть кастомный текст, добавляем его перед обязательным блоком
     if custom_text:
-        text = custom_text
-        # Подстановки
-        text = text.replace('%название%', escape_html(tariff['name']))
-        text = text.replace('%цена_usd%', f"${price_str}")
-        text = text.replace('%цена_stars%', str(tariff['price_stars']))
-        text = text.replace('%цена_rub%', str(tariff.get('price_rub', 0)))
-        text = text.replace('%срок%', str(tariff['duration_days']))
-        text = text.replace('%трафик%', traffic_text)
+        text = custom_text + "\n\n" + tariff_info_block
     else:
-        # Дефолтный текст
-        text = (
-            f"💳 <b>Оплата подписки</b>\n\n"
-            f"📋 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
-            f"💰 <b>Цена:</b> ${price_str} / ⭐ {tariff['price_stars']} / ₽ {tariff.get('price_rub', 0)}\n"
-            f"📅 <b>Срок:</b> {tariff['duration_days']} дней\n"
-            f"📦 <b>Трафик:</b> {traffic_text}\n\n"
-            f"Выберите способ оплаты:"
-        )
+        # Если кастомного текста нет, используем только обязательный блок
+        text = tariff_info_block
     
     kb = payment_method_kb(
         tariff_id=tariff_id,
