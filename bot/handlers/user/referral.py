@@ -79,12 +79,12 @@ async def show_referral_system(callback: CallbackQuery):
         "<b>Зарабатывай вместе с нами!</b>",
         "<blockquote>Приглашай друзей по своей уникальной ссылке и получай 50₽ с каждого пополнения.</blockquote>",
         "",
-        "🔗 <b>Ваша ссылка:</b>",
-        f"<code>{escape_html(referral_link)}</code>",
-        "",
         "📊 <b>Ваша статистика:</b>",
         f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
         f"Баланс: {escape_html(format_price_compact(balance))}</blockquote>",
+        "",
+        "🔗 <b>Ваша ссылка:</b>",
+        f"<code>{escape_html(referral_link)}</code>",
     ]
     
     text = "\n".join(text_lines)
