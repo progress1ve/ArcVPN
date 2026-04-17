@@ -44,6 +44,7 @@ async def buy_key_handler(callback: CallbackQuery):
     # Загружаем редактируемый текст из БД
     tariff_select_data = get_message_data('tariff_select_text', '')
     custom_text = tariff_select_data.get('text', '').strip()
+    photo_file_id = tariff_select_data.get('photo_file_id')
     
     # Формируем текст
     if custom_text:
@@ -54,6 +55,7 @@ async def buy_key_handler(callback: CallbackQuery):
     await safe_edit_or_send(
         callback.message,
         text,
+        photo=photo_file_id,
         reply_markup=tariff_select_kb(tariffs, back_callback='start', is_select_only=True)
     )
     await callback.answer()
@@ -139,6 +141,7 @@ async def select_tariff_handler(callback: CallbackQuery):
     # Загружаем редактируемый текст из БД
     payment_select_data = get_message_data('payment_select_text', '')
     custom_text = payment_select_data.get('text', '').strip()
+    photo_file_id = payment_select_data.get('photo_file_id')
     
     # Формируем информацию о тарифе для подстановки
     price_usd = tariff['price_cents'] / 100
@@ -181,5 +184,5 @@ async def select_tariff_handler(callback: CallbackQuery):
         demo_enabled=demo_enabled
     )
     
-    await safe_edit_or_send(callback.message, text, reply_markup=kb)
+    await safe_edit_or_send(callback.message, text, photo=photo_file_id, reply_markup=kb)
     await callback.answer()
