@@ -474,7 +474,6 @@ async def edit_text_start(callback: CallbackQuery, state: FSMContext):
             "💳 <b>Оплата подписки</b>\n\n"
             "<blockquote>Тариф: [название]\n"
             "Стоимость: [цена] ₽\n"
-            "Цена: ~[цена] ₽\n"
             "Срок: [дни] дней\n"
             "Трафик: [лимит]</blockquote>\n\n"
             "Выберите способ оплаты:\n\n"
