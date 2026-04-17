@@ -23,6 +23,7 @@ async def buy_key_handler(callback: CallbackQuery):
     from database.requests import get_all_tariffs
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
+    from bot.utils.message_editor import get_message_data
     
     telegram_id = callback.from_user.id
     
@@ -40,11 +41,15 @@ async def buy_key_handler(callback: CallbackQuery):
         await callback.answer()
         return
     
-    # Показываем список тарифов
-    text = (
-        '💳 <b>Купить подписку</b>\n\n'
-        'Выберите тариф:'
-    )
+    # Загружаем редактируемый текст из БД
+    tariff_select_data = get_message_data('tariff_select_text', '')
+    custom_text = tariff_select_data.get('text', '').strip()
+    
+    # Формируем текст
+    if custom_text:
+        text = custom_text
+    else:
+        text = '💳 <b>Купить подписку</b>\n\nВыберите тариф:'
     
     await safe_edit_or_send(
         callback.message,
@@ -67,6 +72,7 @@ async def select_tariff_handler(callback: CallbackQuery):
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     from bot.keyboards.user import payment_method_kb
     from bot.keyboards.admin import home_only_kb
+    from bot.utils.message_editor import get_message_data
     
     # Получаем ID тарифа из callback_data
     tariff_id = int(callback.data.split(':')[1])
@@ -130,21 +136,37 @@ async def select_tariff_handler(callback: CallbackQuery):
             if balance_cents > 0:
                 show_balance_button = True
     
-    # Формируем текст с информацией о тарифе
+    # Загружаем редактируемый текст из БД
+    payment_select_data = get_message_data('payment_select_text', '')
+    custom_text = payment_select_data.get('text', '').strip()
+    
+    # Формируем информацию о тарифе для подстановки
     price_usd = tariff['price_cents'] / 100
     price_str = f"{price_usd:g}".replace('.', ',')
     
     traffic_gb = tariff.get('traffic_limit_gb', 0)
     traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "Безлимит"
     
-    text = (
-        f"💳 <b>Оплата подписки</b>\n\n"
-        f"📋 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
-        f"💰 <b>Цена:</b> ${price_str} / ⭐ {tariff['price_stars']} / ₽ {tariff.get('price_rub', 0)}\n"
-        f"📅 <b>Срок:</b> {tariff['duration_days']} дней\n"
-        f"📦 <b>Трафик:</b> {traffic_text}\n\n"
-        f"Выберите способ оплаты:"
-    )
+    # Если есть кастомный текст, используем его с подстановками
+    if custom_text:
+        text = custom_text
+        # Подстановки
+        text = text.replace('%название%', escape_html(tariff['name']))
+        text = text.replace('%цена_usd%', f"${price_str}")
+        text = text.replace('%цена_stars%', str(tariff['price_stars']))
+        text = text.replace('%цена_rub%', str(tariff.get('price_rub', 0)))
+        text = text.replace('%срок%', str(tariff['duration_days']))
+        text = text.replace('%трафик%', traffic_text)
+    else:
+        # Дефолтный текст
+        text = (
+            f"💳 <b>Оплата подписки</b>\n\n"
+            f"📋 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
+            f"💰 <b>Цена:</b> ${price_str} / ⭐ {tariff['price_stars']} / ₽ {tariff.get('price_rub', 0)}\n"
+            f"📅 <b>Срок:</b> {tariff['duration_days']} дней\n"
+            f"📦 <b>Трафик:</b> {traffic_text}\n\n"
+            f"Выберите способ оплаты:"
+        )
     
     kb = payment_method_kb(
         tariff_id=tariff_id,

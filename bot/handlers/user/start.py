@@ -43,7 +43,7 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
         f"<blockquote>— Ваш ID: {user_id}\n"
         f"— Ваш баланс: {balance:.2f} ₽</blockquote>\n\n"
         f"Новостной канал — @arcvpn1\n"
-        f"Техническая поддержка — @progressive_dev"
+        f"Поддержка — @progressive_dev"
     )
     
     # Загружаем кастомное сообщение из БД (если есть)

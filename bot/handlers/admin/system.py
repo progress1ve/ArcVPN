@@ -405,6 +405,8 @@ async def edit_texts_menu(callback: CallbackQuery, state: FSMContext):
     builder.row(InlineKeyboardButton(text="📝 Справка (текст)", callback_data="edit_text:help_page_text"))
     builder.row(InlineKeyboardButton(text="📝 Текст перед оплатой", callback_data="edit_text:prepayment_text"))
     builder.row(InlineKeyboardButton(text="📝 Текст выдачи ключа", callback_data="edit_text:key_delivery_text"))
+    builder.row(InlineKeyboardButton(text="📝 Выбор тарифа", callback_data="edit_text:tariff_select_text"))
+    builder.row(InlineKeyboardButton(text="📝 Выбор способа оплаты", callback_data="edit_text:payment_select_text"))
     builder.row(InlineKeyboardButton(text="📢 Ссылка: Новости", callback_data="edit_link:news"))
     builder.row(InlineKeyboardButton(text="💬 Ссылка: Поддержка", callback_data="edit_link:support"))
     
@@ -435,6 +437,8 @@ async def edit_text_start(callback: CallbackQuery, state: FSMContext):
         'help_page_text',
         'prepayment_text',
         'key_delivery_text',
+        'tariff_select_text',
+        'payment_select_text',
     }
     
     if key not in ALLOWED_KEYS:
@@ -456,6 +460,24 @@ async def edit_text_start(callback: CallbackQuery, state: FSMContext):
             "Формат: **Только текст** (без фото).\n\n"
             "Переменные:\n"
             "• <code>%ключ%</code> — вместо этого тега будет подставлен блок с ссылкой на ключ."
+        ),
+        'tariff_select_text': (
+            "📝 <b>Справка: Текст выбора тарифа</b>\n\n"
+            "Этот текст показывается когда пользователь нажимает «Купить подписку».\n\n"
+            "Если не задан, используется дефолтный:\n"
+            "💳 <b>Купить подписку</b>\n\nВыберите тариф:"
+        ),
+        'payment_select_text': (
+            "📝 <b>Справка: Текст выбора способа оплаты</b>\n\n"
+            "Этот текст показывается после выбора тарифа.\n\n"
+            "Доступные переменные:\n"
+            "• <code>%название%</code> — название тарифа\n"
+            "• <code>%цена_usd%</code> — цена в долларах (например: $5)\n"
+            "• <code>%цена_stars%</code> — цена в звёздах (например: 500)\n"
+            "• <code>%цена_rub%</code> — цена в рублях (например: 450)\n"
+            "• <code>%срок%</code> — срок в днях (например: 30)\n"
+            "• <code>%трафик%</code> — лимит трафика (например: 100 ГБ или Безлимит)\n\n"
+            "Если не задан, используется дефолтный формат с информацией о тарифе."
         ),
     }
     
