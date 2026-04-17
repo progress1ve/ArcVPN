@@ -85,13 +85,6 @@ async def show_referral_system(callback: CallbackQuery):
         "📊 <b>Ваша статистика:</b>",
         f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
         f"Баланс: {escape_html(format_price_compact(balance))}",
-        "Способ вывода: не задан",
-        "Реквизиты: не указаны</blockquote>",
-        "",
-        "💎 <i>Вывод доступен от 1000₽</i>",
-        "",
-        "💰 <b>Текущая ставка: 50₽</b>",
-        f"<blockquote>Пример: платёж 540₽ → бонус 50₽</blockquote>",
     ]
     
     text = "\n".join(text_lines)
