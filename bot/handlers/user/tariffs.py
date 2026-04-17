@@ -155,7 +155,6 @@ async def select_tariff_handler(callback: CallbackQuery):
         f"💳 <b>Оплата подписки</b>\n\n"
         f"<blockquote>Тариф: {escape_html(tariff['name'])}\n"
         f"Стоимость: {tariff.get('price_rub', 0)} ₽\n"
-        f"Цена: ~${price_str} ₽\n"
         f"Срок: {tariff['duration_days']} дней\n"
         f"Трафик: {traffic_text}</blockquote>\n\n"
         f"Выберите способ оплаты:"
