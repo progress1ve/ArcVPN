@@ -105,31 +105,20 @@ async def send_key_with_qr(
         # Определяем функцию отправки
         send_func = messageable.answer_photo if hasattr(messageable, 'answer_photo') else messageable.message.answer_photo
         
-        # Отправляем JSON конфиг файлом
-        config_file = BufferedInputFile(json_config.encode('utf-8'), filename=f"vpn_config_{key_data.get('id', 'new')}.json")
-        
+        # Отправляем QR с ключом и клавиатурой
         await send_func(
             photo=photo,
             caption=caption,
+            reply_markup=key_manage_markup,
             parse_mode="HTML"
         )
         
-        # Отправляем файл и клавиатуру отдельным сообщением
-        if hasattr(messageable, 'message'): # Это CallbackQuery
+        # Удаляем старое сообщение если это callback
+        if hasattr(messageable, 'message'):
             try:
                 await messageable.message.delete()
             except:
                 pass
-            answer_func = messageable.message.answer_document
-        else: # Это Message
-            answer_func = messageable.answer_document
-
-        await answer_func(
-            document=config_file,
-            caption="📂 <b>Файл конфигурации</b> (для ручного импорта)",
-            reply_markup=key_manage_markup,
-            parse_mode="HTML"
-        )
 
     except Exception as e:
         logger.error(f"Error sending key: {e}")
