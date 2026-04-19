@@ -265,6 +265,7 @@ async def noop_handler(callback: CallbackQuery):
 async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
     """Проверяет подписку пользователя на канал."""
     from bot.middlewares.subscription_check import REQUIRED_CHANNEL_ID
+    from database.requests import get_or_create_user, is_trial_enabled, has_user_used_trial, is_referral_enabled
     
     user_id = callback.from_user.id
     bot = callback.bot
@@ -276,17 +277,53 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
             return
         
-        # Пользователь подписан - показываем главное меню
+        # Пользователь подписан
         await callback.answer("✅ Спасибо за подписку!")
         
-        # Удаляем сообщение с проверкой подписки
-        try:
-            await callback.message.delete()
-        except:
-            pass
+        # Получаем или создаем пользователя
+        user = get_or_create_user(
+            telegram_id=user_id,
+            username=callback.from_user.username,
+            first_name=callback.from_user.first_name,
+            last_name=callback.from_user.last_name
+        )
         
-        # Показываем стартовое сообщение с главным меню
-        await cmd_start(callback.message, state)
+        # Проверяем доступность пробного периода
+        trial_enabled = is_trial_enabled()
+        trial_used = has_user_used_trial(user_id)
+        show_trial = trial_enabled and not trial_used
+        
+        # Проверяем реферальную систему
+        show_referral = is_referral_enabled()
+        
+        # Проверяем админа
+        is_admin = user_id in ADMIN_IDS
+        
+        # Получаем стартовое сообщение
+        from bot.utils.message_editor import get_message_data
+        start_data = get_message_data('start_message')
+        
+        # Формируем клавиатуру
+        keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+        
+        # Отправляем главное меню
+        if start_data.get('photo'):
+            try:
+                await callback.message.delete()
+            except:
+                pass
+            await callback.message.answer_photo(
+                photo=start_data['photo'],
+                caption=start_data['text'],
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
+        else:
+            await callback.message.edit_text(
+                text=start_data['text'],
+                reply_markup=keyboard,
+                parse_mode='HTML'
+            )
         
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")
