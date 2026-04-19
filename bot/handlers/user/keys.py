@@ -241,7 +241,7 @@ async def key_details_handler(callback: CallbackQuery):
     # Subscription ссылка (только для активных ключей)
     if key_active and not traffic_exhausted:
         subscription_url = get_subscription_url(telegram_id)
-        lines.append(f'\n🔗 <b>Ваша subscription ссылка:</b>\n<code>{subscription_url}</code>')
+        lines.append(f'\n🔗 <b>Ваша подписка:</b>\n<code>{subscription_url}</code>')
         lines.append('\n💡 <i>Скопируйте ссылку и добавьте в VPN клиент (v2rayNG, NekoBox, Shadowrocket)</i>')
     else:
         lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
@@ -251,6 +251,7 @@ async def key_details_handler(callback: CallbackQuery):
     # Клавиатура
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
+    builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="help"))
     builder.row(
         InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
