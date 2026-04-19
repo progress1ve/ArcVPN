@@ -281,11 +281,9 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer("✅ Спасибо за подписку!")
         
         # Получаем или создаем пользователя
-        user = get_or_create_user(
+        user, created = get_or_create_user(
             telegram_id=user_id,
-            username=callback.from_user.username,
-            first_name=callback.from_user.first_name,
-            last_name=callback.from_user.last_name
+            username=callback.from_user.username
         )
         
         # Проверяем доступность пробного периода
