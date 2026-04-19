@@ -194,10 +194,10 @@ async def key_delete_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key:'))
 async def key_details_handler(callback: CallbackQuery):
-    """Показывает subscription ссылку и краткую информацию о ключе."""
+    """Показывает ключ с QR-кодом и краткой информацией."""
     from database.requests import get_key_details_for_user, is_key_active, is_traffic_exhausted
     from bot.services.vpn_api import format_traffic
-    from bot.utils.subscription import get_subscription_url
+    from bot.utils.key_sender import send_key_with_qr
     from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
     
     key_id = int(callback.data.split(':')[1])
@@ -212,41 +212,59 @@ async def key_details_handler(callback: CallbackQuery):
     traffic_exhausted = is_traffic_exhausted(key)
     key_active = is_key_active(key)
     
-    # Формируем сообщение
-    lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]
-    
-    # Статус
-    if traffic_exhausted:
-        lines.append('🔴 <b>Трафик исчерпан</b>')
-    elif key_active:
-        lines.append('🟢 <b>Активен</b>')
+    # Если ключ активен - показываем его с QR
+    if key_active and not traffic_exhausted and key.get('client_uuid'):
+        # Клавиатура для активного ключа
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
+        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="help"))
+        builder.row(
+            InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+        
+        await send_key_with_qr(callback, key, builder.as_markup())
     else:
-        lines.append('🔴 <b>Срок истёк</b>')
-    
-    # Трафик
-    traffic_used = key.get('traffic_used', 0) or 0
-    traffic_limit = key.get('traffic_limit', 0) or 0
-    if traffic_limit > 0:
-        used_str = format_traffic(traffic_used)
-        limit_str = format_traffic(traffic_limit)
-        percent = traffic_used / traffic_limit * 100 if traffic_limit > 0 else 0
-        lines.append(f'📊 <b>Трафик:</b> {used_str} из {limit_str} ({percent:.1f}%)')
-    else:
-        lines.append(f'📊 <b>Трафик:</b> Безлимит')
-    
-    # Срок действия
-    expires = key['expires_at'][:10] if key['expires_at'] else '—'
-    lines.append(f'📅 <b>Действует до:</b> {expires}')
-    
-    # Subscription ссылка (только для активных ключей)
-    if key_active and not traffic_exhausted:
-        subscription_url = get_subscription_url(telegram_id)
-        lines.append(f'\n🔗 <b>Ваша подписка:</b>\n<code>{subscription_url}</code>')
-        lines.append('\n💡 <i>Скопируйте ссылку и добавьте в VPN клиент (v2rayNG, NekoBox, Shadowrocket)</i>')
-    else:
+        # Для неактивных ключей показываем краткую информацию
+        lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]
+        
+        # Статус
+        if traffic_exhausted:
+            lines.append('🔴 <b>Трафик исчерпан</b>')
+        elif key_active:
+            lines.append('🟢 <b>Активен</b>')
+        else:
+            lines.append('🔴 <b>Срок истёк</b>')
+        
+        # Трафик
+        traffic_used = key.get('traffic_used', 0) or 0
+        traffic_limit = key.get('traffic_limit', 0) or 0
+        if traffic_limit > 0:
+            used_str = format_traffic(traffic_used)
+            limit_str = format_traffic(traffic_limit)
+            percent = traffic_used / traffic_limit * 100 if traffic_limit > 0 else 0
+            lines.append(f'📊 <b>Трафик:</b> {used_str} из {limit_str} ({percent:.1f}%)')
+        else:
+            lines.append(f'📊 <b>Трафик:</b> Безлимит')
+        
+        # Срок действия
+        expires = key['expires_at'][:10] if key['expires_at'] else '—'
+        lines.append(f'📅 <b>Действует до:</b> {expires}')
         lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
+        
+        text = '\n'.join(lines)
+        
+        # Клавиатура
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="� Продлить", callback_data=f"key_renew:{key_id}"))
+        builder.row(
+            InlineKeyboardButton(text="� Мои ключи", callback_data="my_keys"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+        
+        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
     
-    text = '\n'.join(lines)
+    await callback.answer()
     
     # Клавиатура
     builder = InlineKeyboardBuilder()
