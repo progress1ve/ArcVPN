@@ -297,12 +297,13 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         # Проверяем админа
         is_admin = user_id in ADMIN_IDS
         
-        # Формируем клавиатуру
-        keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
-        
         # Получаем стартовое сообщение
         from bot.utils.message_editor import get_message_data
         start_data = get_message_data('start_message')
+        
+        # Проверяем, что текст не пустой
+        if not start_data.get('text'):
+            start_data['text'] = "👋 <b>Добро пожаловать в ArcVPN!</b>\n\nВыберите действие:"
         
         # Удаляем старое сообщение
         try:
