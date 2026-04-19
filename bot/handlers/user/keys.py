@@ -194,10 +194,69 @@ async def key_delete_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key:'))
 async def key_details_handler(callback: CallbackQuery):
-    """Детальная информация о ключе с улучшенной статистикой."""
+    """Показывает subscription ссылку и краткую информацию о ключе."""
+    from database.requests import get_key_details_for_user, is_key_active, is_traffic_exhausted
+    from bot.services.vpn_api import format_traffic
+    from bot.utils.subscription import get_subscription_url
+    from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
+    
     key_id = int(callback.data.split(':')[1])
     telegram_id = callback.from_user.id
-    await show_key_details(telegram_id, key_id, callback.message)
+    
+    key = get_key_details_for_user(key_id, telegram_id)
+    if not key:
+        await callback.answer('❌ Ключ не найден', show_alert=True)
+        return
+    
+    # Проверяем статус
+    traffic_exhausted = is_traffic_exhausted(key)
+    key_active = is_key_active(key)
+    
+    # Формируем сообщение
+    lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]
+    
+    # Статус
+    if traffic_exhausted:
+        lines.append('🔴 <b>Трафик исчерпан</b>')
+    elif key_active:
+        lines.append('🟢 <b>Активен</b>')
+    else:
+        lines.append('🔴 <b>Срок истёк</b>')
+    
+    # Трафик
+    traffic_used = key.get('traffic_used', 0) or 0
+    traffic_limit = key.get('traffic_limit', 0) or 0
+    if traffic_limit > 0:
+        used_str = format_traffic(traffic_used)
+        limit_str = format_traffic(traffic_limit)
+        percent = traffic_used / traffic_limit * 100 if traffic_limit > 0 else 0
+        lines.append(f'📊 <b>Трафик:</b> {used_str} из {limit_str} ({percent:.1f}%)')
+    else:
+        lines.append(f'📊 <b>Трафик:</b> Безлимит')
+    
+    # Срок действия
+    expires = key['expires_at'][:10] if key['expires_at'] else '—'
+    lines.append(f'📅 <b>Действует до:</b> {expires}')
+    
+    # Subscription ссылка (только для активных ключей)
+    if key_active and not traffic_exhausted:
+        subscription_url = get_subscription_url(telegram_id)
+        lines.append(f'\n🔗 <b>Ваша subscription ссылка:</b>\n<code>{subscription_url}</code>')
+        lines.append('\n💡 <i>Скопируйте ссылку и добавьте в VPN клиент (v2rayNG, NekoBox, Shadowrocket)</i>')
+    else:
+        lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
+    
+    text = '\n'.join(lines)
+    
+    # Клавиатура
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
+    builder.row(
+        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+    )
+    
+    await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_show:'))
