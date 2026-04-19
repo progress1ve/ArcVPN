@@ -152,12 +152,16 @@ def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_r
         show_trial: Показывать ли кнопку пробного периода
         show_referral: Показывать ли кнопку реферальной программы
     """
+    from database.requests import get_setting
+    
     builder = InlineKeyboardBuilder()
     
     # Если доступен пробный период, показываем его первой кнопкой
     if show_trial:
+        # Получаем количество дней из настроек
+        trial_days = get_setting('trial_duration_days', 7)
         builder.row(
-            InlineKeyboardButton(text="🎁 Получить 7 дней бесплатно", callback_data="trial_activate")
+            InlineKeyboardButton(text=f"🎁 Получить {trial_days} дней бесплатно", callback_data="trial_activate")
         )
     
     # Основные кнопки
@@ -272,11 +276,17 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
             return
         
-        # Пользователь подписан - показываем обычное стартовое сообщение
+        # Пользователь подписан - показываем главное меню
         await callback.answer("✅ Спасибо за подписку!")
         
-        # Перенаправляем на главное меню (с проверкой пробного периода)
-        await callback_start(callback, state)
+        # Удаляем сообщение с проверкой подписки
+        try:
+            await callback.message.delete()
+        except:
+            pass
+        
+        # Показываем стартовое сообщение с главным меню
+        await cmd_start(callback.message, state)
         
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}")

@@ -1,0 +1,14 @@
+[Unit]
+Description=ArcVPN Subscription API
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/ArcVPN
+ExecStart=/usr/bin/python3 /root/ArcVPN/subscription_api.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
