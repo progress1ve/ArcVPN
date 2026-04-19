@@ -265,7 +265,7 @@ async def noop_handler(callback: CallbackQuery):
 async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
     """Проверяет подписку пользователя на канал."""
     from bot.middlewares.subscription_check import REQUIRED_CHANNEL_ID
-    from database.requests import get_or_create_user, is_trial_enabled, has_user_used_trial, is_referral_enabled
+    from database.requests import get_or_create_user, is_trial_enabled, has_used_trial, is_referral_enabled
     
     user_id = callback.from_user.id
     bot = callback.bot
@@ -290,7 +290,7 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         
         # Проверяем доступность пробного периода
         trial_enabled = is_trial_enabled()
-        trial_used = has_user_used_trial(user_id)
+        trial_used = has_used_trial(user_id)
         show_trial = trial_enabled and not trial_used
         
         # Проверяем реферальную систему
