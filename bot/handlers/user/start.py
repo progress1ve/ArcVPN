@@ -300,13 +300,8 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         # Формируем клавиатуру
         keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
         
-        # Получаем стартовое сообщение
-        from bot.utils.message_editor import get_message_data
-        start_data = get_message_data('start_message')
-        
-        # Проверяем, что текст не пустой
-        if not start_data.get('text'):
-            start_data['text'] = "👋 <b>Добро пожаловать в ArcVPN!</b>\n\nВыберите действие:"
+        # Получаем правильное приветственное сообщение
+        (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
         
         # Удаляем старое сообщение
         try:
@@ -315,16 +310,16 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             logger.warning(f"Не удалось удалить сообщение: {e}")
         
         # Отправляем главное меню
-        if start_data.get('photo'):
+        if welcome_photo:
             await callback.message.answer_photo(
-                photo=start_data['photo'],
-                caption=start_data['text'],
+                photo=welcome_photo,
+                caption=text,
                 reply_markup=keyboard,
                 parse_mode='HTML'
             )
         else:
             await callback.message.answer(
-                text=start_data['text'],
+                text=text,
                 reply_markup=keyboard,
                 parse_mode='HTML'
             )
