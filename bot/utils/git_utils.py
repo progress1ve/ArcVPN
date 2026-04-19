@@ -270,19 +270,40 @@ def pull_updates() -> Tuple[bool, str]:
     """
     Выполняет git pull для обновления кода.
     
+    Автоматически сохраняет локальные изменения через stash.
+    
     Returns:
         (success, message) - сообщение содержит информацию о коммите
     """
+    # Проверяем наличие локальных изменений
     success, status = run_git_command(['status', '--porcelain'])
-    if success and status.strip():
-        return False, "❌ Есть локальные изменения. Сделайте commit или stash перед обновлением."
+    has_changes = success and status.strip()
     
+    # Если есть изменения - делаем stash
+    if has_changes:
+        logger.info("Обнаружены локальные изменения, выполняется stash...")
+        success, stash_output = run_git_command(['stash', 'push', '-m', 'Auto-stash before update'])
+        if not success:
+            return False, f"❌ Ошибка сохранения изменений:\n{stash_output}"
+    
+    # Выполняем pull
     success, output = run_git_command(['pull', 'origin'], timeout=120)
     
     if not success:
+        # Если pull не удался, пытаемся вернуть stash
+        if has_changes:
+            run_git_command(['stash', 'pop'])
+        
         if 'conflict' in output.lower():
             return False, "❌ Конфликт слияния. Требуется ручное разрешение."
         return False, f"❌ Ошибка обновления:\n{output}"
+    
+    # Возвращаем stash обратно
+    if has_changes:
+        success_pop, pop_output = run_git_command(['stash', 'pop'])
+        if not success_pop:
+            logger.warning(f"Не удалось вернуть stash: {pop_output}")
+            # Не возвращаем ошибку, т.к. обновление прошло успешно
     
     commit_info = get_last_commit_info('HEAD')
     return True, f"✅ Обновление успешно!\n\n🔹 Последний коммит:\n<pre>{commit_info}</pre>"
