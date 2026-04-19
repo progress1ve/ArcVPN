@@ -7,6 +7,8 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.services.vpn_api import get_client
 from bot.utils.key_generator import generate_link, generate_json, generate_qr_code
+from bot.utils.subscription import get_subscription_url, format_subscription_message
+from database.requests import get_user_keys_for_display
 
 logger = logging.getLogger(__name__)
 
@@ -160,3 +162,45 @@ async def _send_text(messageable, text, markup):
     else:
         func = messageable.answer if hasattr(messageable, 'answer') else messageable.message.answer
         await func(text, reply_markup=markup, parse_mode="HTML")
+
+
+async def send_subscription_link(
+    messageable,
+    telegram_id: int,
+    key_manage_markup: InlineKeyboardMarkup = None
+):
+    """
+    Отправляет пользователю subscription ссылку вместо прямых ключей.
+    
+    Args:
+        messageable: Объект Message или CallbackQuery
+        telegram_id: Telegram ID пользователя
+        key_manage_markup: Клавиатура управления (опционально)
+    """
+    from bot.utils.text import safe_edit_or_send
+    
+    try:
+        # Получаем количество активных ключей
+        keys = get_user_keys_for_display(telegram_id)
+        active_keys = [k for k in keys if k['is_active']]
+        key_count = len(active_keys)
+        
+        # Генерируем сообщение с subscription URL
+        message_text = format_subscription_message(telegram_id, key_count)
+        
+        # Отправляем
+        if hasattr(messageable, 'text') or hasattr(messageable, 'photo'):
+            # Это Message
+            await safe_edit_or_send(messageable, message_text, reply_markup=key_manage_markup, force_new=True)
+        elif hasattr(messageable, 'message'):
+            # Это CallbackQuery
+            await safe_edit_or_send(messageable.message, message_text, reply_markup=key_manage_markup)
+        else:
+            func = messageable.answer if hasattr(messageable, 'answer') else messageable.message.answer
+            await func(message_text, reply_markup=key_manage_markup, parse_mode="HTML")
+            
+        logger.info(f"Отправлена subscription ссылка пользователю {telegram_id} ({key_count} ключей)")
+        
+    except Exception as e:
+        logger.error(f"Ошибка отправки subscription ссылки: {e}")
+        await _send_error(messageable, f"Ошибка отправки subscription: {e}", key_manage_markup)

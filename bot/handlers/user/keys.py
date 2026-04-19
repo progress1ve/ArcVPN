@@ -223,6 +223,16 @@ async def key_show_handler(callback: CallbackQuery):
     await send_key_with_qr(callback, key, key_show_kb(key_id))
     await callback.answer()
 
+@router.callback_query(F.data == 'show_subscription')
+async def show_subscription_handler(callback: CallbackQuery):
+    """Показать subscription ссылку пользователю."""
+    from bot.utils.key_sender import send_subscription_link
+    from bot.keyboards.user import back_and_home_kb
+    
+    telegram_id = callback.from_user.id
+    await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
+    await callback.answer()
+
 @router.callback_query(F.data.startswith('key_renew:'))
 async def key_renew_select_payment(callback: CallbackQuery):
     """Выбор способа оплаты для продления (сразу, без тарифа)."""

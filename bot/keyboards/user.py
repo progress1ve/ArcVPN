@@ -613,7 +613,13 @@ def key_manage_kb(key_id: int, is_unconfigured: bool = False, is_active: bool = 
             InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     
-    # ТРЕТИЙ ряд (унифицированный): Инструкция и Мои ключи
+    # Кнопка Subscription ссылка (для всех активных ключей)
+    if is_active and not is_unconfigured:
+        builder.row(
+            InlineKeyboardButton(text="🔗 Subscription ссылка", callback_data="show_subscription")
+        )
+    
+    # ПОСЛЕДНИЙ ряд (унифицированный): Мои ключи и На главную
     builder.row(
         InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
