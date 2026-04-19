@@ -299,19 +299,21 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         # Проверяем админа
         is_admin = user_id in ADMIN_IDS
         
+        # Формируем клавиатуру
+        keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+        
         # Получаем стартовое сообщение
         from bot.utils.message_editor import get_message_data
         start_data = get_message_data('start_message')
         
-        # Формируем клавиатуру
-        keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+        # Удаляем старое сообщение
+        try:
+            await callback.message.delete()
+        except Exception as e:
+            logger.warning(f"Не удалось удалить сообщение: {e}")
         
         # Отправляем главное меню
         if start_data.get('photo'):
-            try:
-                await callback.message.delete()
-            except:
-                pass
             await callback.message.answer_photo(
                 photo=start_data['photo'],
                 caption=start_data['text'],
@@ -319,12 +321,12 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
                 parse_mode='HTML'
             )
         else:
-            await callback.message.edit_text(
+            await callback.message.answer(
                 text=start_data['text'],
                 reply_markup=keyboard,
                 parse_mode='HTML'
             )
         
     except Exception as e:
-        logger.error(f"Ошибка проверки подписки: {e}")
+        logger.error(f"Ошибка проверки подписки: {e}", exc_info=True)
         await callback.answer("❌ Ошибка проверки подписки", show_alert=True)
