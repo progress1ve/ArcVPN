@@ -273,11 +273,19 @@ async def pay_qr_handler(callback: CallbackQuery):
         
         try:
             # Создаем платеж в ЮКассе
-            (payment_id, qr_url, qr_image_data) = create_yookassa_qr_payment(
-                amount=price_rub,
+            bot_info = await callback.bot.get_me()
+            bot_name = bot_info.username
+            
+            result = await create_yookassa_qr_payment(
+                amount_rub=price_rub,
+                order_id=order_id,
                 description=f"Тариф {tariff['name']}",
-                order_id=order_id
+                bot_name=bot_name
             )
+            
+            payment_id = result['yookassa_payment_id']
+            qr_url = result.get('qr_url', '')
+            qr_image_data = result.get('qr_image_data')
             
             save_yookassa_payment_id(order_id, payment_id)
             
