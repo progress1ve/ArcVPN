@@ -964,11 +964,39 @@ def key_issued_kb() -> InlineKeyboardMarkup:
     
     # Первый ряд
     builder.row(
-        InlineKeyboardButton(text="📄 Инструкция", callback_data="help"),
+        InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"),
         InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys")
     )
     
     # Второй ряд
+    builder.row(
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+    )
+    
+    return builder.as_markup()
+
+
+def device_instructions_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора устройства для инструкции.
+    
+    Layout:
+    1. Apple
+    2. Android
+    3. Windows
+    4. На главную
+    """
+    builder = InlineKeyboardBuilder()
+    
+    builder.row(
+        InlineKeyboardButton(text="🍎 Apple", callback_data="instruction_apple")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🤖 Android", callback_data="instruction_android")
+    )
+    builder.row(
+        InlineKeyboardButton(text="🪟 Windows", callback_data="instruction_windows")
+    )
     builder.row(
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )

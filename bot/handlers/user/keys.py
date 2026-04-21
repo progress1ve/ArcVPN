@@ -217,7 +217,7 @@ async def key_details_handler(callback: CallbackQuery):
         # Клавиатура для активного ключа
         builder = InlineKeyboardBuilder()
         builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
-        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="help"))
+        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
         builder.row(
             InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
@@ -265,18 +265,6 @@ async def key_details_handler(callback: CallbackQuery):
         await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
     
     await callback.answer()
-    
-    # Клавиатура
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
-    builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="help"))
-    builder.row(
-        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
-        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-    )
-    
-    await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-    await callback.answer()
 
 @router.callback_query(F.data.startswith('key_show:'))
 async def key_show_handler(callback: CallbackQuery):
@@ -299,6 +287,89 @@ async def key_show_handler(callback: CallbackQuery):
     except Exception:
         pass
     await send_key_with_qr(callback, key, key_show_kb(key_id))
+    await callback.answer()
+
+@router.callback_query(F.data == 'device_instructions')
+async def device_instructions_handler(callback: CallbackQuery):
+    """Показывает меню выбора устройства для инструкции."""
+    from bot.keyboards.user import device_instructions_kb
+    
+    text = (
+        "📱 <b>Выберите ваше устройство</b>\n\n"
+        "Мы используем самый скрытный и надежный протокол VLESS Reality.\n\n"
+        "Для подключения нужно скачать приложение и вставить ссылку."
+    )
+    
+    await safe_edit_or_send(callback.message, text, reply_markup=device_instructions_kb())
+    await callback.answer()
+
+@router.callback_query(F.data == 'instruction_apple')
+async def instruction_apple_handler(callback: CallbackQuery):
+    """Инструкция для Apple устройств."""
+    from bot.keyboards.user import back_and_home_kb
+    
+    text = (
+        "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение\n"
+        "• iOS: <a href='https://apps.apple.com/app/streisand/id6450534064'>Streisand</a>\n"
+        "• macOS: <a href='https://apps.apple.com/app/streisand/id6450534064'>Streisand</a>\n\n"
+        "<b>Шаг 2:</b> Скопируйте ваш ключ\n"
+        "Нажмите на кнопку «Показать ключ» и скопируйте ссылку\n\n"
+        "<b>Шаг 3:</b> Добавьте ключ в приложение\n"
+        "• Откройте Streisand\n"
+        "• Нажмите «+» или «Add Server»\n"
+        "• Вставьте скопированную ссылку\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
+        "Нажмите на кнопку подключения в приложении"
+    )
+    
+    await safe_edit_or_send(callback.message, text, reply_markup=back_and_home_kb('device_instructions'))
+    await callback.answer()
+
+@router.callback_query(F.data == 'instruction_android')
+async def instruction_android_handler(callback: CallbackQuery):
+    """Инструкция для Android устройств."""
+    from bot.keyboards.user import back_and_home_kb
+    
+    text = (
+        "🤖 <b>Инструкция для Android</b>\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение\n"
+        "• <a href='https://play.google.com/store/apps/details?id=ang.hiddify.com'>Hiddify</a>\n"
+        "• Или <a href='https://play.google.com/store/apps/details?id=com.v2ray.ang'>v2rayNG</a>\n\n"
+        "<b>Шаг 2:</b> Скопируйте ваш ключ\n"
+        "Нажмите на кнопку «Показать ключ» и скопируйте ссылку\n\n"
+        "<b>Шаг 3:</b> Добавьте ключ в приложение\n"
+        "• Откройте приложение\n"
+        "• Нажмите «+» или «Импорт»\n"
+        "• Выберите «Импорт из буфера обмена»\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
+        "Нажмите на кнопку подключения в приложении"
+    )
+    
+    await safe_edit_or_send(callback.message, text, reply_markup=back_and_home_kb('device_instructions'))
+    await callback.answer()
+
+@router.callback_query(F.data == 'instruction_windows')
+async def instruction_windows_handler(callback: CallbackQuery):
+    """Инструкция для Windows."""
+    from bot.keyboards.user import back_and_home_kb
+    
+    text = (
+        "🪟 <b>Инструкция для Windows</b>\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение\n"
+        "• <a href='https://github.com/hiddify/hiddify-next/releases'>Hiddify</a>\n"
+        "• Или <a href='https://github.com/2dust/v2rayN/releases'>v2rayN</a>\n\n"
+        "<b>Шаг 2:</b> Скопируйте ваш ключ\n"
+        "Нажмите на кнопку «Показать ключ» и скопируйте ссылку\n\n"
+        "<b>Шаг 3:</b> Добавьте ключ в приложение\n"
+        "• Откройте приложение\n"
+        "• Нажмите «Добавить сервер» или Ctrl+V\n"
+        "• Вставьте скопированную ссылку\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
+        "Нажмите на кнопку подключения в приложении"
+    )
+    
+    await safe_edit_or_send(callback.message, text, reply_markup=back_and_home_kb('device_instructions'))
     await callback.answer()
 
 @router.callback_query(F.data == 'show_subscription')
