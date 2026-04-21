@@ -61,21 +61,93 @@ async def renew_stars_invoice(callback: CallbackQuery):
     await callback.answer()
 
 @router.callback_query(F.data.startswith('pay_stars'))
-async def pay_stars_select_tariff(callback: CallbackQuery):
-    """Выбор тарифа для оплаты Stars."""
-    from database.requests import get_all_tariffs
+async def pay_stars_handler(callback: CallbackQuery):
+    """Обработчик оплаты Stars - создает инвойс напрямую если тариф уже выбран."""
+    from aiogram.types import LabeledPrice
+    from database.requests import (
+        get_tariff_by_id, get_user_internal_id, create_pending_order,
+        update_order_tariff, get_all_tariffs
+    )
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
-    order_id = None
-    if ':' in callback.data:
-        order_id = callback.data.split(':')[1]
-    tariffs = get_all_tariffs(include_hidden=False)
-    if not tariffs:
-        await safe_edit_or_send(callback.message, '⭐ <b>Оплата звёздами</b>\n\n😔 Нет доступных тарифов.\n\nПопробуйте позже или обратитесь в поддержку.', reply_markup=home_only_kb())
+    
+    # Парсим callback_data
+    parts = callback.data.split(':')
+    
+    # Если формат pay_stars_tariff:tariff_id:order_id - тариф уже выбран
+    if len(parts) >= 3 and parts[0] == 'pay_stars_tariff':
+        tariff_id = int(parts[1])
+        order_id = parts[2] if len(parts) > 2 else None
+        
+        tariff = get_tariff_by_id(tariff_id)
+        if not tariff:
+            await callback.answer('❌ Тариф не найден', show_alert=True)
+            return
+        
+        days = tariff['duration_days']
+        
+        # Создаем или обновляем заказ
+        if order_id:
+            update_order_tariff(order_id, tariff_id, payment_type='stars')
+        else:
+            user_id = get_user_internal_id(callback.from_user.id)
+            if not user_id:
+                await callback.answer('❌ Ошибка пользователя', show_alert=True)
+                return
+            (_, order_id) = create_pending_order(
+                user_id=user_id,
+                tariff_id=tariff_id,
+                payment_type='stars',
+                vpn_key_id=None
+            )
+        
+        price_stars = tariff['price_stars']
+        
+        try:
+            bot_info = await callback.bot.get_me()
+            bot_name = bot_info.first_name
+            
+            await callback.message.answer_invoice(
+                title=bot_name,
+                description=f"Оплата тарифа «{tariff['name']}» ({days} дн.).",
+                payload=f'vpn_key:{order_id}',
+                provider_token='',
+                currency='XTR',
+                prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_stars)],
+                reply_markup=InlineKeyboardBuilder().row(
+                    InlineKeyboardButton(text=f'⭐ Оплатить {price_stars} звёзд', pay=True)
+                ).row(
+                    InlineKeyboardButton(text='❌ Отмена', callback_data='buy_key')
+                ).as_markup()
+            )
+            
+            await callback.message.delete()
+            await callback.answer()
+            
+        except Exception as e:
+            logger.exception('Ошибка при отправке инвойса Stars.')
+            await callback.answer('❌ Ошибка создания инвойса', show_alert=True)
+    
+    else:
+        # Старая логика - показываем выбор тарифа
+        order_id = parts[1] if len(parts) > 1 else None
+        tariffs = get_all_tariffs(include_hidden=False)
+        
+        if not tariffs:
+            await safe_edit_or_send(
+                callback.message,
+                '⭐ <b>Оплата звёздами</b>\n\n😔 Нет доступных тарифов.\n\nПопробуйте позже.',
+                reply_markup=home_only_kb()
+            )
+            await callback.answer()
+            return
+        
+        await safe_edit_or_send(
+            callback.message,
+            '⭐ <b>Оплата звёздами</b>\n\nВыберите тариф:',
+            reply_markup=tariff_select_kb(tariffs, order_id=order_id)
+        )
         await callback.answer()
-        return
-    await safe_edit_or_send(callback.message, '⭐ <b>Оплата звёздами</b>\n\nВыберите тариф:', reply_markup=tariff_select_kb(tariffs, order_id=order_id))
-    await callback.answer()
 
 @router.callback_query(F.data.startswith('stars_pay:'))
 async def pay_stars_invoice(callback: CallbackQuery):
