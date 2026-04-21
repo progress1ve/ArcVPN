@@ -228,20 +228,103 @@ async def renew_cards_invoice(callback: CallbackQuery):
     await callback.message.delete()
     await callback.answer()
 
-@router.callback_query(F.data == 'pay_qr')
-async def pay_qr_select_tariff(callback: CallbackQuery):
-    """Выбор тарифа для QR-оплаты (Новый ключ)."""
-    from database.requests import get_all_tariffs
-    from bot.keyboards.user import tariff_select_kb
+@router.callback_query(F.data.startswith('pay_qr'))
+async def pay_qr_handler(callback: CallbackQuery):
+    """Обработчик QR-оплаты - создает платеж напрямую если тариф уже выбран."""
+    from database.requests import (
+        get_tariff_by_id, get_user_internal_id, create_pending_order,
+        save_yookassa_payment_id, get_all_tariffs
+    )
+    from bot.services.billing import create_yookassa_qr_payment
+    from bot.keyboards.user import yookassa_qr_kb, tariff_select_kb
     from bot.keyboards.admin import home_only_kb
-    tariffs = get_all_tariffs(include_hidden=False)
-    rub_tariffs = [t for t in tariffs if t.get('price_rub') and t['price_rub'] > 0]
-    if not rub_tariffs:
-        await safe_edit_or_send(callback.message, '📱 <b>QR-оплата</b>\n\n😔 Для QR-оплаты не настроены цены в рублях.\nОбратитесь к администратору.', reply_markup=home_only_kb())
+    
+    # Парсим callback_data
+    parts = callback.data.split(':')
+    
+    # Если формат pay_qr_tariff:tariff_id:order_id - тариф уже выбран
+    if len(parts) >= 3 and parts[0] == 'pay_qr_tariff':
+        tariff_id = int(parts[1])
+        order_id = parts[2] if len(parts) > 2 else None
+        
+        tariff = get_tariff_by_id(tariff_id)
+        if not tariff:
+            await callback.answer('❌ Тариф не найден', show_alert=True)
+            return
+        
+        price_rub = float(tariff.get('price_rub') or 0)
+        if price_rub <= 0:
+            await callback.answer('❌ Цена в рублях не задана для этого тарифа', show_alert=True)
+            return
+        
+        user_id = get_user_internal_id(callback.from_user.id)
+        if not user_id:
+            await callback.answer('❌ Ошибка пользователя', show_alert=True)
+            return
+        
+        # Создаем заказ если нет
+        if not order_id:
+            (_, order_id) = create_pending_order(
+                user_id=user_id,
+                tariff_id=tariff_id,
+                payment_type='yookassa_qr',
+                vpn_key_id=None
+            )
+        
+        try:
+            # Создаем платеж в ЮКассе
+            (payment_id, qr_url, qr_image_data) = create_yookassa_qr_payment(
+                amount=price_rub,
+                description=f"Тариф {tariff['name']}",
+                order_id=order_id
+            )
+            
+            save_yookassa_payment_id(order_id, payment_id)
+            
+            text = (
+                f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n"
+                f"📦 Тариф: <b>{escape_html(tariff['name'])}</b>\n"
+                f"💵 Сумма: <b>{price_rub} ₽</b>\n\n"
+                f"Отсканируйте QR-код камерой телефона или нажмите кнопку «Оплатить».\n\n"
+                f"После оплаты нажмите «Я оплатил»."
+            )
+            
+            from aiogram.types import BufferedInputFile
+            photo = BufferedInputFile(qr_image_data, filename='qr.png')
+            
+            await safe_edit_or_send(
+                callback.message,
+                text,
+                photo=photo,
+                reply_markup=yookassa_qr_kb(order_id, back_callback='buy_key', qr_url=qr_url),
+                force_new=True
+            )
+            await callback.answer()
+            
+        except (ValueError, RuntimeError) as e:
+            logger.error(f'Ошибка создания QR ЮКасса: {e}')
+            await callback.answer(f'❌ Ошибка создания платежа: {e}', show_alert=True)
+    
+    else:
+        # Старая логика - показываем выбор тарифа
+        tariffs = get_all_tariffs(include_hidden=False)
+        rub_tariffs = [t for t in tariffs if t.get('price_rub') and t['price_rub'] > 0]
+        
+        if not rub_tariffs:
+            await safe_edit_or_send(
+                callback.message,
+                '📱 <b>QR-оплата</b>\n\n😔 Для QR-оплаты не настроены цены в рублях.\nОбратитесь к администратору.',
+                reply_markup=home_only_kb()
+            )
+            await callback.answer()
+            return
+        
+        await safe_edit_or_send(
+            callback.message,
+            '📱 <b>QR-оплата (Карта/СБП)</b>\n\nВыберите тариф:\n\n<i>Оплата через ЮКассу — поддерживает банковские карты и СБП.</i>',
+            reply_markup=tariff_select_kb(rub_tariffs, is_qr=True)
+        )
         await callback.answer()
-        return
-    await safe_edit_or_send(callback.message, '📱 <b>QR-оплата (Карта/СБП)</b>\n\nВыберите тариф:\n\n<i>Оплата через ЮКассу — поддерживает банковские карты и СБП.</i>', reply_markup=tariff_select_kb(rub_tariffs, is_qr=True))
-    await callback.answer()
 
 @router.callback_query(F.data.startswith('qr_pay:'))
 async def qr_pay_create(callback: CallbackQuery):

@@ -70,21 +70,98 @@ async def renew_crypto_invoice(callback: CallbackQuery):
     await callback.answer()
 
 @router.callback_query(F.data.startswith('pay_crypto'))
-async def pay_crypto_select_tariff(callback: CallbackQuery):
-    """Выбор тарифа для оплаты Crypto."""
-    from database.requests import get_all_tariffs
-    from bot.keyboards.user import tariff_select_kb
+async def pay_crypto_handler(callback: CallbackQuery):
+    """Обработчик оплаты Crypto - создает ссылку напрямую если тариф уже выбран."""
+    from database.requests import (
+        get_tariff_by_id, get_user_internal_id, create_pending_order,
+        update_order_tariff, get_setting, get_all_tariffs
+    )
+    from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
+    from bot.keyboards.user import tariff_select_kb, InlineKeyboardBuilder, InlineKeyboardButton
     from bot.keyboards.admin import home_only_kb
-    order_id = None
-    if ':' in callback.data:
-        order_id = callback.data.split(':')[1]
-    tariffs = get_all_tariffs(include_hidden=False)
-    if not tariffs:
-        await safe_edit_or_send(callback.message, '💰 <b>Оплата криптовалютой</b>\n\n😔 Нет доступных тарифов.\n\nПопробуйте позже или обратитесь в поддержку.', reply_markup=home_only_kb())
+    
+    # Парсим callback_data
+    parts = callback.data.split(':')
+    
+    # Если формат pay_crypto_tariff:tariff_id:order_id - тариф уже выбран
+    if len(parts) >= 3 and parts[0] == 'pay_crypto_tariff':
+        tariff_id = int(parts[1])
+        order_id = parts[2] if len(parts) > 2 else None
+        
+        tariff = get_tariff_by_id(tariff_id)
+        if not tariff:
+            await callback.answer('❌ Тариф не найден', show_alert=True)
+            return
+        
+        # Создаем или обновляем заказ
+        if order_id:
+            update_order_tariff(order_id, tariff_id, payment_type='crypto')
+        else:
+            user_id = get_user_internal_id(callback.from_user.id)
+            if not user_id:
+                await callback.answer('❌ Ошибка пользователя', show_alert=True)
+                return
+            (_, order_id) = create_pending_order(
+                user_id=user_id,
+                tariff_id=tariff_id,
+                payment_type='crypto',
+                vpn_key_id=None
+            )
+        
+        # Получаем настройки крипто-оплаты
+        item_url = get_setting('crypto_item_url')
+        item_id = extract_item_id_from_url(item_url)
+        
+        if not item_id:
+            await callback.answer('❌ Крипто-оплата не настроена', show_alert=True)
+            return
+        
+        # Генерируем ссылку на оплату
+        price_cents = tariff['price_cents']
+        payment_url = build_crypto_payment_url(
+            item_id=item_id,
+            invoice_id=order_id,
+            tariff_external_id=tariff.get('external_id'),
+            price_cents=price_cents
+        )
+        
+        price_usd = price_cents / 100
+        price_str = f"{price_usd:g}".replace('.', ',')
+        
+        text = (
+            f"🪙 <b>Оплата USDT</b>\n\n"
+            f"📦 Тариф: <b>{escape_html(tariff['name'])}</b>\n"
+            f"💵 Сумма: <b>${price_str}</b>\n\n"
+            f"Нажмите кнопку ниже для оплаты:"
+        )
+        
+        keyboard = InlineKeyboardBuilder()
+        keyboard.row(InlineKeyboardButton(text=f"💳 Оплатить ${price_str}", url=payment_url))
+        keyboard.row(InlineKeyboardButton(text="❌ Отмена", callback_data="buy_key"))
+        
+        await safe_edit_or_send(callback.message, text, reply_markup=keyboard.as_markup())
         await callback.answer()
-        return
-    await safe_edit_or_send(callback.message, '💰 <b>Оплата криптовалютой</b>\n\nВыберите тариф:', reply_markup=tariff_select_kb(tariffs, order_id=order_id, is_crypto=True))
-    await callback.answer()
+    
+    else:
+        # Старая логика - показываем выбор тарифа
+        order_id = parts[1] if len(parts) > 1 else None
+        tariffs = get_all_tariffs(include_hidden=False)
+        
+        if not tariffs:
+            await safe_edit_or_send(
+                callback.message,
+                '💰 <b>Оплата криптовалютой</b>\n\n😔 Нет доступных тарифов.\n\nПопробуйте позже.',
+                reply_markup=home_only_kb()
+            )
+            await callback.answer()
+            return
+        
+        await safe_edit_or_send(
+            callback.message,
+            '💰 <b>Оплата криптовалютой</b>\n\nВыберите тариф:',
+            reply_markup=tariff_select_kb(tariffs, order_id=order_id, is_crypto=True)
+        )
+        await callback.answer()
 
 @router.callback_query(F.data.startswith('crypto_pay:'))
 async def pay_crypto_invoice(callback: CallbackQuery):
