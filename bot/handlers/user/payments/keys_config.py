@@ -119,8 +119,11 @@ async def process_new_key_final(callback: CallbackQuery, state: FSMContext, serv
         update_vpn_key_config(key_id=key_id, server_id=server_id, panel_inbound_id=inbound_id, panel_email=panel_email, client_uuid=client_uuid)
         update_payment_key_id(order_id, key_id)
         await state.clear()
-        new_key = get_key_details_for_user(key_id, telegram_id)
-        await send_key_with_qr(callback, new_key, key_issued_kb(), is_new=True)
+        
+        # Показываем subscription ссылку вместо отдельного ключа
+        from bot.utils.key_sender import send_subscription_link
+        from bot.keyboards.user import back_and_home_kb
+        await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
     except Exception as e:
         logger.error(f'Ошибка настройки ключа (id={key_id}): {e}')
         await safe_edit_or_send(callback.message, f'❌ Ошибка настройки ключа: {escape_html(str(e))}\nОбратитесь в поддержку, указав Order ID: ' + str(order_id))

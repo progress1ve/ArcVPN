@@ -212,18 +212,13 @@ async def key_details_handler(callback: CallbackQuery):
     traffic_exhausted = is_traffic_exhausted(key)
     key_active = is_key_active(key)
     
-    # Если ключ активен - показываем его с QR
-    if key_active and not traffic_exhausted and key.get('client_uuid'):
-        # Клавиатура для активного ключа
-        builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
-        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
-        builder.row(
-            InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
-            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-        )
+    # Для активных ключей показываем subscription ссылку
+    if key_active and not traffic_exhausted:
+        # Показываем subscription ссылку вместо отдельного ключа
+        from bot.utils.key_sender import send_subscription_link
+        from bot.keyboards.user import back_and_home_kb
         
-        await send_key_with_qr(callback, key, builder.as_markup())
+        await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
     else:
         # Для неактивных ключей показываем краткую информацию
         lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]
@@ -268,25 +263,14 @@ async def key_details_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key_show:'))
 async def key_show_handler(callback: CallbackQuery):
-    """Показать ключ для копирования (с QR и JSON)."""
-    from database.requests import get_key_details_for_user
-    from bot.keyboards.user import key_show_kb
-    from bot.utils.key_sender import send_key_with_qr
-    key_id = int(callback.data.split(':')[1])
+    """Показать subscription ссылку (заменяет показ отдельного ключа)."""
+    from bot.utils.key_sender import send_subscription_link
+    from bot.keyboards.user import back_and_home_kb
+    
     telegram_id = callback.from_user.id
-    key = get_key_details_for_user(key_id, telegram_id)
-    if not key:
-        await callback.answer('❌ Ключ не найден или вы не являетесь его владельцем.', show_alert=True)
-        return
-    if not key['client_uuid']:
-        await safe_edit_or_send(callback.message, '📋 <b>Показать ключ</b>\n\n⚠️ Ключ ещё не создан на сервере.\nОбратитесь в поддержку.', reply_markup=key_show_kb(key_id))
-        await callback.answer()
-        return
-    try:
-        await safe_edit_or_send(callback.message, '⏳ Получение данных ключа...')
-    except Exception:
-        pass
-    await send_key_with_qr(callback, key, key_show_kb(key_id))
+    
+    # Показываем subscription ссылку вместо отдельного ключа
+    await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
     await callback.answer()
 
 @router.callback_query(F.data == 'device_instructions')
@@ -574,8 +558,11 @@ async def key_replace_execute(callback: CallbackQuery, state: FSMContext):
             bulk_update_traffic([(traffic_used, key_id)])
             logger.info(f'Перенос трафика ключа {key_id}: остаток {remaining_bytes / 1024 ** 3:.1f} ГБ (totalGB на сервере), полный тариф {traffic_limit / 1024 ** 3:.1f} ГБ, использовано {traffic_used / 1024 ** 3:.1f} ГБ')
         await state.clear()
-        updated_key = get_key_details_for_user(key_id, telegram_id)
-        await send_key_with_qr(callback, updated_key, key_issued_kb(), is_new=True)
+        
+        # Показываем subscription ссылку вместо отдельного ключа
+        from bot.utils.key_sender import send_subscription_link
+        from bot.keyboards.user import back_and_home_kb
+        await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
     except Exception as e:
         logger.error(f'Ошибка при замене ключа (user={callback.from_user.id}, key={key_id}): {e}')
         await safe_edit_or_send(callback.message, '❌ Произошла ошибка при замене ключа.\n\nПопробуйте позже или обратитесь в поддержку.')

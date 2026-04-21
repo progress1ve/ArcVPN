@@ -602,10 +602,9 @@ def key_manage_kb(key_id: int, is_unconfigured: bool = False, is_active: bool = 
             InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     else:
-        # Стандартные кнопки активного ключа
+        # Стандартные кнопки активного ключа (subscription показывается автоматически)
         builder.row(
-            InlineKeyboardButton(text="📋 Показать ключ", callback_data=f"key_show:{key_id}"),
-            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
+            InlineKeyboardButton(text=" Продлить", callback_data=f"key_renew:{key_id}")
         )
         
         builder.row(
@@ -613,15 +612,9 @@ def key_manage_kb(key_id: int, is_unconfigured: bool = False, is_active: bool = 
             InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
         )
     
-    # Кнопка Subscription ссылка (для всех активных ключей)
-    if is_active and not is_unconfigured:
-        builder.row(
-            InlineKeyboardButton(text="🔗 Subscription ссылка", callback_data="show_subscription")
-        )
-    
     # ПОСЛЕДНИЙ ряд (унифицированный): Мои ключи и На главную
     builder.row(
-        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="� Мои ключи", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
@@ -995,10 +988,73 @@ def device_instructions_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="🤖 Android", callback_data="instruction_android")
     )
     builder.row(
-        InlineKeyboardButton(text="🪟 Windows", callback_data="instruction_windows")
+        InlineKeyboardButton(text="💻 Windows", callback_data="instruction_windows")
     )
     builder.row(
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+    )
+    
+    return builder.as_markup()
+
+
+def instruction_apple_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для инструкции Apple с кнопками скачивания НАРР.
+    """
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопки скачивания НАРР для разных регионов/устройств
+    builder.row(
+        InlineKeyboardButton(text="1️⃣Скачать НАРР (Российский)", url="https://apps.apple.com/ru/app/hiddify-proxy-vpn/id6596777532")
+    )
+    builder.row(
+        InlineKeyboardButton(text="1️⃣Скачать НАРР (Европейский)", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532")
+    )
+    builder.row(
+        InlineKeyboardButton(text="1️⃣Скачать НАРР (MacBook/IMac)", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532")
+    )
+    builder.row(
+        InlineKeyboardButton(text="2️⃣🌐 Установить подписку", url="hiddify://import/")
+    )
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions")
+    )
+    
+    return builder.as_markup()
+
+
+def instruction_android_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для инструкции Android с кнопками скачивания НАРР.
+    """
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка скачивания НАРР
+    builder.row(
+        InlineKeyboardButton(text="1️⃣Скачать НАРР (Google Play)", url="https://play.google.com/store/apps/details?id=app.hiddify.com")
+    )
+    builder.row(
+        InlineKeyboardButton(text="2️⃣🌐 Установить подписку", url="hiddify://import/")
+    )
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions")
+    )
+    
+    return builder.as_markup()
+
+
+def instruction_windows_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура для инструкции Windows с кнопкой скачивания НАРР.
+    """
+    builder = InlineKeyboardBuilder()
+    
+    # Кнопка скачивания НАРР
+    builder.row(
+        InlineKeyboardButton(text="1️⃣Скачать НАРР", url="https://github.com/hiddify/hiddify-next/releases/latest")
+    )
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions")
     )
     
     return builder.as_markup()
