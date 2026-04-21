@@ -63,7 +63,7 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     if show_trial_offer:
         from database.requests import get_trial_days
         days = get_trial_days()
-        trial_text = f"\n\n<blockquote>🎁 Получи {days} дней бесплатно</blockquote>"
+        trial_text = f"\n\n<blockquote>👇 Получи {days} дней бесплатно</blockquote>"
         welcome_text = welcome_text + trial_text
     
     return (welcome_text, photo_file_id)
@@ -158,8 +158,9 @@ def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_r
     
     # Если доступен пробный период, показываем его первой кнопкой
     if show_trial:
-        # Получаем количество дней из настроек
-        trial_days = get_setting('trial_duration_days', 7)
+        # Получаем количество дней из настроек (правильное название настройки)
+        from database.requests import get_trial_days
+        trial_days = get_trial_days()
         builder.row(
             InlineKeyboardButton(text=f"🎁 Получить {trial_days} дней бесплатно", callback_data="trial_activate")
         )
