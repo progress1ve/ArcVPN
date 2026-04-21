@@ -212,13 +212,22 @@ async def key_details_handler(callback: CallbackQuery):
     traffic_exhausted = is_traffic_exhausted(key)
     key_active = is_key_active(key)
     
-    # Для активных ключей показываем subscription ссылку
+    # Для активных ключей показываем subscription ссылку с QR
     if key_active and not traffic_exhausted:
-        # Показываем subscription ссылку вместо отдельного ключа
+        # Показываем subscription ссылку с QR-кодом
         from bot.utils.key_sender import send_subscription_link
-        from bot.keyboards.user import back_and_home_kb
+        from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
         
-        await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
+        # Создаем клавиатуру с нужными кнопками
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
+        builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
+        builder.row(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="my_keys"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+        
+        await send_subscription_link(callback, telegram_id, builder.as_markup())
     else:
         # Для неактивных ключей показываем краткую информацию
         lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]

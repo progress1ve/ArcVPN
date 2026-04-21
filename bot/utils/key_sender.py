@@ -159,7 +159,7 @@ async def send_subscription_link(
     key_manage_markup: InlineKeyboardMarkup = None
 ):
     """
-    Отправляет пользователю subscription ссылку вместо прямых ключей.
+    Отправляет пользователю subscription ссылку с QR-кодом.
     
     Args:
         messageable: Объект Message или CallbackQuery
@@ -167,6 +167,9 @@ async def send_subscription_link(
         key_manage_markup: Клавиатура управления (опционально)
     """
     from bot.utils.text import safe_edit_or_send
+    from bot.utils.key_generator import generate_qr_code
+    from aiogram.types import BufferedInputFile
+    from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
     
     try:
         # Получаем количество активных ключей
@@ -174,22 +177,66 @@ async def send_subscription_link(
         active_keys = [k for k in keys if k['is_active']]
         key_count = len(active_keys)
         
-        # Генерируем сообщение с subscription URL
-        message_text = format_subscription_message(telegram_id, key_count)
+        # Получаем subscription URL
+        sub_url = get_subscription_url(telegram_id)
         
-        # Отправляем
-        if hasattr(messageable, 'text') or hasattr(messageable, 'photo'):
-            # Это Message
-            await safe_edit_or_send(messageable, message_text, reply_markup=key_manage_markup, force_new=True)
-        elif hasattr(messageable, 'message'):
+        # Генерируем QR-код
+        qr_bytes = generate_qr_code(sub_url)
+        qr_file = BufferedInputFile(qr_bytes, filename="subscription_qr.png")
+        
+        # Формируем сообщение
+        message_text = (
+            "🔗 <b>Ваша subscription ссылка</b>\n\n"
+            f"<code>{sub_url}</code>\n\n"
+            "☝️ Нажмите на ссылку, чтобы скопировать.\n\n"
+            "📱 <b>Как использовать:</b>\n"
+            "1. Скопируйте ссылку выше\n"
+            "2. Откройте VPN клиент (Hiddify, v2rayNG, Streisand)\n"
+            "3. Добавьте подписку (Add Subscription)\n"
+            "4. Вставьте ссылку\n\n"
+            f"✅ <b>Активных ключей:</b> {key_count}\n\n"
+            "💡 <i>Подписка автоматически обновляет все ваши ключи!</i>"
+        )
+        
+        # Создаем клавиатуру если не передана
+        if not key_manage_markup:
+            builder = InlineKeyboardBuilder()
+            builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
+            builder.row(
+                InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+                InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+            )
+            key_manage_markup = builder.as_markup()
+        
+        # Отправляем фото с QR-кодом
+        if hasattr(messageable, 'message'):
             # Это CallbackQuery
-            await safe_edit_or_send(messageable.message, message_text, reply_markup=key_manage_markup)
+            try:
+                await messageable.message.delete()
+            except Exception:
+                pass
+            await messageable.message.answer_photo(
+                photo=qr_file,
+                caption=message_text,
+                reply_markup=key_manage_markup,
+                parse_mode="HTML"
+            )
         else:
-            func = messageable.answer if hasattr(messageable, 'answer') else messageable.message.answer
-            await func(message_text, reply_markup=key_manage_markup, parse_mode="HTML")
+            # Это Message
+            await messageable.answer_photo(
+                photo=qr_file,
+                caption=message_text,
+                reply_markup=key_manage_markup,
+                parse_mode="HTML"
+            )
             
-        logger.info(f"Отправлена subscription ссылка пользователю {telegram_id} ({key_count} ключей)")
+        logger.info(f"Отправлена subscription ссылка с QR пользователю {telegram_id} ({key_count} ключей)")
         
     except Exception as e:
         logger.error(f"Ошибка отправки subscription ссылки: {e}")
-        await _send_error(messageable, f"Ошибка отправки subscription: {e}", key_manage_markup)
+        # Fallback - отправляем без QR
+        message_text = format_subscription_message(telegram_id, key_count)
+        if hasattr(messageable, 'message'):
+            await safe_edit_or_send(messageable.message, message_text, reply_markup=key_manage_markup)
+        else:
+            await safe_edit_or_send(messageable, message_text, reply_markup=key_manage_markup, force_new=True)

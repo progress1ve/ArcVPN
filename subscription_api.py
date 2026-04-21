@@ -70,7 +70,7 @@ def get_user_active_keys(user_id: int) -> list:
 
 async def generate_key_link(key: dict) -> str:
     """
-    Генерирует VPN ссылку для ключа.
+    Генерирует VPN ссылку для ключа с красивым названием.
     
     Args:
         key: Словарь с данными ключа из БД
@@ -96,6 +96,18 @@ async def generate_key_link(key: dict) -> str:
         if not config:
             logger.error(f"Не удалось получить конфигурацию для {key['panel_email']}")
             return ""
+        
+        # Формируем красивое название для ключа
+        # Формат: "ArcVPN | Сервер | Протокол"
+        server_name = server.get('name', 'Server')
+        protocol = config.get('protocol', 'vless').upper()
+        remark = config.get('remark', 'VPN')
+        
+        # Создаем красивое имя
+        custom_name = f"ArcVPN | {server_name} | {remark}"
+        
+        # Обновляем remark в конфигурации
+        config['remark'] = custom_name
         
         # Генерируем ссылку
         link = generate_link(config)
@@ -168,11 +180,25 @@ def subscription(user_id: int):
         if not subscription_data:
             return Response("No active keys found", status=404, mimetype='text/plain')
         
+        # Получаем информацию о пользователе для статистики
+        keys = get_user_active_keys(user_id)
+        total_traffic = sum(k.get('traffic_limit', 0) or 0 for k in keys)
+        used_traffic = sum(k.get('traffic_used', 0) or 0 for k in keys)
+        
         # Заголовки для VPN клиентов
         headers = {
-            'Subscription-Userinfo': 'upload=0; download=0; total=10737418240; expire=0',
+            # Информация о трафике (показывается в клиенте)
+            'Subscription-Userinfo': f'upload={used_traffic}; download=0; total={total_traffic}; expire=0',
+            # Интервал обновления (в часах)
             'Profile-Update-Interval': '24',
-            'Content-Type': 'text/plain; charset=utf-8'
+            # Название профиля (показывается в клиенте)
+            'Profile-Title': 'base64:' + base64.b64encode('ArcVPN 🚀'.encode()).decode(),
+            # Веб-страница профиля
+            'Profile-Web-Page-Url': 'https://t.me/arcvpn1',
+            # Тип контента
+            'Content-Type': 'text/plain; charset=utf-8',
+            # Дополнительные заголовки
+            'Content-Disposition': 'attachment; filename="arcvpn.txt"'
         }
         
         return Response(subscription_data, headers=headers, mimetype='text/plain')
