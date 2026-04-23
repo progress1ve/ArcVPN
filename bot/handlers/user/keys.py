@@ -304,16 +304,16 @@ async def instruction_apple_handler(callback: CallbackQuery):
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение Happ\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
         "Нажмите кнопку «📥 Импортировать подписку» ниже\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
-        "Откройте Hiddify и нажмите кнопку подключения"
+        "Откройте Happ и нажмите кнопку подключения"
     )
     
     # Создаём клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"))
+    builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/app/happ-vpn-fast-secure/id6738724821"))
     builder.row(InlineKeyboardButton(text="📥 Импортировать подписку", callback_data="show_subscription"))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
@@ -331,16 +331,16 @@ async def instruction_android_handler(callback: CallbackQuery):
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение Happ\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
         "Нажмите кнопку «📥 Импортировать подписку» ниже\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
-        "Откройте Hiddify и нажмите кнопку подключения"
+        "Откройте Happ и нажмите кнопку подключения"
     )
     
     # Создаём клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com"))
+    builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=com.v2ray.happio"))
     builder.row(InlineKeyboardButton(text="📥 Импортировать подписку", callback_data="show_subscription"))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
@@ -358,12 +358,12 @@ async def instruction_windows_handler(callback: CallbackQuery):
     
     text = (
         "🪟 <b>Инструкция для Windows</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
+        "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку ниже и скачайте версию для Windows\n\n"
         "<b>Шаг 2:</b> Скопируйте subscription ссылку\n"
         "Вернитесь назад и нажмите «Показать ключ»\n\n"
         "<b>Шаг 3:</b> Добавьте в приложение\n"
-        "• Откройте Hiddify\n"
+        "• Откройте Happ\n"
         "• Нажмите «+» → «Добавить подписку»\n"
         "• Вставьте скопированную ссылку\n\n"
         "<b>Шаг 4:</b> Подключитесь\n"
@@ -372,7 +372,7 @@ async def instruction_windows_handler(callback: CallbackQuery):
     
     # Создаём клавиатуру с кнопкой скачивания
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://github.com/hiddify/hiddify-next/releases/latest"))
+    builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://github.com/hamedap/Happ/releases/latest"))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
