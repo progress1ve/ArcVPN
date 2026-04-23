@@ -72,10 +72,7 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     (user, _) = get_or_create_user(user_id, callback.from_user.username)
     internal_user_id = user['id']
     
-    # Помечаем что пробный период использован
-    mark_trial_used(internal_user_id)
-    
-    logger.info(f'Пользователь {user_id} активировал пробный период ({trial_days} дней, {trial_traffic_gb} ГБ)')
+    logger.info(f'Пользователь {user_id} активирует пробный период ({trial_days} дней, {trial_traffic_gb} ГБ)')
     
     # Конвертируем трафик в байты (0 = безлимит)
     traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
@@ -83,21 +80,30 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     # Создаем ключ без привязки к тарифу (tariff_id=None)
     # Для пробного периода используем tariff_id=None, но функция требует int
     # Поэтому создаем временный "пробный тариф" или используем 0
-    key_id = create_initial_vpn_key(
-        user_id=internal_user_id, 
-        tariff_id=0,  # 0 означает пробный период без тарифа
-        days=trial_days, 
-        traffic_limit=traffic_limit_bytes
-    )
-    
-    # Создаем ордер для истории
-    (_, order_id) = create_pending_order(
-        user_id=internal_user_id, 
-        tariff_id=0,  # 0 для пробного периода
-        payment_type='trial', 
-        vpn_key_id=key_id
-    )
-    complete_order(order_id)
+    try:
+        key_id = create_initial_vpn_key(
+            user_id=internal_user_id, 
+            tariff_id=0,  # 0 означает пробный период без тарифа
+            days=trial_days, 
+            traffic_limit=traffic_limit_bytes
+        )
+        
+        # Создаем ордер для истории
+        (_, order_id) = create_pending_order(
+            user_id=internal_user_id, 
+            tariff_id=0,  # 0 для пробного периода
+            payment_type='trial', 
+            vpn_key_id=key_id
+        )
+        complete_order(order_id)
+        
+        # Помечаем что пробный период использован ТОЛЬКО после успешного создания ключа
+        mark_trial_used(internal_user_id)
+        logger.info(f'Пользователь {user_id} успешно активировал пробный период')
+    except Exception as e:
+        logger.error(f'Ошибка при создании пробного ключа для пользователя {user_id}: {e}')
+        await callback.answer('❌ Произошла ошибка при создании ключа. Попробуйте позже.', show_alert=True)
+        return
     
     await state.update_data(new_key_order_id=order_id, new_key_id=key_id)
     await callback.answer()
