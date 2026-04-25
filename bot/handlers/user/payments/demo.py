@@ -1,6 +1,7 @@
 import logging
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
+from aiogram.fsm.context import FSMContext
 from bot.utils.text import escape_html, safe_edit_or_send
 from database.requests import get_all_tariffs, get_tariff_by_id, get_key_details_for_user
 from bot.keyboards.user import tariff_select_kb, renew_tariff_select_kb
@@ -170,3 +171,74 @@ async def renew_demo_pay_handler(callback: CallbackQuery):
     
     await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
     await callback.answer()
+
+
+@router.callback_query(F.data.startswith('demo_confirm:'))
+async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
+    """Подтверждение демо-оплаты и выдача subscription."""
+    from database.requests import (
+        find_order_by_order_id, complete_order, get_tariff_by_id,
+        create_initial_vpn_key, update_payment_key_id
+    )
+    from bot.utils.key_sender import send_subscription_link
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    
+    order_id = callback.data.split(':')[1]
+    
+    order = find_order_by_order_id(order_id)
+    if not order:
+        await callback.answer('❌ Заказ не найден', show_alert=True)
+        return
+    
+    tariff = get_tariff_by_id(order['tariff_id'])
+    if not tariff:
+        await callback.answer('❌ Тариф не найден', show_alert=True)
+        return
+    
+    try:
+        # Создаем ключ
+        traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
+        key_id = create_initial_vpn_key(
+            user_id=order['user_id'],
+            tariff_id=order['tariff_id'],
+            days=tariff['duration_days'],
+            traffic_limit=traffic_limit_bytes
+        )
+        
+        # Обновляем заказ
+        update_payment_key_id(order_id, key_id)
+        complete_order(order_id)
+        
+        logger.info(f"Демо-оплата завершена: order_id={order_id}, key_id={key_id}, user={callback.from_user.id}")
+        
+        # Удаляем предыдущее сообщение
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        
+        # Отправляем сообщение об успехе
+        success_message = (
+            "🎉 <b>Демо-оплата успешна!</b>\n\n"
+            f"✅ Подписка активирована\n"
+            f"📦 Тариф: {escape_html(tariff['name'])}\n"
+            f"📅 Срок: {tariff['duration_days']} дней\n\n"
+            "👇 <b>Ваша подписка готова!</b>"
+        )
+        
+        await callback.message.answer(success_message, parse_mode="HTML")
+        
+        # Создаем клавиатуру
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
+        builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+        
+        # Сразу показываем subscription ссылку с QR-кодом
+        await send_subscription_link(callback, callback.from_user.id, builder.as_markup())
+        
+        await callback.answer("✅ Оплата прошла успешно!")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при демо-оплате: {e}", exc_info=True)
+        await callback.answer(f"❌ Ошибка: {e}", show_alert=True)

@@ -29,8 +29,6 @@ venv*/
 .env
 
 
-SUMMARY_RU.md
-TRIAL_DEBUG_GUIDE.md
-reset_trial_for_user.py
+FINAL_INSTRUCTIONS.md
 check_trial_status.py
-QUICK_FIX_INSTRUCTIONS.md
+reset_trial_for_user.py
