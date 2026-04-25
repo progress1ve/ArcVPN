@@ -155,30 +155,38 @@ async def _send_text(messageable, text, markup):
 
 async def send_subscription_link(
     messageable,
-    telegram_id: int,
+    key_id: int,
     key_manage_markup: InlineKeyboardMarkup = None
 ):
     """
-    Отправляет пользователю subscription ссылку с QR-кодом.
+    Отправляет пользователю subscription ссылку для конкретного ключа с QR-кодом.
     
     Args:
         messageable: Объект Message или CallbackQuery
-        telegram_id: Telegram ID пользователя
+        key_id: ID ключа из vpn_keys
         key_manage_markup: Клавиатура управления (опционально)
     """
     from bot.utils.text import safe_edit_or_send
     from bot.utils.key_generator import generate_qr_code
     from aiogram.types import BufferedInputFile
     from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
+    from database.requests import get_vpn_key_by_id
     
     try:
-        # Получаем количество активных ключей
-        keys = get_user_keys_for_display(telegram_id)
-        active_keys = [k for k in keys if k['is_active']]
-        key_count = len(active_keys)
+        # Получаем данные ключа
+        key = get_vpn_key_by_id(key_id)
+        if not key:
+            await _send_error(messageable, "Ключ не найден", key_manage_markup)
+            return
         
-        # Получаем subscription URL
-        sub_url = get_subscription_url(telegram_id)
+        sub_id = key.get('sub_id')
+        if not sub_id:
+            await _send_error(messageable, "У ключа нет subscription ID", key_manage_markup)
+            return
+        
+        # Получаем subscription URL для конкретного ключа
+        from config import SUBSCRIPTION_URL
+        sub_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
         
         # Генерируем QR-код
         qr_bytes = generate_qr_code(sub_url)
@@ -190,6 +198,13 @@ async def send_subscription_link(
             f"<pre>{sub_url}</pre>\n\n"
             "☝️ Нажмите на ссылку, чтобы скопировать.\n\n"
             "📱 <b>Инструкция по подключению:</b>\n"
+            "1. Скопируйте ссылку выше\n"
+            "2. Откройте VPN клиент (Happ, v2rayNG, NekoBox)\n"
+            "3. Добавьте подписку (Import / Add Subscription)\n"
+            "4. Вставьте ссылку\n\n"
+            "✅ <b>Преимущества subscription:</b>\n"
+            "• Автоматическое обновление конфигурации\n"
+            "• Не нужно обновлять ключ вручную при продлении\n"
         )
         
         # Создаем клавиатуру если не передана
@@ -224,13 +239,8 @@ async def send_subscription_link(
                 parse_mode="HTML"
             )
             
-        logger.info(f"Отправлена subscription ссылка с QR пользователю {telegram_id} ({key_count} ключей)")
+        logger.info(f"Отправлена subscription ссылка для ключа {key_id} (sub_id={sub_id})")
         
     except Exception as e:
         logger.error(f"Ошибка отправки subscription ссылки: {e}")
-        # Fallback - отправляем без QR
-        message_text = format_subscription_message(telegram_id, key_count)
-        if hasattr(messageable, 'message'):
-            await safe_edit_or_send(messageable.message, message_text, reply_markup=key_manage_markup)
-        else:
-            await safe_edit_or_send(messageable, message_text, reply_markup=key_manage_markup, force_new=True)
+        await _send_error(messageable, f"Ошибка: {e}", key_manage_markup)

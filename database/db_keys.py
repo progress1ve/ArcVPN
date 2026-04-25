@@ -225,12 +225,17 @@ def create_initial_vpn_key(
     Returns:
         ID созданного ключа
     """
+    import uuid
+    
+    # Генерируем уникальный sub_id для subscription ссылки
+    sub_id = uuid.uuid4().hex
+    
     with get_db() as conn:
         cursor = conn.execute("""
             INSERT INTO vpn_keys 
-            (user_id, tariff_id, expires_at, created_at, traffic_limit)
-            VALUES (?, ?, datetime('now', '+' || ? || ' days'), CURRENT_TIMESTAMP, ?)
-        """, (user_id, tariff_id, days, traffic_limit))
+            (user_id, tariff_id, expires_at, created_at, traffic_limit, sub_id)
+            VALUES (?, ?, datetime('now', '+' || ? || ' days'), CURRENT_TIMESTAMP, ?, ?)
+        """, (user_id, tariff_id, days, traffic_limit, sub_id))
         return cursor.lastrowid
 
 def is_key_active(key: dict) -> bool:

@@ -385,7 +385,7 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
             builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
             
             # Сразу показываем subscription ссылку с QR-кодом
-            await send_subscription_link(callback, callback.from_user.id, builder.as_markup())
+            await send_subscription_link(callback, key_id, builder.as_markup())
             
             await callback.answer("✅ Оплата прошла успешно!")
         

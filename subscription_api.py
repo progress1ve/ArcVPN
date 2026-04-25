@@ -162,19 +162,19 @@ def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
         return keys_text
 
 
-@app.route('/sub/<int:user_id>')
-def subscription(user_id: int):
+@app.route('/sub/<sub_id>')
+def subscription(sub_id: str):
     """
-    Endpoint для получения subscription.
+    Endpoint для получения subscription по уникальному sub_id ключа.
     
     Args:
-        user_id: Telegram ID пользователя
+        sub_id: Уникальный идентификатор подписки (sub_id из vpn_keys)
         
     Query параметры:
         format: 'base64' (по умолчанию) или 'plain' (без кодирования)
         
     Returns:
-        Base64-encoded список VPN ключей или plain text
+        VPN ключ в формате vless:// (plain text или base64)
     """
     from flask import request
     
@@ -182,27 +182,65 @@ def subscription(user_id: int):
         # Получаем формат из query параметров
         output_format = request.args.get('format', 'plain').lower()
         
-        # Генерируем подписку в нужном формате
-        encode_base64 = (output_format == 'base64')
-        subscription_data = generate_subscription(user_id, encode_base64=encode_base64)
+        # Находим ключ по sub_id
+        with get_db() as conn:
+            cursor = conn.execute("""
+                SELECT 
+                    vk.id, vk.client_uuid, vk.panel_email, vk.server_id,
+                    vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
+                    s.host, s.port, s.protocol, s.name as server_name,
+                    u.telegram_id
+                FROM vpn_keys vk
+                JOIN servers s ON vk.server_id = s.id
+                JOIN users u ON vk.user_id = u.id
+                WHERE vk.sub_id = ?
+                AND vk.expires_at > datetime('now')
+                AND vk.panel_email IS NOT NULL
+                AND s.is_active = 1
+            """, (sub_id,))
+            
+            row = cursor.fetchone()
+            
+            if not row:
+                return Response("No active key found", status=404, mimetype='text/plain')
+            
+            key = dict(row)
+            
+            # Проверка трафика
+            traffic_limit = key.get('traffic_limit', 0) or 0
+            traffic_used = key.get('traffic_used', 0) or 0
+            
+            # Если трафик исчерпан
+            if traffic_limit > 0 and traffic_used >= traffic_limit:
+                return Response("Traffic limit exceeded", status=404, mimetype='text/plain')
         
-        if not subscription_data:
-            return Response("No active keys found", status=404, mimetype='text/plain')
+        # Генерируем ссылку для ключа
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        # Получаем информацию о пользователе для статистики
-        keys = get_user_active_keys(user_id)
-        total_traffic = sum(k.get('traffic_limit', 0) or 0 for k in keys)
-        used_traffic = sum(k.get('traffic_used', 0) or 0 for k in keys)
+        try:
+            link = loop.run_until_complete(generate_key_link(key))
+        finally:
+            loop.close()
+        
+        if not link:
+            return Response("Failed to generate key", status=500, mimetype='text/plain')
+        
+        # Кодируем в base64 если нужно
+        if output_format == 'base64':
+            subscription_data = base64.b64encode(link.encode()).decode()
+        else:
+            subscription_data = link
         
         # Заголовки для VPN клиентов
         headers = {
-            # Информация о трафике (показывается в клиенте)
-            'subscription-userinfo': f'upload={used_traffic}; download=0; total={total_traffic}; expire=0',
-            # Интервал обновления (в секундах) - 24 часа
+            # Информация о трафике
+            'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
+            # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля (показывается в клиенте)
+            # Название профиля
             'profile-title': base64.b64encode('ArcVPN 🚀'.encode()).decode(),
-            # Веб-страница профиля
+            # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
             # Кэширование
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -214,10 +252,11 @@ def subscription(user_id: int):
         if not subscription_data.endswith('\n'):
             subscription_data += '\n'
         
+        logger.info(f"Сгенерирована подписка для sub_id={sub_id}")
         return Response(subscription_data, headers=headers, mimetype='text/plain; charset=utf-8')
         
     except Exception as e:
-        logger.error(f"Ошибка генерации подписки для пользователя {user_id}: {e}")
+        logger.error(f"Ошибка генерации подписки для sub_id={sub_id}: {e}")
         return Response("Internal server error", status=500, mimetype='text/plain')
 
 

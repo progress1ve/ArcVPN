@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 16
+LATEST_VERSION = 17
 
 
 def get_current_version() -> int:
@@ -1178,6 +1178,46 @@ def migration_16(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v16 применена")
 
 
+def migration_17(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v17: Индивидуальные subscription ссылки для каждого ключа.
+    
+    Добавляет поле sub_id (уникальный идентификатор подписки) в таблицу vpn_keys.
+    Каждый ключ получает свою уникальную subscription ссылку вида:
+    https://sub.arcvpn.mooo.com:8443/sub/{sub_id}
+    
+    Это позволяет пользователям покупать несколько ключей с разными сроками
+    и использовать их независимо на разных устройствах.
+    """
+    logger.info("Применение миграции v17 (Индивидуальные subscription ссылки)...")
+    
+    # Добавляем поле sub_id
+    _add_column(conn, 'vpn_keys', 'sub_id TEXT UNIQUE')
+    
+    # Генерируем уникальные sub_id для существующих ключей
+    cursor = conn.execute("SELECT id FROM vpn_keys WHERE sub_id IS NULL")
+    keys_without_sub_id = [row['id'] for row in cursor.fetchall()]
+    
+    import uuid
+    for key_id in keys_without_sub_id:
+        # Генерируем уникальный sub_id (используем UUID без дефисов)
+        sub_id = uuid.uuid4().hex
+        
+        # Проверяем уникальность (на всякий случай)
+        attempts = 0
+        while attempts < 100:
+            cursor = conn.execute("SELECT 1 FROM vpn_keys WHERE sub_id = ?", (sub_id,))
+            if not cursor.fetchone():
+                break
+            sub_id = uuid.uuid4().hex
+            attempts += 1
+        
+        conn.execute("UPDATE vpn_keys SET sub_id = ? WHERE id = ?", (sub_id, key_id))
+    
+    logger.info(f"Сгенерированы sub_id для {len(keys_without_sub_id)} существующих ключей")
+    logger.info("Миграция v17 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1195,6 +1235,7 @@ MIGRATIONS = {
     14: migration_14,
     15: migration_15,
     16: migration_16,
+    17: migration_17,
 }
 
 
