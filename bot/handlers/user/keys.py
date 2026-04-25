@@ -311,23 +311,25 @@ async def instruction_apple_handler(callback: CallbackQuery):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
     from bot.utils.subscription import get_subscription_url
+    import urllib.parse
     
     telegram_id = callback.from_user.id
     
     # Получаем обычную subscription ссылку
     subscription_url = get_subscription_url(telegram_id)
     
+    # Создаем ссылку через braconnect для автоматического импорта в Hiddify
+    encoded_url = urllib.parse.quote(subscription_url, safe='')
+    import_link = f"https://braconnect.app/link?url_ha={encoded_url}"
+    
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
         "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
-        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
-        f"<code>{subscription_url}</code>\n\n"
-        "<b>Шаг 3:</b> Откройте Hiddify\n"
-        "• Нажмите «+» или «Добавить профиль»\n"
-        "• Выберите «Добавить из буфера обмена» или вставьте ссылку вручную\n\n"
-        "<b>Шаг 4:</b> Подключитесь\n"
-        "Нажмите кнопку подключения ▶️\n\n"
+        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "Нажмите кнопку «🔗 Импортировать в Hiddify» - приложение откроется автоматически!\n\n"
+        "<b>Шаг 3:</b> Подключитесь\n"
+        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
@@ -335,6 +337,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
         builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Hiddify", url=import_link))
         builder.row(
             InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
@@ -355,23 +358,25 @@ async def instruction_android_handler(callback: CallbackQuery):
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
     from bot.utils.subscription import get_subscription_url
+    import urllib.parse
     
     telegram_id = callback.from_user.id
     
     # Получаем обычную subscription ссылку
     subscription_url = get_subscription_url(telegram_id)
     
+    # Создаем ссылку через braconnect для автоматического импорта в Hiddify
+    encoded_url = urllib.parse.quote(subscription_url, safe='')
+    import_link = f"https://braconnect.app/link?url_ha={encoded_url}"
+    
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
         "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
-        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
-        f"<code>{subscription_url}</code>\n\n"
-        "<b>Шаг 3:</b> Откройте Hiddify\n"
-        "• Нажмите «+» или «Добавить профиль»\n"
-        "• Выберите «Добавить из буфера обмена» или вставьте ссылку вручную\n\n"
-        "<b>Шаг 4:</b> Подключитесь\n"
-        "Нажмите кнопку подключения ▶️\n\n"
+        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "Нажмите кнопку «🔗 Импортировать в Hiddify» - приложение откроется автоматически!\n\n"
+        "<b>Шаг 3:</b> Подключитесь\n"
+        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
@@ -379,6 +384,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
         builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Hiddify", url=import_link))
         builder.row(
             InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
