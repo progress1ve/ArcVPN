@@ -204,12 +204,15 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
     """Подтверждение демо-оплаты и выдача subscription или продление ключа."""
     from database.requests import (
         find_order_by_order_id, complete_order, get_tariff_by_id,
-        create_initial_vpn_key, update_payment_key_id, extend_vpn_key
+        create_initial_vpn_key, update_payment_key_id, extend_vpn_key,
+        get_active_servers, update_vpn_key_config
     )
     from bot.utils.key_sender import send_subscription_link
     from bot.handlers.user.keys import show_key_details
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
+    from bot.services.vpn_api import get_client
+    import uuid
     
     order_id = callback.data.split(':')[1]
     
@@ -281,9 +284,83 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
             
             # Обновляем заказ
             update_payment_key_id(order_id, key_id)
-            complete_order(order_id)
             
-            logger.info(f"Демо-оплата завершена: order_id={order_id}, key_id={key_id}, user={callback.from_user.id}")
+            logger.info(f"Демо-оплата: создан черновик ключа key_id={key_id}, начинаем настройку на панели...")
+            
+            # АВТОМАТИЧЕСКАЯ НАСТРОЙКА КЛЮЧА НА ПАНЕЛИ
+            try:
+                # Получаем первый доступный сервер
+                servers = get_active_servers()
+                if not servers:
+                    raise Exception("Нет доступных серверов")
+                
+                server = servers[0]  # Берем первый активный сервер
+                server_id = server['id']
+                
+                logger.info(f"Выбран сервер: {server['name']} (ID: {server_id})")
+                
+                # Подключаемся к панели
+                client = await get_client(server_id)
+                inbounds = await client.get_inbounds()
+                
+                if not inbounds:
+                    raise Exception(f"На сервере {server['name']} нет доступных протоколов")
+                
+                # Берем первый inbound
+                inbound = inbounds[0]
+                inbound_id = inbound['id']
+                
+                logger.info(f"Выбран inbound: {inbound.get('remark', 'N/A')} (ID: {inbound_id}, protocol: {inbound.get('protocol', 'N/A')})")
+                
+                # Генерируем уникальный email для панели
+                telegram_id = callback.from_user.id
+                username = callback.from_user.username
+                base = f"user_{username}" if username else f"user_{telegram_id}"
+                suffix = uuid.uuid4().hex[:5]
+                panel_email = f'{base}_{suffix}'
+                
+                # Получаем flow для inbound
+                flow = await client.get_inbound_flow(inbound_id)
+                
+                # Создаем клиента на панели
+                limit_gb = (tariff.get('traffic_limit_gb', 0) or 0)
+                days = tariff['duration_days']
+                
+                logger.info(f"Создаем клиента на панели: email={panel_email}, limit={limit_gb}GB, days={days}")
+                
+                res = await client.add_client(
+                    inbound_id=inbound_id,
+                    email=panel_email,
+                    total_gb=limit_gb,
+                    expire_days=days,
+                    limit_ip=1,
+                    enable=True,
+                    tg_id=str(telegram_id),
+                    flow=flow
+                )
+                
+                client_uuid = res['uuid']
+                
+                logger.info(f"Клиент создан на панели: uuid={client_uuid}")
+                
+                # Обновляем ключ в БД с данными панели
+                update_vpn_key_config(
+                    key_id=key_id,
+                    server_id=server_id,
+                    panel_inbound_id=inbound_id,
+                    panel_email=panel_email,
+                    client_uuid=client_uuid
+                )
+                
+                logger.info(f"Ключ {key_id} успешно настроен на панели")
+                
+            except Exception as e:
+                logger.error(f"Ошибка настройки ключа на панели: {e}", exc_info=True)
+                # Продолжаем выполнение - ключ создан, но не настроен
+                # Пользователь сможет настроить его позже через интерфейс
+            
+            # Завершаем заказ
+            complete_order(order_id)
             
             # Удаляем предыдущее сообщение
             try:
