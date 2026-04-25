@@ -13,14 +13,14 @@ router = Router()
 
 @router.callback_query(F.data.startswith('demo_tariffs'))
 async def demo_tariffs_handler(callback: CallbackQuery):
-    """Обработчик демо-оплаты - создает платеж напрямую если тариф уже выбран."""
+    """Обработчик демо-оплаты - показывает выбор тарифа или создает платеж."""
     from database.requests import get_user_internal_id, create_pending_order, update_order_tariff
     
     # Парсим callback_data
     parts = callback.data.split(':')
     
-    # Если формат demo_pay_tariff:tariff_id:order_id - тариф уже выбран
-    if len(parts) >= 2 and parts[0] == 'demo_pay_tariff':
+    # Если формат demo_pay_tariff:tariff_id:order_id - тариф уже выбран (из tariff_select_kb)
+    if parts[0] == 'demo_pay_tariff' and len(parts) >= 2:
         tariff_id = int(parts[1])
         order_id = parts[2] if len(parts) > 2 else None
         
@@ -64,9 +64,13 @@ async def demo_tariffs_handler(callback: CallbackQuery):
         await callback.answer()
     
     else:
-        # Старая логика - показываем выбор тарифа
+        # Формат demo_tariffs или demo_tariffs:order_id - показываем выбор тарифа
         order_id = parts[1] if len(parts) > 1 else None
         tariffs = get_all_tariffs(include_hidden=False)
+        
+        if not tariffs:
+            await callback.answer('❌ Нет доступных тарифов', show_alert=True)
+            return
         
         await safe_edit_or_send(
             callback.message,
