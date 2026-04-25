@@ -292,7 +292,7 @@ async def device_instructions_handler(callback: CallbackQuery):
     text = (
         "📱 <b>Выберите ваше устройство</b>\n\n"
         "Мы используем самый скрытный и надежный протокол VLESS Reality.\n\n"
-        "Для подключения нужно скачать приложение и вставить ссылку."
+        "Для подключения нужно скачать приложение Happ и импортировать подписку."
     )
     
     try:
@@ -318,26 +318,26 @@ async def instruction_apple_handler(callback: CallbackQuery):
     # Получаем обычную subscription ссылку
     subscription_url = get_subscription_url(telegram_id)
     
-    # Создаем ссылку через braconnect для автоматического импорта в Hiddify
+    # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
     import_link = f"https://braconnect.app/link?url_ha={encoded_url}"
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
-        "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение Happ\n"
+        "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать в Hiddify» - приложение откроется автоматически!\n\n"
+        "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
-        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
+        "В приложении Happ нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
     try:
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Hiddify", url=import_link))
+        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/app/happ-vpn-fast-secure/id6738501697"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link))
         builder.row(
             InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
@@ -365,26 +365,26 @@ async def instruction_android_handler(callback: CallbackQuery):
     # Получаем обычную subscription ссылку
     subscription_url = get_subscription_url(telegram_id)
     
-    # Создаем ссылку через braconnect для автоматического импорта в Hiddify
+    # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
     import_link = f"https://braconnect.app/link?url_ha={encoded_url}"
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
-        "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение Happ\n"
+        "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать в Hiddify» - приложение откроется автоматически!\n\n"
+        "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
-        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
+        "В приложении Happ нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
     try:
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Hiddify", url=import_link))
+        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=io.happ.app"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link))
         builder.row(
             InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
