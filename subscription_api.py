@@ -171,10 +171,18 @@ def subscription(user_id: int):
     Args:
         user_id: Telegram ID пользователя
         
+    Query параметры:
+        format: 'base64' (по умолчанию) или 'raw' (без кодирования)
+        
     Returns:
-        Base64-encoded список VPN ключей
+        Base64-encoded список VPN ключей или raw текст
     """
+    from flask import request
+    
     try:
+        # Получаем формат из query параметров
+        output_format = request.args.get('format', 'base64').lower()
+        
         subscription_data = generate_subscription(user_id)
         
         if not subscription_data:
@@ -185,23 +193,34 @@ def subscription(user_id: int):
         total_traffic = sum(k.get('traffic_limit', 0) or 0 for k in keys)
         used_traffic = sum(k.get('traffic_used', 0) or 0 for k in keys)
         
+        # Если запрошен raw формат, декодируем base64
+        if output_format == 'raw':
+            try:
+                subscription_data = base64.b64decode(subscription_data).decode('utf-8')
+            except Exception as e:
+                logger.error(f"Ошибка декодирования base64: {e}")
+        
         # Заголовки для VPN клиентов
         headers = {
             # Информация о трафике (показывается в клиенте)
             'Subscription-Userinfo': f'upload={used_traffic}; download=0; total={total_traffic}; expire=0',
-            # Интервал обновления (в часах)
-            'Profile-Update-Interval': '24',
+            # Интервал обновления (в секундах) - 24 часа
+            'profile-update-interval': '86400',
             # Название профиля (показывается в клиенте)
-            'Profile-Title': 'base64:' + base64.b64encode('ArcVPN 🚀'.encode()).decode(),
+            'profile-title': base64.b64encode('ArcVPN 🚀'.encode()).decode(),
             # Веб-страница профиля
-            'Profile-Web-Page-Url': 'https://t.me/arcvpn1',
-            # Тип контента
+            'profile-web-page-url': 'https://t.me/arcvpn1',
+            # Тип контента - важно для Happ!
             'Content-Type': 'text/plain; charset=utf-8',
             # Дополнительные заголовки
-            'Content-Disposition': 'attachment; filename="arcvpn.txt"'
+            'Content-Disposition': 'inline',
+            # Кэширование
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
         }
         
-        return Response(subscription_data, headers=headers, mimetype='text/plain')
+        return Response(subscription_data, headers=headers, mimetype='text/plain; charset=utf-8')
         
     except Exception as e:
         logger.error(f"Ошибка генерации подписки для пользователя {user_id}: {e}")
