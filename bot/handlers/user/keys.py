@@ -285,6 +285,8 @@ async def key_show_handler(callback: CallbackQuery):
 @router.callback_query(F.data == 'device_instructions')
 async def device_instructions_handler(callback: CallbackQuery):
     """Показывает меню выбора устройства для инструкции."""
+    logger.info(f"device_instructions_handler вызван для пользователя {callback.from_user.id}")
+    
     from bot.keyboards.user import device_instructions_kb
     
     text = (
@@ -293,78 +295,101 @@ async def device_instructions_handler(callback: CallbackQuery):
         "Для подключения нужно скачать приложение и вставить ссылку."
     )
     
-    await safe_edit_or_send(callback.message, text, reply_markup=device_instructions_kb())
-    await callback.answer()
+    try:
+        await safe_edit_or_send(callback.message, text, reply_markup=device_instructions_kb())
+        await callback.answer()
+        logger.info("device_instructions_handler успешно выполнен")
+    except Exception as e:
+        logger.error(f"Ошибка в device_instructions_handler: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
 
 @router.callback_query(F.data == 'instruction_apple')
 async def instruction_apple_handler(callback: CallbackQuery):
     """Инструкция для Apple устройств."""
+    logger.info(f"instruction_apple_handler вызван для пользователя {callback.from_user.id}")
+    
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
-    from bot.utils.subscription import get_subscription_import_url
+    from bot.utils.subscription import get_subscription_url
     
     telegram_id = callback.from_user.id
+    
+    # Получаем обычную subscription ссылку
+    subscription_url = get_subscription_url(telegram_id)
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
         "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать подписку» - приложение Hiddify откроется автоматически и добавит вашу подписку!\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
-        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
+        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
+        f"<code>{subscription_url}</code>\n\n"
+        "<b>Шаг 3:</b> Откройте Hiddify\n"
+        "• Нажмите «+» или «Добавить профиль»\n"
+        "• Выберите «Добавить из буфера обмена» или вставьте ссылку вручную\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
+        "Нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
-    # Генерируем URL для автоматического импорта
-    import_url = get_subscription_import_url(telegram_id, "hiddify")
-    
-    # Создаём клавиатуру с кнопками
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"))
-    builder.row(InlineKeyboardButton(text="🔗 Импортировать подписку", url=import_url))
-    builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
-        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-    )
-    
-    await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-    await callback.answer()
+    try:
+        # Создаём клавиатуру с кнопками
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"))
+        builder.row(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+        
+        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
+        await callback.answer()
+        logger.info("instruction_apple_handler успешно выполнен")
+    except Exception as e:
+        logger.error(f"Ошибка в instruction_apple_handler: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
 
 @router.callback_query(F.data == 'instruction_android')
 async def instruction_android_handler(callback: CallbackQuery):
     """Инструкция для Android устройств."""
+    logger.info(f"instruction_android_handler вызван для пользователя {callback.from_user.id}")
+    
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
-    from bot.utils.subscription import get_subscription_import_url
+    from bot.utils.subscription import get_subscription_url
     
     telegram_id = callback.from_user.id
+    
+    # Получаем обычную subscription ссылку
+    subscription_url = get_subscription_url(telegram_id)
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
         "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать подписку» - приложение Hiddify откроется автоматически и добавит вашу подписку!\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
-        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
+        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
+        f"<code>{subscription_url}</code>\n\n"
+        "<b>Шаг 3:</b> Откройте Hiddify\n"
+        "• Нажмите «+» или «Добавить профиль»\n"
+        "• Выберите «Добавить из буфера обмена» или вставьте ссылку вручную\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
+        "Нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
-    # Генерируем URL для автоматического импорта
-    import_url = get_subscription_import_url(telegram_id, "hiddify")
-    
-    # Создаём клавиатуру с кнопками
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com"))
-    builder.row(InlineKeyboardButton(text="🔗 Импортировать подписку", url=import_url))
-    builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
-        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-    )
-    
-    await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-    await callback.answer()
+    try:
+        # Создаём клавиатуру с кнопками
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com"))
+        builder.row(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+        
+        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
+        await callback.answer()
+        logger.info("instruction_android_handler успешно выполнен")
+    except Exception as e:
+        logger.error(f"Ошибка в instruction_android_handler: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
 
 @router.callback_query(F.data == 'instruction_windows')
 async def instruction_windows_handler(callback: CallbackQuery):
