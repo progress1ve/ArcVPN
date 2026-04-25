@@ -24,15 +24,26 @@ async def show_trial_subscription(callback: CallbackQuery):
     from bot.keyboards.user import trial_sub_kb
     from bot.keyboards.admin import home_only_kb
     user_id = callback.from_user.id
+    
+    logger.info(f'Пользователь {user_id} открывает страницу пробной подписки')
+    
     if not is_trial_enabled():
+        logger.warning(f'Пробная подписка отключена для пользователя {user_id}')
         await callback.answer('❌ Пробная подписка недоступна', show_alert=True)
         return
     if get_trial_tariff_id() is None:
+        logger.warning(f'Тариф не настроен для пробной подписки (пользователь {user_id})')
         await callback.answer('❌ Тариф не настроен', show_alert=True)
         return
-    if has_used_trial(user_id):
+    
+    trial_used = has_used_trial(user_id)
+    logger.info(f'Пользователь {user_id}: has_used_trial={trial_used}')
+    
+    if trial_used:
+        logger.info(f'Пользователь {user_id} уже использовал пробный период')
         await callback.answer('ℹ️ Вы уже использовали пробный период', show_alert=True)
         return
+    
     from bot.utils.message_editor import send_editor_message
     await send_editor_message(
         callback.message,
@@ -57,20 +68,24 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     
     # Проверки
     if not is_trial_enabled():
+        logger.warning(f'Пользователь {user_id} пытается активировать пробный период, но он отключен')
         await callback.answer('❌ Пробная подписка недоступна', show_alert=True)
         return
     
+    # ВАЖНО: Сначала создаем пользователя, потом проверяем флаг
+    (user, is_new) = get_or_create_user(user_id, callback.from_user.username)
+    internal_user_id = user['id']
+    
+    logger.info(f'Пользователь {user_id} (internal_id={internal_user_id}, is_new={is_new}) пытается активировать пробный период. used_trial={user.get("used_trial", 0)}')
+    
     if has_used_trial(user_id):
+        logger.warning(f'Пользователь {user_id} уже использовал пробный период')
         await callback.answer('ℹ️ Вы уже использовали пробный период', show_alert=True)
         return
     
     # Получаем настройки пробного периода
     trial_days = get_trial_days()
     trial_traffic_gb = get_trial_traffic_gb()
-    
-    # Получаем пользователя
-    (user, _) = get_or_create_user(user_id, callback.from_user.username)
-    internal_user_id = user['id']
     
     logger.info(f'Пользователь {user_id} активирует пробный период ({trial_days} дней, {trial_traffic_gb} ГБ)')
     
@@ -87,6 +102,7 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
             days=trial_days, 
             traffic_limit=traffic_limit_bytes
         )
+        logger.info(f'Создан ключ {key_id} для пользователя {user_id}')
         
         # Создаем ордер для истории
         (_, order_id) = create_pending_order(
@@ -96,12 +112,13 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
             vpn_key_id=key_id
         )
         complete_order(order_id)
+        logger.info(f'Создан и завершен ордер {order_id} для пользователя {user_id}')
         
         # Помечаем что пробный период использован ТОЛЬКО после успешного создания ключа
         mark_trial_used(internal_user_id)
-        logger.info(f'Пользователь {user_id} успешно активировал пробный период')
+        logger.info(f'Пользователь {user_id} (internal_id={internal_user_id}) успешно активировал пробный период. Флаг used_trial установлен.')
     except Exception as e:
-        logger.error(f'Ошибка при создании пробного ключа для пользователя {user_id}: {e}')
+        logger.error(f'Ошибка при создании пробного ключа для пользователя {user_id}: {e}', exc_info=True)
         await callback.answer('❌ Произошла ошибка при создании ключа. Попробуйте позже.', show_alert=True)
         return
     
