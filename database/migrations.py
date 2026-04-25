@@ -1191,8 +1191,15 @@ def migration_17(conn: sqlite3.Connection) -> None:
     """
     logger.info("Применение миграции v17 (Индивидуальные subscription ссылки)...")
     
-    # Добавляем поле sub_id
-    _add_column(conn, 'vpn_keys', 'sub_id TEXT UNIQUE')
+    # Добавляем поле sub_id (без UNIQUE в ALTER TABLE - добавим индекс отдельно)
+    _add_column(conn, 'vpn_keys', 'sub_id TEXT')
+    
+    # Создаем уникальный индекс для sub_id
+    try:
+        conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_vpn_keys_sub_id ON vpn_keys(sub_id)")
+    except sqlite3.OperationalError as e:
+        if "already exists" not in str(e):
+            raise
     
     # Генерируем уникальные sub_id для существующих ключей
     cursor = conn.execute("SELECT id FROM vpn_keys WHERE sub_id IS NULL")
