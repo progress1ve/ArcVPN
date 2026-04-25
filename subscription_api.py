@@ -118,15 +118,16 @@ async def generate_key_link(key: dict) -> str:
         return ""
 
 
-def generate_subscription(user_id: int) -> str:
+def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
     """
-    Генерирует subscription в формате base64.
+    Генерирует subscription в формате base64 или plain text.
     
     Args:
         user_id: Telegram ID пользователя
+        encode_base64: Кодировать ли результат в base64 (по умолчанию True)
         
     Returns:
-        Base64-encoded строка с ключами
+        Base64-encoded строка с ключами или plain text
     """
     keys = get_user_active_keys(user_id)
     
@@ -156,11 +157,14 @@ def generate_subscription(user_id: int) -> str:
     # Объединяем ключи через перенос строки
     keys_text = "\n".join(links)
     
-    # Кодируем в base64
-    encoded = base64.b64encode(keys_text.encode()).decode()
-    
-    logger.info(f"Сгенерирована подписка для пользователя {user_id}: {len(links)} ключей")
-    return encoded
+    # Кодируем в base64 если нужно
+    if encode_base64:
+        encoded = base64.b64encode(keys_text.encode()).decode()
+        logger.info(f"Сгенерирована подписка для пользователя {user_id}: {len(links)} ключей (base64)")
+        return encoded
+    else:
+        logger.info(f"Сгенерирована подписка для пользователя {user_id}: {len(links)} ключей (plain text)")
+        return keys_text
 
 
 @app.route('/sub/<int:user_id>')
@@ -172,18 +176,20 @@ def subscription(user_id: int):
         user_id: Telegram ID пользователя
         
     Query параметры:
-        format: 'base64' (по умолчанию) или 'raw' (без кодирования)
+        format: 'base64' (по умолчанию) или 'plain' (без кодирования)
         
     Returns:
-        Base64-encoded список VPN ключей или raw текст
+        Base64-encoded список VPN ключей или plain text
     """
     from flask import request
     
     try:
         # Получаем формат из query параметров
-        output_format = request.args.get('format', 'base64').lower()
+        output_format = request.args.get('format', 'plain').lower()
         
-        subscription_data = generate_subscription(user_id)
+        # Генерируем подписку в нужном формате
+        encode_base64 = (output_format == 'base64')
+        subscription_data = generate_subscription(user_id, encode_base64=encode_base64)
         
         if not subscription_data:
             return Response("No active keys found", status=404, mimetype='text/plain')
@@ -193,27 +199,16 @@ def subscription(user_id: int):
         total_traffic = sum(k.get('traffic_limit', 0) or 0 for k in keys)
         used_traffic = sum(k.get('traffic_used', 0) or 0 for k in keys)
         
-        # Если запрошен raw формат, декодируем base64
-        if output_format == 'raw':
-            try:
-                subscription_data = base64.b64decode(subscription_data).decode('utf-8')
-            except Exception as e:
-                logger.error(f"Ошибка декодирования base64: {e}")
-        
         # Заголовки для VPN клиентов
         headers = {
             # Информация о трафике (показывается в клиенте)
-            'Subscription-Userinfo': f'upload={used_traffic}; download=0; total={total_traffic}; expire=0',
+            'subscription-userinfo': f'upload={used_traffic}; download=0; total={total_traffic}; expire=0',
             # Интервал обновления (в секундах) - 24 часа
             'profile-update-interval': '86400',
             # Название профиля (показывается в клиенте)
             'profile-title': base64.b64encode('ArcVPN 🚀'.encode()).decode(),
             # Веб-страница профиля
             'profile-web-page-url': 'https://t.me/arcvpn1',
-            # Тип контента - важно для Happ!
-            'Content-Type': 'text/plain; charset=utf-8',
-            # Дополнительные заголовки
-            'Content-Disposition': 'inline',
             # Кэширование
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
