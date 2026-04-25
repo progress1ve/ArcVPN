@@ -307,11 +307,13 @@ async def instruction_apple_handler(callback: CallbackQuery):
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
+        "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «📥 Импортировать подписку» ниже - подписка добавится автоматически!\n\n"
+        "Нажмите кнопку «🔗 Импортировать подписку» - приложение Hiddify откроется автоматически и добавит вашу подписку!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
-        "Откройте Hiddify и нажмите кнопку подключения"
+        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
+        "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
     # Генерируем URL для автоматического импорта
@@ -320,7 +322,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
     # Создаём клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532"))
-    builder.row(InlineKeyboardButton(text="📥 Импортировать подписку", url=import_url))
+    builder.row(InlineKeyboardButton(text="🔗 Импортировать подписку", url=import_url))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
@@ -340,11 +342,13 @@ async def instruction_android_handler(callback: CallbackQuery):
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение Hiddify\n"
+        "Нажмите кнопку «📥 Скачать Hiddify» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «📥 Импортировать подписку» ниже - подписка добавится автоматически!\n\n"
+        "Нажмите кнопку «🔗 Импортировать подписку» - приложение Hiddify откроется автоматически и добавит вашу подписку!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
-        "Откройте Hiddify и нажмите кнопку подключения"
+        "В приложении Hiddify нажмите кнопку подключения ▶️\n\n"
+        "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
     # Генерируем URL для автоматического импорта
@@ -353,7 +357,7 @@ async def instruction_android_handler(callback: CallbackQuery):
     # Создаём клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com"))
-    builder.row(InlineKeyboardButton(text="📥 Импортировать подписку", url=import_url))
+    builder.row(InlineKeyboardButton(text="🔗 Импортировать подписку", url=import_url))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")

@@ -999,22 +999,15 @@ def device_instructions_kb() -> InlineKeyboardMarkup:
 
 def instruction_apple_kb() -> InlineKeyboardMarkup:
     """
-    Клавиатура для инструкции Apple с кнопками скачивания НАРР.
+    Клавиатура для инструкции Apple с кнопками скачивания Hiddify.
+    УСТАРЕЛА - используется только для обратной совместимости.
+    Новая логика генерирует клавиатуру прямо в обработчике.
     """
     builder = InlineKeyboardBuilder()
     
-    # Кнопки скачивания НАРР для разных регионов/устройств
+    # Кнопка скачивания Hiddify
     builder.row(
-        InlineKeyboardButton(text="1️⃣Скачать НАРР (Российский)", url="https://apps.apple.com/ru/app/hiddify-proxy-vpn/id6596777532")
-    )
-    builder.row(
-        InlineKeyboardButton(text="1️⃣Скачать НАРР (Европейский)", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532")
-    )
-    builder.row(
-        InlineKeyboardButton(text="1️⃣Скачать НАРР (MacBook/IMac)", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532")
-    )
-    builder.row(
-        InlineKeyboardButton(text="2️⃣🌐 Установить подписку", url="hiddify://import/")
+        InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://apps.apple.com/app/hiddify-proxy-vpn/id6596777532")
     )
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions")
@@ -1025,16 +1018,15 @@ def instruction_apple_kb() -> InlineKeyboardMarkup:
 
 def instruction_android_kb() -> InlineKeyboardMarkup:
     """
-    Клавиатура для инструкции Android с кнопками скачивания НАРР.
+    Клавиатура для инструкции Android с кнопками скачивания Hiddify.
+    УСТАРЕЛА - используется только для обратной совместимости.
+    Новая логика генерирует клавиатуру прямо в обработчике.
     """
     builder = InlineKeyboardBuilder()
     
-    # Кнопка скачивания НАРР
+    # Кнопка скачивания Hiddify
     builder.row(
-        InlineKeyboardButton(text="1️⃣Скачать НАРР (Google Play)", url="https://play.google.com/store/apps/details?id=app.hiddify.com")
-    )
-    builder.row(
-        InlineKeyboardButton(text="2️⃣🌐 Установить подписку", url="hiddify://import/")
+        InlineKeyboardButton(text="📥 Скачать Hiddify", url="https://play.google.com/store/apps/details?id=app.hiddify.com")
     )
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions")
