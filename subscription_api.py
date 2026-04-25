@@ -215,6 +215,10 @@ def subscription(user_id: int):
             'Expires': '0'
         }
         
+        # Убедимся что в конце есть перенос строки
+        if not subscription_data.endswith('\n'):
+            subscription_data += '\n'
+        
         return Response(subscription_data, headers=headers, mimetype='text/plain; charset=utf-8')
         
     except Exception as e:
