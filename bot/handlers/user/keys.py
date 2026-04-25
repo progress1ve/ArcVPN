@@ -227,7 +227,7 @@ async def key_details_handler(callback: CallbackQuery):
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
         )
         
-        await send_subscription_link(callback, telegram_id, builder.as_markup())
+        await send_subscription_link(callback, key_id, builder.as_markup())
     else:
         # Для неактивных ключей показываем краткую информацию
         lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]
