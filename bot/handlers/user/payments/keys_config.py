@@ -13,27 +13,51 @@ router = Router()
 
 async def start_new_key_config(message: Message, state: FSMContext, order_id: str, key_id: int=None):
     """
-    Запускает процесс настройки нового ключа (выбор сервера).
-    Используется как для Stars, так и для Crypto.
+    Запускает процесс настройки нового ключа.
+    Теперь сразу показывает subscription ссылку вместо выбора сервера.
     """
-    from database.requests import get_active_servers, find_order_by_order_id
-    from bot.keyboards.user import new_key_server_list_kb
+    from database.requests import find_order_by_order_id
     from bot.keyboards.admin import home_only_kb
-    from bot.states.user_states import NewKeyConfig
-    from bot.utils.groups import get_servers_for_key
+    from bot.utils.key_sender import send_subscription_link
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    
     order = find_order_by_order_id(order_id)
-    tariff_id = order.get('tariff_id') if order else None
-    if tariff_id:
-        servers = get_servers_for_key(tariff_id)
-    else:
-        servers = get_active_servers()
-    if not servers:
-        logger.error(f'Нет активных серверов для создания ключа (Order: {order_id})')
-        await safe_edit_or_send(message, '🎉 <b>Оплата прошла успешно!</b>\n\n⚠️ К сожалению, сейчас нет доступных серверов.\nПожалуйста, свяжитесь с поддержкой.', reply_markup=home_only_kb(), force_new=True)
+    
+    # Проверяем, это пробный период или обычная покупка
+    is_trial = order and order.get('payment_type') == 'trial'
+    
+    if is_trial:
+        # Для пробного периода это сообщение не должно вызываться
+        # (обрабатывается в trial.py)
         return
-    await state.set_state(NewKeyConfig.waiting_for_server)
-    await state.update_data(new_key_order_id=order_id, new_key_id=key_id)
-    await safe_edit_or_send(message, '🎉 <b>Оплата прошла успешно!</b>\n\n🔑 Теперь выберите сервер для вашего нового ключа.', reply_markup=new_key_server_list_kb(servers), force_new=True)
+    
+    # Для обычной покупки показываем сообщение об успешной оплате
+    success_message = (
+        "🎉 <b>Оплата прошла успешно!</b>\n\n"
+        "✅ Ваша подписка активирована\n\n"
+        "📱 <b>Что дальше?</b>\n"
+        "1. Нажмите кнопку ниже для просмотра вашей подписки\n"
+        "2. Скопируйте ссылку или отсканируйте QR-код\n"
+        "3. Импортируйте в VPN-клиент (Hiddify, v2rayNG)\n\n"
+        "💡 <i>Подписка автоматически обновляется при продлении</i>"
+    )
+    
+    # Создаем клавиатуру
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="📥 Показать подписку", callback_data="show_subscription"))
+    builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
+    builder.row(
+        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+    )
+    
+    await safe_edit_or_send(
+        message, 
+        success_message,
+        reply_markup=builder.as_markup(), 
+        force_new=True
+    )
 
 @router.callback_query(F.data.startswith('new_key_server:'))
 async def process_new_key_server_selection(callback: CallbackQuery, state: FSMContext):

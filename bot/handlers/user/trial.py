@@ -128,4 +128,42 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     except Exception:
         pass
     
-    await start_new_key_config(callback.message, state, order_id, key_id)
+    # Для пробного периода сразу показываем subscription ссылку
+    from bot.utils.key_sender import send_subscription_link
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from aiogram.types import InlineKeyboardButton
+    
+    # Создаем специальное сообщение для пробного периода
+    trial_message = (
+        "🎉 <b>Пробный период активирован!</b>\n\n"
+        f"✅ Вы получили {trial_days} дней бесплатного доступа\n"
+        f"📊 Трафик: {trial_traffic_gb} ГБ\n\n"
+        "📱 <b>Что дальше?</b>\n"
+        "1. Нажмите кнопку ниже для просмотра вашей подписки\n"
+        "2. Скопируйте ссылку или отсканируйте QR-код\n"
+        "3. Импортируйте в VPN-клиент (Hiddify, v2rayNG)\n\n"
+        "💡 <i>Подписка автоматически обновляется при продлении</i>"
+    )
+    
+    # Создаем клавиатуру
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="📥 Показать подписку", callback_data="show_trial_subscription_link"))
+    builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
+    builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+    
+    await callback.message.answer(
+        trial_message,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"
+    )
+
+# Добавляем обработчик для показа subscription ссылки
+@router.callback_query(F.data == 'show_trial_subscription_link')
+async def show_trial_subscription_link(callback: CallbackQuery):
+    """Показывает subscription ссылку после активации пробного периода."""
+    from bot.utils.key_sender import send_subscription_link
+    from bot.keyboards.user import back_and_home_kb
+    
+    telegram_id = callback.from_user.id
+    await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="start"))
+    await callback.answer()
