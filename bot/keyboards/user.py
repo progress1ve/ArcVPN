@@ -433,7 +433,7 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
                 if price_rub is None or price_rub <= 1:
                     continue
                 price_display = f"{price_rub} ₽"
-                prefix = "demo_pay"
+                prefix = "demo_pay_tariff"
                 emoji = '🏦'
             elif is_qr:
                 price_rub = tariff.get('price_rub')
