@@ -98,16 +98,11 @@ async def generate_key_link(key: dict) -> str:
             return ""
         
         # Формируем красивое название для ключа
-        # Формат: "ArcVPN | Сервер | Протокол"
+        # Используем название сервера из БД
         server_name = server.get('name', 'Server')
-        protocol = config.get('protocol', 'vless').upper()
-        remark = config.get('remark', 'VPN')
-        
-        # Создаем красивое имя
-        custom_name = f"ArcVPN | {server_name} | {remark}"
         
         # Обновляем remark в конфигурации
-        config['remark'] = custom_name
+        config['remark'] = server_name
         
         # Генерируем ссылку
         link = generate_link(config)
