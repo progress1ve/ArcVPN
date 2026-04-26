@@ -398,15 +398,17 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
         for tariff in tariff_list:
             # Если is_select_only - показываем все тарифы с callback select_tariff
             if is_select_only:
-                price_usd = tariff['price_cents'] / 100
-                price_str = f"{price_usd:g}".replace('.', ',')
+                # Определяем цену для отображения
                 price_rub = tariff.get('price_rub', 0)
-                price_stars = tariff['price_stars']
+                if price_rub and price_rub > 0:
+                    price_display = f"{price_rub} ₽"
+                else:
+                    price_usd = tariff['price_cents'] / 100
+                    price_str = f"{price_usd:g}".replace('.', ',')
+                    price_display = f"${price_str}"
                 
-                traffic_gb = tariff.get('traffic_limit_gb', 0)
-                traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "∞"
-                
-                text = f"📋 {tariff['name']} — {tariff['duration_days']} дн. / {traffic_text}"
+                # Формат: Название (дни) — цена
+                text = f"📋 {tariff['name']} ({tariff['duration_days']} дн.) — {price_display}"
                 cb_data = f"select_tariff:{tariff['id']}"
                 
                 builder.row(
