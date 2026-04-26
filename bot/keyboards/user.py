@@ -977,7 +977,7 @@ def device_instructions_kb() -> InlineKeyboardMarkup:
     1. Apple
     2. Android
     3. Windows
-    4. На главную
+    4. Назад | На главную
     """
     builder = InlineKeyboardBuilder()
     
@@ -991,6 +991,7 @@ def device_instructions_kb() -> InlineKeyboardMarkup:
         InlineKeyboardButton(text="💻 Windows", callback_data="instruction_windows")
     )
     builder.row(
+        InlineKeyboardButton(text="⬅️ Назад", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
