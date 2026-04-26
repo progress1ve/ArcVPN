@@ -573,48 +573,27 @@ def key_manage_kb(key_id: int, is_unconfigured: bool = False, is_active: bool = 
     """
     builder = InlineKeyboardBuilder()
     
-    if not is_active:
-        # Для неактивных ключей (даже если не настроен) нет показа и замены, есть удаление
+    # Для активных подписок показываем кнопку "Показать подписку"
+    if is_active and not is_unconfigured and not is_traffic_exhausted:
         builder.row(
-            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
-        )
-        
-        builder.row(
-            InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"key_delete:{key_id}"),
-            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
-        )
-    elif is_unconfigured:
-        # Для ненастроенного активного ключа предлагаем настройку
-        builder.row(
-            InlineKeyboardButton(text="⚙️ Настроить", callback_data=f"key_replace:{key_id}"),
-            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
-        )
-        builder.row(
-            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
-        )
-    elif is_traffic_exhausted:
-        # Трафик исчерпан — только продлить и удалить
-        builder.row(
-            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
-        )
-        builder.row(
-            InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"key_delete:{key_id}"),
-            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
-        )
-    else:
-        # Стандартные кнопки активного ключа (subscription показывается автоматически)
-        builder.row(
-            InlineKeyboardButton(text=" Продлить", callback_data=f"key_renew:{key_id}")
-        )
-        
-        builder.row(
-            InlineKeyboardButton(text="🔄 Заменить", callback_data=f"key_replace:{key_id}"),
-            InlineKeyboardButton(text="✏️ Переименовать", callback_data=f"key_rename:{key_id}")
+            InlineKeyboardButton(text="🔗 Показать подписку", callback_data=f"key:{key_id}")
         )
     
-    # ПОСЛЕДНИЙ ряд (унифицированный): Мои ключи и На главную
+    # Для неактивных или с исчерпанным трафиком - кнопка продлить
+    if not is_active or is_traffic_exhausted:
+        builder.row(
+            InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}")
+        )
+    
+    # Для ненастроенных - кнопка настроить
+    if is_unconfigured:
+        builder.row(
+            InlineKeyboardButton(text="⚙️ Настроить", callback_data=f"key_replace:{key_id}")
+        )
+    
+    # Последний ряд: Мои подписки и На главную
     builder.row(
-        InlineKeyboardButton(text="� Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     

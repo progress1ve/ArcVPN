@@ -164,12 +164,17 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
             else:
                 date = '—'
             tariff = escape_html(p.get('tariff_name') or 'Тариф')
-            amount_val = p['amount_cents'] / 100
-            amount_str = f'{amount_val:g}'.replace('.', ',')
+            
+            # Показываем цену в рублях если есть, иначе в долларах
             if p['payment_type'] == 'stars':
                 amount = f"{p['amount_stars']} ⭐"
+            elif p.get('amount_rub') and p['amount_rub'] > 0:
+                amount = f"{p['amount_rub']} ₽"
             else:
+                amount_val = p['amount_cents'] / 100
+                amount_str = f'{amount_val:g}'.replace('.', ',')
                 amount = f'${amount_str}'
+            
             lines.append(f'   • {date}: {tariff} ({amount})')
     msg_text = '\n'.join(lines)
     kb = key_manage_kb(key_id, is_unconfigured=is_unconfigured, is_active=key_active, is_traffic_exhausted=traffic_exhausted)
