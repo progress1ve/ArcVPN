@@ -122,6 +122,70 @@ async def admin_update_cmd(message: Message, state: FSMContext):
     restart_bot()
 
 
+@router.message(Command("git"))
+async def admin_git_cmd(message: Message, state: FSMContext):
+    """Быстрая команда обновления бота из Git (алиас для /update)."""
+    if not is_admin(message.from_user.id):
+        return
+    
+    # Проверяем настроен ли GitHub
+    if not GITHUB_REPO_URL:
+        await message.answer(
+            "❌ <b>GitHub не настроен</b>\n\n"
+            "Укажите URL репозитория в файле <code>config.py</code>",
+            parse_mode="HTML"
+        )
+        return
+        
+    # Проверяем и обновляем remote URL если нужно
+    current_remote = get_remote_url()
+    if current_remote != GITHUB_REPO_URL:
+        set_remote_url(GITHUB_REPO_URL)
+        
+    # Показываем текущую ветку и коммит
+    branch = get_current_branch()
+    commit_info = get_last_commit_info()
+    
+    status_msg = await message.answer(
+        f"🔄 <b>Обновление из Git</b>\n\n"
+        f"📂 <b>Ветка:</b> {branch}\n"
+        f"📝 <b>Текущий коммит:</b>\n<code>{commit_info['short_hash']}</code> - {commit_info['message']}\n\n"
+        f"⏳ Загружаю изменения...",
+        parse_mode="HTML"
+    )
+    
+    success, log_message = pull_updates()
+    
+    if not success:
+        await status_msg.edit_text(
+            f"❌ <b>Ошибка обновления</b>\n\n"
+            f"<code>{log_message}</code>\n\n"
+            f"💡 Попробуйте:\n"
+            f"• Проверить подключение к интернету\n"
+            f"• Проверить права доступа к репозиторию\n"
+            f"• Использовать /update для принудительного обновления",
+            parse_mode="HTML"
+        )
+        return
+    
+    # Получаем новый коммит
+    new_commit_info = get_last_commit_info()
+    
+    logger.info(f"🔄 Бот обновлён через /git администратором {message.from_user.id}")
+    
+    await status_msg.edit_text(
+        f"✅ <b>Обновление завершено!</b>\n\n"
+        f"📝 <b>Новый коммит:</b>\n<code>{new_commit_info['short_hash']}</code> - {new_commit_info['message']}\n\n"
+        f"📊 <b>Изменения:</b>\n<code>{log_message}</code>\n\n"
+        f"🔄 Перезапуск через 2 секунды...",
+        parse_mode="HTML"
+    )
+    
+    await state.clear()
+    await asyncio.sleep(2)
+    restart_bot()
+
+
 # ============================================================================
 # ОБНОВЛЕНИЕ БОТА (ИНТЕРФЕЙС)
 # ============================================================================
