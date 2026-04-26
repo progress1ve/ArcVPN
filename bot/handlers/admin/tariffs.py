@@ -288,8 +288,15 @@ async def delete_tariff_execute(callback: CallbackQuery, state: FSMContext):
         # Возвращаемся к списку тарифов
         await show_tariffs_list(callback, state)
     else:
-        logger.error(f"🔴 Ошибка при удалении тарифа {tariff_id}")
-        await callback.answer("❌ Ошибка удаления тарифа", show_alert=True)
+        logger.error(f"🔴 Не удалось удалить тариф {tariff_id} - используется в ключах или платежах")
+        await callback.answer(
+            f"❌ Невозможно удалить тариф «{tariff['name']}»\n\n"
+            f"Тариф используется в существующих подписках или платежах.\n"
+            f"Вместо удаления вы можете скрыть тариф.",
+            show_alert=True
+        )
+        # Возвращаемся к просмотру тарифа
+        await show_tariff_view(callback, state)
 
 
 # ============================================================================

@@ -210,17 +210,42 @@ def delete_tariff(tariff_id: int) -> bool:
         tariff_id: ID тарифа
         
     Returns:
-        True если успешно удален
+        True если успешно удален, False если тариф используется или ошибка
     """
     with get_db() as conn:
+        # Проверяем, используется ли тариф в ключах
         cursor = conn.execute("""
-            DELETE FROM tariffs
-            WHERE id = ?
+            SELECT COUNT(*) as count FROM vpn_keys WHERE tariff_id = ?
         """, (tariff_id,))
-        success = cursor.rowcount > 0
-        if success:
-            logger.info(f"Тариф ID {tariff_id} удален")
-        return success
+        keys_count = cursor.fetchone()['count']
+        
+        if keys_count > 0:
+            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {keys_count} ключах")
+            return False
+        
+        # Проверяем, используется ли тариф в платежах
+        cursor = conn.execute("""
+            SELECT COUNT(*) as count FROM payments WHERE tariff_id = ?
+        """, (tariff_id,))
+        payments_count = cursor.fetchone()['count']
+        
+        if payments_count > 0:
+            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {payments_count} платежах")
+            return False
+        
+        # Если тариф не используется - удаляем
+        try:
+            cursor = conn.execute("""
+                DELETE FROM tariffs
+                WHERE id = ?
+            """, (tariff_id,))
+            success = cursor.rowcount > 0
+            if success:
+                logger.info(f"Тариф ID {tariff_id} успешно удален")
+            return success
+        except Exception as e:
+            logger.error(f"Ошибка при удалении тарифа ID {tariff_id}: {e}")
+            return False
 
 def get_tariffs_count() -> int:
     """
