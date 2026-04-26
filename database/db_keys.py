@@ -481,12 +481,14 @@ def get_user_keys_for_display(telegram_id: int) -> List[Dict[str, Any]]:
                 vk.id, vk.client_uuid, vk.custom_name, vk.expires_at, 
                 s.name as server_name, s.id as server_id, vk.panel_email,
                 vk.traffic_used, vk.traffic_limit,
+                t.name as tariff_name,
                 CASE 
                     WHEN vk.expires_at > datetime('now') THEN 1 
                     ELSE 0 
                 END as is_active
             FROM vpn_keys vk
             LEFT JOIN servers s ON vk.server_id = s.id
+            LEFT JOIN tariffs t ON vk.tariff_id = t.id
             JOIN users u ON vk.user_id = u.id
             WHERE u.telegram_id = ?
             ORDER BY vk.expires_at DESC
@@ -497,15 +499,21 @@ def get_user_keys_for_display(telegram_id: int) -> List[Dict[str, Any]]:
             key = dict(row)
             # Формируем display_name
             if key['custom_name']:
+                # Пользователь переименовал - используем его название
                 key['display_name'] = key['custom_name']
+            elif key.get('tariff_name'):
+                # Используем название тарифа
+                key['display_name'] = key['tariff_name']
             elif key['client_uuid']:
+                # Fallback на UUID если нет тарифа
                 uuid = key['client_uuid']
                 key['display_name'] = f"{uuid[:4]}...{uuid[-4:]}"
             else:
+                # Совсем fallback
                 if not key['server_id']:
-                     key['display_name'] = f"Ключ #{key['id']} (Не настроен)"
+                     key['display_name'] = f"Подписка #{key['id']} (Не настроена)"
                 else:
-                     key['display_name'] = f"Ключ #{key['id']}"
+                     key['display_name'] = f"Подписка #{key['id']}"
             keys.append(key)
         
         return keys
@@ -546,15 +554,21 @@ def get_key_details_for_user(key_id: int, telegram_id: int) -> Optional[Dict[str
         key = dict(row)
         # Формируем display_name
         if key['custom_name']:
+            # Пользователь переименовал - используем его название
             key['display_name'] = key['custom_name']
+        elif key.get('tariff_name'):
+            # Используем название тарифа
+            key['display_name'] = key['tariff_name']
         elif key['client_uuid']:
+            # Fallback на UUID если нет тарифа
             uuid = key['client_uuid']
             key['display_name'] = f"{uuid[:4]}...{uuid[-4:]}"
         else:
+            # Совсем fallback
             if not key['server_id']:
-                 key['display_name'] = f"Ключ #{key['id']} (Не настроен)"
+                 key['display_name'] = f"Подписка #{key['id']} (Не настроена)"
             else:
-                 key['display_name'] = f"Ключ #{key['id']}"
+                 key['display_name'] = f"Подписка #{key['id']}"
         
         return key
 

@@ -42,11 +42,11 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
     keys = get_user_keys_for_display(telegram_id)
     if not keys:
         if is_callback:
-            await safe_edit_or_send(message, '🔑 <b>Мои ключи</b>\n\nУ вас пока нет VPN-ключей.\n\nНажмите «Купить ключ» на главной, чтобы приобрести доступ! 🚀', reply_markup=home_only_kb())
+            await safe_edit_or_send(message, '🔑 <b>Мои подписки</b>\n\nУ вас пока нет VPN-подписок.\n\nНажмите «Купить подписку» на главной, чтобы приобрести доступ! 🚀', reply_markup=home_only_kb())
         else:
-            await safe_edit_or_send(message, '🔑 <b>Мои ключи</b>\n\nУ вас пока нет VPN-ключей.\n\nНажмите «Купить ключ» на главной, чтобы приобрести доступ! 🚀', reply_markup=home_only_kb(), force_new=True)
+            await safe_edit_or_send(message, '🔑 <b>Мои подписки</b>\n\nУ вас пока нет VPN-подписок.\n\nНажмите «Купить подписку» на главной, чтобы приобрести доступ! 🚀', reply_markup=home_only_kb(), force_new=True)
         return
-    lines = ['🔑 <b>Мои ключи</b>\n']
+    lines = ['🔑 <b>Мои подписки</b>\n']
     for key in keys:
         if key['is_active'] and (not is_traffic_exhausted(key)):
             status_emoji = '🟢'
@@ -73,7 +73,7 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
         lines.append(f"{status_emoji}<b>{escape_html(key['display_name'])}</b> - {traffic_text} - до {expires}")
         lines.append(f'     📍{escape_html(server)} - {escape_html(inbound_name)} ({escape_html(protocol)})')
         lines.append('')
-    lines.append('Выберите ключ для управления:')
+    lines.append('Выберите подписку для управления:')
     text = '\n'.join(lines)
     if is_callback:
         await safe_edit_or_send(message, text, reply_markup=my_keys_list_kb(keys))
