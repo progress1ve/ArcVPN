@@ -57,17 +57,7 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
         used_str = format_traffic(traffic_used)
         limit_str = format_traffic(traffic_limit) if traffic_limit > 0 else '∞'
         traffic_text = f'{used_str} / {limit_str}'
-        protocol = 'VLESS'
-        inbound_name = 'VPN'
-        if key.get('server_id') and key.get('panel_email'):
-            try:
-                client = await get_client(key['server_id'])
-                stats = await client.get_client_stats(key['panel_email'])
-                if stats:
-                    protocol = stats['protocol'].upper()
-                    inbound_name = stats.get('remark', 'VPN') or 'VPN'
-            except Exception as e:
-                logger.warning(f"Не удалось получить протокол для ключа {key['id']}: {e}")
+        
         # Форматируем дату в формате ДД-ММ-ГГГГ
         if key['expires_at']:
             from datetime import datetime
@@ -75,9 +65,9 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
             expires = expires_dt.strftime('%d-%m-%Y')
         else:
             expires = '—'
-        server = key.get('server_name') or 'Не выбран'
-        lines.append(f"{status_emoji}<b>{escape_html(key['display_name'])}</b> - {traffic_text} - до {expires}")
-        lines.append(f'     📍{escape_html(server)} - {escape_html(inbound_name)} ({escape_html(protocol)})')
+        
+        # Показываем только название, трафик и дату (без сервера и протокола)
+        lines.append(f"{status_emoji} <b>{escape_html(key['display_name'])}</b> - {traffic_text} - до {expires}")
         lines.append('')
     lines.append('Выберите подписку для управления:')
     text = '\n'.join(lines)
