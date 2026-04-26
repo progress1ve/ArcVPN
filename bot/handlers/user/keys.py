@@ -310,13 +310,29 @@ async def instruction_apple_handler(callback: CallbackQuery):
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
-    from bot.utils.subscription import get_subscription_url
+    from config import SUBSCRIPTION_URL
+    from database.requests import get_user_keys_for_display
     import urllib.parse
     
     telegram_id = callback.from_user.id
     
-    # Получаем обычную subscription ссылку
-    subscription_url = get_subscription_url(telegram_id)
+    # Получаем первый активный ключ пользователя для subscription URL
+    keys = get_user_keys_for_display(telegram_id)
+    if not keys:
+        await callback.answer("❌ У вас нет активных ключей. Сначала купите подписку!", show_alert=True)
+        return
+    
+    # Берем первый ключ и получаем его sub_id
+    first_key = keys[0]
+    from database.requests import get_vpn_key_by_id
+    key_data = get_vpn_key_by_id(first_key['id'])
+    
+    if not key_data or not key_data.get('sub_id'):
+        await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
+        return
+    
+    # Формируем subscription URL с использованием sub_id
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}"
     
     # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
@@ -345,7 +361,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         
         await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
         await callback.answer()
-        logger.info("instruction_apple_handler успешно выполнен")
+        logger.info(f"instruction_apple_handler успешно выполнен (sub_id={key_data['sub_id']})")
     except Exception as e:
         logger.error(f"Ошибка в instruction_apple_handler: {e}", exc_info=True)
         await callback.answer("❌ Произошла ошибка", show_alert=True)
@@ -357,13 +373,29 @@ async def instruction_android_handler(callback: CallbackQuery):
     
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
-    from bot.utils.subscription import get_subscription_url
+    from config import SUBSCRIPTION_URL
+    from database.requests import get_user_keys_for_display
     import urllib.parse
     
     telegram_id = callback.from_user.id
     
-    # Получаем обычную subscription ссылку
-    subscription_url = get_subscription_url(telegram_id)
+    # Получаем первый активный ключ пользователя для subscription URL
+    keys = get_user_keys_for_display(telegram_id)
+    if not keys:
+        await callback.answer("❌ У вас нет активных ключей. Сначала купите подписку!", show_alert=True)
+        return
+    
+    # Берем первый ключ и получаем его sub_id
+    first_key = keys[0]
+    from database.requests import get_vpn_key_by_id
+    key_data = get_vpn_key_by_id(first_key['id'])
+    
+    if not key_data or not key_data.get('sub_id'):
+        await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
+        return
+    
+    # Формируем subscription URL с использованием sub_id
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}"
     
     # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
@@ -392,7 +424,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         
         await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
         await callback.answer()
-        logger.info("instruction_android_handler успешно выполнен")
+        logger.info(f"instruction_android_handler успешно выполнен (sub_id={key_data['sub_id']})")
     except Exception as e:
         logger.error(f"Ошибка в instruction_android_handler: {e}", exc_info=True)
         await callback.answer("❌ Произошла ошибка", show_alert=True)

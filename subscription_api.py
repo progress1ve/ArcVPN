@@ -179,6 +179,10 @@ def subscription(sub_id: str):
     from flask import request
     
     try:
+        # Логируем User-Agent для отладки Happ
+        user_agent = request.headers.get('User-Agent', 'Unknown')
+        logger.info(f"Запрос subscription для sub_id={sub_id}, User-Agent: {user_agent}")
+        
         # Получаем формат из query параметров
         output_format = request.args.get('format', 'plain').lower()
         
@@ -202,6 +206,7 @@ def subscription(sub_id: str):
             row = cursor.fetchone()
             
             if not row:
+                logger.warning(f"Ключ не найден для sub_id={sub_id}")
                 return Response("No active key found", status=404, mimetype='text/plain')
             
             key = dict(row)
@@ -212,6 +217,7 @@ def subscription(sub_id: str):
             
             # Если трафик исчерпан
             if traffic_limit > 0 and traffic_used >= traffic_limit:
+                logger.warning(f"Трафик исчерпан для sub_id={sub_id}")
                 return Response("Traffic limit exceeded", status=404, mimetype='text/plain')
         
         # Генерируем ссылку для ключа
@@ -224,6 +230,7 @@ def subscription(sub_id: str):
             loop.close()
         
         if not link:
+            logger.error(f"Не удалось сгенерировать ссылку для sub_id={sub_id}")
             return Response("Failed to generate key", status=500, mimetype='text/plain')
         
         # Кодируем в base64 если нужно
@@ -232,31 +239,37 @@ def subscription(sub_id: str):
         else:
             subscription_data = link
         
-        # Заголовки для VPN клиентов
+        # Заголовки для VPN клиентов (включая Happ)
         headers = {
             # Информация о трафике
             'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
             # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля
+            # Название профиля (base64)
             'profile-title': base64.b64encode('ArcVPN 🚀'.encode()).decode(),
             # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
-            # Кэширование
+            # Content-Disposition для Happ
+            'Content-Disposition': 'inline; filename="subscription.txt"',
+            # Кэширование отключено
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
-            'Expires': '0'
+            'Expires': '0',
+            # CORS заголовки для веб-клиентов
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Methods': 'GET, OPTIONS',
+            'Access-Control-Allow-Headers': 'Content-Type'
         }
         
         # Убедимся что в конце есть перенос строки
         if not subscription_data.endswith('\n'):
             subscription_data += '\n'
         
-        logger.info(f"Сгенерирована подписка для sub_id={sub_id}")
+        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт")
         return Response(subscription_data, headers=headers, mimetype='text/plain; charset=utf-8')
         
     except Exception as e:
-        logger.error(f"Ошибка генерации подписки для sub_id={sub_id}: {e}")
+        logger.error(f"❌ Ошибка генерации подписки для sub_id={sub_id}: {e}", exc_info=True)
         return Response("Internal server error", status=500, mimetype='text/plain')
 
 
