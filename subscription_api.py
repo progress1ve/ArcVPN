@@ -245,12 +245,12 @@ def subscription(sub_id: str):
             'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
             # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля (base64)
-            'profile-title': base64.b64encode('ArcVPN 🚀'.encode()).decode(),
+            # Название профиля - используем URL-encoded UTF-8 вместо base64
+            'profile-title': 'ArcVPN',
             # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
-            # Content-Disposition для Happ
-            'Content-Disposition': 'inline; filename="subscription.txt"',
+            # Content-Disposition с красивым именем файла
+            'Content-Disposition': 'inline; filename="ArcVPN.txt"',
             # Кэширование отключено
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
