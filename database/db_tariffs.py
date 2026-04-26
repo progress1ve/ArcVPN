@@ -219,8 +219,15 @@ def delete_tariff(tariff_id: int) -> bool:
         """, (tariff_id,))
         keys_count = cursor.fetchone()['count']
         
+        logger.info(f"🔍 Проверка тарифа ID {tariff_id}: найдено {keys_count} ключей")
+        
         if keys_count > 0:
-            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {keys_count} ключах")
+            # Показываем какие ключи используют этот тариф
+            cursor = conn.execute("""
+                SELECT id, user_id, expires_at FROM vpn_keys WHERE tariff_id = ? LIMIT 5
+            """, (tariff_id,))
+            sample_keys = cursor.fetchall()
+            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {keys_count} ключах. Примеры: {[dict(k) for k in sample_keys]}")
             return False
         
         # Проверяем, используется ли тариф в платежах
@@ -229,22 +236,32 @@ def delete_tariff(tariff_id: int) -> bool:
         """, (tariff_id,))
         payments_count = cursor.fetchone()['count']
         
+        logger.info(f"🔍 Проверка тарифа ID {tariff_id}: найдено {payments_count} платежей")
+        
         if payments_count > 0:
-            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {payments_count} платежах")
+            # Показываем какие платежи используют этот тариф
+            cursor = conn.execute("""
+                SELECT id, user_id, status, paid_at FROM payments WHERE tariff_id = ? LIMIT 5
+            """, (tariff_id,))
+            sample_payments = cursor.fetchall()
+            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {payments_count} платежах. Примеры: {[dict(p) for p in sample_payments]}")
             return False
         
         # Если тариф не используется - удаляем
         try:
+            logger.info(f"✅ Тариф ID {tariff_id} не используется, удаляем...")
             cursor = conn.execute("""
                 DELETE FROM tariffs
                 WHERE id = ?
             """, (tariff_id,))
             success = cursor.rowcount > 0
             if success:
-                logger.info(f"Тариф ID {tariff_id} успешно удален")
+                logger.info(f"✅ Тариф ID {tariff_id} успешно удален из БД")
+            else:
+                logger.warning(f"⚠️ Тариф ID {tariff_id} не найден в БД (rowcount=0)")
             return success
         except Exception as e:
-            logger.error(f"Ошибка при удалении тарифа ID {tariff_id}: {e}")
+            logger.error(f"❌ Ошибка при удалении тарифа ID {tariff_id}: {e}")
             return False
 
 def get_tariffs_count() -> int:
