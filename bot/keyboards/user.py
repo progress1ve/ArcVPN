@@ -629,6 +629,41 @@ def key_show_kb(key_id: int = None) -> InlineKeyboardMarkup:
     return key_issued_kb()
 
 
+def key_renew_tariff_list_kb(tariffs: list, key_id: int) -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора тарифа для продления подписки (первый шаг).
+    После выбора тарифа показываются способы оплаты.
+    
+    Args:
+        tariffs: Список активных тарифов
+        key_id: ID ключа для продления
+    """
+    builder = InlineKeyboardBuilder()
+    
+    for tariff in tariffs:
+        # Показываем цену в рублях если есть, иначе в долларах
+        if tariff.get('price_rub') and tariff['price_rub'] > 0:
+            price_display = f"{tariff['price_rub']} ₽"
+        else:
+            price_usd = tariff['price_cents'] / 100
+            price_str = f"{price_usd:g}".replace('.', ',')
+            price_display = f"${price_str}"
+        
+        builder.row(
+            InlineKeyboardButton(
+                text=f"📦 {tariff['name']} ({tariff['duration_days']} дн.) — {price_display}",
+                callback_data=f"key_renew_tariff:{key_id}:{tariff['id']}"
+            )
+        )
+    
+    builder.row(
+        InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key:{key_id}"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+    )
+    
+    return builder.as_markup()
+
+
 def renew_tariff_select_kb(tariffs: list, key_id: int, order_id: str = None, is_cards: bool = False, is_crypto: bool = False, is_balance: bool = False, is_qr: bool = False, is_demo: bool = False) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора тарифа для продления ключа (для Stars, Карт или Баланса).
@@ -709,6 +744,7 @@ def renew_tariff_select_kb(tariffs: list, key_id: int, order_id: str = None, is_
 
 def renew_payment_method_kb(
     key_id: int,
+    tariff_id: int = None,
     crypto_url: str = None,
     crypto_mode: str = 'standard',
     crypto_configured: bool = False,
@@ -719,10 +755,11 @@ def renew_payment_method_kb(
     demo_enabled: bool = False
 ) -> InlineKeyboardMarkup:
     """
-    Клавиатура выбора способа оплаты для продления (первый шаг).
+    Клавиатура выбора способа оплаты для продления.
 
     Args:
         key_id: ID ключа
+        tariff_id: ID выбранного тарифа (если уже выбран)
         crypto_url: URL для оплаты криптой (с placeholder тарифом)
         crypto_mode: Режим интеграции с Ya.Seller ('simple' или 'standard')
         crypto_configured: Настроена ли крипто-оплата
@@ -730,69 +767,118 @@ def renew_payment_method_kb(
         cards_enabled: Доступна ли оплата Картами
         yookassa_qr_enabled: Доступна ли QR-оплата через ЮКассу
         show_balance_button: Показывать ли кнопку «Использовать баланс»
+        demo_enabled: Доступна ли демо-оплата
     """
     builder = InlineKeyboardBuilder()
 
     # USDT
     if crypto_configured:
         if crypto_mode == 'simple':
-            builder.row(
-                InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_crypto_tariff:{key_id}")
-            )
+            if tariff_id:
+                builder.row(
+                    InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_pay_crypto:{key_id}:{tariff_id}")
+                )
+            else:
+                builder.row(
+                    InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_crypto_tariff:{key_id}")
+                )
         elif crypto_url:
             builder.row(
                 InlineKeyboardButton(text="🪙 Оплатить USDT", url=crypto_url)
             )
 
-    # Stars — переход к выбору тарифа
+    # Stars
     if stars_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="⭐ Оплатить звёздами",
-                callback_data=f"renew_stars_tariff:{key_id}"
+        if tariff_id:
+            builder.row(
+                InlineKeyboardButton(
+                    text="⭐ Оплатить звёздами",
+                    callback_data=f"renew_pay_stars:{key_id}:{tariff_id}"
+                )
             )
-        )
+        else:
+            builder.row(
+                InlineKeyboardButton(
+                    text="⭐ Оплатить звёздами",
+                    callback_data=f"renew_stars_tariff:{key_id}"
+                )
+            )
 
-    # Карты — переход к выбору тарифа
+    # Карты
     if cards_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="💳 Оплатить картой",
-                callback_data=f"renew_cards_tariff:{key_id}"
+        if tariff_id:
+            builder.row(
+                InlineKeyboardButton(
+                    text="💳 Оплатить картой",
+                    callback_data=f"renew_pay_cards:{key_id}:{tariff_id}"
+                )
             )
-        )
+        else:
+            builder.row(
+                InlineKeyboardButton(
+                    text="💳 Оплатить картой",
+                    callback_data=f"renew_cards_tariff:{key_id}"
+                )
+            )
 
-    # QR ЮКасса— переход к выбору тарифа
+    # QR ЮКасса
     if yookassa_qr_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="📱 QR-оплата (Карта/СБП)",
-                callback_data=f"renew_qr_tariff:{key_id}"
+        if tariff_id:
+            builder.row(
+                InlineKeyboardButton(
+                    text="📱 QR-оплата (Карта/СБП)",
+                    callback_data=f"renew_pay_qr:{key_id}:{tariff_id}"
+                )
             )
-        )
+        else:
+            builder.row(
+                InlineKeyboardButton(
+                    text="📱 QR-оплата (Карта/СБП)",
+                    callback_data=f"renew_qr_tariff:{key_id}"
+                )
+            )
 
-    # Демо оплата (РФ) — переход к выбору тарифа
+    # Демо оплата (РФ)
     if demo_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="🏦 Демо оплата (РФ карта)",
-                callback_data=f"renew_demo_tariffs:{key_id}"
+        if tariff_id:
+            builder.row(
+                InlineKeyboardButton(
+                    text="🏦 Демо оплата (РФ карта)",
+                    callback_data=f"renew_demo_pay:{key_id}:{tariff_id}"
+                )
             )
-        )
+        else:
+            builder.row(
+                InlineKeyboardButton(
+                    text="🏦 Демо оплата (РФ карта)",
+                    callback_data=f"renew_demo_tariffs:{key_id}"
+                )
+            )
 
-    # Кнопка «Использовать баланс» — только при выполнении всех трёх условий
-    # (is_referral_enabled + reward_type='balance' + personal_balance > 0)
-    # На этом экране больше ничего про баланс не показывать
+    # Кнопка «Использовать баланс»
     if show_balance_button:
-        builder.row(
-            InlineKeyboardButton(text="💎 Использовать баланс", callback_data=f"pay_use_balance:{key_id}")
-        )
+        if tariff_id:
+            builder.row(
+                InlineKeyboardButton(text="💎 Использовать баланс", callback_data=f"balance_pay:{tariff_id}:{key_id}")
+            )
+        else:
+            builder.row(
+                InlineKeyboardButton(text="💎 Использовать баланс", callback_data=f"pay_use_balance:{key_id}")
+            )
 
     # Последний ряд: назад и на главную
-    builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key:{key_id}"),
-        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-    )
+    if tariff_id:
+        # Если тариф выбран - возвращаемся к выбору тарифа
+        builder.row(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key_renew:{key_id}"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+    else:
+        # Если тариф не выбран - возвращаемся к ключу
+        builder.row(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data=f"key:{key_id}"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
 
     return builder.as_markup()
 

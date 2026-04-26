@@ -68,7 +68,13 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
                     inbound_name = stats.get('remark', 'VPN') or 'VPN'
             except Exception as e:
                 logger.warning(f"Не удалось получить протокол для ключа {key['id']}: {e}")
-        expires = key['expires_at'][:10] if key['expires_at'] else '—'
+        # Форматируем дату в формате ДД-ММ-ГГГГ
+        if key['expires_at']:
+            from datetime import datetime
+            expires_dt = datetime.fromisoformat(key['expires_at'])
+            expires = expires_dt.strftime('%d-%m-%Y')
+        else:
+            expires = '—'
         server = key.get('server_name') or 'Не выбран'
         lines.append(f"{status_emoji}<b>{escape_html(key['display_name'])}</b> - {traffic_text} - до {expires}")
         lines.append(f'     📍{escape_html(server)} - {escape_html(inbound_name)} ({escape_html(protocol)})')
@@ -135,7 +141,12 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
                 inbound_name = stats.get('remark', 'VPN') or 'VPN'
         except Exception as e:
             logger.warning(f'Ошибка получения протокола: {e}')
-    expires = key['expires_at'][:10] if key['expires_at'] else '—'
+    # Форматируем дату в формате ДД-ММ-ГГГГ
+    if key['expires_at']:
+        expires_dt = datetime.fromisoformat(key['expires_at'])
+        expires = expires_dt.strftime('%d-%m-%Y')
+    else:
+        expires = '—'
     server = key.get('server_name') or 'Не выбран'
     lines = []
     if prepend_text:
@@ -146,7 +157,12 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
     if payments:
         lines.append('📜 <b>История операций:</b>')
         for p in payments:
-            date = p['paid_at'][:10] if p['paid_at'] else '—'
+            # Форматируем дату в формате ДД-ММ-ГГГГ
+            if p['paid_at']:
+                paid_dt = datetime.fromisoformat(p['paid_at'])
+                date = paid_dt.strftime('%d-%m-%Y')
+            else:
+                date = '—'
             tariff = escape_html(p.get('tariff_name') or 'Тариф')
             amount_val = p['amount_cents'] / 100
             amount_str = f'{amount_val:g}'.replace('.', ',')
@@ -252,7 +268,11 @@ async def key_details_handler(callback: CallbackQuery):
             lines.append(f'📊 <b>Трафик:</b> Безлимит')
         
         # Срок действия
-        expires = key['expires_at'][:10] if key['expires_at'] else '—'
+        if key['expires_at']:
+            expires_dt = datetime.fromisoformat(key['expires_at'])
+            expires = expires_dt.strftime('%d-%m-%Y')
+        else:
+            expires = '—'
         lines.append(f'📅 <b>Действует до:</b> {expires}')
         lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
         
@@ -471,47 +491,150 @@ async def show_subscription_handler(callback: CallbackQuery):
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_renew:'))
-async def key_renew_select_payment(callback: CallbackQuery):
-    """Выбор способа оплаты для продления (сразу, без тарифа)."""
-    from database.requests import get_all_tariffs, get_key_details_for_user, get_user_internal_id, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_setting, create_pending_order, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
-    from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
-    from bot.keyboards.user import renew_payment_method_kb, back_and_home_kb
+async def key_renew_select_tariff(callback: CallbackQuery):
+    """Выбор тарифа для продления подписки."""
+    from database.requests import get_all_tariffs, get_key_details_for_user
+    from bot.keyboards.user import key_renew_tariff_list_kb, back_and_home_kb
+    
     key_id = int(callback.data.split(':')[1])
     telegram_id = callback.from_user.id
+    
     key = get_key_details_for_user(key_id, telegram_id)
     if not key:
         await callback.answer('❌ Ключ не найден или вы не являетесь его владельцем.', show_alert=True)
         return
+    
+    # Получаем все доступные тарифы
+    tariffs = get_all_tariffs(include_hidden=False)
+    if not tariffs:
+        await safe_edit_or_send(
+            callback.message,
+            '💳 <b>Продление подписки</b>\n\n😔 Нет доступных тарифов.\nПопробуйте позже.',
+            reply_markup=back_and_home_kb(back_callback=f'key:{key_id}')
+        )
+        await callback.answer()
+        return
+    
+    # Показываем информацию о текущей подписке и список тарифов
+    if key['expires_at']:
+        expires_dt = datetime.fromisoformat(key['expires_at'])
+        expires = expires_dt.strftime('%d-%m-%Y')
+        days_left = (expires_dt - datetime.now()).days
+        if days_left < 0:
+            days_left = 0
+    else:
+        expires = '—'
+        days_left = 0
+    
+    text = (
+        f"💳 <b>Продление подписки</b>\n\n"
+        f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}\n"
+        f"📅 <b>Действует до:</b> {expires}\n"
+        f"⏳ <b>Осталось дней:</b> {days_left}\n\n"
+        f"Выберите тариф для продления:"
+    )
+    
+    await safe_edit_or_send(
+        callback.message,
+        text,
+        reply_markup=key_renew_tariff_list_kb(tariffs, key_id)
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('key_renew_tariff:'))
+async def key_renew_select_payment(callback: CallbackQuery):
+    """Выбор способа оплаты после выбора тарифа."""
+    from database.requests import get_tariff_by_id, get_key_details_for_user, get_user_internal_id, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_setting, create_pending_order, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
+    from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
+    from bot.keyboards.user import renew_payment_method_kb, back_and_home_kb
+    
+    parts = callback.data.split(':')
+    key_id = int(parts[1])
+    tariff_id = int(parts[2])
+    telegram_id = callback.from_user.id
+    
+    key = get_key_details_for_user(key_id, telegram_id)
+    if not key:
+        await callback.answer('❌ Ключ не найден или вы не являетесь его владельцем.', show_alert=True)
+        return
+    
+    tariff = get_tariff_by_id(tariff_id)
+    if not tariff:
+        await callback.answer('❌ Тариф не найден', show_alert=True)
+        return
+    
+    # Проверяем доступные способы оплаты
     crypto_configured = is_crypto_configured()
     stars_enabled = is_stars_enabled()
     cards_enabled = is_cards_enabled()
     demo_enabled = is_demo_payment_enabled()
     from database.requests import is_yookassa_qr_configured
     yookassa_qr = is_yookassa_qr_configured()
-    if not crypto_configured and (not stars_enabled) and (not cards_enabled) and (not yookassa_qr) and (not demo_enabled):
-        await safe_edit_or_send(callback.message, '💳 <b>Продление ключа</b>\n\n😔 Способы оплаты временно недоступны.\nПопробуйте позже.', reply_markup=back_and_home_kb(back_callback=f'key:{key_id}'))
+    
+    if not crypto_configured and not stars_enabled and not cards_enabled and not yookassa_qr and not demo_enabled:
+        await safe_edit_or_send(
+            callback.message,
+            '💳 <b>Продление подписки</b>\n\n😔 Способы оплаты временно недоступны.\nПопробуйте позже.',
+            reply_markup=back_and_home_kb(back_callback=f'key_renew:{key_id}')
+        )
         await callback.answer()
         return
+    
+    # Создаем placeholder order для крипты если нужно
     crypto_url = None
     crypto_mode = get_crypto_integration_mode()
     user_id = get_user_internal_id(telegram_id)
+    
     if crypto_configured and user_id:
-        tariffs = get_all_tariffs(include_hidden=False)
-        if tariffs:
-            placeholder_tariff = tariffs[0]
-            (_, order_id) = create_pending_order(user_id=user_id, tariff_id=placeholder_tariff['id'], payment_type='crypto', vpn_key_id=key_id)
-            if crypto_mode == 'standard':
-                item_url = get_setting('crypto_item_url')
-                item_id = extract_item_id_from_url(item_url)
-                if item_id:
-                    crypto_url = build_crypto_payment_url(item_id=item_id, invoice_id=order_id, tariff_external_id=None, price_cents=None)
+        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='crypto', vpn_key_id=key_id)
+        if crypto_mode == 'standard':
+            item_url = get_setting('crypto_item_url')
+            item_id = extract_item_id_from_url(item_url)
+            if item_id:
+                crypto_url = build_crypto_payment_url(item_id=item_id, invoice_id=order_id, tariff_external_id=None, price_cents=None)
+    
+    # Проверяем баланс для кнопки оплаты с баланса
     show_balance_button = False
     if is_referral_enabled() and get_referral_reward_type() == 'balance':
         if user_id:
             balance_cents = get_user_balance(user_id)
             if balance_cents > 0:
                 show_balance_button = True
-    await safe_edit_or_send(callback.message, f"💳 <b>Продление ключа</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите способ оплаты:", reply_markup=renew_payment_method_kb(key_id=key_id, crypto_url=crypto_url, crypto_mode=crypto_mode, crypto_configured=crypto_configured, stars_enabled=stars_enabled, cards_enabled=cards_enabled, yookassa_qr_enabled=yookassa_qr, show_balance_button=show_balance_button, demo_enabled=demo_enabled))
+    
+    # Показываем цену
+    if tariff.get('price_rub') and tariff['price_rub'] > 0:
+        price_display = f"{tariff['price_rub']} ₽"
+    else:
+        price_usd = tariff['price_cents'] / 100
+        price_str = f"{price_usd:g}".replace('.', ',')
+        price_display = f"${price_str}"
+    
+    text = (
+        f"💳 <b>Продление подписки</b>\n\n"
+        f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}\n"
+        f"📦 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
+        f"⏰ <b>Продление на:</b> {tariff['duration_days']} дней\n"
+        f"💰 <b>Стоимость:</b> {price_display}\n\n"
+        f"Выберите способ оплаты:"
+    )
+    
+    await safe_edit_or_send(
+        callback.message,
+        text,
+        reply_markup=renew_payment_method_kb(
+            key_id=key_id,
+            tariff_id=tariff_id,
+            crypto_url=crypto_url,
+            crypto_mode=crypto_mode,
+            crypto_configured=crypto_configured,
+            stars_enabled=stars_enabled,
+            cards_enabled=cards_enabled,
+            yookassa_qr_enabled=yookassa_qr,
+            show_balance_button=show_balance_button,
+            demo_enabled=demo_enabled
+        )
+    )
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_replace:'))
