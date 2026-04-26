@@ -257,32 +257,38 @@ async def delete_tariff_confirm(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("admin_tariff_delete_confirm:"))
 async def delete_tariff_execute(callback: CallbackQuery, state: FSMContext):
     """Выполняет удаление тарифа."""
-    logger.info(f"delete_tariff_execute вызван для callback_data: {callback.data}")
+    logger.info(f"🔴 delete_tariff_execute ВЫЗВАН! callback_data: {callback.data}")
+    logger.info(f"🔴 User ID: {callback.from_user.id}")
     
     if not is_admin(callback.from_user.id):
+        logger.warning(f"🔴 Пользователь {callback.from_user.id} не является админом")
         await callback.answer("⛔ Доступ запрещён", show_alert=True)
         return
     
     tariff_id = int(callback.data.split(":")[1])
-    logger.info(f"Удаление тарифа ID: {tariff_id}")
+    logger.info(f"🔴 Удаление тарифа ID: {tariff_id}")
     
     tariff = get_tariff_by_id(tariff_id)
     
     if not tariff:
-        logger.warning(f"Тариф ID {tariff_id} не найден")
+        logger.warning(f"🔴 Тариф ID {tariff_id} не найден в БД")
         await callback.answer("❌ Тариф не найден", show_alert=True)
         return
     
+    logger.info(f"🔴 Тариф найден: {tariff['name']}")
     from database.requests import delete_tariff
     
+    logger.info(f"🔴 Вызываем delete_tariff({tariff_id})")
     result = delete_tariff(tariff_id)
-    logger.info(f"Результат удаления тарифа {tariff_id}: {result}")
+    logger.info(f"🔴 Результат удаления тарифа {tariff_id}: {result}")
     
     if result:
+        logger.info(f"🔴 Тариф успешно удален, показываем список")
         await callback.answer(f"✅ Тариф «{tariff['name']}» удален", show_alert=True)
         # Возвращаемся к списку тарифов
         await show_tariffs_list(callback, state)
     else:
+        logger.error(f"🔴 Ошибка при удалении тарифа {tariff_id}")
         await callback.answer("❌ Ошибка удаления тарифа", show_alert=True)
 
 
