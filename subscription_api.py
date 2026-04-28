@@ -41,10 +41,12 @@ def get_user_active_keys(user_id: int) -> list:
                 vk.id, vk.client_uuid, vk.panel_email, vk.server_id,
                 vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
                 s.host, s.port, s.protocol, s.name as server_name,
-                u.telegram_id
+                u.telegram_id,
+                COALESCE(vk.custom_name, t.name) as tariff_name
             FROM vpn_keys vk
             JOIN servers s ON vk.server_id = s.id
             JOIN users u ON vk.user_id = u.id
+            LEFT JOIN tariffs t ON vk.tariff_id = t.id
             WHERE u.telegram_id = ? 
             AND vk.expires_at > datetime('now')
             AND vk.panel_email IS NOT NULL
@@ -98,11 +100,12 @@ async def generate_key_link(key: dict) -> str:
             return ""
         
         # Формируем красивое название для ключа
-        # Используем название сервера из БД
+        # Формат: ArcVPN - {название тарифа} ({название сервера})
+        tariff_name = key.get('tariff_name', 'VPN')
         server_name = server.get('name', 'Server')
         
         # Обновляем remark в конфигурации
-        config['remark'] = server_name
+        config['remark'] = f"ArcVPN - {tariff_name} ({server_name})"
         
         # Генерируем ссылку
         link = generate_link(config)
@@ -193,10 +196,12 @@ def subscription(sub_id: str):
                     vk.id, vk.client_uuid, vk.panel_email, vk.server_id,
                     vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
                     s.host, s.port, s.protocol, s.name as server_name,
-                    u.telegram_id
+                    u.telegram_id,
+                    COALESCE(vk.custom_name, t.name) as tariff_name
                 FROM vpn_keys vk
                 JOIN servers s ON vk.server_id = s.id
                 JOIN users u ON vk.user_id = u.id
+                LEFT JOIN tariffs t ON vk.tariff_id = t.id
                 WHERE vk.sub_id = ?
                 AND vk.expires_at > datetime('now')
                 AND vk.panel_email IS NOT NULL

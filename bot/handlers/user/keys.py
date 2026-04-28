@@ -355,20 +355,37 @@ async def instruction_apple_handler(callback: CallbackQuery):
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
+        "<b>📱 Вариант 1: Happ (рекомендуется)</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
         "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>📱 Вариант 2: v2rayTUN</b>\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение v2rayTUN\n"
+        "Нажмите кнопку «📥 Скачать v2rayTUN» ниже\n\n"
+        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "Нажмите кнопку «🔗 Импортировать в v2rayTUN»\n\n"
+        "<b>Шаг 3:</b> Подключитесь\n"
+        "В приложении нажмите кнопку подключения\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
     try:
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
+        
+        # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/app/happ-vpn-fast-secure/id6738501697"))
         builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link))
+        
+        # v2rayTUN
+        builder.row(InlineKeyboardButton(text="📥 Скачать v2rayTUN", url="https://apps.apple.com/app/v2raytun/id6476628951"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в v2rayTUN", url=f"v2raytun://install-sub?url={encoded_url}"))
+        
+        # Навигация
         builder.row(
             InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
@@ -418,20 +435,37 @@ async def instruction_android_handler(callback: CallbackQuery):
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
+        "<b>📱 Вариант 1: Happ (рекомендуется)</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
         "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
+        "━━━━━━━━━━━━━━━━━━━━\n\n"
+        "<b>📱 Вариант 2: v2rayNG</b>\n\n"
+        "<b>Шаг 1:</b> Скачайте приложение v2rayNG\n"
+        "Нажмите кнопку «📥 Скачать v2rayNG» ниже\n\n"
+        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "Нажмите кнопку «🔗 Импортировать в v2rayNG»\n\n"
+        "<b>Шаг 3:</b> Подключитесь\n"
+        "В приложении нажмите кнопку подключения\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
     
     try:
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
+        
+        # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=io.happ.app"))
         builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link))
+        
+        # v2rayNG
+        builder.row(InlineKeyboardButton(text="📥 Скачать v2rayNG", url="https://play.google.com/store/apps/details?id=com.v2ray.ang"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в v2rayNG", url=f"v2rayng://install-sub?url={encoded_url}"))
+        
+        # Навигация
         builder.row(
             InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
