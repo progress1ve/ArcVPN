@@ -366,11 +366,13 @@ async def instruction_apple_handler(callback: CallbackQuery):
         "<b>📱 Вариант 2: v2rayTUN</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение v2rayTUN\n"
         "Нажмите кнопку «📥 Скачать v2rayTUN» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать в v2rayTUN»\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
+        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
+        "Нажмите кнопку «📋 Скопировать ссылку» ниже\n\n"
+        "<b>Шаг 3:</b> Добавьте подписку в приложении\n"
+        "Откройте v2rayTUN → Нажмите + → Вставьте скопированную ссылку\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
         "В приложении нажмите кнопку подключения\n\n"
-        "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
+        "💡 <i>Подписка обновляется автоматически</i>"
     )
     
     try:
@@ -383,7 +385,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         
         # v2rayTUN
         builder.row(InlineKeyboardButton(text="📥 Скачать v2rayTUN", url="https://apps.apple.com/app/v2raytun/id6476628951"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в v2rayTUN", url=f"v2raytun://install-sub?url={encoded_url}"))
+        builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", url=f"https://t.me/share/url?url={encoded_url}&text=Ссылка подписки ArcVPN"))
         
         # Навигация
         builder.row(
@@ -446,11 +448,13 @@ async def instruction_android_handler(callback: CallbackQuery):
         "<b>📱 Вариант 2: v2rayNG</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение v2rayNG\n"
         "Нажмите кнопку «📥 Скачать v2rayNG» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать в v2rayNG»\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
+        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
+        "Нажмите кнопку «📋 Скопировать ссылку» ниже\n\n"
+        "<b>Шаг 3:</b> Добавьте подписку в приложении\n"
+        "Откройте v2rayNG → Нажмите + → Вставьте скопированную ссылку\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
         "В приложении нажмите кнопку подключения\n\n"
-        "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
+        "💡 <i>Подписка обновляется автоматически</i>"
     )
     
     try:
@@ -463,7 +467,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         
         # v2rayNG
         builder.row(InlineKeyboardButton(text="📥 Скачать v2rayNG", url="https://play.google.com/store/apps/details?id=com.v2ray.ang"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в v2rayNG", url=f"v2rayng://install-sub?url={encoded_url}"))
+        builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", url=f"https://t.me/share/url?url={encoded_url}&text=Ссылка подписки ArcVPN"))
         
         # Навигация
         builder.row(
