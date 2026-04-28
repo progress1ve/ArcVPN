@@ -273,7 +273,7 @@ async def select_subscription_by_tariff(callback: CallbackQuery, state: FSMConte
 
 @router.callback_query(F.data.startswith('admin_add_subscription_tariff_select:'))
 async def select_tariff_for_subscription(callback: CallbackQuery, state: FSMContext):
-    """Обработка выбора тарифа - переход к выбору сервера."""
+    """Обработка выбора тарифа - переход к подтверждению."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
@@ -294,16 +294,26 @@ async def select_tariff_for_subscription(callback: CallbackQuery, state: FSMCont
         add_key_custom_name=tariff['name']  # Используем название тарифа как имя подписки
     )
     
+    # Получаем список активных серверов для отображения
     servers = get_active_servers()
-    await state.set_state(AdminStates.add_key_server)
+    if not servers:
+        await callback.answer('❌ Нет активных серверов', show_alert=True)
+        return
+    
+    server_list = "\n".join([f"• {s['name']}" for s in servers])
+    traffic_text = f"{tariff.get('traffic_limit_gb', 0)} ГБ" if tariff.get('traffic_limit_gb', 0) > 0 else "∞"
+    
+    await state.set_state(AdminStates.add_key_confirm)
     
     await safe_edit_or_send(
         callback.message,
-        f'📋 <b>Тариф:</b> {tariff["name"]}\n'
+        f'✅ <b>Подтверждение создания подписки</b>\n\n'
+        f'📋 <b>Название:</b> {tariff["name"]}\n'
         f'📅 <b>Длительность:</b> {tariff["duration_days"]} дн.\n'
-        f'📊 <b>Трафик:</b> {tariff.get("traffic_limit_gb", 0) or "∞"} ГБ\n\n'
-        '🖥️ <b>Выберите сервер:</b>',
-        reply_markup=add_key_server_kb(servers)
+        f'📊 <b>Трафик:</b> {traffic_text}\n\n'
+        f'🖥️ <b>Серверы ({len(servers)}):</b>\n{server_list}\n\n'
+        f'<i>Будут созданы ключи на всех активных серверах</i>',
+        reply_markup=add_key_confirm_kb()
     )
     await callback.answer()
 
@@ -338,15 +348,13 @@ async def process_custom_subscription_name(message: Message, state: FSMContext):
         return
     
     await state.update_data(add_key_custom_name=text)
-    
-    servers = get_active_servers()
-    await state.set_state(AdminStates.add_key_server)
+    await state.set_state(AdminStates.add_key_traffic)
     
     await safe_edit_or_send(
         message,
         f'⚙️ <b>Название:</b> {text}\n\n'
-        '🖥️ <b>Выберите сервер:</b>',
-        reply_markup=add_key_server_kb(servers),
+        '📊 <b>Лимит трафика</b>\n\nВведите лимит в ГБ (0 = без лимита):',
+        reply_markup=add_key_step_kb(1),
         force_new=True
     )
 
@@ -451,7 +459,7 @@ async def process_add_key_traffic(message: Message, state: FSMContext):
     traffic_gb = int(text)
     await state.update_data(add_key_traffic_gb=traffic_gb)
     await state.set_state(AdminStates.add_key_days)
-    await safe_edit_or_send(message, '📅 <b>Срок действия</b>\n\nВведите количество дней:', reply_markup=add_key_step_kb(3), force_new=True)
+    await safe_edit_or_send(message, '📅 <b>Срок действия</b>\n\nВведите количество дней:', reply_markup=add_key_step_kb(2), force_new=True)
 
 @router.message(AdminStates.add_key_days, F.text, ~F.text.startswith('/'))
 async def process_add_key_days(message: Message, state: FSMContext):
@@ -467,24 +475,31 @@ async def process_add_key_days(message: Message, state: FSMContext):
     await state.update_data(add_key_days=days)
     await state.set_state(AdminStates.add_key_confirm)
     data = await state.get_data()
-    from database.requests import get_server_by_id
-    server = get_server_by_id(data['add_key_server_id'])
+    
+    # Получаем список активных серверов для отображения
+    servers = get_active_servers()
+    if not servers:
+        await safe_edit_or_send(message, '❌ Нет активных серверов')
+        return
+    
+    server_list = "\n".join([f"• {s['name']}" for s in servers])
     traffic_text = f"{data.get('add_key_traffic_gb', 0)} ГБ" if data.get('add_key_traffic_gb', 0) > 0 else 'без лимита'
     
     await safe_edit_or_send(
         message,
         f"✅ <b>Подтверждение создания подписки</b>\n\n"
         f"📋 <b>Название:</b> {data.get('add_key_custom_name', 'Подписка')}\n"
-        f"🖥️ <b>Сервер:</b> {server['name'] if server else '?'}\n"
         f"📊 <b>Трафик:</b> {traffic_text}\n"
-        f"📅 <b>Срок:</b> {days} дней\n",
+        f"📅 <b>Срок:</b> {days} дней\n\n"
+        f"🖥️ <b>Серверы ({len(servers)}):</b>\n{server_list}\n\n"
+        f"<i>Будут созданы ключи на всех активных серверах</i>",
         reply_markup=add_key_confirm_kb(),
         force_new=True
     )
 
 @router.callback_query(F.data == 'admin_add_key_confirm')
 async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
-    """Подтверждение и создание подписки."""
+    """Подтверждение и создание подписки на всех активных серверах."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
@@ -492,62 +507,114 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
     data = await state.get_data()
     user_id = data.get('add_key_user_id')
     user_telegram_id = data.get('add_key_user_telegram_id')
-    server_id = data.get('add_key_server_id')
-    inbound_id = data.get('add_key_inbound_id')
     traffic_gb = data.get('add_key_traffic_gb', 0)
     days = data.get('add_key_days', 30)
     custom_name = data.get('add_key_custom_name')
     tariff_id = data.get('add_key_tariff_id')  # Может быть None для кастомной подписки
     
-    from database.requests import get_server_by_id
-    server = get_server_by_id(server_id)
-    if not server:
-        await callback.answer('Сервер не найден', show_alert=True)
+    # Получаем все активные серверы
+    servers = get_active_servers()
+    if not servers:
+        await callback.answer('❌ Нет активных серверов', show_alert=True)
         return
     
     user = get_user_by_telegram_id(user_telegram_id)
-    email = generate_unique_email(user)
+    if not user:
+        await callback.answer('Пользователь не найден', show_alert=True)
+        return
     
-    try:
-        client = get_client_from_server_data(server)
-        flow = await client.get_inbound_flow(inbound_id)
-        result = await client.add_client(
-            inbound_id=inbound_id,
-            email=email,
-            total_gb=traffic_gb,
-            expire_days=days,
-            limit_ip=1,
-            tg_id=str(user_telegram_id),
-            flow=flow
-        )
-        client_uuid = result['uuid']
+    # Если tariff_id не указан (кастомная подписка), используем админский тариф
+    if not tariff_id:
+        from database.requests import get_admin_tariff
+        admin_tariff = get_admin_tariff()
+        tariff_id = admin_tariff['id']
+    
+    await callback.answer('⏳ Создание подписки...')
+    await safe_edit_or_send(
+        callback.message,
+        '⏳ <b>Создание подписки на всех серверах...</b>\n\nПожалуйста, подождите.'
+    )
+    
+    created_keys = []
+    failed_servers = []
+    
+    # Создаем ключи на всех серверах
+    for server in servers:
+        try:
+            server_id = server['id']
+            email = generate_unique_email(user)
+            
+            client = get_client_from_server_data(server)
+            
+            # Получаем первый доступный inbound
+            inbounds = await client.get_inbounds()
+            if not inbounds:
+                logger.warning(f"Нет inbound на сервере {server['name']}")
+                failed_servers.append(f"{server['name']} (нет inbound)")
+                continue
+            
+            # Используем первый inbound
+            inbound = inbounds[0]
+            inbound_id = inbound.get('id')
+            
+            flow = await client.get_inbound_flow(inbound_id)
+            result = await client.add_client(
+                inbound_id=inbound_id,
+                email=email,
+                total_gb=traffic_gb,
+                expire_days=days,
+                limit_ip=1,
+                tg_id=str(user_telegram_id),
+                flow=flow
+            )
+            client_uuid = result['uuid']
+            
+            # Создаем ключ в БД с custom_name
+            key_id = create_vpn_key_admin(
+                user_id=user_id,
+                server_id=server_id,
+                tariff_id=tariff_id,
+                panel_inbound_id=inbound_id,
+                panel_email=email,
+                client_uuid=client_uuid,
+                days=days,
+                custom_name=custom_name
+            )
+            
+            created_keys.append({
+                'key_id': key_id,
+                'server_name': server['name']
+            })
+            
+            logger.info(f"✅ Создан ключ ID {key_id} на сервере {server['name']}")
+            
+        except VPNAPIError as e:
+            logger.error(f'❌ Ошибка создания ключа на сервере {server["name"]}: {e}')
+            failed_servers.append(f"{server['name']} ({str(e)})")
+        except Exception as e:
+            logger.error(f'❌ Неожиданная ошибка на сервере {server["name"]}: {e}')
+            failed_servers.append(f"{server['name']} (ошибка)")
+    
+    # Формируем отчет
+    if created_keys:
+        result_text = f'✅ <b>Подписка успешно создана!</b>\n\n'
+        result_text += f'📋 <b>Название:</b> {custom_name or "Подписка"}\n'
+        result_text += f'🖥️ <b>Создано ключей:</b> {len(created_keys)}/{len(servers)}\n\n'
         
-        # Если tariff_id не указан (кастомная подписка), используем админский тариф
-        if not tariff_id:
-            from database.requests import get_admin_tariff
-            admin_tariff = get_admin_tariff()
-            tariff_id = admin_tariff['id']
+        if failed_servers:
+            result_text += f'⚠️ <b>Не удалось создать на:</b>\n'
+            for srv in failed_servers:
+                result_text += f'• {srv}\n'
         
-        # Создаем ключ с custom_name если указано
-        key_id = create_vpn_key_admin(
-            user_id=user_id,
-            server_id=server_id,
-            tariff_id=tariff_id,
-            panel_inbound_id=inbound_id,
-            panel_email=email,
-            client_uuid=client_uuid,
-            days=days,
-            custom_name=custom_name
-        )
-        
-        await callback.answer('✅ Подписка успешно создана!', show_alert=True)
+        await safe_edit_or_send(callback.message, result_text)
         await _show_user_view_edit(callback, state, user_telegram_id)
-    except VPNAPIError as e:
-        logger.error(f'Ошибка создания подписки: {e}')
-        await callback.answer(f'❌ Ошибка: {e}', show_alert=True)
-    except Exception as e:
-        logger.error(f'Неожиданная ошибка: {e}')
-        await callback.answer('❌ Ошибка при создании подписки', show_alert=True)
+    else:
+        await safe_edit_or_send(
+            callback.message,
+            '❌ <b>Не удалось создать подписку</b>\n\n'
+            'Ни на одном сервере не удалось создать ключ.'
+        )
+        await callback.answer('❌ Ошибка создания подписки', show_alert=True)
 
 @router.callback_query(F.data == 'admin_user_add_key_cancel')
 async def cancel_add_key(callback: CallbackQuery, state: FSMContext):

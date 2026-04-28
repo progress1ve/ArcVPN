@@ -86,14 +86,12 @@ class AdminStates(StatesGroup):
     key_extend_days = State()        # Ввод количества дней для продления
     key_change_traffic = State()     # Ввод нового лимита трафика
     
-    # ========== Добавление ключа администратором ==========
+    # ========== Добавление подписки администратором ==========
     add_subscription_type = State()  # Выбор типа подписки (по тарифу / кастомная)
     add_subscription_tariff = State() # Выбор тарифа (если по тарифу)
     add_subscription_custom_name = State() # Ввод названия (если кастомная)
-    add_key_server = State()         # Выбор сервера
-    add_key_inbound = State()        # Выбор inbound (протокола)
-    add_key_traffic = State()        # Ввод лимита трафика (ГБ)
-    add_key_days = State()           # Ввод срока действия (дней)
+    add_key_traffic = State()        # Ввод лимита трафика (ГБ) - только для кастомной
+    add_key_days = State()           # Ввод срока действия (дней) - только для кастомной
     add_key_confirm = State()        # Подтверждение создания
     
     # ========== Управление группами тарифов ==========
