@@ -90,7 +90,7 @@ async def generate_key_link(key: dict) -> str:
         # Создаём клиент для получения конфигурации
         client = XUIClient(server)
         
-        # Получаем полную конфигурацию клиента
+        # Получаем полную конфигурацию клиента (уже содержит tariff_name и server_name)
         config = await client.get_client_config(key['panel_email'])
         
         await client.close()
@@ -99,17 +99,10 @@ async def generate_key_link(key: dict) -> str:
             logger.error(f"Не удалось получить конфигурацию для {key['panel_email']}")
             return ""
         
-        # Формируем красивое название для ключа
-        # Формат: ArcVPN - {название тарифа} ({название сервера})
-        tariff_name = key.get('tariff_name', 'VPN')
-        server_name = server.get('name', 'Server')
+        # tariff_name и server_name уже в config, _get_remark() сформирует правильное название
+        logger.info(f"Генерация ключа: tariff_name={config.get('tariff_name')}, server_name={config.get('server_name')}")
         
-        # Обновляем remark в конфигурации
-        config['remark'] = f"ArcVPN - {tariff_name} ({server_name})"
-        
-        logger.info(f"Генерация ключа: tariff_name={tariff_name}, server_name={server_name}, final_remark={config['remark']}")
-        
-        # Генерируем ссылку
+        # Генерируем ссылку (remark формируется внутри generate_link через _get_remark)
         link = generate_link(config)
         return link
         
