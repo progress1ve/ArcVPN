@@ -210,51 +210,72 @@ def delete_tariff(tariff_id: int) -> bool:
         tariff_id: ID тарифа
         
     Returns:
-        True если успешно удален, False если тариф используется или ошибка
+        True если успешно удален, False если тариф используется в активных ключах
     """
     with get_db() as conn:
-        # Проверяем, используется ли тариф в ключах
+        # Проверяем, используется ли тариф в АКТИВНЫХ ключах
         cursor = conn.execute("""
-            SELECT COUNT(*) as count FROM vpn_keys WHERE tariff_id = ?
+            SELECT COUNT(*) as count 
+            FROM vpn_keys 
+            WHERE tariff_id = ? 
+            AND expires_at > datetime('now')
         """, (tariff_id,))
-        keys_count = cursor.fetchone()['count']
+        active_keys_count = cursor.fetchone()['count']
         
-        logger.info(f"🔍 Проверка тарифа ID {tariff_id}: найдено {keys_count} ключей")
+        logger.info(f"🔍 Проверка тарифа ID {tariff_id}: найдено {active_keys_count} активных ключей")
         
-        if keys_count > 0:
-            # Показываем какие ключи используют этот тариф
+        if active_keys_count > 0:
+            # Показываем какие активные ключи используют этот тариф
             cursor = conn.execute("""
-                SELECT id, user_id, expires_at FROM vpn_keys WHERE tariff_id = ? LIMIT 5
+                SELECT id, user_id, expires_at 
+                FROM vpn_keys 
+                WHERE tariff_id = ? 
+                AND expires_at > datetime('now')
+                LIMIT 5
             """, (tariff_id,))
             sample_keys = cursor.fetchall()
-            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {keys_count} ключах. Примеры: {[dict(k) for k in sample_keys]}")
+            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {active_keys_count} активных ключах. Примеры: {[dict(k) for k in sample_keys]}")
             return False
         
-        # Проверяем, используется ли тариф в платежах
+        # Проверяем общее количество платежей (для информации)
         cursor = conn.execute("""
             SELECT COUNT(*) as count FROM payments WHERE tariff_id = ?
         """, (tariff_id,))
         payments_count = cursor.fetchone()['count']
         
-        logger.info(f"🔍 Проверка тарифа ID {tariff_id}: найдено {payments_count} платежей")
+        logger.info(f"🔍 Проверка тарифа ID {tariff_id}: найдено {payments_count} платежей в истории")
         
-        if payments_count > 0:
-            # Показываем какие платежи используют этот тариф
-            cursor = conn.execute("""
-                SELECT id, user_id, status, paid_at FROM payments WHERE tariff_id = ? LIMIT 5
-            """, (tariff_id,))
-            sample_payments = cursor.fetchall()
-            logger.warning(f"Невозможно удалить тариф ID {tariff_id}: используется в {payments_count} платежах. Примеры: {[dict(p) for p in sample_payments]}")
-            return False
-        
-        # Если тариф не используется - удаляем
+        # Если тариф не используется в активных ключах - удаляем
         try:
-            logger.info(f"✅ Тариф ID {tariff_id} не используется, удаляем...")
+            logger.info(f"✅ Тариф ID {tariff_id} не используется в активных ключах, удаляем...")
+            
+            # Сначала обнуляем tariff_id в старых платежах (сохраняем историю, но убираем связь)
+            if payments_count > 0:
+                conn.execute("""
+                    UPDATE payments 
+                    SET tariff_id = NULL 
+                    WHERE tariff_id = ?
+                """, (tariff_id,))
+                logger.info(f"📝 Обнулен tariff_id в {payments_count} платежах (история сохранена)")
+            
+            # Обнуляем tariff_id в истекших ключах
+            cursor = conn.execute("""
+                UPDATE vpn_keys 
+                SET tariff_id = NULL 
+                WHERE tariff_id = ? 
+                AND expires_at <= datetime('now')
+            """, (tariff_id,))
+            expired_keys_updated = cursor.rowcount
+            if expired_keys_updated > 0:
+                logger.info(f"📝 Обнулен tariff_id в {expired_keys_updated} истекших ключах")
+            
+            # Теперь удаляем сам тариф
             cursor = conn.execute("""
                 DELETE FROM tariffs
                 WHERE id = ?
             """, (tariff_id,))
             success = cursor.rowcount > 0
+            
             if success:
                 logger.info(f"✅ Тариф ID {tariff_id} успешно удален из БД")
             else:
