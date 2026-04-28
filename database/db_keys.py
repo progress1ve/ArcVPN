@@ -142,16 +142,30 @@ def create_vpn_key_admin(
     Returns:
         ID созданного ключа
     """
+    import uuid
+    
+    # Генерируем уникальный sub_id для subscription URL
+    sub_id = uuid.uuid4().hex
+    
     with get_db() as conn:
+        # Проверяем уникальность sub_id (на всякий случай)
+        attempts = 0
+        while attempts < 100:
+            cursor = conn.execute("SELECT 1 FROM vpn_keys WHERE sub_id = ?", (sub_id,))
+            if not cursor.fetchone():
+                break
+            sub_id = uuid.uuid4().hex
+            attempts += 1
+        
         cursor = conn.execute("""
             INSERT INTO vpn_keys 
             (user_id, server_id, tariff_id, panel_inbound_id, panel_email, client_uuid, 
-             expires_at, traffic_limit, custom_name)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'), ?, ?)
+             expires_at, traffic_limit, custom_name, sub_id)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'), ?, ?, ?)
         """, (user_id, server_id, tariff_id, panel_inbound_id, panel_email, client_uuid, 
-              days, traffic_limit, custom_name))
+              days, traffic_limit, custom_name, sub_id))
         key_id = cursor.lastrowid
-        logger.info(f"Администратор создал ключ ID {key_id} для user_id {user_id}")
+        logger.info(f"Администратор создал подписку ID {key_id} (sub_id: {sub_id}) для user_id {user_id}")
         return key_id
 
 def update_vpn_key_connection(
