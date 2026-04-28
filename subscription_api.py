@@ -107,6 +107,8 @@ async def generate_key_link(key: dict) -> str:
         # Обновляем remark в конфигурации
         config['remark'] = f"ArcVPN - {tariff_name} ({server_name})"
         
+        logger.info(f"Генерация ключа: tariff_name={tariff_name}, server_name={server_name}, final_remark={config['remark']}")
+        
         # Генерируем ссылку
         link = generate_link(config)
         return link
