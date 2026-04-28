@@ -59,15 +59,15 @@ def generate_json(config: Dict[str, Any]) -> str:
 
 def _get_remark(config: Dict[str, Any]) -> str:
     """Формирует имя подключения (remark) для отображения в VPN-клиентах."""
-    # Получаем название тарифа и сервера
+    # Получаем название тарифа
     tariff_name = config.get('tariff_name', '')
+    
+    # Если есть название тарифа, используем формат: ArcVPN - {тариф}
+    if tariff_name:
+        return f"ArcVPN - {tariff_name}"
+    
+    # Если есть название сервера, используем его (fallback)
     server_name = config.get('server_name', '')
-    
-    # Если есть и тариф и сервер, используем формат: ArcVPN - {тариф} ({сервер})
-    if tariff_name and server_name:
-        return f"ArcVPN - {tariff_name} ({server_name})"
-    
-    # Если есть только название сервера, используем его
     if server_name:
         return server_name
     
