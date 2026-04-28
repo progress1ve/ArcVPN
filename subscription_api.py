@@ -90,7 +90,7 @@ async def generate_key_link(key: dict) -> str:
         # Создаём клиент для получения конфигурации
         client = XUIClient(server)
         
-        # Получаем полную конфигурацию клиента (уже содержит tariff_name и server_name)
+        # Получаем полную конфигурацию клиента
         config = await client.get_client_config(key['panel_email'])
         
         await client.close()
@@ -99,10 +99,17 @@ async def generate_key_link(key: dict) -> str:
             logger.error(f"Не удалось получить конфигурацию для {key['panel_email']}")
             return ""
         
-        # tariff_name и server_name уже в config, _get_remark() сформирует правильное название
-        logger.info(f"Генерация ключа: tariff_name={config.get('tariff_name')}, server_name={config.get('server_name')}")
+        # Формируем красивое название для ключа
+        # Формат: ArcVPN - {название тарифа} ({название сервера})
+        tariff_name = key.get('tariff_name', 'VPN')
+        server_name = server.get('name', 'Server')
         
-        # Генерируем ссылку (remark формируется внутри generate_link через _get_remark)
+        # Обновляем remark в конфигурации
+        config['remark'] = f"ArcVPN - {tariff_name} ({server_name})"
+        
+        logger.info(f"Генерация ключа: tariff_name={tariff_name}, server_name={server_name}, final_remark={config['remark']}")
+        
+        # Генерируем ссылку
         link = generate_link(config)
         return link
         
@@ -239,22 +246,18 @@ def subscription(sub_id: str):
         else:
             subscription_data = link
         
-        # Формируем название подписки: ArcVPN - {название тарифа}
-        tariff_name = key.get('tariff_name', 'VPN')
-        profile_title = f"ArcVPN - {tariff_name}"
-        
         # Заголовки для VPN клиентов (включая Happ)
         headers = {
             # Информация о трафике
             'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
             # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля (подписки)
-            'profile-title': profile_title,
+            # Название профиля
+            'profile-title': 'ArcVPN',
             # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
             # Content-Disposition с красивым именем файла
-            'Content-Disposition': f'inline; filename="{profile_title}.txt"',
+            'Content-Disposition': 'inline; filename="ArcVPN.txt"',
             # Кэширование отключено
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',

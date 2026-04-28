@@ -853,24 +853,6 @@ class XUIClient(BaseVPNClient):
             Словарь с настройками подключения или None
         """
         try:
-            # Получаем название тарифа из БД по email
-            tariff_name = "VPN"
-            try:
-                from database.connection import get_db
-                with get_db() as conn:
-                    cursor = conn.execute("""
-                        SELECT COALESCE(vk.custom_name, t.name, 'VPN') as tariff_name
-                        FROM vpn_keys vk
-                        LEFT JOIN tariffs t ON vk.tariff_id = t.id
-                        WHERE vk.panel_email = ?
-                        LIMIT 1
-                    """, (email,))
-                    row = cursor.fetchone()
-                    if row:
-                        tariff_name = row['tariff_name']
-            except Exception as e:
-                logger.warning(f"Не удалось получить название тарифа для {email}: {e}")
-            
             inbounds = await self.get_inbounds()
             for inbound in inbounds:
                 settings = json.loads(inbound.get("settings", "{}"))
@@ -901,8 +883,7 @@ class XUIClient(BaseVPNClient):
                         "host": self.server["host"],
                         "stream_settings": stream_settings,
                         "inbound_name": inbound.get("remark", "VPN"),
-                        "server_name": self.server.get("name", "VPN Server"),
-                        "tariff_name": tariff_name,  # Добавляем название тарифа
+                        "server_name": self.server.get("name", "VPN Server"),  # Добавляем название сервера
                         "sub_id": target_client.get("subId", ""),
                         "flow": target_client.get("flow", "")
                     }
