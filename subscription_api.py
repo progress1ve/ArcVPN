@@ -250,10 +250,9 @@ def subscription(sub_id: str):
         tariff_name = key.get('tariff_name', 'VPN')
         profile_title_raw = f"ArcVPN - {tariff_name}"
         
-        # Кодируем кириллицу для HTTP заголовка используя RFC 2047
-        # Это позволит клиенту правильно декодировать русские буквы
-        from email.header import Header
-        profile_title_encoded = str(Header(profile_title_raw, 'utf-8'))
+        # Кодируем название в base64 для поддержки кириллицы
+        # Многие VPN клиенты поддерживают base64 в profile-title
+        profile_title_base64 = base64.b64encode(profile_title_raw.encode('utf-8')).decode('ascii')
         
         # Заголовки для VPN клиентов (включая Happ)
         headers = {
@@ -261,8 +260,8 @@ def subscription(sub_id: str):
             'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
             # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля (RFC 2047 encoded для поддержки кириллицы)
-            'profile-title': profile_title_encoded,
+            # Название профиля (base64 encoded для поддержки кириллицы)
+            'profile-title': f'base64:{profile_title_base64}',
             # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
             # Content-Disposition с ASCII именем файла
