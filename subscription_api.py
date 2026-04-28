@@ -239,18 +239,22 @@ def subscription(sub_id: str):
         else:
             subscription_data = link
         
+        # Формируем название подписки: ArcVPN - {название тарифа}
+        tariff_name = key.get('tariff_name', 'VPN')
+        profile_title = f"ArcVPN - {tariff_name}"
+        
         # Заголовки для VPN клиентов (включая Happ)
         headers = {
             # Информация о трафике
             'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
             # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля
-            'profile-title': 'ArcVPN',
+            # Название профиля (подписки)
+            'profile-title': profile_title,
             # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
             # Content-Disposition с красивым именем файла
-            'Content-Disposition': 'inline; filename="ArcVPN.txt"',
+            'Content-Disposition': f'inline; filename="{profile_title}.txt"',
             # Кэширование отключено
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
