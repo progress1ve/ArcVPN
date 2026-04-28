@@ -58,6 +58,8 @@ __all__ = [
     'user_view_kb',
     'user_ban_confirm_kb',
     'key_view_kb',
+    'add_subscription_type_kb',
+    'add_subscription_tariff_kb',
     'add_key_server_kb',
     'add_key_inbound_kb',
     'add_key_step_kb',

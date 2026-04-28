@@ -122,7 +122,8 @@ def create_vpn_key_admin(
     panel_email: str,
     client_uuid: str,
     days: int,
-    traffic_limit: int = 0
+    traffic_limit: int = 0,
+    custom_name: str = None
 ) -> int:
     """
     Создаёт VPN-ключ администратором (без оплаты).
@@ -136,6 +137,7 @@ def create_vpn_key_admin(
         client_uuid: UUID клиента
         days: Срок действия в днях
         traffic_limit: Лимит трафика в байтах (0 = безлимит)
+        custom_name: Пользовательское название подписки (опционально)
     
     Returns:
         ID созданного ключа
@@ -144,10 +146,10 @@ def create_vpn_key_admin(
         cursor = conn.execute("""
             INSERT INTO vpn_keys 
             (user_id, server_id, tariff_id, panel_inbound_id, panel_email, client_uuid, 
-             expires_at, traffic_limit)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'), ?)
+             expires_at, traffic_limit, custom_name)
+            VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'), ?, ?)
         """, (user_id, server_id, tariff_id, panel_inbound_id, panel_email, client_uuid, 
-              days, traffic_limit))
+              days, traffic_limit, custom_name))
         key_id = cursor.lastrowid
         logger.info(f"Администратор создал ключ ID {key_id} для user_id {user_id}")
         return key_id

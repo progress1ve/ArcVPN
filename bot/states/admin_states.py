@@ -87,6 +87,9 @@ class AdminStates(StatesGroup):
     key_change_traffic = State()     # Ввод нового лимита трафика
     
     # ========== Добавление ключа администратором ==========
+    add_subscription_type = State()  # Выбор типа подписки (по тарифу / кастомная)
+    add_subscription_tariff = State() # Выбор тарифа (если по тарифу)
+    add_subscription_custom_name = State() # Ввод названия (если кастомная)
     add_key_server = State()         # Выбор сервера
     add_key_inbound = State()        # Выбор inbound (протокола)
     add_key_traffic = State()        # Ввод лимита трафика (ГБ)

@@ -86,7 +86,7 @@ def user_view_kb(telegram_id: int, vpn_keys: List[Dict[str, Any]], is_banned: bo
         else:
             status = '🔑'
         builder.row(InlineKeyboardButton(text=f'{status} {key_name}', callback_data=f'admin_key_view:{key_id}'))
-    builder.row(InlineKeyboardButton(text='Добавить ключ', callback_data=f'admin_user_add_key:{telegram_id}'))
+    builder.row(InlineKeyboardButton(text='➕ Добавить подписку', callback_data=f'admin_user_add_key:{telegram_id}'))
     balance_rub = balance_cents / 100
     builder.row(InlineKeyboardButton(text=f'💰 Баланс: {balance_rub:.2f} ₽', callback_data=f'admin_user_balance:{telegram_id}'), InlineKeyboardButton(text='Пополнить', callback_data=f'admin_user_balance_add:{telegram_id}'), InlineKeyboardButton(text='➖ Списать', callback_data=f'admin_user_balance_deduct:{telegram_id}'))
     builder.row(InlineKeyboardButton(text=f'📊 Реферальный коэффициент: {referral_coefficient}x', callback_data=f'admin_user_coefficient:{telegram_id}'))
@@ -129,6 +129,37 @@ def key_view_kb(key_id: int, user_telegram_id: int) -> InlineKeyboardMarkup:
     builder.row(InlineKeyboardButton(text='📊 Изменить лимит трафика', callback_data=f'admin_key_change_traffic:{key_id}'))
     builder.row(InlineKeyboardButton(text='Удалить ключ', callback_data=f'admin_key_delete_ask:{key_id}'))
     builder.row(back_button(f'admin_user_view:{user_telegram_id}'), home_button())
+    return builder.as_markup()
+
+def add_subscription_type_kb() -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора типа подписки (по тарифу или кастомная).
+    """
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='📋 По тарифу', callback_data='admin_add_subscription_tariff'))
+    builder.row(InlineKeyboardButton(text='⚙️ Кастомная подписка', callback_data='admin_add_subscription_custom'))
+    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_user_add_key_cancel'))
+    return builder.as_markup()
+
+def add_subscription_tariff_kb(tariffs: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора тарифа для подписки.
+    
+    Args:
+        tariffs: Список доступных тарифов
+    """
+    builder = InlineKeyboardBuilder()
+    for tariff in tariffs:
+        name = tariff['name']
+        days = tariff['duration_days']
+        traffic_gb = tariff.get('traffic_limit_gb', 0)
+        traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "∞"
+        builder.row(InlineKeyboardButton(
+            text=f"📋 {name} ({days} дн., {traffic_text})",
+            callback_data=f"admin_add_subscription_tariff_select:{tariff['id']}"
+        ))
+    builder.row(InlineKeyboardButton(text='⬅️ Назад', callback_data='admin_add_subscription_back'))
+    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_user_add_key_cancel'))
     return builder.as_markup()
 
 def add_key_server_kb(servers: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
