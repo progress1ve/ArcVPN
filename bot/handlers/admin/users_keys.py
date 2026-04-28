@@ -569,7 +569,10 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
             )
             client_uuid = result['uuid']
             
-            # Создаем ключ в БД с custom_name
+            # Конвертируем ГБ в байты для БД
+            traffic_limit_bytes = traffic_gb * (1024**3) if traffic_gb > 0 else 0
+            
+            # Создаем ключ в БД с custom_name и traffic_limit
             key_id = create_vpn_key_admin(
                 user_id=user_id,
                 server_id=server_id,
@@ -578,6 +581,7 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 panel_email=email,
                 client_uuid=client_uuid,
                 days=days,
+                traffic_limit=traffic_limit_bytes,
                 custom_name=custom_name
             )
             
@@ -586,7 +590,7 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
                 'server_name': server['name']
             })
             
-            logger.info(f"✅ Создан ключ ID {key_id} на сервере {server['name']}")
+            logger.info(f"✅ Создан ключ ID {key_id} на сервере {server['name']} с трафиком {traffic_gb} ГБ")
             
         except VPNAPIError as e:
             logger.error(f'❌ Ошибка создания ключа на сервере {server["name"]}: {e}')
