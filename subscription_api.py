@@ -246,25 +246,17 @@ def subscription(sub_id: str):
         else:
             subscription_data = link
         
-        # Формируем название подписки: ArcVPN - {название тарифа}
-        tariff_name = key.get('tariff_name', 'VPN')
-        profile_title_raw = f"ArcVPN - {tariff_name}"
-        
-        # Кодируем название в base64 для поддержки кириллицы
-        # Многие VPN клиенты поддерживают base64 в profile-title
-        profile_title_base64 = base64.b64encode(profile_title_raw.encode('utf-8')).decode('ascii')
-        
         # Заголовки для VPN клиентов (включая Happ)
         headers = {
             # Информация о трафике
             'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
             # Интервал обновления (24 часа)
             'profile-update-interval': '86400',
-            # Название профиля (base64 encoded для поддержки кириллицы)
-            'profile-title': f'base64:{profile_title_base64}',
+            # Название профиля
+            'profile-title': 'ArcVPN',
             # Веб-страница
             'profile-web-page-url': 'https://t.me/arcvpn1',
-            # Content-Disposition с ASCII именем файла
+            # Content-Disposition с красивым именем файла
             'Content-Disposition': 'inline; filename="ArcVPN.txt"',
             # Кэширование отключено
             'Cache-Control': 'no-cache, no-store, must-revalidate',
@@ -280,7 +272,7 @@ def subscription(sub_id: str):
         if not subscription_data.endswith('\n'):
             subscription_data += '\n'
         
-        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, profile_title={profile_title_raw}, длина: {len(subscription_data)} байт")
+        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт")
         return Response(subscription_data, headers=headers, mimetype='text/plain; charset=utf-8')
         
     except Exception as e:
