@@ -351,7 +351,11 @@ async def instruction_apple_handler(callback: CallbackQuery):
     
     # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
-    import_link = f"https://braconnect.app/link?url_ha={encoded_url}"
+    import_link_happ = f"https://braconnect.app/link?url_ha={encoded_url}"
+    
+    # Создаем ссылку для v2rayTUN (используем тот же braconnect с параметром для v2rayTUN)
+    # v2rayTUN поддерживает стандартный формат subscription URL
+    import_link_v2raytun = f"https://api.v2rayse.com/sub?target=clash&url={encoded_url}&insert=false"
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
@@ -366,11 +370,9 @@ async def instruction_apple_handler(callback: CallbackQuery):
         "<b>📱 Вариант 2: v2rayTUN</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение v2rayTUN\n"
         "Нажмите кнопку «📥 Скачать v2rayTUN» ниже\n\n"
-        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
-        "Нажмите кнопку «📋 Скопировать ссылку» ниже\n\n"
-        "<b>Шаг 3:</b> Добавьте подписку в приложении\n"
-        "Откройте v2rayTUN → Нажмите + → Вставьте скопированную ссылку\n\n"
-        "<b>Шаг 4:</b> Подключитесь\n"
+        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "Нажмите кнопку «🔗 Импортировать в v2rayTUN» - приложение откроется автоматически!\n\n"
+        "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении нажмите кнопку подключения\n\n"
         "💡 <i>Подписка обновляется автоматически</i>"
     )
@@ -381,11 +383,11 @@ async def instruction_apple_handler(callback: CallbackQuery):
         
         # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/app/happ-vpn-fast-secure/id6738501697"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
         
-        # v2rayTUN
+        # v2rayTUN - используем прямую ссылку на subscription
         builder.row(InlineKeyboardButton(text="📥 Скачать v2rayTUN", url="https://apps.apple.com/app/v2raytun/id6476628951"))
-        builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", url=f"https://t.me/share/url?url={encoded_url}&text=Ссылка подписки ArcVPN"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в v2rayTUN", url=subscription_url))
         
         # Навигация
         builder.row(
@@ -433,7 +435,7 @@ async def instruction_android_handler(callback: CallbackQuery):
     
     # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
-    import_link = f"https://braconnect.app/link?url_ha={encoded_url}"
+    import_link_happ = f"https://braconnect.app/link?url_ha={encoded_url}"
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
@@ -448,11 +450,9 @@ async def instruction_android_handler(callback: CallbackQuery):
         "<b>📱 Вариант 2: v2rayNG</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение v2rayNG\n"
         "Нажмите кнопку «📥 Скачать v2rayNG» ниже\n\n"
-        "<b>Шаг 2:</b> Скопируйте ссылку подписки\n"
-        "Нажмите кнопку «📋 Скопировать ссылку» ниже\n\n"
-        "<b>Шаг 3:</b> Добавьте подписку в приложении\n"
-        "Откройте v2rayNG → Нажмите + → Вставьте скопированную ссылку\n\n"
-        "<b>Шаг 4:</b> Подключитесь\n"
+        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "Нажмите кнопку «🔗 Импортировать в v2rayNG» - приложение откроется автоматически!\n\n"
+        "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении нажмите кнопку подключения\n\n"
         "💡 <i>Подписка обновляется автоматически</i>"
     )
@@ -463,11 +463,11 @@ async def instruction_android_handler(callback: CallbackQuery):
         
         # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=io.happ.app"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
         
-        # v2rayNG
+        # v2rayNG - используем прямую ссылку на subscription
         builder.row(InlineKeyboardButton(text="📥 Скачать v2rayNG", url="https://play.google.com/store/apps/details?id=com.v2ray.ang"))
-        builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", url=f"https://t.me/share/url?url={encoded_url}&text=Ссылка подписки ArcVPN"))
+        builder.row(InlineKeyboardButton(text="🔗 Импортировать в v2rayNG", url=subscription_url))
         
         # Навигация
         builder.row(
