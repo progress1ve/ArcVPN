@@ -59,10 +59,13 @@ async def _show_user_view_edit(callback: CallbackQuery, state: FSMContext, teleg
 
 def _format_user_card(user: dict) -> tuple[str, any]:
     """Форматирует карточку пользователя."""
+    from bot.utils.datetime_utils import format_datetime
+    
     telegram_id = user['telegram_id']
     username = user.get('username')
     is_banned = bool(user.get('is_banned'))
-    created_at = user.get('created_at', 'неизвестно')
+    created_at_raw = user.get('created_at', '')
+    created_at = format_datetime(created_at_raw) if created_at_raw else 'неизвестно'
     balance_cents = get_user_balance(user['id'])
     referral_coefficient = get_user_referral_coefficient(user['id'])
     vpn_keys = get_user_vpn_keys(user['id'])

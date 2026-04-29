@@ -53,8 +53,14 @@ async def show_key_view(callback: CallbackQuery, state: FSMContext):
             key_name = uuid or f'Ключ #{key_id}'
     server_name = key.get('server_name', 'Неизвестный сервер')
     tariff_name = key.get('tariff_name', 'Неизвестный тариф')
-    expires_at = key.get('expires_at', '?')
-    created_at = key.get('created_at', '?')
+    expires_at_raw = key.get('expires_at', '')
+    created_at_raw = key.get('created_at', '')
+    
+    # Форматируем даты в московское время
+    from bot.utils.datetime_utils import format_datetime
+    expires_at = format_datetime(expires_at_raw) if expires_at_raw else '?'
+    created_at = format_datetime(created_at_raw) if created_at_raw else '?'
+    
     text = f'🔑 <b>{key_name}</b>\n\n🖥️ Сервер: {server_name}\n📋 Тариф: {tariff_name}\n📅 Создан: {created_at}\n⏰ Истекает: {expires_at}\n'
     from database.requests import is_key_active, is_traffic_exhausted
     if not is_key_active(key):

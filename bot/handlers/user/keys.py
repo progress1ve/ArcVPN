@@ -58,11 +58,10 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
         limit_str = format_traffic(traffic_limit) if traffic_limit > 0 else '∞'
         traffic_text = f'{used_str} / {limit_str}'
         
-        # Форматируем дату в формате ДД-ММ-ГГГГ
+        # Форматируем дату в формате ДД-ММ-ГГГГ (московское время)
         if key['expires_at']:
-            from datetime import datetime
-            expires_dt = datetime.fromisoformat(key['expires_at'])
-            expires = expires_dt.strftime('%d-%m-%Y')
+            from bot.utils.datetime_utils import format_date
+            expires = format_date(key['expires_at'])
         else:
             expires = '—'
         
@@ -131,10 +130,10 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
                 inbound_name = stats.get('remark', 'VPN') or 'VPN'
         except Exception as e:
             logger.warning(f'Ошибка получения протокола: {e}')
-    # Форматируем дату в формате ДД-ММ-ГГГГ
+    # Форматируем дату в формате ДД-ММ-ГГГГ (московское время)
     if key['expires_at']:
-        expires_dt = datetime.fromisoformat(key['expires_at'])
-        expires = expires_dt.strftime('%d-%m-%Y')
+        from bot.utils.datetime_utils import format_date
+        expires = format_date(key['expires_at'])
     else:
         expires = '—'
     server = key.get('server_name') or 'Не выбран'
@@ -147,10 +146,10 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
     if payments:
         lines.append('📜 <b>История операций:</b>')
         for p in payments:
-            # Форматируем дату в формате ДД-ММ-ГГГГ
+            # Форматируем дату в формате ДД-ММ-ГГГГ (московское время)
             if p['paid_at']:
-                paid_dt = datetime.fromisoformat(p['paid_at'])
-                date = paid_dt.strftime('%d-%m-%Y')
+                from bot.utils.datetime_utils import format_date
+                date = format_date(p['paid_at'])
             else:
                 date = '—'
             tariff = escape_html(p.get('tariff_name') or 'Тариф')
@@ -530,10 +529,12 @@ async def key_renew_select_tariff(callback: CallbackQuery):
     
     # Показываем информацию о текущей подписке и список тарифов
     if key['expires_at']:
-        expires_dt = datetime.fromisoformat(key['expires_at'])
-        expires = expires_dt.strftime('%d-%m-%Y')
+        from bot.utils.datetime_utils import format_date, utc_to_local
+        expires_dt_utc = datetime.fromisoformat(key['expires_at'])
+        expires_dt_local = utc_to_local(expires_dt_utc)
+        expires = expires_dt_local.strftime('%d-%m-%Y')
         # Округляем вверх: если осталось хоть немного времени, показываем минимум 1 день
-        delta = expires_dt - datetime.now()
+        delta = expires_dt_local - datetime.now(expires_dt_local.tzinfo)
         if delta.total_seconds() > 0:
             days_left = max(1, delta.days + (1 if delta.seconds > 0 else 0))
         else:
