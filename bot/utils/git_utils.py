@@ -212,7 +212,7 @@ def pull_to_commit(commit_hash: str) -> Tuple[bool, str]:
         
         commit_info = get_last_commit_info('HEAD')
         logger.info(f"✅ Успешно обновлено до блокирующего коммита {commit_hash[:8]}")
-        return True, f"✅ Обновление до блокирующего коммита завершено!\n\n🔹 Текущий коммит:\n<pre>{commit_info}</pre>"
+        return True, f"✅ Обновление до блокирующего коммита завершено!\n\n🔹 Текущий коммит:\n<code>{commit_info['short_hash']}</code> - {commit_info['message']}"
     except Exception as e:
         logger.error(f"Исключение в pull_to_commit({commit_hash}): {e}", exc_info=True)
         return False, f"❌ Критическая ошибка: {e}"
@@ -297,7 +297,6 @@ def pull_updates() -> Tuple[bool, str]:
         if 'conflict' in output.lower():
             return False, "❌ Конфликт слияния. Требуется ручное разрешение."
         return False, f"❌ Ошибка обновления:\n{output}"
-    
     # Возвращаем stash обратно
     if has_changes:
         success_pop, pop_output = run_git_command(['stash', 'pop'])
@@ -306,7 +305,7 @@ def pull_updates() -> Tuple[bool, str]:
             # Не возвращаем ошибку, т.к. обновление прошло успешно
     
     commit_info = get_last_commit_info('HEAD')
-    return True, f"✅ Обновление успешно!\n\n🔹 Последний коммит:\n<pre>{commit_info}</pre>"
+    return True, f"✅ Обновление успешно!\n\n🔹 Последний коммит:\n<code>{commit_info['short_hash']}</code> - {commit_info['message']}"
 
 
 def force_pull_updates() -> Tuple[bool, str]:
@@ -335,17 +334,31 @@ def force_pull_updates() -> Tuple[bool, str]:
         return False, f"❌ Ошибка принудительного обновления:\n{output}"
         
     commit_info = get_last_commit_info('HEAD')
-    return True, f"✅ Принудительное обновление успешно завершено!\nВсе файлы перезаписаны из репозитория.\n\n🔹 Актуальный коммит:\n<pre>{commit_info}</pre>"
+    return True, f"✅ Принудительное обновление успешно завершено!\nВсе файлы перезаписаны из репозитория.\n\n🔹 Актуальный коммит:\n<code>{commit_info['short_hash']}</code> - {commit_info['message']}"
 
 
-def get_last_commit_info(revision: str = 'HEAD') -> str:
-    """Получает информацию о последнем коммите."""
+def get_last_commit_info(revision: str = 'HEAD') -> Dict[str, str]:
+    """
+    Получает информацию о последнем коммите.
+    
+    Returns:
+        Словарь с полями: short_hash, message, full_info
+    """
     success, output = run_git_command([
-        'log', '--format=%h %B', '-n', '1', revision
+        'log', '--format=%h|%s', '-n', '1', revision
     ])
-    if success and output:
-        return output
-    return "Не удалось получить информацию о последнем коммите"
+    if success and output and '|' in output:
+        parts = output.split('|', 1)
+        return {
+            'short_hash': parts[0].strip(),
+            'message': parts[1].strip() if len(parts) > 1 else '',
+            'full_info': output
+        }
+    return {
+        'short_hash': 'unknown',
+        'message': 'Не удалось получить информацию о коммите',
+        'full_info': 'Не удалось получить информацию о коммите'
+    }
 
 
 def get_previous_commits_info(limit: int = 5, revision: str = 'HEAD') -> str:

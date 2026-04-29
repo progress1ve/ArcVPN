@@ -128,11 +128,23 @@ async def admin_git_cmd(message: Message, state: FSMContext):
     if not is_admin(message.from_user.id):
         return
     
+    # Проверяем доступность git
+    if not check_git_available():
+        await message.answer(
+            "❌ <b>Git не установлен</b>\n\n"
+            "Установите Git на сервере:\n"
+            "<code>apt install git</code> (Ubuntu/Debian)\n"
+            "<code>yum install git</code> (CentOS/RHEL)",
+            parse_mode="HTML"
+        )
+        return
+    
     # Проверяем настроен ли GitHub
     if not GITHUB_REPO_URL:
         await message.answer(
             "❌ <b>GitHub не настроен</b>\n\n"
-            "Укажите URL репозитория в файле <code>config.py</code>",
+            "Укажите URL репозитория в файле <code>config.py</code>:\n"
+            "<code>GITHUB_REPO_URL = \"https://github.com/user/repo.git\"</code>",
             parse_mode="HTML"
         )
         return
@@ -140,15 +152,29 @@ async def admin_git_cmd(message: Message, state: FSMContext):
     # Проверяем и обновляем remote URL если нужно
     current_remote = get_remote_url()
     if current_remote != GITHUB_REPO_URL:
-        set_remote_url(GITHUB_REPO_URL)
+        success, msg = set_remote_url(GITHUB_REPO_URL)
+        if not success:
+            await message.answer(
+                f"❌ <b>Ошибка настройки remote</b>\n\n<code>{msg}</code>",
+                parse_mode="HTML"
+            )
+            return
         
     # Показываем текущую ветку и коммит
     branch = get_current_branch()
+    if not branch:
+        await message.answer(
+            "❌ <b>Ошибка</b>\n\nНе удалось определить текущую ветку Git.\n"
+            "Убедитесь что бот находится в git-репозитории.",
+            parse_mode="HTML"
+        )
+        return
+    
     commit_info = get_last_commit_info()
     
     status_msg = await message.answer(
         f"🔄 <b>Обновление из Git</b>\n\n"
-        f"📂 <b>Ветка:</b> {branch}\n"
+        f"📂 <b>Ветка:</b> <code>{branch}</code>\n"
         f"📝 <b>Текущий коммит:</b>\n<code>{commit_info['short_hash']}</code> - {commit_info['message']}\n\n"
         f"⏳ Загружаю изменения...",
         parse_mode="HTML"
@@ -160,7 +186,7 @@ async def admin_git_cmd(message: Message, state: FSMContext):
         await status_msg.edit_text(
             f"❌ <b>Ошибка обновления</b>\n\n"
             f"<code>{log_message}</code>\n\n"
-            f"💡 Попробуйте:\n"
+            f"💡 <b>Попробуйте:</b>\n"
             f"• Проверить подключение к интернету\n"
             f"• Проверить права доступа к репозиторию\n"
             f"• Использовать /update для принудительного обновления",
@@ -176,7 +202,6 @@ async def admin_git_cmd(message: Message, state: FSMContext):
     await status_msg.edit_text(
         f"✅ <b>Обновление завершено!</b>\n\n"
         f"📝 <b>Новый коммит:</b>\n<code>{new_commit_info['short_hash']}</code> - {new_commit_info['message']}\n\n"
-        f"📊 <b>Изменения:</b>\n<code>{log_message}</code>\n\n"
         f"🔄 Перезапуск через 2 секунды...",
         parse_mode="HTML"
     )
