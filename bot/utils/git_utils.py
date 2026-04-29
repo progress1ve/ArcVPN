@@ -373,15 +373,45 @@ def get_previous_commits_info(limit: int = 5, revision: str = 'HEAD') -> str:
 
 def restart_bot() -> None:
     """
-    Перезапускает бота, заменяя текущий процесс.
+    Перезапускает бота.
     
-    Использует os.execv для замены текущего процесса новым.
+    Если бот запущен через systemd, использует systemctl restart.
+    Иначе заменяет текущий процесс новым через os.execv.
     """
     logger.info("🔄 Перезапуск бота...")
     
-    # Получаем путь к Python и аргументы запуска
+    # Проверяем, запущен ли бот через systemd
+    try:
+        # Пытаемся определить имя сервиса
+        import subprocess
+        result = subprocess.run(
+            ['systemctl', 'list-units', '--type=service', '--all'],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        
+        # Ищем сервис бота (в порядке приоритета)
+        if 'arcvpn.service' in result.stdout:
+            service_name = 'arcvpn'
+        elif 'arcvpn-bot.service' in result.stdout:
+            service_name = 'arcvpn-bot'
+        elif 'vpn-bot.service' in result.stdout:
+            service_name = 'vpn-bot'
+        else:
+            service_name = None
+        
+        if service_name:
+            logger.info(f"Обнаружен systemd сервис: {service_name}")
+            # Перезапускаем через systemd
+            subprocess.Popen(['systemctl', 'restart', service_name])
+            # Завершаем текущий процесс
+            sys.exit(0)
+    except Exception as e:
+        logger.warning(f"Не удалось перезапустить через systemd: {e}")
+    
+    # Fallback: перезапуск через execv
+    logger.info("Перезапуск через execv...")
     python = sys.executable
     script = os.path.join(get_project_root(), 'main.py')
-    
-    # Заменяем текущий процесс новым
     os.execv(python, [python, script])
