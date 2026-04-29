@@ -518,22 +518,41 @@ async def key_renew_select_tariff(callback: CallbackQuery):
         await callback.answer()
         return
     
+    # Функция для склонения слова "день"
+    def pluralize_days(n):
+        """Возвращает правильную форму слова 'день' для числа n."""
+        if n % 10 == 1 and n % 100 != 11:
+            return f"{n} день"
+        elif n % 10 in [2, 3, 4] and n % 100 not in [12, 13, 14]:
+            return f"{n} дня"
+        else:
+            return f"{n} дней"
+    
     # Показываем информацию о текущей подписке и список тарифов
     if key['expires_at']:
         expires_dt = datetime.fromisoformat(key['expires_at'])
         expires = expires_dt.strftime('%d-%m-%Y')
-        days_left = (expires_dt - datetime.now()).days
-        if days_left < 0:
+        # Округляем вверх: если осталось хоть немного времени, показываем минимум 1 день
+        delta = expires_dt - datetime.now()
+        if delta.total_seconds() > 0:
+            days_left = max(1, delta.days + (1 if delta.seconds > 0 else 0))
+        else:
             days_left = 0
     else:
         expires = '—'
         days_left = 0
     
+    # Формируем текст с правильным склонением
+    if days_left > 0:
+        days_text = pluralize_days(days_left)
+    else:
+        days_text = "истек"
+    
     text = (
         f"💳 <b>Продление подписки</b>\n\n"
         f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}\n"
         f"📅 <b>Действует до:</b> {expires}\n"
-        f"⏳ <b>Осталось дней:</b> {days_left}\n\n"
+        f"⏳ <b>Осталось:</b> {days_text}\n\n"
         f"Выберите тариф для продления:"
     )
     

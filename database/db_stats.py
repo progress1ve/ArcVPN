@@ -113,7 +113,11 @@ def get_expiring_keys(days: int) -> List[Dict[str, Any]]:
                 u.telegram_id as user_telegram_id,
                 vk.expires_at,
                 vk.custom_name,
-                CAST((julianday(vk.expires_at) - julianday('now')) AS INTEGER) as days_left
+                -- Округляем вверх: если осталось хоть немного времени, показываем минимум 1 день
+                CASE 
+                    WHEN (julianday(vk.expires_at) - julianday('now')) < 1 THEN 1
+                    ELSE CAST((julianday(vk.expires_at) - julianday('now')) + 0.5 AS INTEGER)
+                END as days_left
             FROM vpn_keys vk
             JOIN users u ON vk.user_id = u.id
             WHERE u.is_banned = 0

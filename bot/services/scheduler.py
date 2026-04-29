@@ -365,10 +365,20 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
         days = int(get_setting('notification_days', '3'))
         from bot.utils.message_editor import get_message_data
         
+        # Функция для склонения слова "день"
+        def pluralize_days(n):
+            """Возвращает правильную форму слова 'день' для числа n."""
+            if n % 10 == 1 and n % 100 != 11:
+                return f"{n} день"
+            elif n % 10 in [2, 3, 4] and n % 100 not in [12, 13, 14]:
+                return f"{n} дня"
+            else:
+                return f"{n} дней"
+        
         # Дефолтный текст в HTML
         default_notification = (
             '⚠️ <b>Ваш VPN-ключ %имяключа% скоро истекает!</b>\n\n'
-            'Через %дней% дней закончится срок действия вашего ключа.\n\n'
+            'Через %дней% закончится срок действия вашего ключа.\n\n'
             'Продлите подписку, чтобы сохранить доступ к VPN без перерыва!'
         )
         notification_data = get_message_data('notification_text', default_notification)
@@ -388,9 +398,12 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             if is_notification_sent_today(vpn_key_id):
                 continue
             
+            # Формируем текст с правильным склонением
+            days_text = pluralize_days(days_left)
+            
             # Подстановка с экранированием динамических значений
             text = notification_text.replace(
-                '%дней%', escape_html(str(days_left))
+                '%дней%', escape_html(days_text)
             ).replace(
                 '%имяключа%', escape_html(str(keyname))
             )
