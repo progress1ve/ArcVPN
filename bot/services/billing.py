@@ -636,12 +636,18 @@ async def process_referral_reward(
         При оплате балансом реферальные вознаграждения НЕ начисляются,
         поэтому эта функция не вызывается для платежей балансом.
     """
+    logger.info(f"process_referral_reward вызвана: payer_id={payer_id}, payment_type={payment_type}")
+    
     if not is_referral_enabled():
+        logger.warning(f"Реферальная система отключена, вознаграждение не начислено для payer_id={payer_id}")
         return
     
     # Получаем прямого реферера (уровень 1)
     referrer_id = get_user_referrer(payer_id)
+    logger.info(f"Реферер для payer_id={payer_id}: referrer_id={referrer_id}")
+    
     if not referrer_id:
+        logger.info(f"У пользователя {payer_id} нет реферера, вознаграждение не начислено")
         return
     
     # Фиксированное вознаграждение: 50₽ = 5000 копеек
@@ -674,6 +680,8 @@ async def send_referral_reward_notification(referrer_id: int, payer_id: int, rew
         payer_id: Внутренний ID того, кто оплатил
         reward_cents: Сумма вознаграждения в копейках
     """
+    logger.info(f"send_referral_reward_notification: referrer_id={referrer_id}, payer_id={payer_id}, reward={reward_cents}")
+    
     try:
         from aiogram import Bot
         from config import BOT_TOKEN
@@ -683,6 +691,9 @@ async def send_referral_reward_notification(referrer_id: int, payer_id: int, rew
         # Получаем данные реферера и плательщика
         referrer = get_user_by_id(referrer_id)
         payer = get_user_by_id(payer_id)
+        
+        logger.info(f"Данные реферера: {referrer}")
+        logger.info(f"Данные плательщика: {payer}")
         
         if not referrer:
             logger.warning(f"Реферер {referrer_id} не найден для отправки уведомления")

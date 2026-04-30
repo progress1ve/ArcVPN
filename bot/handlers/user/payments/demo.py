@@ -250,6 +250,7 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
                 user_internal_id = order['user_id']
                 price_rub = float(tariff.get('price_rub') or 0)
                 amount_cents = int(price_rub * 100)  # Конвертируем рубли в копейки
+                logger.info(f"Вызов process_referral_reward: user_internal_id={user_internal_id}, days={days}, amount_cents={amount_cents}")
                 await process_referral_reward(user_internal_id, days, amount_cents, 'demo')
                 
                 # Удаляем предыдущее сообщение
@@ -375,6 +376,7 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
             days = tariff['duration_days']
             price_rub = float(tariff.get('price_rub') or 0)
             amount_cents = int(price_rub * 100)  # Конвертируем рубли в копейки
+            logger.info(f"Вызов process_referral_reward: user_internal_id={user_internal_id}, days={days}, amount_cents={amount_cents}")
             await process_referral_reward(user_internal_id, days, amount_cents, 'demo')
             
             # Удаляем предыдущее сообщение
