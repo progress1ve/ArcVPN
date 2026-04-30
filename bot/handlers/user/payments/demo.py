@@ -245,6 +245,13 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
                 restore_traffic_limit_in_db(key_id)
                 await push_key_to_panel(key_id, reset_traffic=True)
                 
+                # Начисляем реферальное вознаграждение
+                from bot.services.billing import process_referral_reward
+                user_internal_id = order['user_id']
+                price_rub = float(tariff.get('price_rub') or 0)
+                amount_cents = int(price_rub * 100)  # Конвертируем рубли в копейки
+                await process_referral_reward(user_internal_id, days, amount_cents, 'demo')
+                
                 # Удаляем предыдущее сообщение
                 try:
                     await callback.message.delete()
@@ -361,6 +368,14 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
             
             # Завершаем заказ
             complete_order(order_id)
+            
+            # Начисляем реферальное вознаграждение
+            from bot.services.billing import process_referral_reward
+            user_internal_id = order['user_id']
+            days = tariff['duration_days']
+            price_rub = float(tariff.get('price_rub') or 0)
+            amount_cents = int(price_rub * 100)  # Конвертируем рубли в копейки
+            await process_referral_reward(user_internal_id, days, amount_cents, 'demo')
             
             # Удаляем предыдущее сообщение
             try:

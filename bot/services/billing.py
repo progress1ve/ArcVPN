@@ -23,7 +23,7 @@ from database.requests import (
     is_referral_enabled, get_referral_reward_type, get_active_referral_levels,
     get_user_referrer, get_user_referral_coefficient, get_user_balance,
     add_to_balance, deduct_from_balance, add_days_to_first_active_key,
-    update_referral_stat
+    update_referral_stat, get_user_by_id
 )
 from bot.services.exchange_rate import get_usd_rub_rate
 
@@ -660,6 +660,74 @@ async def process_referral_reward(
     )
     
     logger.info(f"Начислено {FIXED_REWARD_CENTS} коп реферу {referrer_id} за покупку реферала {payer_id}")
+    
+    # Отправляем уведомление рефереру
+    await send_referral_reward_notification(referrer_id, payer_id, FIXED_REWARD_CENTS)
+
+
+async def send_referral_reward_notification(referrer_id: int, payer_id: int, reward_cents: int) -> None:
+    """
+    Отправляет уведомление рефереру о начислении бонуса.
+    
+    Args:
+        referrer_id: Внутренний ID реферера
+        payer_id: Внутренний ID того, кто оплатил
+        reward_cents: Сумма вознаграждения в копейках
+    """
+    try:
+        from aiogram import Bot
+        from config import BOT_TOKEN
+        from aiogram.types import InlineKeyboardButton
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        
+        # Получаем данные реферера и плательщика
+        referrer = get_user_by_id(referrer_id)
+        payer = get_user_by_id(payer_id)
+        
+        if not referrer:
+            logger.warning(f"Реферер {referrer_id} не найден для отправки уведомления")
+            return
+        
+        referrer_telegram_id = referrer['telegram_id']
+        payer_username = payer.get('username', 'пользователь') if payer else 'пользователь'
+        
+        # Форматируем сумму
+        reward_rub = reward_cents / 100
+        reward_str = f"{reward_rub:.0f} ₽" if reward_rub >= 10 else f"{reward_rub:.2f} ₽"
+        
+        # Получаем текущий баланс
+        current_balance = get_user_balance(referrer_id)
+        balance_rub = current_balance / 100
+        balance_str = f"{balance_rub:.0f} ₽" if balance_rub >= 10 else f"{balance_rub:.2f} ₽"
+        
+        # Формируем текст уведомления
+        text = (
+            f"🎉 <b>Реферальное вознаграждение!</b>\n\n"
+            f"Ваш реферал @{payer_username} оплатил подписку.\n\n"
+            f"💰 <b>Начислено:</b> {reward_str}\n"
+            f"💎 <b>Ваш баланс:</b> {balance_str}\n\n"
+            f"Используйте баланс для оплаты подписок!"
+        )
+        
+        # Создаем клавиатуру
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="💎 Мой баланс", callback_data="referral_system"))
+        builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+        
+        # Отправляем уведомление
+        bot = Bot(token=BOT_TOKEN)
+        await bot.send_message(
+            chat_id=referrer_telegram_id,
+            text=text,
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
+        )
+        await bot.session.close()
+        
+        logger.info(f"Отправлено уведомление о реферальном бонусе рефереру {referrer_telegram_id}")
+        
+    except Exception as e:
+        logger.error(f"Ошибка отправки уведомления о реферальном бонусе: {e}")
 
 
 def calculate_balance_discount(user_id: int, tariff_price_cents: int) -> tuple[int, int]:

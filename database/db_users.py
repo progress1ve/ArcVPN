@@ -36,6 +36,7 @@ __all__ = [
     'set_user_referral_coefficient',
     'update_user_name',
     'get_user',
+    'get_user_by_id',
 ]
 
 def _generate_referral_code() -> str:
@@ -175,6 +176,24 @@ def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:
         cursor = conn.execute(
             "SELECT * FROM users WHERE telegram_id = ?",
             (telegram_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Получает данные пользователя по внутреннему ID.
+    
+    Args:
+        user_id: Внутренний ID пользователя (users.id)
+        
+    Returns:
+        Словарь с данными пользователя или None
+    """
+    with get_db() as conn:
+        cursor = conn.execute(
+            "SELECT * FROM users WHERE id = ?",
+            (user_id,)
         )
         row = cursor.fetchone()
         return dict(row) if row else None
