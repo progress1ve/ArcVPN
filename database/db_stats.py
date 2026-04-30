@@ -12,6 +12,7 @@ __all__ = [
     'get_users_for_broadcast',
     'count_users_for_broadcast',
     'get_expiring_keys',
+    'get_expired_keys_today',
     'is_notification_sent_today',
     'log_notification_sent',
     'get_keys_stats',
@@ -124,6 +125,28 @@ def get_expiring_keys(days: int) -> List[Dict[str, Any]]:
             AND vk.expires_at > datetime('now')
             AND vk.expires_at <= datetime('now', '+' || ? || ' days')
         """, (days,))
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_expired_keys_today() -> List[Dict[str, Any]]:
+    """
+    Получает ключи, которые истекли сегодня (в течение последних 24 часов).
+    
+    Returns:
+        Список словарей: vpn_key_id, user_telegram_id, expires_at, custom_name
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT 
+                vk.id as vpn_key_id,
+                u.telegram_id as user_telegram_id,
+                vk.expires_at,
+                vk.custom_name
+            FROM vpn_keys vk
+            JOIN users u ON vk.user_id = u.id
+            WHERE u.is_banned = 0
+            AND vk.expires_at <= datetime('now')
+            AND vk.expires_at >= datetime('now', '-1 day')
+        """)
         return [dict(row) for row in cursor.fetchall()]
 
 def is_notification_sent_today(vpn_key_id: int) -> bool:

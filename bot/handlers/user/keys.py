@@ -19,7 +19,7 @@ router = Router()
 
 @router.message(Command('mykeys'))
 async def cmd_mykeys(message: Message, state: FSMContext):
-    """Обработчик команды /mykeys - вызывает логику кнопки 'Мои ключи'."""
+    """Обработчик команды /mykeys - вызывает логику кнопки 'Мои подписки'."""
     if is_user_banned(message.from_user.id):
         await safe_edit_or_send(message, '⛔ <b>Доступ заблокирован</b>\n\nВаш аккаунт заблокирован. Обратитесь в поддержку.', force_new=True)
         return
@@ -28,7 +28,7 @@ async def cmd_mykeys(message: Message, state: FSMContext):
 
 async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
     """
-    Общая логика для показа списка ключей.
+    Общая логика для показа списка подписок.
     
     Args:
         telegram_id: ID пользователя в Telegram
@@ -77,13 +77,13 @@ async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
 
 @router.callback_query(F.data == 'my_keys')
 async def my_keys_handler(callback: CallbackQuery):
-    """Список VPN-ключей пользователя."""
+    """Список VPN-подписок пользователя."""
     telegram_id = callback.from_user.id
     await show_my_keys(telegram_id, callback.message)
     await callback.answer()
 
 async def show_key_details(telegram_id: int, key_id: int, message, is_callback: bool = True, prepend_text: str=''):
-    """Общая логика для показа деталей ключа."""
+    """Общая логика для показа деталей подписки."""
     from database.requests import get_key_details_for_user, get_key_payments_history, is_key_active, is_traffic_exhausted
     from bot.keyboards.user import key_manage_kb
     from bot.services.vpn_api import format_traffic
@@ -92,9 +92,9 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
     key = get_key_details_for_user(key_id, telegram_id)
     if not key:
         if is_callback:
-            await safe_edit_or_send(message, '❌ Ключ не найден или вы не являетесь его владельцем.')
+            await safe_edit_or_send(message, '❌ Подписка не найдена или вы не являетесь её владельцем.')
         else:
-            await safe_edit_or_send(message, '❌ Ключ не найден или вы не являетесь его владельцем.', force_new=True)
+            await safe_edit_or_send(message, '❌ Подписка не найдена или вы не являетесь её владельцем.', force_new=True)
         return
     traffic_exhausted = is_traffic_exhausted(key)
     key_active = is_key_active(key)
@@ -174,7 +174,7 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
 
 @router.callback_query(F.data.startswith('key_delete:'))
 async def key_delete_handler(callback: CallbackQuery):
-    """Удаление истекшего ключа пользователем."""
+    """Удаление истекшей подписки пользователем."""
     key_id = int(callback.data.split(':')[1])
     telegram_id = callback.fromuser.id if hasattr(callback, 'fromuser') else callback.from_user.id
     from database.requests import get_key_details_for_user, delete_vpn_key
@@ -183,10 +183,10 @@ async def key_delete_handler(callback: CallbackQuery):
     logger = logging.getLogger(__name__)
     key = get_key_details_for_user(key_id, telegram_id)
     if not key:
-        await callback.answer('❌ Ключ не найден или вы не являетесь его владельцем.', show_alert=True)
+        await callback.answer('❌ Подписка не найдена или вы не являетесь её владельцем.', show_alert=True)
         return
     if key['is_active']:
-        await callback.answer('❌ Активные ключи нельзя удалить.', show_alert=True)
+        await callback.answer('❌ Активные подписки нельзя удалить.', show_alert=True)
         return
     if key.get('server_id') and key.get('panel_inbound_id') and key.get('client_uuid'):
         try:
@@ -197,14 +197,14 @@ async def key_delete_handler(callback: CallbackQuery):
             logger.warning(f"Не удалось удалить клиента {key.get('panel_email', 'unknown')} с сервера 3X-UI: {e}")
     success = delete_vpn_key(key_id)
     if success:
-        await callback.answer(f"✅ Ключ {key['display_name']} успешно удален.", show_alert=True)
+        await callback.answer(f"✅ Подписка {key['display_name']} успешно удалена.", show_alert=True)
         await show_my_keys(telegram_id, callback.message)
     else:
-        await callback.answer('❌ Ошибка при удалении ключа из БД.', show_alert=True)
+        await callback.answer('❌ Ошибка при удалении подписки из БД.', show_alert=True)
 
 @router.callback_query(F.data.startswith('key:'))
 async def key_details_handler(callback: CallbackQuery):
-    """Показывает ключ с QR-кодом и краткой информацией."""
+    """Показывает подписку с QR-кодом и краткой информацией."""
     from database.requests import get_key_details_for_user, is_key_active, is_traffic_exhausted
     from bot.services.vpn_api import format_traffic
     from bot.utils.key_sender import send_key_with_qr
@@ -215,7 +215,7 @@ async def key_details_handler(callback: CallbackQuery):
     
     key = get_key_details_for_user(key_id, telegram_id)
     if not key:
-        await callback.answer('❌ Ключ не найден', show_alert=True)
+        await callback.answer('❌ Подписка не найдена', show_alert=True)
         return
     
     # Проверяем статус
@@ -286,13 +286,13 @@ async def key_details_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key_show:'))
 async def key_show_handler(callback: CallbackQuery):
-    """Показать subscription ссылку (заменяет показ отдельного ключа)."""
+    """Показать subscription ссылку (заменяет показ отдельной подписки)."""
     from bot.utils.key_sender import send_subscription_link
     from bot.keyboards.user import back_and_home_kb
     
     telegram_id = callback.from_user.id
     
-    # Показываем subscription ссылку вместо отдельного ключа
+    # Показываем subscription ссылку вместо отдельной подписки
     await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
     await callback.answer()
 
@@ -503,7 +503,7 @@ async def key_renew_select_tariff(callback: CallbackQuery):
     
     key = get_key_details_for_user(key_id, telegram_id)
     if not key:
-        await callback.answer('❌ Ключ не найден или вы не являетесь его владельцем.', show_alert=True)
+        await callback.answer('❌ Подписка не найдена или вы не являетесь её владельцем.', show_alert=True)
         return
     
     # Получаем все доступные тарифы
@@ -579,7 +579,7 @@ async def key_renew_select_payment(callback: CallbackQuery):
     
     key = get_key_details_for_user(key_id, telegram_id)
     if not key:
-        await callback.answer('❌ Ключ не найден или вы не являетесь его владельцем.', show_alert=True)
+        await callback.answer('❌ Подписка не найдена или вы не являетесь её владельцем.', show_alert=True)
         return
     
     tariff = get_tariff_by_id(tariff_id)

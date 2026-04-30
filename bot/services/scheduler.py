@@ -25,7 +25,7 @@ from config import ADMIN_IDS, GITHUB_REPO_URL
 from database.requests import (
     get_all_servers, get_users_stats, get_keys_stats,
     get_daily_payments_stats, get_new_users_count_today,
-    get_setting, get_expiring_keys, is_notification_sent_today, log_notification_sent
+    get_setting, get_expiring_keys, get_expired_keys_today, is_notification_sent_today, log_notification_sent
 )
 from bot.services.vpn_api import get_client_from_server_data, VPNAPIError, format_traffic
 from bot.utils.git_utils import check_for_updates
@@ -354,14 +354,15 @@ async def send_backup_archive(bot: Bot) -> None:
 
 async def check_and_send_expiry_notifications(bot: Bot) -> None:
     """
-    Проверяет и отправляет уведомления об истекающих ключах.
+    Проверяет и отправляет уведомления об истекающих и истёкших подписках.
     
     Использует единый HTML-контракт. Динамические подстановки 
     экранируются через escape_html().
     """
-    logger.info("⏳ Запуск проверки истекающих ключей...")
+    logger.info("⏳ Запуск проверки истекающих подписок...")
     try:
         from bot.utils.text import escape_html
+        from database.requests import get_expired_keys_today
         days = int(get_setting('notification_days', '3'))
         from bot.utils.message_editor import get_message_data
         
@@ -375,16 +376,29 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             else:
                 return f"{n} дней"
         
-        # Дефолтный текст в HTML
+        # Дефолтный текст для предупреждения об истечении
         default_notification = (
-            '⚠️ <b>Ваш VPN-ключ %имяключа% скоро истекает!</b>\n\n'
-            'Через %дней% закончится срок действия вашего ключа.\n\n'
+            '⚠️ <b>Ваша подписка %имяподписки% скоро истекает!</b>\n\n'
+            'Через %дней% закончится срок действия вашей подписки.\n\n'
             'Продлите подписку, чтобы сохранить доступ к VPN без перерыва!'
         )
+        
+        # Дефолтный текст для уведомления об истёкшей подписке
+        default_expired_notification = (
+            '❌ <b>Ваша подписка %имяподписки% истекла!</b>\n\n'
+            'Срок действия вашей подписки закончился.\n\n'
+            'Продлите подписку, чтобы восстановить доступ к VPN!'
+        )
+        
         notification_data = get_message_data('notification_text', default_notification)
         notification_text = notification_data.get('text', default_notification)
         notification_photo = notification_data.get('photo_file_id')
         
+        expired_notification_data = get_message_data('expired_notification_text', default_expired_notification)
+        expired_notification_text = expired_notification_data.get('text', default_expired_notification)
+        expired_notification_photo = expired_notification_data.get('photo_file_id')
+        
+        # Отправляем уведомления об истекающих подписках
         expiring_keys = get_expiring_keys(days)
         sent_count = 0
         
@@ -392,7 +406,7 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             vpn_key_id = key_info['vpn_key_id']
             user_telegram_id = key_info['user_telegram_id']
             days_left = key_info['days_left']
-            keyname = key_info.get('custom_name', f"Key #{vpn_key_id}")
+            keyname = key_info.get('custom_name', f"Подписка #{vpn_key_id}")
             
             # Проверяем, отправляли ли мы сегодня
             if is_notification_sent_today(vpn_key_id):
@@ -405,13 +419,15 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             text = notification_text.replace(
                 '%дней%', escape_html(days_text)
             ).replace(
-                '%имяключа%', escape_html(str(keyname))
+                '%имяподписки%', escape_html(str(keyname))
+            ).replace(
+                '%имяключа%', escape_html(str(keyname))  # Для обратной совместимости
             )
             
-            # Клавиатура с кнопками "Мои ключи" и "На главную"
+            # Клавиатура с кнопками "Мои подписки" и "На главную"
             builder = InlineKeyboardBuilder()
-            builder.row(InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"))
-            builder.row(InlineKeyboardButton(text="🈴 На главную", callback_data="start"))
+            builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+            builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
             kb = builder.as_markup()
             
             try:
@@ -438,10 +454,61 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             # Небольшая задержка между сообщениями
             await asyncio.sleep(0.3)
         
-        if sent_count > 0:
-            logger.info(f"📬 Отправлено {sent_count} уведомлений об истечении ключей")
+        # Отправляем уведомления об истёкших подписках
+        expired_keys = get_expired_keys_today()
+        expired_sent_count = 0
+        
+        for key_info in expired_keys:
+            vpn_key_id = key_info['vpn_key_id']
+            user_telegram_id = key_info['user_telegram_id']
+            keyname = key_info.get('custom_name', f"Подписка #{vpn_key_id}")
+            
+            # Проверяем, отправляли ли мы сегодня
+            if is_notification_sent_today(vpn_key_id):
+                continue
+            
+            # Подстановка с экранированием динамических значений
+            text = expired_notification_text.replace(
+                '%имяподписки%', escape_html(str(keyname))
+            ).replace(
+                '%имяключа%', escape_html(str(keyname))  # Для обратной совместимости
+            )
+            
+            # Клавиатура с кнопками "Продлить" и "Мои подписки"
+            builder = InlineKeyboardBuilder()
+            builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
+            builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+            builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+            kb = builder.as_markup()
+            
+            try:
+                if expired_notification_photo:
+                    await bot.send_photo(
+                        chat_id=user_telegram_id,
+                        photo=expired_notification_photo,
+                        caption=text,
+                        reply_markup=kb,
+                        parse_mode="HTML"
+                    )
+                else:
+                    await bot.send_message(
+                        chat_id=user_telegram_id,
+                        text=text,
+                        reply_markup=kb,
+                        parse_mode="HTML"
+                    )
+                log_notification_sent(vpn_key_id)
+                expired_sent_count += 1
+            except Exception as e:
+                logger.warning(f"Не удалось отправить уведомление об истечении пользователю {user_telegram_id}: {e}")
+            
+            # Небольшая задержка между сообщениями
+            await asyncio.sleep(0.3)
+        
+        if sent_count > 0 or expired_sent_count > 0:
+            logger.info(f"📬 Отправлено {sent_count} уведомлений об истечении и {expired_sent_count} уведомлений об истёкших подписках")
         else:
-            logger.info("Нет ключей требующих уведомления")
+            logger.info("Нет подписок требующих уведомления")
     
     except Exception as e:
         logger.error(f"Ошибка в check_and_send_expiry_notifications: {e}")

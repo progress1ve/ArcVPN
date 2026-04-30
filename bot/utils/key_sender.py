@@ -13,9 +13,9 @@ from database.requests import get_user_keys_for_display
 logger = logging.getLogger(__name__)
 
 
-# Дефолтный текст выдачи ключа в формате HTML
+# Дефолтный текст выдачи подписки в формате HTML
 DEFAULT_KEY_DELIVERY_TEXT = (
-    "✅ <b>Ваш VPN-ключ!</b>\n\n"
+    "✅ <b>Ваша VPN-подписка!</b>\n\n"
     "%ключ%\n"
     "☝️ Нажмите, чтобы скопировать.\n\n"
     "📱 <b>Инструкция:</b>\n"
@@ -32,22 +32,22 @@ async def send_key_with_qr(
     is_new: bool = False
 ):
     """
-    Отправляет пользователю ключ с QR-кодом и файлом конфигурации.
+    Отправляет пользователю подписку с QR-кодом и файлом конфигурации.
     
     Использует единый HTML-контракт для текстов из редактора.
     
     Args:
         messageable: Объект Message или CallbackQuery, куда отвечать
-        key_data: Данные ключа из БД (должны содержать server_id, panel_email, client_uuid)
-        key_manage_markup: Клавиатура управления ключом
-        is_new: Является ли ключ только что созданным
+        key_data: Данные подписки из БД (должны содержать server_id, panel_email, client_uuid)
+        key_manage_markup: Клавиатура управления подпиской
+        is_new: Является ли подписка только что созданной
     """
     from bot.utils.text import escape_html
     
     try:
         # Проверяем наличие необходимых данных
         if not key_data.get('server_id') or not key_data.get('panel_email'):
-             await _send_error(messageable, "Неполные данные ключа", key_manage_markup)
+             await _send_error(messageable, "Неполные данные подписки", key_manage_markup)
              return
 
         # 1. Получаем конфигурацию с сервера
@@ -91,7 +91,7 @@ async def send_key_with_qr(
         
         # Если caption слишком длинный (Telegram limit 1024), сокращаем
         if len(caption) > 1024:
-             title = "✅ <b>Ваш новый VPN-ключ!</b>" if is_new else "📋 <b>Ваш VPN-ключ</b>"
+             title = "✅ <b>Ваша новая VPN-подписка!</b>" if is_new else "📋 <b>Ваша VPN-подписка</b>"
              caption = (
                 f"{title}\n\n"
                 "👇 <b>Ваша ссылка доступа (нажмите для копирования):</b>\n"
@@ -105,7 +105,7 @@ async def send_key_with_qr(
         # Определяем функцию отправки
         send_func = messageable.answer_photo if hasattr(messageable, 'answer_photo') else messageable.message.answer_photo
         
-        # Отправляем QR с ключом и клавиатурой
+        # Отправляем QR с подпиской и клавиатурой
         await send_func(
             photo=photo,
             caption=caption,
@@ -121,8 +121,8 @@ async def send_key_with_qr(
                 pass
 
     except Exception as e:
-        logger.error(f"Error sending key: {e}")
-        await _send_error(messageable, f"Ошибка отправки ключа: {e}", key_manage_markup)
+        logger.error(f"Error sending subscription: {e}")
+        await _send_error(messageable, f"Ошибка отправки подписки: {e}", key_manage_markup)
 
 
 async def _send_error(messageable, text, markup):
@@ -159,11 +159,11 @@ async def send_subscription_link(
     key_manage_markup: InlineKeyboardMarkup = None
 ):
     """
-    Отправляет пользователю subscription ссылку для конкретного ключа с QR-кодом.
+    Отправляет пользователю subscription ссылку для конкретной подписки с QR-кодом.
     
     Args:
         messageable: Объект Message или CallbackQuery
-        key_id: ID ключа из vpn_keys
+        key_id: ID подписки из vpn_keys
         key_manage_markup: Клавиатура управления (опционально)
     """
     from bot.utils.text import safe_edit_or_send
@@ -173,18 +173,18 @@ async def send_subscription_link(
     from database.requests import get_vpn_key_by_id
     
     try:
-        # Получаем данные ключа
+        # Получаем данные подписки
         key = get_vpn_key_by_id(key_id)
         if not key:
-            await _send_error(messageable, "Ключ не найден", key_manage_markup)
+            await _send_error(messageable, "Подписка не найдена", key_manage_markup)
             return
         
         sub_id = key.get('sub_id')
         if not sub_id:
-            await _send_error(messageable, "У ключа нет subscription ID", key_manage_markup)
+            await _send_error(messageable, "У подписки нет subscription ID", key_manage_markup)
             return
         
-        # Получаем subscription URL для конкретного ключа
+        # Получаем subscription URL для конкретной подписки
         from config import SUBSCRIPTION_URL
         sub_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
         
@@ -205,7 +205,7 @@ async def send_subscription_link(
             builder = InlineKeyboardBuilder()
             builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
             builder.row(
-                InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+                InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"),
                 InlineKeyboardButton(text="🏠 На главную", callback_data="start")
             )
             key_manage_markup = builder.as_markup()
@@ -232,7 +232,7 @@ async def send_subscription_link(
                 parse_mode="HTML"
             )
             
-        logger.info(f"Отправлена subscription ссылка для ключа {key_id} (sub_id={sub_id})")
+        logger.info(f"Отправлена subscription ссылка для подписки {key_id} (sub_id={sub_id})")
         
     except Exception as e:
         logger.error(f"Ошибка отправки subscription ссылки: {e}")
