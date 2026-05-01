@@ -29,6 +29,4 @@ venv*/
 .env
 
 
-FINAL_INSTRUCTIONS.md
-check_trial_status.py
-reset_trial_for_user.py
+TOPUP_IMPLEMENTATION.md

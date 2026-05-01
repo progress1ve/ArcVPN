@@ -154,14 +154,17 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
     """
     Универсальная обработка успешного ордера (Crypto или Stars).
     Закрывает ордер, продлевает ключ или создаёт черновик.
+    Также обрабатывает пополнение баланса (когда tariff_id=None и vpn_key_id=None).
     
     Returns:
         (success, message_text, order_data)
     """
     from database.requests import (
         is_order_already_paid, find_order_by_order_id, complete_order, 
-        extend_vpn_key, create_initial_vpn_key, update_payment_key_id
+        extend_vpn_key, create_initial_vpn_key, update_payment_key_id,
+        add_to_balance, get_user_balance
     )
+    from bot.services.user_locks import user_locks
     
     # 1. Проверка на дубликат (на всякий случай, если вызывающий не проверил)
     if is_order_already_paid(order_id):
@@ -175,7 +178,30 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
         logger.warning(f"Ордер не найден: {order_id}")
         return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
     
-    # 3. Закрываем ордер
+    # 3. Проверяем, это пополнение баланса или покупка подписки
+    if order.get('tariff_id') is None and order.get('vpn_key_id') is None:
+        # Это пополнение баланса
+        logger.info(f"Обработка пополнения баланса: order_id={order_id}")
+        
+        user_internal_id = order['user_id']
+        amount_cents = order.get('amount_cents', 0)
+        
+        # Пополняем баланс
+        async with user_locks[user_internal_id]:
+            add_to_balance(user_internal_id, amount_cents)
+        
+        # Закрываем заказ
+        if not complete_order(order_id):
+            if order['status'] == 'paid':
+                pass
+            else:
+                return False, "❌ Ошибка обновления статуса платежа.", order
+        
+        logger.info(f"Баланс пополнен на {amount_cents} коп для user {user_internal_id} (order {order_id})")
+        
+        return True, f"✅ Баланс успешно пополнен на {amount_cents // 100} ₽!", order
+    
+    # 4. Закрываем ордер (для покупки подписки)
     if not complete_order(order_id):
         # Если статус уже paid, process_payment_order вызван повторно - обрабатываем как успех
         if order['status'] == 'paid':

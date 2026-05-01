@@ -27,6 +27,7 @@ __all__ = [
     'update_order_tariff',
     'update_payment_type',
     'update_payment_key_id',
+    'update_payment_yookassa_id',
     'is_order_already_paid',
     'get_key_payments_history',
     'get_referral_levels',
@@ -38,6 +39,7 @@ __all__ = [
     'get_referral_reward_type',
     'get_referral_conditions_text',
     'update_referral_setting',
+    'get_payment_token',
 ]
 
 def save_yookassa_payment_id(order_id: str, yookassa_payment_id: str) -> bool:
@@ -245,7 +247,9 @@ def create_pending_order(
     user_id: int,
     tariff_id: Optional[int],
     payment_type: Optional[str],
-    vpn_key_id: Optional[int] = None
+    vpn_key_id: Optional[int] = None,
+    amount_cents: Optional[int] = None,
+    amount_stars: Optional[int] = None
 ) -> tuple[int, str]:
     """
     Создаёт pending order и генерирует уникальный order_id.
@@ -256,14 +260,21 @@ def create_pending_order(
     
     Args:
         user_id: Внутренний ID пользователя
-        tariff_id: ID тарифа (может быть None для крипты)
+        tariff_id: ID тарифа (может быть None для пополнения баланса)
         payment_type: 'crypto', 'stars' или None (если выбирается при оплате)
         vpn_key_id: ID ключа для продления (None для нового ключа)
+        amount_cents: Сумма в копейках (для пополнения баланса)
+        amount_stars: Сумма в звездах (для пополнения баланса)
     
     Returns:
         Кортеж (payment_id, order_id)
     """
     tariff = get_tariff_by_id(tariff_id) if tariff_id else None
+    
+    # Если тариф указан, берем данные из него, иначе используем переданные параметры
+    final_amount_cents = tariff['price_cents'] if tariff else (amount_cents or 0)
+    final_amount_stars = tariff['price_stars'] if tariff else (amount_stars or 0)
+    final_period_days = tariff['duration_days'] if tariff else None
     
     with get_db() as conn:
         # Шаг 1: создаём запись с временным order_id
@@ -274,9 +285,9 @@ def create_pending_order(
             VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, 'pending', NULL)
         """, (
             user_id, tariff_id, payment_type, vpn_key_id,
-            tariff['price_cents'] if tariff else 0,
-            tariff['price_stars'] if tariff else 0,
-            tariff['duration_days'] if tariff else None
+            final_amount_cents,
+            final_amount_stars,
+            final_period_days
         ))
         payment_id = cursor.lastrowid
         
@@ -454,6 +465,28 @@ def update_payment_key_id(order_id: str, vpn_key_id: int) -> bool:
             WHERE order_id = ?
         """, (vpn_key_id, order_id))
         return cursor.rowcount > 0
+
+def update_payment_yookassa_id(order_id: str, yookassa_payment_id: str) -> bool:
+    """
+    Сохраняет ID платежа ЮКасса в запись ордера.
+    
+    Args:
+        order_id: Наш внутренний order_id
+        yookassa_payment_id: ID платежа в системе ЮКассы
+    
+    Returns:
+        True если успешно
+    """
+    return save_yookassa_payment_id(order_id, yookassa_payment_id)
+
+def get_payment_token() -> Optional[str]:
+    """
+    Получает токен провайдера для оплаты картами.
+    
+    Returns:
+        Токен провайдера или None
+    """
+    return get_setting('payment_token')
 
 def is_order_already_paid(order_id: str) -> bool:
     """

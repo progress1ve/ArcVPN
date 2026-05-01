@@ -41,6 +41,9 @@ async def successful_payment_handler(message: Message, state: FSMContext):
     Делегирует общую post-payment логику в complete_payment_flow().
     """
     from bot.services.billing import complete_payment_flow
+    from database.requests import find_order_by_order_id, get_user_internal_id, add_to_balance, complete_order, get_user_balance
+    from bot.services.user_locks import user_locks
+    
     payment = message.successful_payment
     payload = payment.invoice_payload
     currency = payment.currency
@@ -54,14 +57,54 @@ async def successful_payment_handler(message: Message, state: FSMContext):
     else:
         order_id = payload
     
-    await complete_payment_flow(
-        order_id=order_id,
-        message=message,
-        state=state,
-        telegram_id=message.from_user.id,
-        payment_type=payment_type,
-        referral_amount=payment.total_amount
-    )
+    # Проверяем, это пополнение баланса или покупка подписки
+    order = find_order_by_order_id(order_id)
+    
+    if order and order.get('tariff_id') is None and order.get('vpn_key_id') is None:
+        # Это пополнение баланса (tariff_id=None и vpn_key_id=None)
+        logger.info(f"Обработка пополнения баланса: order_id={order_id}")
+        
+        user_internal_id = order['user_id']
+        amount_cents = order.get('amount_cents', 0)
+        
+        # Пополняем баланс
+        async with user_locks[user_internal_id]:
+            add_to_balance(user_internal_id, amount_cents)
+        
+        # Закрываем заказ
+        complete_order(order_id)
+        
+        logger.info(f"Баланс пополнен на {amount_cents} коп для user {user_internal_id} (order {order_id})")
+        
+        # Показываем успех
+        new_balance = get_user_balance(user_internal_id)
+        
+        from aiogram.types import InlineKeyboardButton
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="💎 Мой баланс", callback_data="referral_system"))
+        builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+        
+        await message.answer(
+            f"✅ <b>Баланс успешно пополнен!</b>\n\n"
+            f"💰 <b>Зачислено:</b> {_format_price_compact(amount_cents)}\n"
+            f"💎 <b>Ваш баланс:</b> {_format_price_compact(new_balance)}",
+            reply_markup=builder.as_markup(),
+            parse_mode="HTML"
+        )
+        
+        await state.clear()
+    else:
+        # Обычная покупка подписки
+        await complete_payment_flow(
+            order_id=order_id,
+            message=message,
+            state=state,
+            telegram_id=message.from_user.id,
+            payment_type=payment_type,
+            referral_amount=payment.total_amount
+        )
 
 async def finalize_payment_ui(message: Message, state: FSMContext, text: str, order: dict, user_id: int):
     """

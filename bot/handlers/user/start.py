@@ -106,10 +106,45 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     if args and args.startswith('bill'):
         from bot.services.billing import process_crypto_payment
         from bot.handlers.user.payments.base import finalize_payment_ui
+        from database.requests import find_order_by_order_id, add_to_balance, get_user_balance
+        from bot.services.user_locks import user_locks
+        from aiogram.types import InlineKeyboardButton
+        from aiogram.utils.keyboard import InlineKeyboardBuilder
+        
         try:
             (success, text, order) = await process_crypto_payment(args, user_id=user['id'])
+            
             if success and order:
-                await finalize_payment_ui(message, state, text, order, user_id=message.from_user.id)
+                # Проверяем, это пополнение баланса или покупка подписки
+                if order.get('tariff_id') is None and order.get('vpn_key_id') is None:
+                    # Это пополнение баланса
+                    logger.info(f"Обработка крипто-пополнения баланса: order_id={order['order_id']}")
+                    
+                    amount_cents = order.get('amount_cents', 0)
+                    
+                    # Баланс уже пополнен в process_payment_order, просто показываем результат
+                    new_balance = get_user_balance(user['id'])
+                    
+                    def format_price_compact(cents: int) -> str:
+                        if cents >= 10000:
+                            return f"{cents // 100} ₽"
+                        else:
+                            return f"{cents / 100:.2f} ₽".replace(".", ",")
+                    
+                    builder = InlineKeyboardBuilder()
+                    builder.row(InlineKeyboardButton(text="💎 Мой баланс", callback_data="referral_system"))
+                    builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+                    
+                    await message.answer(
+                        f"✅ <b>Баланс успешно пополнен!</b>\n\n"
+                        f"💰 <b>Зачислено:</b> {format_price_compact(amount_cents)}\n"
+                        f"💎 <b>Ваш баланс:</b> {format_price_compact(new_balance)}",
+                        reply_markup=builder.as_markup(),
+                        parse_mode="HTML"
+                    )
+                else:
+                    # Обычная покупка подписки
+                    await finalize_payment_ui(message, state, text, order, user_id=message.from_user.id)
             else:
                 await safe_edit_or_send(message, text, force_new=True)
         except Exception as e:
