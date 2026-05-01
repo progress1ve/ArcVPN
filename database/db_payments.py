@@ -486,7 +486,11 @@ def get_payment_token() -> Optional[str]:
     Returns:
         Токен провайдера или None
     """
-    return get_setting('payment_token')
+    # Сначала пробуем payment_token, потом cards_provider_token (для обратной совместимости)
+    token = get_setting('payment_token')
+    if not token:
+        token = get_setting('cards_provider_token')
+    return token
 
 def is_order_already_paid(order_id: str) -> bool:
     """
