@@ -305,6 +305,9 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
     
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
     
+    # Показываем сообщение о создании QR
+    await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
+    
     try:
         # Создаем QR-платеж
         bot_info = await callback.bot.get_me()
@@ -320,25 +323,52 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
         from database.requests import update_payment_yookassa_id
         update_payment_yookassa_id(order_id, payment_data['yookassa_payment_id'])
         
-        # Отправляем QR-код
-        qr_image = BufferedInputFile(payment_data['qr_image_data'], filename="qr.png")
+        # Получаем QR-код
+        qr_image_data = payment_data.get('qr_image_data')
+        qr_url = payment_data.get('qr_url', '')
         
+        if not qr_image_data or not qr_url:
+            await safe_edit_or_send(
+                callback.message, 
+                '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.',
+                force_new=True
+            )
+            return
+        
+        # Формируем текст
+        text = (
+            f"📱 <b>QR-код для пополнения баланса</b>\n\n"
+            f"💰 <b>Сумма:</b> {amount_rub:.0f} ₽\n\n"
+            f"Отсканируйте QR-код банковским приложением (СБП) "
+            f"или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n"
+            f"<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        )
+        
+        # Создаем клавиатуру
         builder = InlineKeyboardBuilder()
         builder.row(
             InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"check_topup_qr:{order_id}")
         )
         builder.row(
+            InlineKeyboardButton(text="🌐 Открыть в браузере", url=qr_url)
+        )
+        builder.row(
             InlineKeyboardButton(text="❌ Отмена", callback_data="topup_balance")
         )
         
+        # Отправляем QR-код как новое сообщение с фото
+        photo = BufferedInputFile(qr_image_data, filename='qr.png')
+        
+        # Удаляем предыдущее сообщение
+        try:
+            await callback.message.delete()
+        except Exception:
+            pass
+        
+        # Отправляем новое сообщение с QR
         await callback.message.answer_photo(
-            photo=qr_image,
-            caption=(
-                f"📱 <b>Пополнение баланса на {amount_rub:.0f} ₽</b>\n\n"
-                f"Отсканируйте QR-код приложением вашего банка\n"
-                f"или перейдите по ссылке для оплаты.\n\n"
-                f"После оплаты нажмите кнопку «✅ Я оплатил»"
-            ),
+            photo=photo,
+            caption=text,
             reply_markup=builder.as_markup(),
             parse_mode="HTML"
         )
@@ -347,6 +377,11 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
         
     except Exception as e:
         logger.error(f"Ошибка создания QR-платежа: {e}")
+        await safe_edit_or_send(
+            callback.message,
+            '❌ <b>Ошибка создания QR</b>\n\nПопробуйте другой способ оплаты.',
+            force_new=True
+        )
         await callback.answer("❌ Ошибка создания платежа", show_alert=True)
 
 
@@ -439,6 +474,8 @@ async def check_topup_qr_payment(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ ID платежа не найден", show_alert=True)
         return
     
+    await callback.answer('🔍 Проверяем платёж...')
+    
     try:
         # Проверяем статус в ЮКасса
         status = await check_yookassa_payment_status(yookassa_payment_id)
@@ -462,18 +499,28 @@ async def check_topup_qr_payment(callback: CallbackQuery, state: FSMContext):
             from database.requests import get_user_balance
             new_balance = get_user_balance(user_id)
             
-            await callback.message.edit_caption(
-                caption=(
-                    f"✅ <b>Баланс успешно пополнен!</b>\n\n"
-                    f"💰 <b>Зачислено:</b> {format_price_compact(amount_cents)}\n"
-                    f"💎 <b>Ваш баланс:</b> {format_price_compact(new_balance)}"
-                ),
-                reply_markup=InlineKeyboardBuilder().row(
-                    InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-                ).as_markup(),
+            # Удаляем QR-фото
+            try:
+                await callback.message.delete()
+            except Exception:
+                pass
+            
+            # Отправляем новое сообщение об успехе
+            builder = InlineKeyboardBuilder()
+            builder.row(
+                InlineKeyboardButton(text="💎 Мой баланс", callback_data="referral_system")
+            )
+            builder.row(
+                InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+            )
+            
+            await callback.message.answer(
+                f"✅ <b>Баланс успешно пополнен!</b>\n\n"
+                f"💰 <b>Зачислено:</b> {format_price_compact(amount_cents)}\n"
+                f"💎 <b>Ваш баланс:</b> {format_price_compact(new_balance)}",
+                reply_markup=builder.as_markup(),
                 parse_mode="HTML"
             )
-            await callback.answer("✅ Баланс пополнен!")
             
         elif status in ['pending', 'waiting_for_capture']:
             await callback.answer("⏳ Платеж еще обрабатывается. Попробуйте через несколько секунд.", show_alert=True)
