@@ -62,6 +62,7 @@ async def _show_balance_payment_screen(callback: CallbackQuery, state: FSMContex
 @router.callback_query(F.data == 'pay_use_balance')
 async def pay_use_balance_buy_handler(callback: CallbackQuery, state: FSMContext):
     """Выбор тарифа для оплаты с баланса (новый ключ)."""
+    logger.info(f"pay_use_balance_buy_handler вызван для user {callback.from_user.id}")
     from database.requests import get_all_tariffs, get_user_internal_id, is_referral_enabled, get_referral_reward_type, get_user_balance
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
@@ -122,11 +123,13 @@ async def balance_pay_handler(callback: CallbackQuery, state: FSMContext):
     Показ экрана оплаты с балансом после выбора тарифа.
     Callback: balance_pay:{tariff_id} или balance_pay:{tariff_id}:{key_id}
     """
+    logger.info(f"balance_pay_handler вызван: callback_data={callback.data}")
     from database.requests import get_user_internal_id, get_tariff_by_id
     parts = callback.data.split(':')
     tariff_id = int(parts[1])
     key_id = int(parts[2]) if len(parts) > 2 and parts[2] != '0' else None
     user_id = get_user_internal_id(callback.from_user.id)
+    logger.info(f"balance_pay_handler: tariff_id={tariff_id}, key_id={key_id}, user_id={user_id}")
     if not user_id:
         await callback.answer('❌ Ошибка пользователя', show_alert=True)
         return
