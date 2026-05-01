@@ -188,16 +188,24 @@ async def topup_stars_handler(callback: CallbackQuery, state: FSMContext):
     # Сохраняем в state что это пополнение баланса
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
     
+    logger.info(f"Sending stars invoice for topup: order_id={order_id}, amount={amount_cents}, stars={stars_amount}")
+    
     # Отправляем invoice
-    await callback.bot.send_invoice(
-        chat_id=callback.from_user.id,
-        title=f"Пополнение баланса на {amount_rub} ₽",
-        description=f"Пополнение баланса на {amount_rub} рублей",
-        payload=order_id,
-        provider_token="",  # Пустой для Stars
-        currency="XTR",
-        prices=[LabeledPrice(label=f"Пополнение {amount_rub} ₽", amount=stars_amount)]
-    )
+    try:
+        await callback.bot.send_invoice(
+            chat_id=callback.from_user.id,
+            title=f"Пополнение баланса на {amount_rub} ₽",
+            description=f"Пополнение баланса на {amount_rub} рублей",
+            payload=order_id,
+            provider_token="",  # Пустой для Stars
+            currency="XTR",
+            prices=[LabeledPrice(label=f"Пополнение {amount_rub} ₽", amount=stars_amount)]
+        )
+        logger.info(f"Stars invoice sent successfully for order {order_id}")
+    except Exception as e:
+        logger.error(f"Ошибка отправки invoice для Stars: {e}")
+        await callback.answer("❌ Ошибка отправки счёта", show_alert=True)
+        return
     
     await callback.answer()
 
@@ -240,19 +248,28 @@ async def topup_cards_handler(callback: CallbackQuery, state: FSMContext):
     # Получаем токен провайдера
     payment_token = get_payment_token()
     if not payment_token:
+        logger.warning(f"Payment token not configured for cards topup")
         await callback.answer("❌ Оплата картами временно недоступна", show_alert=True)
         return
     
+    logger.info(f"Sending cards invoice for topup: order_id={order_id}, amount={amount_cents}")
+    
     # Отправляем invoice
-    await callback.bot.send_invoice(
-        chat_id=callback.from_user.id,
-        title=f"Пополнение баланса на {amount_rub} ₽",
-        description=f"Пополнение баланса на {amount_rub} рублей",
-        payload=order_id,
-        provider_token=payment_token,
-        currency="RUB",
-        prices=[LabeledPrice(label=f"Пополнение {amount_rub} ₽", amount=amount_cents)]
-    )
+    try:
+        await callback.bot.send_invoice(
+            chat_id=callback.from_user.id,
+            title=f"Пополнение баланса на {amount_rub} ₽",
+            description=f"Пополнение баланса на {amount_rub} рублей",
+            payload=order_id,
+            provider_token=payment_token,
+            currency="RUB",
+            prices=[LabeledPrice(label=f"Пополнение {amount_rub} ₽", amount=amount_cents)]
+        )
+        logger.info(f"Cards invoice sent successfully for order {order_id}")
+    except Exception as e:
+        logger.error(f"Ошибка отправки invoice для карт: {e}")
+        await callback.answer("❌ Ошибка отправки счёта", show_alert=True)
+        return
     
     await callback.answer()
 
@@ -290,7 +307,8 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
     
     try:
         # Создаем QR-платеж
-        bot_username = callback.bot.username
+        bot_info = await callback.bot.get_me()
+        bot_username = bot_info.username
         payment_data = await create_yookassa_qr_payment(
             amount_rub=amount_rub,
             order_id=order_id,
