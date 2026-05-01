@@ -87,6 +87,12 @@ async def main():
     
     # Регистрируем middleware для проверки подписки
     from bot.middlewares.subscription_check import SubscriptionCheckMiddleware
+    from bot.middlewares.debug_logging import DebugLoggingMiddleware
+    
+    # Сначала debug middleware (чтобы логировать ВСЕ события)
+    dp.callback_query.middleware(DebugLoggingMiddleware())
+    
+    # Потом subscription check
     dp.message.middleware(SubscriptionCheckMiddleware())
     dp.callback_query.middleware(SubscriptionCheckMiddleware())
     
