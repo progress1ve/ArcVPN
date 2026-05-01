@@ -8,12 +8,14 @@ from .tariffs import router as tariffs_router
 # These are packages/modules that were explicitly standalone
 from .referral import router as referral_router
 from .payments import router as payments_router
+from .topup import router as topup_router
 
 router = Router()
 
 # Порядок важен: специфичные роутеры с deep_link должны идти перед общим start_router
 router.include_router(payments_router)
 router.include_router(referral_router)
+router.include_router(topup_router)
 router.include_router(start_router)
 router.include_router(keys_router)
 router.include_router(trial_router)

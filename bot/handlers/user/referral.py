@@ -95,6 +95,14 @@ async def show_referral_system(callback: CallbackQuery):
     
     builder = InlineKeyboardBuilder()
     
+    # Кнопка "Пополнить баланс"
+    builder.row(
+        InlineKeyboardButton(
+            text="💰 Пополнить баланс",
+            callback_data="topup_balance"
+        )
+    )
+    
     # Кнопка "Пригласить друзей" с share
     builder.row(
         InlineKeyboardButton(
