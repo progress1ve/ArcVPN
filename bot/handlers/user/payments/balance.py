@@ -139,6 +139,27 @@ async def balance_pay_handler(callback: CallbackQuery, state: FSMContext):
         return
     await _show_balance_payment_screen(callback, state, tariff_id, user_id, key_id=key_id)
 
+@router.callback_query(F.data.startswith('pay_balance_tariff:'))
+async def pay_balance_tariff_handler(callback: CallbackQuery, state: FSMContext):
+    """
+    Алиас для balance_pay_handler.
+    Обрабатывает callback: pay_balance_tariff:{tariff_id}
+    """
+    logger.info(f"pay_balance_tariff_handler вызван: callback_data={callback.data}")
+    from database.requests import get_user_internal_id, get_tariff_by_id
+    parts = callback.data.split(':')
+    tariff_id = int(parts[1])
+    user_id = get_user_internal_id(callback.from_user.id)
+    logger.info(f"pay_balance_tariff_handler: tariff_id={tariff_id}, user_id={user_id}")
+    if not user_id:
+        await callback.answer('❌ Ошибка пользователя', show_alert=True)
+        return
+    tariff = get_tariff_by_id(tariff_id)
+    if not tariff:
+        await callback.answer('❌ Тариф не найден', show_alert=True)
+        return
+    await _show_balance_payment_screen(callback, state, tariff_id, user_id, key_id=None)
+
 @router.callback_query(F.data.startswith('pay_with_balance:'))
 async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     """

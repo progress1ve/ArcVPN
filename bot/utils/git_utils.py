@@ -392,10 +392,11 @@ def restart_bot() -> None:
         )
         
         # Ищем сервис бота (в порядке приоритета)
-        if 'arcvpn.service' in result.stdout:
-            service_name = 'arcvpn'
-        elif 'arcvpn-bot.service' in result.stdout:
+        # ИСПРАВЛЕНО: arcvpn-bot.service должен быть приоритетнее
+        if 'arcvpn-bot.service' in result.stdout:
             service_name = 'arcvpn-bot'
+        elif 'arcvpn.service' in result.stdout:
+            service_name = 'arcvpn'
         elif 'vpn-bot.service' in result.stdout:
             service_name = 'vpn-bot'
         else:
