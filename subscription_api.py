@@ -287,6 +287,6 @@ def health():
 
 
 if __name__ == '__main__':
-    # Запуск сервера на порту 2053
-    # В продакшене используйте gunicorn или uwsgi
-    app.run(host='0.0.0.0', port=2053, debug=False)
+    # Запуск сервера на внутреннем порту 8080
+    # Nginx проксирует с порта 2053 на 8080
+    app.run(host='127.0.0.1', port=8080, debug=False)
