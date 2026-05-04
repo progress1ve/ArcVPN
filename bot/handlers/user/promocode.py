@@ -221,7 +221,8 @@ async def process_promocode_input(message: Message, state: FSMContext):
                 yookassa_qr_enabled=yookassa_qr_enabled,
                 demo_enabled=demo_enabled,
                 show_balance_button=show_balance_button,
-                order_id=new_order_id  # Передаем order_id для промокода
+                order_id=new_order_id,
+                has_promocode=True  # Промокод уже применен
             )
         else:
             builder = payment_method_kb(
@@ -234,7 +235,8 @@ async def process_promocode_input(message: Message, state: FSMContext):
                 yookassa_qr_enabled=yookassa_qr_enabled,
                 order_id=new_order_id,
                 demo_enabled=demo_enabled,
-                show_balance_button=show_balance_button
+                show_balance_button=show_balance_button,
+                has_promocode=True  # Промокод уже применен
             )
     
     await message.answer(text, parse_mode='HTML', reply_markup=builder)

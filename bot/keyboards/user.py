@@ -200,7 +200,8 @@ def payment_method_kb(
     yookassa_qr_enabled: bool = False,
     order_id: str = None,
     show_balance_button: bool = False,
-    demo_enabled: bool = False
+    demo_enabled: bool = False,
+    has_promocode: bool = False
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора способа оплаты для конкретного тарифа.
@@ -216,6 +217,7 @@ def payment_method_kb(
         order_id: ID созданного ордера
         show_balance_button: Показывать ли кнопку «Использовать баланс»
         demo_enabled: Показывать ли демо-оплату
+        has_promocode: Уже применен промокод (скрывает кнопку промокода)
     """
     builder = InlineKeyboardBuilder()
 
@@ -281,13 +283,14 @@ def payment_method_kb(
             )
         )
     
-    # Использовать промокод
-    builder.row(
-        InlineKeyboardButton(
-            text="🎟️ Использовать промокод",
-            callback_data=f"use_promocode:{tariff_id}:{order_id}"
+    # Использовать промокод (только если еще не применен)
+    if not has_promocode:
+        builder.row(
+            InlineKeyboardButton(
+                text="🎟️ Использовать промокод",
+                callback_data=f"use_promocode:{tariff_id}:{order_id}"
+            )
         )
-    )
 
     # Назад к списку тарифов
     builder.row(
@@ -747,7 +750,8 @@ def renew_payment_method_kb(
     yookassa_qr_enabled: bool = False,
     show_balance_button: bool = False,
     demo_enabled: bool = False,
-    order_id: str = None
+    order_id: str = None,
+    has_promocode: bool = False
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора способа оплаты для продления.
@@ -764,6 +768,7 @@ def renew_payment_method_kb(
         show_balance_button: Показывать ли кнопку «Использовать баланс»
         demo_enabled: Доступна ли демо-оплата
         order_id: ID заказа (для промокодов)
+        has_promocode: Уже применен промокод (скрывает кнопку промокода)
     """
     builder = InlineKeyboardBuilder()
 
@@ -865,8 +870,8 @@ def renew_payment_method_kb(
                 InlineKeyboardButton(text="💎 Использовать баланс", callback_data=f"pay_use_balance:{key_id}")
             )
     
-    # Кнопка «Использовать промокод»
-    if tariff_id:
+    # Кнопка «Использовать промокод» (только если еще не применен)
+    if tariff_id and not has_promocode:
         builder.row(
             InlineKeyboardButton(
                 text="🎟️ Использовать промокод",
