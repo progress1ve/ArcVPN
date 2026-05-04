@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, KeyboardButtonRequestUsers, UsersShared, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -114,15 +114,26 @@ def _format_user_card(user: dict) -> tuple[str, any]:
                     key_name = f'{uuid[:4]}...{uuid[-4:]}'
                 else:
                     key_name = uuid or f"Ключ #{key['id']}"
-            expires = key.get('expires_at', '?')
-            try:
-                expires_dt = datetime.fromisoformat(expires.replace('Z', '+00:00'))
-                if expires_dt < datetime.now(expires_dt.tzinfo if expires_dt.tzinfo else None):
-                    status = '🔴'
-                else:
-                    status = '🟢'
-            except:
+            
+            # Форматируем дату истечения в МСК
+            expires_raw = key.get('expires_at')
+            if expires_raw:
+                expires = format_datetime(expires_raw)
+                try:
+                    expires_dt = datetime.fromisoformat(str(expires_raw).replace('Z', '+00:00'))
+                    if expires_dt.tzinfo is None:
+                        from datetime import timezone
+                        expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+                    if expires_dt < datetime.now(timezone.utc):
+                        status = '🔴'
+                    else:
+                        status = '🟢'
+                except:
+                    status = '🔑'
+            else:
+                expires = '?'
                 status = '🔑'
+            
             lines.append(f'  {status} <code>{key_name}</code> (до {expires})')
     else:
         lines.append('🔑 _VPN-ключей нет_')
