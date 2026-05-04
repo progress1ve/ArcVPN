@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 18
+LATEST_VERSION = 19
 
 
 def get_current_version() -> int:
@@ -1267,6 +1267,42 @@ def migration_18(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v18 применена")
 
 
+def migration_19(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v19: Добавление поддержки промокодов в платежи.
+    
+    Изменения:
+    - Добавляет колонку promocode_id в таблицу payments
+    - Добавляет колонку discount_rub в таблицу payments
+    """
+    logger.info("Применение миграции v19 (Промокоды в платежах)...")
+    
+    # Добавляем колонку promocode_id
+    try:
+        conn.execute("ALTER TABLE payments ADD COLUMN promocode_id INTEGER")
+        logger.info("Колонка promocode_id добавлена в таблицу payments")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e):
+            logger.info("Колонка promocode_id уже существует")
+        else:
+            raise
+    
+    # Добавляем колонку discount_rub
+    try:
+        conn.execute("ALTER TABLE payments ADD COLUMN discount_rub INTEGER DEFAULT 0")
+        logger.info("Колонка discount_rub добавлена в таблицу payments")
+    except sqlite3.OperationalError as e:
+        if "duplicate column name" in str(e):
+            logger.info("Колонка discount_rub уже существует")
+        else:
+            raise
+    
+    # Создаем индекс для promocode_id
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_promocode ON payments(promocode_id)")
+    
+    logger.info("Миграция v19 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1286,6 +1322,7 @@ MIGRATIONS = {
     16: migration_16,
     17: migration_17,
     18: migration_18,
+    19: migration_19,
 }
 
 

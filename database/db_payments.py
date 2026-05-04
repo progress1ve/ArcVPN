@@ -249,7 +249,9 @@ def create_pending_order(
     payment_type: Optional[str],
     vpn_key_id: Optional[int] = None,
     amount_cents: Optional[int] = None,
-    amount_stars: Optional[int] = None
+    amount_stars: Optional[int] = None,
+    promocode_id: Optional[int] = None,
+    discount_rub: int = 0
 ) -> tuple[int, str]:
     """
     Создаёт pending order и генерирует уникальный order_id.
@@ -265,6 +267,8 @@ def create_pending_order(
         vpn_key_id: ID ключа для продления (None для нового ключа)
         amount_cents: Сумма в копейках (для пополнения баланса)
         amount_stars: Сумма в звездах (для пополнения баланса)
+        promocode_id: ID примененного промокода
+        discount_rub: Скидка в рублях от промокода
     
     Returns:
         Кортеж (payment_id, order_id)
@@ -281,13 +285,16 @@ def create_pending_order(
         cursor = conn.execute("""
             INSERT INTO payments 
             (user_id, tariff_id, order_id, payment_type, vpn_key_id, 
-             amount_cents, amount_stars, period_days, status, paid_at)
-            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, 'pending', NULL)
+             amount_cents, amount_stars, period_days, status, paid_at,
+             promocode_id, discount_rub)
+            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, 'pending', NULL, ?, ?)
         """, (
             user_id, tariff_id, payment_type, vpn_key_id,
             final_amount_cents,
             final_amount_stars,
-            final_period_days
+            final_period_days,
+            promocode_id,
+            discount_rub
         ))
         payment_id = cursor.lastrowid
         
@@ -300,7 +307,7 @@ def create_pending_order(
             UPDATE payments SET order_id = ? WHERE id = ?
         """, (order_id, payment_id))
         
-        logger.info(f"Создан pending order: {order_id} (id={payment_id}, user={user_id}, type={payment_type})")
+        logger.info(f"Создан pending order: {order_id} (id={payment_id}, user={user_id}, type={payment_type}, promo={promocode_id}, discount={discount_rub}₽)")
         return payment_id, order_id
 
 def create_paid_order_external(

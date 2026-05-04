@@ -277,6 +277,14 @@ def payment_method_kb(
                 callback_data=f"pay_balance_tariff:{tariff_id}"
             )
         )
+    
+    # Использовать промокод
+    builder.row(
+        InlineKeyboardButton(
+            text="🎟️ Использовать промокод",
+            callback_data=f"use_promocode:{tariff_id}:{order_id}"
+        )
+    )
 
     # Назад к списку тарифов
     builder.row(
@@ -846,6 +854,15 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(text="💎 Использовать баланс", callback_data=f"pay_use_balance:{key_id}")
             )
+    
+    # Кнопка «Использовать промокод»
+    if tariff_id:
+        builder.row(
+            InlineKeyboardButton(
+                text="🎟️ Использовать промокод",
+                callback_data=f"use_promocode_renew:{key_id}:{tariff_id}"
+            )
+        )
 
     # Последний ряд: назад и на главную
     if tariff_id:
