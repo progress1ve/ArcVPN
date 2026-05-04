@@ -41,10 +41,13 @@ def admin_main_menu_kb() -> InlineKeyboardMarkup:
     )
     builder.row(
         InlineKeyboardButton(text='👥 Пользователи', callback_data='admin_users'),
-        InlineKeyboardButton(text='📢 Рассылка', callback_data='admin_broadcast')
+        InlineKeyboardButton(text='📊 Статистика', callback_data='admin_statistics')
     )
     builder.row(
-        InlineKeyboardButton(text='⚙️ Настройки бота', callback_data='admin_bot_settings'),
+        InlineKeyboardButton(text='📢 Рассылка', callback_data='admin_broadcast'),
+        InlineKeyboardButton(text='⚙️ Настройки бота', callback_data='admin_bot_settings')
+    )
+    builder.row(
         InlineKeyboardButton(text='📥 Скачать логи', callback_data='admin_logs_menu')
     )
     builder.row(home_button())
