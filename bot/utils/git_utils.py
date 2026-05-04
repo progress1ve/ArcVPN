@@ -392,7 +392,7 @@ def restart_bot() -> None:
         )
         
         # Ищем сервис бота (в порядке приоритета)
-        # ИСПРАВЛЕНО: arcvpn-bot.service должен быть приоритетнее
+        # arcvpn-bot.service должен быть приоритетнее
         if 'arcvpn-bot.service' in result.stdout:
             service_name = 'arcvpn-bot'
         elif 'arcvpn.service' in result.stdout:
@@ -404,8 +404,31 @@ def restart_bot() -> None:
         
         if service_name:
             logger.info(f"Обнаружен systemd сервис: {service_name}")
-            # Перезапускаем через systemd
-            subprocess.Popen(['systemctl', 'restart', service_name])
+            
+            # ИСПРАВЛЕНИЕ: Используем отложенный перезапуск через bash скрипт
+            # Это гарантирует, что старый процесс завершится ДО запуска нового
+            restart_script = f"""
+#!/bin/bash
+sleep 3
+systemctl restart {service_name}
+"""
+            # Создаем временный скрипт
+            import tempfile
+            with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.sh') as f:
+                f.write(restart_script)
+                script_path = f.name
+            
+            # Делаем скрипт исполняемым
+            os.chmod(script_path, 0o755)
+            
+            # Запускаем скрипт в фоне
+            subprocess.Popen(['bash', script_path], 
+                           stdout=subprocess.DEVNULL, 
+                           stderr=subprocess.DEVNULL,
+                           start_new_session=True)
+            
+            logger.info(f"Запущен отложенный перезапуск сервиса {service_name} через 3 секунды")
+            
             # Завершаем текущий процесс
             sys.exit(0)
     except Exception as e:
