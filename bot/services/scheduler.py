@@ -852,6 +852,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
     Опрашивает все серверы и обновляет кеш трафика для каждого ключа.
     Проверяет пороги уведомлений и отправляет уведомления пользователям.
     Отключает истёкшие ключи на панели.
+    Отправляет уведомления об истёкших подписках.
     
     Graceful degradation: при недоступности сервера — логируем WARNING,
     не обнуляем трафик, продолжаем обработку остальных серверов.
@@ -860,7 +861,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
         get_all_active_keys_with_server, bulk_update_traffic,
         update_key_notified_pct, get_setting
     )
-    from database.db_stats import get_all_expired_keys
+    from database.db_stats import get_all_expired_keys, is_notification_sent_today, log_notification_sent
     from bot.services.vpn_api import disable_key_on_panel
     
     keys = get_all_active_keys_with_server()
@@ -986,13 +987,28 @@ async def sync_traffic_stats(bot: Bot) -> None:
                 key['traffic_notified_pct'] = threshold
                 break  # Только одно уведомление за раз
     
-    # === НОВОЕ: Отключаем истёкшие ключи ===
+    # === НОВОЕ: Отключаем истёкшие ключи и отправляем уведомления ===
     try:
+        from bot.utils.text import escape_html
+        from bot.utils.message_editor import get_message_data
+        
         expired_keys = get_all_expired_keys()
         disabled_count = 0
+        notified_count = 0
+        
+        # Дефолтный текст для уведомления об истёкшей подписке
+        default_expired_notification = (
+            '❌ <b>Ваша подписка %имяподписки% истекла!</b>\n\n'
+            'Срок действия вашей подписки закончился.\n\n'
+            'Продлите подписку, чтобы восстановить доступ к VPN!'
+        )
+        
+        expired_notification_data = get_message_data('expired_notification_text', default_expired_notification)
+        expired_notification_text = expired_notification_data.get('text', default_expired_notification)
+        expired_notification_photo = expired_notification_data.get('photo_file_id')
         
         for key in expired_keys:
-            # Проверяем что ключ ещё активен на панели
+            # Отключаем ключ на панели
             if key.get('server_id') and key.get('panel_email'):
                 try:
                     success = await disable_key_on_panel(key['id'])
@@ -1000,9 +1016,55 @@ async def sync_traffic_stats(bot: Bot) -> None:
                         disabled_count += 1
                 except Exception as e:
                     logger.error(f"Ошибка отключения ключа {key['id']}: {e}")
+            
+            # Отправляем уведомление пользователю (если ещё не отправляли сегодня)
+            vpn_key_id = key['id']
+            user_telegram_id = key.get('telegram_id')
+            keyname = key.get('custom_name', f"Подписка #{vpn_key_id}")
+            
+            if user_telegram_id and not is_notification_sent_today(vpn_key_id):
+                # Подстановка с экранированием динамических значений
+                text = expired_notification_text.replace(
+                    '%имяподписки%', escape_html(str(keyname))
+                ).replace(
+                    '%имяключа%', escape_html(str(keyname))  # Для обратной совместимости
+                )
+                
+                # Клавиатура с кнопками "Продлить", "Мои подписки" и "На главную"
+                builder = InlineKeyboardBuilder()
+                builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
+                builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+                builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+                kb = builder.as_markup()
+                
+                try:
+                    if expired_notification_photo:
+                        await bot.send_photo(
+                            chat_id=user_telegram_id,
+                            photo=expired_notification_photo,
+                            caption=text,
+                            reply_markup=kb,
+                            parse_mode="HTML"
+                        )
+                    else:
+                        await bot.send_message(
+                            chat_id=user_telegram_id,
+                            text=text,
+                            reply_markup=kb,
+                            parse_mode="HTML"
+                        )
+                    log_notification_sent(vpn_key_id)
+                    notified_count += 1
+                except Exception as e:
+                    logger.warning(f"Не удалось отправить уведомление об истечении пользователю {user_telegram_id}: {e}")
+                
+                # Небольшая задержка между сообщениями
+                await asyncio.sleep(0.3)
         
         if disabled_count > 0:
             logger.info(f"🔴 Отключено истёкших ключей: {disabled_count}")
+        if notified_count > 0:
+            logger.info(f"📬 Отправлено уведомлений об истечении: {notified_count}")
     except Exception as e:
         logger.error(f"Ошибка при отключении истёкших ключей: {e}")
     
