@@ -287,6 +287,6 @@ def health():
 
 
 if __name__ == '__main__':
-    # Запуск сервера
+    # Запуск сервера на порту 2053
     # В продакшене используйте gunicorn или uwsgi
-    app.run(host='0.0.0.0', port=8080, debug=False)
+    app.run(host='0.0.0.0', port=2053, debug=False)
