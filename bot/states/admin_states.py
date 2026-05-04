@@ -103,6 +103,12 @@ class AdminStates(StatesGroup):
     # ========== Настройка пробного периода ==========
     trial_set_days = State()         # Ввод количества дней пробного периода
     trial_set_traffic = State()      # Ввод лимита трафика пробного периода
+    
+    # ========== Управление промокодами ==========
+    waiting_promocode_code = State()      # Ввод кода промокода
+    waiting_promocode_discount = State()  # Ввод скидки
+    waiting_promocode_max_uses = State()  # Ввод максимального количества использований
+    waiting_promocode_duration = State()  # Ввод длительности действия
 
 
 # ============================================================================

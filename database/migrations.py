@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 17
+LATEST_VERSION = 18
 
 
 def get_current_version() -> int:
@@ -1225,6 +1225,48 @@ def migration_17(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v17 применена")
 
 
+def migration_18(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v18: Система промокодов.
+    
+    Изменения:
+    - Новая таблица promocodes (промокоды)
+    - Новая таблица promocode_usage (использование промокодов)
+    """
+    logger.info("Применение миграции v18 (Промокоды)...")
+    
+    # Таблица промокодов
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS promocodes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            code TEXT NOT NULL UNIQUE,
+            discount_rub INTEGER NOT NULL,
+            max_uses INTEGER NOT NULL,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_promocodes_code ON promocodes(code)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_promocodes_expires_at ON promocodes(expires_at)")
+    
+    # Таблица использования промокодов
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS promocode_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            promocode_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (promocode_id) REFERENCES promocodes(id) ON DELETE CASCADE,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(promocode_id, user_id)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_promocode_usage_promocode ON promocode_usage(promocode_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_promocode_usage_user ON promocode_usage(user_id)")
+    
+    logger.info("Миграция v18 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1243,6 +1285,7 @@ MIGRATIONS = {
     15: migration_15,
     16: migration_16,
     17: migration_17,
+    18: migration_18,
 }
 
 
