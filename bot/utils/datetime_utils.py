@@ -18,13 +18,19 @@ def utc_to_msk(dt: datetime) -> datetime:
     Конвертирует UTC datetime в МСК.
     
     Args:
-        dt: datetime объект (naive или aware)
+        dt: datetime объект (naive или aware) или строка ISO формата
         
     Returns:
         datetime в МСК timezone
     """
     if dt is None:
         return None
+    
+    # Если передана строка, парсим её
+    if isinstance(dt, str):
+        dt = parse_db_datetime(dt)
+        if dt is None:
+            return None
     
     if dt.tzinfo is None:
         # Если naive, считаем что это UTC
@@ -52,7 +58,7 @@ def format_datetime_msk(dt: datetime, format_str: str = "%d.%m.%Y %H:%M:%S") -> 
     Форматирует datetime в строку с конвертацией в МСК.
     
     Args:
-        dt: datetime объект
+        dt: datetime объект или строка ISO формата
         format_str: Формат строки
         
     Returns:
@@ -60,6 +66,12 @@ def format_datetime_msk(dt: datetime, format_str: str = "%d.%m.%Y %H:%M:%S") -> 
     """
     if dt is None:
         return "Неизвестно"
+    
+    # Если передана строка, парсим её
+    if isinstance(dt, str):
+        dt = parse_db_datetime(dt)
+        if dt is None:
+            return "Неизвестно"
     
     dt_msk = utc_to_msk(dt)
     return dt_msk.strftime(format_str)
@@ -85,7 +97,7 @@ def format_date(dt: datetime, format_str: str = "%d-%m-%Y") -> str:
     Форматирует datetime в строку даты (без времени) с конвертацией в МСК.
     
     Args:
-        dt: datetime объект
+        dt: datetime объект или строка ISO формата
         format_str: Формат строки (по умолчанию ДД-ММ-ГГГГ)
         
     Returns:
@@ -93,6 +105,12 @@ def format_date(dt: datetime, format_str: str = "%d-%m-%Y") -> str:
     """
     if dt is None:
         return "—"
+    
+    # Если передана строка, парсим её
+    if isinstance(dt, str):
+        dt = parse_db_datetime(dt)
+        if dt is None:
+            return "—"
     
     dt_msk = utc_to_msk(dt)
     return dt_msk.strftime(format_str)
