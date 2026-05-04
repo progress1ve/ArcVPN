@@ -35,8 +35,7 @@ async def start_promocode_input(callback: CallbackQuery, state: FSMContext):
     
     text = (
         "🎟️ <b>Использование промокода</b>\n\n"
-        "Введите код промокода для получения скидки.\n\n"
-        "Например: <code>SUMMER2026</code>"
+        "Введите код промокода для получения скидки:"
     )
     
     builder = InlineKeyboardBuilder()
@@ -124,10 +123,10 @@ async def process_promocode_input(message: Message, state: FSMContext):
     discount = promocode['discount_rub']
     final_price = max(0, original_price - discount)
     
-    # Отмечаем использование промокода
-    use_promocode(promocode['id'], user_internal_id)
+    # НЕ отмечаем использование сразу - это будет сделано при успешной оплате
+    # use_promocode(promocode['id'], user_internal_id)  # УБРАЛИ
     
-    # Создаем НОВЫЙ заказ с промокодом
+    # Создаем НОВЫЙ заказ с промокодом (но без отметки использования)
     key_id = data.get('promocode_key_id') if action == 'renew' else None
     (_, new_order_id) = create_pending_order(
         user_id=user_internal_id,
@@ -221,7 +220,8 @@ async def process_promocode_input(message: Message, state: FSMContext):
                 cards_enabled=cards_enabled,
                 yookassa_qr_enabled=yookassa_qr_enabled,
                 demo_enabled=demo_enabled,
-                show_balance_button=show_balance_button
+                show_balance_button=show_balance_button,
+                order_id=new_order_id  # Передаем order_id для промокода
             )
         else:
             builder = payment_method_kb(

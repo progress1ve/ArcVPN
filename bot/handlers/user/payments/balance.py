@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-async def _show_balance_payment_screen(callback: CallbackQuery, state: FSMContext, tariff_id: int, user_internal_id: int, key_id: int=None):
+async def _show_balance_payment_screen(callback: CallbackQuery, state: FSMContext, tariff_id: int, user_internal_id: int, key_id: int=None, order_id: str=None):
     """
     Показать экран оплаты с учётом баланса по ТЗ.
     
@@ -22,27 +22,66 @@ async def _show_balance_payment_screen(callback: CallbackQuery, state: FSMContex
         balance_to_deduct = min(balance, price)
         remaining_cents = price - balance_to_deduct
     
-    Сохраняет в FSM state: balance_to_deduct, tariff_price_cents, tariff_id, key_id
+    Сохраняет в FSM state: balance_to_deduct, tariff_price_cents, tariff_id, key_id, order_id
+    
+    Args:
+        order_id: ID заказа (если есть промокод)
     """
-    from database.requests import get_tariff_by_id, get_user_balance, is_cards_enabled, is_yookassa_qr_configured
+    from database.requests import get_tariff_by_id, get_user_balance, is_cards_enabled, is_yookassa_qr_configured, find_order_by_order_id
     from bot.keyboards.user import balance_payment_kb
+    
     tariff = get_tariff_by_id(tariff_id)
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
+    
+    # Базовая цена тарифа
     tariff_price_cents = int(tariff.get('price_rub', 0) * 100)
-    if tariff_price_cents <= 0:
+    
+    # Проверяем, есть ли промокод в заказе
+    discount_rub = 0
+    if order_id:
+        order = find_order_by_order_id(order_id)
+        if order and order.get('discount_rub'):
+            discount_rub = order['discount_rub']
+            logger.info(f"Найдена скидка по промокоду: {discount_rub}₽ для order {order_id}")
+    
+    # Применяем скидку от промокода
+    final_price_cents = max(0, tariff_price_cents - (discount_rub * 100))
+    
+    if tariff_price_cents <= 0 and final_price_cents <= 0:
         await callback.answer('❌ Ошибка: цена тарифа не задана', show_alert=True)
         return
+    
     balance_cents = get_user_balance(user_internal_id)
-    balance_to_deduct = min(balance_cents, tariff_price_cents)
-    remaining_cents = max(0, tariff_price_cents - balance_to_deduct)
-    await state.update_data(balance_to_deduct=balance_to_deduct, tariff_price_cents=tariff_price_cents, tariff_id=tariff_id, key_id=key_id)
+    balance_to_deduct = min(balance_cents, final_price_cents)
+    remaining_cents = max(0, final_price_cents - balance_to_deduct)
+    
+    await state.update_data(
+        balance_to_deduct=balance_to_deduct, 
+        tariff_price_cents=final_price_cents,  # Сохраняем цену С учетом промокода
+        tariff_id=tariff_id, 
+        key_id=key_id,
+        order_id=order_id
+    )
+    
     price_str = _format_price_compact(tariff_price_cents)
     balance_str = _format_price_compact(balance_cents)
     deduct_str = _format_price_compact(balance_to_deduct)
     remaining_str = _format_price_compact(remaining_cents)
-    text = f"💳 <b>Оплата тарифа «{escape_html(tariff['name'])}»</b>\n\n💰 Сумма: {price_str}\n💎 Ваш баланс: {balance_str}\n\n✅ С баланса будет списано: {deduct_str}\n💳 К оплате: {remaining_str}"
+    
+    text = f"💳 <b>Оплата тарифа «{escape_html(tariff['name'])}»</b>\n\n"
+    
+    if discount_rub > 0:
+        text += f"💰 Цена: <s>{price_str}</s> → {_format_price_compact(final_price_cents)}\n"
+        text += f"🎟️ Скидка по промокоду: {discount_rub} ₽\n"
+    else:
+        text += f"💰 Сумма: {price_str}\n"
+    
+    text += f"💎 Ваш баланс: {balance_str}\n\n"
+    text += f"✅ С баланса будет списано: {deduct_str}\n"
+    text += f"💳 К оплате: {remaining_str}"
+    
     cards_enabled = is_cards_enabled()
     yookassa_qr_enabled = is_yookassa_qr_configured()
     cards_via_yookassa_direct = _is_cards_via_yookassa_direct()
@@ -56,7 +95,19 @@ async def _show_balance_payment_screen(callback: CallbackQuery, state: FSMContex
             available_methods.append('card')
     if remaining_cents > 0 and (not available_methods):
         text += '\n\n💡 <b>Для доплаты этой суммы нет подходящего способа оплаты.</b>\nПоднакопите ещё немного на реферальном балансе\nили оплатите тариф без использования баланса.'
-    await safe_edit_or_send(callback.message, text, reply_markup=balance_payment_kb(tariff_id=tariff_id, key_id=key_id, balance_cents=balance_cents, tariff_price_cents=tariff_price_cents, balance_to_deduct=balance_to_deduct, remaining_cents=remaining_cents, cards_enabled=cards_enabled, yookassa_qr_enabled=yookassa_qr_enabled, cards_via_yookassa_direct=cards_via_yookassa_direct))
+    
+    await safe_edit_or_send(callback.message, text, reply_markup=balance_payment_kb(
+        tariff_id=tariff_id, 
+        key_id=key_id, 
+        balance_cents=balance_cents, 
+        tariff_price_cents=final_price_cents,  # Передаем цену С учетом промокода
+        balance_to_deduct=balance_to_deduct, 
+        remaining_cents=remaining_cents, 
+        cards_enabled=cards_enabled, 
+        yookassa_qr_enabled=yookassa_qr_enabled, 
+        cards_via_yookassa_direct=cards_via_yookassa_direct,
+        order_id=order_id
+    ))
     await callback.answer()
 
 @router.callback_query(F.data == 'pay_use_balance')
@@ -121,15 +172,16 @@ async def pay_use_balance_renew_handler(callback: CallbackQuery, state: FSMConte
 async def balance_pay_handler(callback: CallbackQuery, state: FSMContext):
     """
     Показ экрана оплаты с балансом после выбора тарифа.
-    Callback: balance_pay:{tariff_id} или balance_pay:{tariff_id}:{key_id}
+    Callback: balance_pay:{tariff_id} или balance_pay:{tariff_id}:{key_id} или balance_pay:{tariff_id}:{key_id}:{order_id}
     """
     logger.info(f"balance_pay_handler вызван: callback_data={callback.data}")
     from database.requests import get_user_internal_id, get_tariff_by_id
     parts = callback.data.split(':')
     tariff_id = int(parts[1])
     key_id = int(parts[2]) if len(parts) > 2 and parts[2] != '0' else None
+    order_id = parts[3] if len(parts) > 3 else None
     user_id = get_user_internal_id(callback.from_user.id)
-    logger.info(f"balance_pay_handler: tariff_id={tariff_id}, key_id={key_id}, user_id={user_id}")
+    logger.info(f"balance_pay_handler: tariff_id={tariff_id}, key_id={key_id}, order_id={order_id}, user_id={user_id}")
     if not user_id:
         await callback.answer('❌ Ошибка пользователя', show_alert=True)
         return
@@ -137,7 +189,7 @@ async def balance_pay_handler(callback: CallbackQuery, state: FSMContext):
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
-    await _show_balance_payment_screen(callback, state, tariff_id, user_id, key_id=key_id)
+    await _show_balance_payment_screen(callback, state, tariff_id, user_id, key_id=key_id, order_id=order_id)
 
 @router.callback_query(F.data.startswith('pay_balance_tariff:'))
 async def pay_balance_tariff_handler(callback: CallbackQuery, state: FSMContext):
@@ -167,15 +219,24 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     Атомарная операция: списать + выдать ключ.
     
     При оплате балансом реферальные вознаграждения НЕ начисляются.
+    Если был применен промокод, он отмечается как использованный.
     """
-    from database.requests import get_user_internal_id, get_user_balance, deduct_from_balance, get_tariff_by_id, get_or_create_user, create_initial_vpn_key, extend_vpn_key
+    from database.requests import (
+        get_user_internal_id, get_user_balance, deduct_from_balance, 
+        get_tariff_by_id, get_or_create_user, create_initial_vpn_key, 
+        extend_vpn_key, find_order_by_order_id, complete_order
+    )
+    from database.db_promocodes import use_promocode
     from bot.services.user_locks import user_locks
     from bot.services.vpn_api import push_key_to_panel, restore_traffic_limit_in_db
+    
     data = await state.get_data()
     balance_to_deduct = data.get('balance_to_deduct', 0)
     tariff_price_cents = data.get('tariff_price_cents', 0)
     tariff_id = data.get('tariff_id')
     key_id = data.get('key_id')
+    order_id = data.get('order_id')
+    
     parts = callback.data.split(':')
     if not tariff_id:
         tariff_id = int(parts[1]) if len(parts) > 1 else None
@@ -184,14 +245,26 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     if not tariff_id:
         await callback.answer('❌ Ошибка: тариф не определён', show_alert=True)
         return
+    
     telegram_id = callback.from_user.id
     (user, _) = get_or_create_user(telegram_id, callback.from_user.username)
     user_internal_id = user['id']
+    
     tariff = get_tariff_by_id(tariff_id)
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
+    
     days = tariff['duration_days']
+    
+    # Проверяем, есть ли промокод в заказе
+    promocode_id = None
+    if order_id:
+        order = find_order_by_order_id(order_id)
+        if order and order.get('promocode_id'):
+            promocode_id = order['promocode_id']
+            logger.info(f"Найден промокод {promocode_id} в заказе {order_id}")
+    
     async with user_locks[user_internal_id]:
         current_balance = get_user_balance(user_internal_id)
         if current_balance < tariff_price_cents:
@@ -199,6 +272,17 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
             return
         actual_deduct = min(current_balance, tariff_price_cents)
         deduct_from_balance(user_internal_id, actual_deduct)
+        
+        # Отмечаем использование промокода
+        if promocode_id:
+            use_promocode(promocode_id, user_internal_id)
+            logger.info(f"Промокод {promocode_id} отмечен как использованный при оплате балансом")
+        
+        # Закрываем заказ если он есть
+        if order_id:
+            complete_order(order_id)
+            logger.info(f"Заказ {order_id} закрыт после оплаты балансом")
+        
         if key_id:
             extend_vpn_key(key_id, days)
             # Восстанавливаем лимит трафика в БД
@@ -210,6 +294,7 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
             traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
             new_key_id = create_initial_vpn_key(user_internal_id, tariff_id, days, traffic_limit=traffic_limit_bytes)
             logger.info(f'Создан черновик ключа {new_key_id} для user {user_internal_id} за баланс {actual_deduct} коп')
+    
     await state.update_data(balance_to_deduct=0)
 
     def format_price_compact(cents: int) -> str:
@@ -226,8 +311,9 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
         # Новый ключ — нужно настроить (выбор сервера/inbound)
         from bot.handlers.user.payments.base import finalize_payment_ui
         from database.requests import create_pending_order, update_payment_key_id
-        # Создаём ордер для корректной работы finalize_payment_ui
-        (_, order_id) = create_pending_order(user_id=user_internal_id, tariff_id=tariff_id, payment_type='balance', vpn_key_id=new_key_id)
+        # Создаём ордер для корректной работы finalize_payment_ui (если его еще нет)
+        if not order_id:
+            (_, order_id) = create_pending_order(user_id=user_internal_id, tariff_id=tariff_id, payment_type='balance', vpn_key_id=new_key_id)
         update_payment_key_id(order_id, new_key_id)
         order = {'order_id': order_id, 'vpn_key_id': new_key_id, 'tariff_id': tariff_id}
         await finalize_payment_ui(callback.message, state, f'✅ <b>Оплата успешно завершена!</b>\n\nС вашего баланса списано {price_str}', order, user_id=telegram_id)

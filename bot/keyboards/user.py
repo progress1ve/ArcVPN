@@ -271,10 +271,13 @@ def payment_method_kb(
 
     # Использовать баланс
     if show_balance_button:
+        balance_callback = f"pay_balance_tariff:{tariff_id}"
+        if order_id:
+            balance_callback = f"balance_pay:{tariff_id}:0:{order_id}"
         builder.row(
             InlineKeyboardButton(
                 text="💎 Использовать баланс", 
-                callback_data=f"pay_balance_tariff:{tariff_id}"
+                callback_data=balance_callback
             )
         )
     
@@ -308,7 +311,8 @@ def balance_payment_kb(
     remaining_cents: int = 0,
     cards_enabled: bool = False,
     yookassa_qr_enabled: bool = False,
-    cards_via_yookassa_direct: bool = False
+    cards_via_yookassa_direct: bool = False,
+    order_id: str = None
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура оплаты с учётом баланса.
@@ -333,6 +337,7 @@ def balance_payment_kb(
         yookassa_qr_enabled: Доступна ли QR-оплата
         cards_via_yookassa_direct: True если карты через ЮKassa напрямую (минимум 1₽),
                                    False если через Telegram Payments (минимум ~100₽)
+        order_id: ID заказа (для промокодов)
     """
     builder = InlineKeyboardBuilder()
     
@@ -741,7 +746,8 @@ def renew_payment_method_kb(
     cards_enabled: bool = False,
     yookassa_qr_enabled: bool = False,
     show_balance_button: bool = False,
-    demo_enabled: bool = False
+    demo_enabled: bool = False,
+    order_id: str = None
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора способа оплаты для продления.
@@ -757,6 +763,7 @@ def renew_payment_method_kb(
         yookassa_qr_enabled: Доступна ли QR-оплата через ЮКассу
         show_balance_button: Показывать ли кнопку «Использовать баланс»
         demo_enabled: Доступна ли демо-оплата
+        order_id: ID заказа (для промокодов)
     """
     builder = InlineKeyboardBuilder()
 
@@ -847,8 +854,11 @@ def renew_payment_method_kb(
     # Кнопка «Использовать баланс»
     if show_balance_button:
         if tariff_id:
+            balance_callback = f"balance_pay:{tariff_id}:{key_id}"
+            if order_id:
+                balance_callback = f"balance_pay:{tariff_id}:{key_id}:{order_id}"
             builder.row(
-                InlineKeyboardButton(text="💎 Использовать баланс", callback_data=f"balance_pay:{tariff_id}:{key_id}")
+                InlineKeyboardButton(text="💎 Использовать баланс", callback_data=balance_callback)
             )
         else:
             builder.row(

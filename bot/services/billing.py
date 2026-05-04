@@ -164,6 +164,7 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
         extend_vpn_key, create_initial_vpn_key, update_payment_key_id,
         add_to_balance, get_user_balance
     )
+    from database.db_promocodes import use_promocode
     from bot.services.user_locks import user_locks
     
     # 1. Проверка на дубликат (на всякий случай, если вызывающий не проверил)
@@ -213,6 +214,11 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
 
     user_internal_id = order['user_id']
     days = order.get('period_days') or order.get('duration_days') or 30
+    
+    # 5. Отмечаем использование промокода (если был применен)
+    if order.get('promocode_id'):
+        use_promocode(order['promocode_id'], user_internal_id)
+        logger.info(f"Промокод {order['promocode_id']} отмечен как использованный для user {user_internal_id}")
 
     if order['vpn_key_id']:
         if days and extend_vpn_key(order['vpn_key_id'], days):
