@@ -1,84 +1,77 @@
 """
-Утилиты для работы с датами и временем.
-
-Конвертация UTC времени из БД в локальное время согласно настройкам.
+Утилиты для работы с датой и временем.
 """
-from datetime import datetime
-from typing import Optional
+from datetime import datetime, timezone
 import pytz
-from config import TIMEZONE
 
-# Кэшируем объекты timezone
-UTC = pytz.UTC
-LOCAL_TZ = pytz.timezone(TIMEZONE)
+# Московская временная зона
+MSK = pytz.timezone('Europe/Moscow')
 
 
-def utc_to_local(utc_dt: datetime) -> datetime:
+def now_msk() -> datetime:
+    """Возвращает текущее время в МСК."""
+    return datetime.now(MSK)
+
+
+def utc_to_msk(dt: datetime) -> datetime:
     """
-    Конвертирует UTC datetime в локальное время.
+    Конвертирует UTC datetime в МСК.
     
     Args:
-        utc_dt: datetime объект в UTC (naive или aware)
+        dt: datetime объект (naive или aware)
         
     Returns:
-        datetime объект в локальном часовом поясе
+        datetime в МСК timezone
     """
-    # Если datetime naive (без timezone), считаем что это UTC
-    if utc_dt.tzinfo is None:
-        utc_dt = UTC.localize(utc_dt)
+    if dt is None:
+        return None
     
-    # Конвертируем в локальное время
-    return utc_dt.astimezone(LOCAL_TZ)
+    if dt.tzinfo is None:
+        # Если naive, считаем что это UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    return dt.astimezone(MSK)
 
 
-def format_datetime(dt_string: Optional[str], format_str: str = '%d-%m-%Y %H:%M') -> str:
+def format_datetime_msk(dt: datetime, format_str: str = "%d.%m.%Y %H:%M:%S") -> str:
     """
-    Форматирует строку datetime из БД в локальное время.
+    Форматирует datetime в строку с конвертацией в МСК.
     
     Args:
-        dt_string: Строка datetime из БД (ISO format, UTC)
-        format_str: Формат вывода (по умолчанию 'ДД-ММ-ГГГГ ЧЧ:ММ')
+        dt: datetime объект
+        format_str: Формат строки
         
     Returns:
-        Отформатированная строка в локальном времени
+        Отформатированная строка
     """
-    if not dt_string:
-        return '—'
+    if dt is None:
+        return "Неизвестно"
+    
+    dt_msk = utc_to_msk(dt)
+    return dt_msk.strftime(format_str)
+
+
+def parse_db_datetime(dt_str: str) -> datetime:
+    """
+    Парсит datetime из БД (SQLite хранит в UTC).
+    
+    Args:
+        dt_str: Строка datetime из БД
+        
+    Returns:
+        datetime объект в UTC
+    """
+    if not dt_str:
+        return None
     
     try:
-        # Парсим ISO формат из БД
-        utc_dt = datetime.fromisoformat(dt_string.replace('Z', '+00:00'))
+        # SQLite возвращает строку в формате 'YYYY-MM-DD HH:MM:SS'
+        dt = datetime.fromisoformat(str(dt_str))
         
-        # Конвертируем в локальное время
-        local_dt = utc_to_local(utc_dt)
+        # Помечаем как UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
         
-        # Форматируем
-        return local_dt.strftime(format_str)
-    except (ValueError, AttributeError) as e:
-        return dt_string  # Возвращаем как есть если не удалось распарсить
-
-
-def format_date(dt_string: Optional[str]) -> str:
-    """
-    Форматирует дату без времени (ДД-ММ-ГГГГ).
-    
-    Args:
-        dt_string: Строка datetime из БД
-        
-    Returns:
-        Дата в формате ДД-ММ-ГГГГ
-    """
-    return format_datetime(dt_string, '%d-%m-%Y')
-
-
-def format_datetime_full(dt_string: Optional[str]) -> str:
-    """
-    Форматирует дату и время полностью (ДД-ММ-ГГГГ ЧЧ:ММ:СС).
-    
-    Args:
-        dt_string: Строка datetime из БД
-        
-    Returns:
-        Дата и время в формате ДД-ММ-ГГГГ ЧЧ:ММ:СС
-    """
-    return format_datetime(dt_string, '%d-%m-%Y %H:%M:%S')
+        return dt
+    except (ValueError, TypeError):
+        return None

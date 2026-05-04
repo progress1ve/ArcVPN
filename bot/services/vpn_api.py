@@ -235,6 +235,116 @@ async def restore_key_traffic_limit(key_id: int) -> bool:
     return True
 
 
+async def disable_key_on_panel(key_id: int) -> bool:
+    """
+    Отключает ключ на панели (устанавливает enable=False).
+    Используется для автоматического отключения истёкших подписок.
+    
+    Args:
+        key_id: ID ключа в БД
+        
+    Returns:
+        True если успешно
+    """
+    from database.requests import get_vpn_key_by_id
+    from datetime import datetime, timezone
+    
+    key = get_vpn_key_by_id(key_id)
+    if not key or not key.get('server_active'):
+        logger.warning(f'disable_key_on_panel: ключ {key_id} не найден или сервер неактивен')
+        return False
+    
+    email = key.get('panel_email')
+    inbound_id = key.get('panel_inbound_id')
+    client_uuid = key.get('client_uuid')
+    
+    if not email or not inbound_id or not client_uuid:
+        logger.warning(f'disable_key_on_panel: ключ {key_id} — неполные данные панели')
+        return False
+    
+    # Проверяем что ключ действительно истёк
+    expires_at = key.get('expires_at')
+    if expires_at:
+        dt_str = str(expires_at).replace('Z', '+00:00')
+        dt = datetime.fromisoformat(dt_str)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        
+        now_utc = datetime.now(timezone.utc)
+        if dt > now_utc:
+            logger.info(f'disable_key_on_panel: ключ {key_id} ещё не истёк, пропускаем')
+            return False
+    
+    try:
+        server_data = {
+            'id': key.get('server_id'),
+            'name': key.get('server_name'),
+            'host': key.get('host'),
+            'port': key.get('port'),
+            'web_base_path': key.get('web_base_path'),
+            'login': key.get('login'),
+            'password': key.get('password')
+        }
+        client = get_client_from_server_data(server_data)
+        
+        # Получаем текущие данные клиента с панели
+        inbounds = await client.get_inbounds()
+        target_inbound = None
+        target_client = None
+        
+        for inbound in inbounds:
+            if inbound['id'] == inbound_id:
+                target_inbound = inbound
+                import json
+                settings = json.loads(inbound.get('settings', '{}'))
+                for cl in settings.get('clients', []):
+                    if cl.get('email') == email:
+                        target_client = cl
+                        break
+                break
+        
+        if not target_client:
+            logger.warning(f'disable_key_on_panel: клиент {email} не найден на панели')
+            return False
+        
+        # Проверяем, не отключён ли уже
+        if not target_client.get('enable', True):
+            logger.info(f'disable_key_on_panel: ключ {key_id} ({email}) уже отключён на панели')
+            return True
+        
+        # Отключаем ключ (enable=False)
+        # Используем update_client_full с enable=False
+        expires_at = key.get('expires_at')
+        if expires_at:
+            dt_str = str(expires_at).replace('Z', '+00:00')
+            dt = datetime.fromisoformat(dt_str)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            expiry_time_ms = int(dt.timestamp() * 1000)
+        else:
+            expiry_time_ms = 0
+        
+        traffic_limit = key.get('traffic_limit', 0) or 0
+        
+        # Обновляем клиента с enable=False
+        success = await client.update_client_full(
+            inbound_id=inbound_id,
+            client_uuid=client_uuid,
+            email=email,
+            expiry_time_ms=expiry_time_ms,
+            total_gb_bytes=traffic_limit,
+            enable=False  # ОТКЛЮЧАЕМ!
+        )
+        
+        if success:
+            logger.info(f'✅ Ключ {key_id} ({email}) отключён на панели {key.get("server_name")}')
+        return success
+        
+    except Exception as e:
+        logger.error(f'Ошибка отключения ключа {key_id} на панели: {e}')
+        return False
+
+
 async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
     """
     Пушит данные ключа из нашей БД на панель 3X-UI.

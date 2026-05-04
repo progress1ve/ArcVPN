@@ -539,9 +539,10 @@ async def run_daily_tasks(bot: Bot) -> None:
     """
     Фоновая задача для запуска ежедневных заданий.
     
-    Расписание:
-    - 03:00 — Суточная статистика
-    - 03:05 — Архив с бэкапами
+    Расписание (изменено на 09:00 UTC = 12:00 МСК):
+    - 09:00 — Уведомления об истечении подписок
+    - 09:05 — Суточная статистика
+    - 09:10 — Архив с бэкапами
     
     Args:
         bot: Экземпляр бота
@@ -550,28 +551,29 @@ async def run_daily_tasks(bot: Bot) -> None:
     
     while True:
         try:
-            # Ждём до 03:00
-            seconds_to_wait = get_seconds_until(3, 0)
+            # Ждём до 09:00 UTC (12:00 МСК) вместо 03:00
+            seconds_to_wait = get_seconds_until(9, 0)
             logger.info(f"Следующий запуск задач через {seconds_to_wait // 3600}ч {(seconds_to_wait % 3600) // 60}м")
             
             await asyncio.sleep(seconds_to_wait)
             
-            # Отправляем статистику
+            # 09:00 - Отправляем уведомления пользователям (ПЕРВЫМ ДЕЛОМ!)
+            logger.info("📬 Запуск отправки уведомлений об истечении подписок...")
+            await check_and_send_expiry_notifications(bot)
+            
+            # Ждём 5 минут
+            await asyncio.sleep(300)
+            
+            # 09:05 - Отправляем статистику
             logger.info("📊 Запуск отправки суточной статистики...")
             await send_daily_stats(bot)
             
             # Ждём 5 минут
             await asyncio.sleep(300)
             
-            # Отправляем бэкап
+            # 09:10 - Отправляем бэкап
             logger.info("📦 Запуск создания и отправки бэкапа...")
             await send_backup_archive(bot)
-            
-            # Ждём 5 минут
-            await asyncio.sleep(300)
-            
-            # Отправляем уведомления пользователям
-            await check_and_send_expiry_notifications(bot)
             
             # Ежемесячный сброс трафика (1-е число каждого месяца)
             if datetime.now().day == 1:
@@ -849,6 +851,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
     """
     Опрашивает все серверы и обновляет кеш трафика для каждого ключа.
     Проверяет пороги уведомлений и отправляет уведомления пользователям.
+    Отключает истёкшие ключи на панели.
     
     Graceful degradation: при недоступности сервера — логируем WARNING,
     не обнуляем трафик, продолжаем обработку остальных серверов.
@@ -857,6 +860,8 @@ async def sync_traffic_stats(bot: Bot) -> None:
         get_all_active_keys_with_server, bulk_update_traffic,
         update_key_notified_pct, get_setting
     )
+    from database.db_stats import get_all_expired_keys
+    from bot.services.vpn_api import disable_key_on_panel
     
     keys = get_all_active_keys_with_server()
     if not keys:
@@ -980,6 +985,26 @@ async def sync_traffic_stats(bot: Bot) -> None:
                 update_key_notified_pct(key['id'], threshold)
                 key['traffic_notified_pct'] = threshold
                 break  # Только одно уведомление за раз
+    
+    # === НОВОЕ: Отключаем истёкшие ключи ===
+    try:
+        expired_keys = get_all_expired_keys()
+        disabled_count = 0
+        
+        for key in expired_keys:
+            # Проверяем что ключ ещё активен на панели
+            if key.get('server_id') and key.get('panel_email'):
+                try:
+                    success = await disable_key_on_panel(key['id'])
+                    if success:
+                        disabled_count += 1
+                except Exception as e:
+                    logger.error(f"Ошибка отключения ключа {key['id']}: {e}")
+        
+        if disabled_count > 0:
+            logger.info(f"🔴 Отключено истёкших ключей: {disabled_count}")
+    except Exception as e:
+        logger.error(f"Ошибка при отключении истёкших ключей: {e}")
     
     logger.debug(f"Синхронизация трафика завершена: обновлено {len(traffic_updates)} ключей")
 

@@ -13,6 +13,7 @@ __all__ = [
     'count_users_for_broadcast',
     'get_expiring_keys',
     'get_expired_keys_today',
+    'get_all_expired_keys',
     'is_notification_sent_today',
     'log_notification_sent',
     'get_keys_stats',
@@ -146,6 +147,31 @@ def get_expired_keys_today() -> List[Dict[str, Any]]:
             WHERE u.is_banned = 0
             AND vk.expires_at <= datetime('now')
             AND vk.expires_at >= datetime('now', '-1 day')
+        """)
+        return [dict(row) for row in cursor.fetchall()]
+
+def get_all_expired_keys() -> List[Dict[str, Any]]:
+    """
+    Получает все истёкшие ключи (expires_at <= now).
+    Используется для автоматического отключения на панели.
+    
+    Returns:
+        Список словарей с данными ключей
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT 
+                vk.id,
+                vk.server_id,
+                vk.panel_email,
+                vk.custom_name,
+                vk.expires_at,
+                u.telegram_id
+            FROM vpn_keys vk
+            JOIN users u ON vk.user_id = u.id
+            WHERE vk.expires_at <= datetime('now')
+            AND vk.server_id IS NOT NULL
+            AND vk.panel_email IS NOT NULL
         """)
         return [dict(row) for row in cursor.fetchall()]
 

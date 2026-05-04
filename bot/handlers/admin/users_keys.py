@@ -340,6 +340,50 @@ async def select_subscription_custom(callback: CallbackQuery, state: FSMContext)
     )
     await callback.answer()
 
+@router.callback_query(F.data == 'admin_add_subscription_test')
+async def select_subscription_test(callback: CallbackQuery, state: FSMContext):
+    """Создание тестового ключа (10 минут, 1 ГБ)."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer('⛔ Доступ запрещён', show_alert=True)
+        return
+    
+    data = await state.get_data()
+    user_telegram_id = data.get('add_key_user_telegram_id')
+    user = get_user_by_telegram_id(user_telegram_id)
+    
+    if not user:
+        await callback.answer('Пользователь не найден', show_alert=True)
+        return
+    
+    # Устанавливаем параметры тестового ключа
+    await state.update_data(
+        add_key_custom_name='🧪 Тестовый ключ',
+        add_key_traffic_gb=1,  # 1 ГБ
+        add_key_days=0  # Будет вычислено как 10 минут
+    )
+    
+    # Получаем список активных серверов для отображения
+    servers = get_active_servers()
+    if not servers:
+        await callback.answer('❌ Нет активных серверов', show_alert=True)
+        return
+    
+    server_list = "\n".join([f"• {s['name']}" for s in servers])
+    
+    await state.set_state(AdminStates.add_key_confirm)
+    
+    await safe_edit_or_send(
+        callback.message,
+        f'✅ <b>Подтверждение создания тестового ключа</b>\n\n'
+        f'📋 <b>Название:</b> 🧪 Тестовый ключ\n'
+        f'📊 <b>Трафик:</b> 1 ГБ\n'
+        f'⏰ <b>Срок:</b> 10 минут\n\n'
+        f'🖥️ <b>Серверы ({len(servers)}):</b>\n{server_list}\n\n'
+        f'<i>Будут созданы ключи на всех активных серверах</i>',
+        reply_markup=add_key_confirm_kb()
+    )
+    await callback.answer()
+
 @router.message(AdminStates.add_subscription_custom_name, F.text, ~F.text.startswith('/'))
 async def process_custom_subscription_name(message: Message, state: FSMContext):
     """Обработка ввода названия кастомной подписки."""
@@ -518,6 +562,10 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
     custom_name = data.get('add_key_custom_name')
     tariff_id = data.get('add_key_tariff_id')  # Может быть None для кастомной подписки
     
+    # Проверяем, это тестовый ключ (days=0 означает 10 минут)
+    is_test_key = (days == 0)
+    expire_minutes = 10 if is_test_key else None
+    
     # Получаем все активные серверы
     servers = get_active_servers()
     if not servers:
@@ -564,39 +612,71 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
             inbound_id = inbound.get('id')
             
             flow = await client.get_inbound_flow(inbound_id)
-            result = await client.add_client(
-                inbound_id=inbound_id,
-                email=email,
-                total_gb=traffic_gb,
-                expire_days=days,
-                limit_ip=1,
-                tg_id=str(user_telegram_id),
-                flow=flow
-            )
+            
+            # Для тестовых ключей передаем expire_minutes вместо expire_days
+            if is_test_key:
+                result = await client.add_client(
+                    inbound_id=inbound_id,
+                    email=email,
+                    total_gb=traffic_gb,
+                    expire_days=1,  # Минимальное значение, будет проигнорировано
+                    expire_minutes=expire_minutes,
+                    limit_ip=1,
+                    tg_id=str(user_telegram_id),
+                    flow=flow
+                )
+            else:
+                result = await client.add_client(
+                    inbound_id=inbound_id,
+                    email=email,
+                    total_gb=traffic_gb,
+                    expire_days=days,
+                    limit_ip=1,
+                    tg_id=str(user_telegram_id),
+                    flow=flow
+                )
+            
             client_uuid = result['uuid']
             
             # Конвертируем ГБ в байты для БД
             traffic_limit_bytes = traffic_gb * (1024**3) if traffic_gb > 0 else 0
             
             # Создаем ключ в БД с custom_name и traffic_limit
-            key_id = create_vpn_key_admin(
-                user_id=user_id,
-                server_id=server_id,
-                tariff_id=tariff_id,
-                panel_inbound_id=inbound_id,
-                panel_email=email,
-                client_uuid=client_uuid,
-                days=days,
-                traffic_limit=traffic_limit_bytes,
-                custom_name=custom_name
-            )
+            if is_test_key:
+                key_id = create_vpn_key_admin(
+                    user_id=user_id,
+                    server_id=server_id,
+                    tariff_id=tariff_id,
+                    panel_inbound_id=inbound_id,
+                    panel_email=email,
+                    client_uuid=client_uuid,
+                    days=1,  # Минимальное значение, будет проигнорировано
+                    traffic_limit=traffic_limit_bytes,
+                    custom_name=custom_name,
+                    minutes=expire_minutes
+                )
+            else:
+                key_id = create_vpn_key_admin(
+                    user_id=user_id,
+                    server_id=server_id,
+                    tariff_id=tariff_id,
+                    panel_inbound_id=inbound_id,
+                    panel_email=email,
+                    client_uuid=client_uuid,
+                    days=days,
+                    traffic_limit=traffic_limit_bytes,
+                    custom_name=custom_name
+                )
             
             created_keys.append({
                 'key_id': key_id,
                 'server_name': server['name']
             })
             
-            logger.info(f"✅ Создан ключ ID {key_id} на сервере {server['name']} с трафиком {traffic_gb} ГБ")
+            if is_test_key:
+                logger.info(f"✅ Создан тестовый ключ ID {key_id} на сервере {server['name']} ({expire_minutes} минут, {traffic_gb} ГБ)")
+            else:
+                logger.info(f"✅ Создан ключ ID {key_id} на сервере {server['name']} с трафиком {traffic_gb} ГБ")
             
         except VPNAPIError as e:
             logger.error(f'❌ Ошибка создания ключа на сервере {server["name"]}: {e}')

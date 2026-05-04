@@ -357,7 +357,8 @@ class XUIClient(BaseVPNClient):
         limit_ip: int = 1,
         enable: bool = True,
         tg_id: str = "",
-        flow: str = ""
+        flow: str = "",
+        expire_minutes: int = None
     ) -> Dict[str, Any]:
         """
         Добавляет клиента в inbound.
@@ -366,19 +367,20 @@ class XUIClient(BaseVPNClient):
             inbound_id: ID inbound-подключения
             email: Уникальный идентификатор клиента (используем user_{id})
             total_gb: Лимит трафика в ГБ (0 = без лимита)
-            expire_days: Срок действия в днях (0 = бессрочно)
+            expire_days: Срок действия в днях (0 = бессрочно, игнорируется если указан expire_minutes)
             limit_ip: Ограничение по IP (1 = 1 устройство)
             enable: Активен ли клиент
             tg_id: Telegram ID для уведомлений панели
             flow: Параметр flow (напр. 'xtls-rprx-vision' для VLESS Reality/TLS TCP)
+            expire_minutes: Срок действия в минутах (для тестовых ключей, опционально)
             
         Returns:
             Словарь с данными созданного клиента
             
         Raises:
-            ValueError: Если expire_days <= 0
+            ValueError: Если expire_days <= 0 и expire_minutes не указан
         """
-        if expire_days <= 0:
+        if expire_minutes is None and expire_days <= 0:
             raise ValueError("Срок действия ключа должен быть больше 0 дней")
 
         # Определяем протокол inbound для правильной структуры клиента
@@ -415,7 +417,13 @@ class XUIClient(BaseVPNClient):
                 client_uuid = base64.urlsafe_b64encode(os.urandom(16)).decode('utf-8').rstrip('=')
 
         # Время истечения (timestamp в мс)
-        expire_time = int((time.time() + expire_days * 86400) * 1000) if expire_days > 0 else 0
+        if expire_minutes is not None:
+            # Используем минуты для тестовых ключей
+            expire_time = int((time.time() + expire_minutes * 60) * 1000)
+        elif expire_days > 0:
+            expire_time = int((time.time() + expire_days * 86400) * 1000)
+        else:
+            expire_time = 0
         
         # Лимит трафика (байты)
         total_bytes = total_gb * 1024 * 1024 * 1024 if total_gb > 0 else 0
@@ -681,7 +689,8 @@ class XUIClient(BaseVPNClient):
         client_uuid: str,
         email: str,
         expiry_time_ms: int,
-        total_gb_bytes: int
+        total_gb_bytes: int,
+        enable: bool = True
     ) -> bool:
         """
         Обновляет ВСЕ параметры клиента на панели данными из нашей БД.
@@ -696,6 +705,7 @@ class XUIClient(BaseVPNClient):
             email: Email/идентификатор клиента
             expiry_time_ms: Срок действия в миллисекундах (из нашей БД, 0 = бессрочный)
             total_gb_bytes: Лимит трафика в байтах (из нашей БД, 0 = безлимит)
+            enable: Включён ли ключ (True = включён, False = отключён)
             
         Returns:
             True при успешном обновлении
@@ -728,7 +738,7 @@ class XUIClient(BaseVPNClient):
             "limitIp": target_client.get('limitIp', 1),
             "totalGB": total_gb_bytes,          # ← Из нашей БД!
             "expiryTime": expiry_time_ms,        # ← Из нашей БД!
-            "enable": target_client.get('enable', True),
+            "enable": enable,                    # ← Из параметра!
             "tgId": target_client.get('tgId', ''),
             "subId": target_client.get('subId', ''),
             "reset": 0  # Не используем auto-reset панели

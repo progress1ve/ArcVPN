@@ -138,6 +138,7 @@ def add_subscription_type_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text='📋 По тарифу', callback_data='admin_add_subscription_tariff'))
     builder.row(InlineKeyboardButton(text='⚙️ Кастомная подписка', callback_data='admin_add_subscription_custom'))
+    builder.row(InlineKeyboardButton(text='🧪 Тестовый ключ (10 мин, 1 ГБ)', callback_data='admin_add_subscription_test'))
     builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_user_add_key_cancel'))
     return builder.as_markup()
 

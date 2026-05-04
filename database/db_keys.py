@@ -123,7 +123,8 @@ def create_vpn_key_admin(
     client_uuid: str,
     days: int,
     traffic_limit: int = 0,
-    custom_name: str = None
+    custom_name: str = None,
+    minutes: int = None
 ) -> int:
     """
     Создаёт VPN-ключ администратором (без оплаты).
@@ -135,9 +136,10 @@ def create_vpn_key_admin(
         panel_inbound_id: ID inbound в панели
         panel_email: Email (идентификатор) клиента в панели
         client_uuid: UUID клиента
-        days: Срок действия в днях
+        days: Срок действия в днях (игнорируется если указан minutes)
         traffic_limit: Лимит трафика в байтах (0 = безлимит)
         custom_name: Пользовательское название подписки (опционально)
+        minutes: Срок действия в минутах (для тестовых ключей, опционально)
     
     Returns:
         ID созданного ключа
@@ -146,6 +148,14 @@ def create_vpn_key_admin(
     
     # Генерируем уникальный sub_id для subscription URL
     sub_id = uuid.uuid4().hex
+    
+    # Определяем срок действия
+    if minutes is not None:
+        # Используем минуты для тестовых ключей
+        expiry_sql = f"datetime('now', '+{minutes} minutes')"
+    else:
+        # Используем дни для обычных ключей
+        expiry_sql = f"datetime('now', '+{days} days')"
     
     with get_db() as conn:
         # Проверяем уникальность sub_id (на всякий случай)
@@ -157,15 +167,19 @@ def create_vpn_key_admin(
             sub_id = uuid.uuid4().hex
             attempts += 1
         
-        cursor = conn.execute("""
+        cursor = conn.execute(f"""
             INSERT INTO vpn_keys 
             (user_id, server_id, tariff_id, panel_inbound_id, panel_email, client_uuid, 
              expires_at, traffic_limit, custom_name, sub_id)
-            VALUES (?, ?, ?, ?, ?, ?, datetime('now', '+' || ? || ' days'), ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, {expiry_sql}, ?, ?, ?)
         """, (user_id, server_id, tariff_id, panel_inbound_id, panel_email, client_uuid, 
-              days, traffic_limit, custom_name, sub_id))
+              traffic_limit, custom_name, sub_id))
         key_id = cursor.lastrowid
-        logger.info(f"Администратор создал подписку ID {key_id} (sub_id: {sub_id}) для user_id {user_id}")
+        
+        if minutes is not None:
+            logger.info(f"Администратор создал тестовую подписку ID {key_id} (sub_id: {sub_id}) на {minutes} минут для user_id {user_id}")
+        else:
+            logger.info(f"Администратор создал подписку ID {key_id} (sub_id: {sub_id}) для user_id {user_id}")
         return key_id
 
 def update_vpn_key_connection(
