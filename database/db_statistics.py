@@ -155,11 +155,11 @@ def get_subscriptions_stats() -> Dict[str, Any]:
 def get_active_connections_stats() -> Dict[str, int]:
     """
     Получает статистику активных подключений (пользователей, которые используют VPN).
-    Определяется по наличию трафика за последние периоды.
+    Определяется по наличию трафика у активных подписок.
     
     Returns:
         Словарь с количеством активных пользователей:
-        - day: использовали VPN за последние 24 часа
+        - day: использовали VPN за последние 24 часа (имеют активную подписку с трафиком)
         - week: использовали VPN за последние 7 дней
         - month: использовали VPN за последние 30 дней
         - total_with_traffic: всего пользователей с трафиком
@@ -167,14 +167,14 @@ def get_active_connections_stats() -> Dict[str, int]:
     with get_db() as conn:
         now = datetime.now()
         
-        # За день - пользователи с обновлением трафика за последние 24 часа
+        # За день - пользователи с активными подписками, созданными за последние 24 часа и имеющими трафик
         day_ago = now - timedelta(days=1)
         cursor = conn.execute("""
             SELECT COUNT(DISTINCT vk.user_id) as cnt 
             FROM vpn_keys vk
             WHERE vk.traffic_used > 0
             AND vk.expires_at > datetime('now')
-            AND vk.updated_at >= ?
+            AND vk.created_at >= ?
         """, (day_ago.isoformat(),))
         day_count = cursor.fetchone()['cnt']
         
@@ -185,7 +185,7 @@ def get_active_connections_stats() -> Dict[str, int]:
             FROM vpn_keys vk
             WHERE vk.traffic_used > 0
             AND vk.expires_at > datetime('now')
-            AND vk.updated_at >= ?
+            AND vk.created_at >= ?
         """, (week_ago.isoformat(),))
         week_count = cursor.fetchone()['cnt']
         
@@ -196,15 +196,16 @@ def get_active_connections_stats() -> Dict[str, int]:
             FROM vpn_keys vk
             WHERE vk.traffic_used > 0
             AND vk.expires_at > datetime('now')
-            AND vk.updated_at >= ?
+            AND vk.created_at >= ?
         """, (month_ago.isoformat(),))
         month_count = cursor.fetchone()['cnt']
         
-        # Всего пользователей с трафиком (когда-либо использовали)
+        # Всего пользователей с активными подписками и трафиком
         cursor = conn.execute("""
             SELECT COUNT(DISTINCT user_id) as cnt 
             FROM vpn_keys 
             WHERE traffic_used > 0
+            AND expires_at > datetime('now')
         """)
         total_count = cursor.fetchone()['cnt']
         
@@ -241,12 +242,13 @@ def get_revenue_stats() -> Dict[str, Any]:
             cursor = conn.execute("""
                 SELECT 
                     COUNT(*) as count,
-                    COALESCE(SUM(CASE WHEN payment_type = 'yookassa' THEN amount_rub ELSE 0 END), 0) as total_rub,
-                    COALESCE(SUM(CASE WHEN payment_type = 'crypto' THEN amount_cents ELSE 0 END), 0) as total_cents,
-                    COALESCE(SUM(CASE WHEN payment_type = 'stars' THEN amount_stars ELSE 0 END), 0) as total_stars
-                FROM payments
-                WHERE status = 'paid'
-                AND paid_at >= ?
+                    COALESCE(SUM(CASE WHEN p.payment_type = 'yookassa' THEN t.price_rub ELSE 0 END), 0) as total_rub,
+                    COALESCE(SUM(CASE WHEN p.payment_type = 'crypto' THEN p.amount_cents ELSE 0 END), 0) as total_cents,
+                    COALESCE(SUM(CASE WHEN p.payment_type = 'stars' THEN p.amount_stars ELSE 0 END), 0) as total_stars
+                FROM payments p
+                LEFT JOIN tariffs t ON p.tariff_id = t.id
+                WHERE p.status = 'paid'
+                AND p.paid_at >= ?
             """, (period_start.isoformat(),))
             
             row = cursor.fetchone()
@@ -261,11 +263,12 @@ def get_revenue_stats() -> Dict[str, Any]:
         cursor = conn.execute("""
             SELECT 
                 COUNT(*) as count,
-                COALESCE(SUM(CASE WHEN payment_type = 'yookassa' THEN amount_rub ELSE 0 END), 0) as total_rub,
-                COALESCE(SUM(CASE WHEN payment_type = 'crypto' THEN amount_cents ELSE 0 END), 0) as total_cents,
-                COALESCE(SUM(CASE WHEN payment_type = 'stars' THEN amount_stars ELSE 0 END), 0) as total_stars
-            FROM payments
-            WHERE status = 'paid'
+                COALESCE(SUM(CASE WHEN p.payment_type = 'yookassa' THEN t.price_rub ELSE 0 END), 0) as total_rub,
+                COALESCE(SUM(CASE WHEN p.payment_type = 'crypto' THEN p.amount_cents ELSE 0 END), 0) as total_cents,
+                COALESCE(SUM(CASE WHEN p.payment_type = 'stars' THEN p.amount_stars ELSE 0 END), 0) as total_stars
+            FROM payments p
+            LEFT JOIN tariffs t ON p.tariff_id = t.id
+            WHERE p.status = 'paid'
         """)
         
         row = cursor.fetchone()
