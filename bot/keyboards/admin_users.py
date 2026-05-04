@@ -58,7 +58,7 @@ def users_list_kb(users: List[Dict[str, Any]], page: int, total_pages: int, curr
     builder.row(back_button('admin_users'), home_button())
     return builder.as_markup()
 
-def user_view_kb(telegram_id: int, vpn_keys: List[Dict[str, Any]], is_banned: bool, balance_cents: int=0, referral_coefficient: float=1.0) -> InlineKeyboardMarkup:
+def user_view_kb(telegram_id: int, vpn_keys: List[Dict[str, Any]], is_banned: bool, balance_cents: int=0) -> InlineKeyboardMarkup:
     """
     Клавиатура просмотра пользователя.
     
@@ -67,13 +67,15 @@ def user_view_kb(telegram_id: int, vpn_keys: List[Dict[str, Any]], is_banned: bo
         vpn_keys: Список VPN-ключей пользователя
         is_banned: Забанен ли пользователь
         balance_cents: Баланс в копейках
-        referral_coefficient: Реферальный коэффициент
     """
     builder = InlineKeyboardBuilder()
     for key in vpn_keys:
         key_id = key['id']
+        # Приоритет отображения: custom_name > tariff_name > UUID
         if key.get('custom_name'):
             key_name = key['custom_name']
+        elif key.get('tariff_name'):
+            key_name = key['tariff_name']
         else:
             uuid = key.get('client_uuid') or ''
             if len(uuid) >= 8:
@@ -89,7 +91,6 @@ def user_view_kb(telegram_id: int, vpn_keys: List[Dict[str, Any]], is_banned: bo
     builder.row(InlineKeyboardButton(text='➕ Добавить подписку', callback_data=f'admin_user_add_key:{telegram_id}'))
     balance_rub = balance_cents / 100
     builder.row(InlineKeyboardButton(text=f'💰 Баланс: {balance_rub:.2f} ₽', callback_data=f'admin_user_balance:{telegram_id}'), InlineKeyboardButton(text='Пополнить', callback_data=f'admin_user_balance_add:{telegram_id}'), InlineKeyboardButton(text='➖ Списать', callback_data=f'admin_user_balance_deduct:{telegram_id}'))
-    builder.row(InlineKeyboardButton(text=f'📊 Реферальный коэффициент: {referral_coefficient}x', callback_data=f'admin_user_coefficient:{telegram_id}'))
     if is_banned:
         ban_text = '✅ Разблокировать'
     else:

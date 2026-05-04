@@ -67,7 +67,6 @@ def _format_user_card(user: dict) -> tuple[str, any]:
     created_at_raw = user.get('created_at', '')
     created_at = format_datetime(created_at_raw) if created_at_raw else 'неизвестно'
     balance_cents = get_user_balance(user['id'])
-    referral_coefficient = get_user_referral_coefficient(user['id'])
     vpn_keys = get_user_vpn_keys(user['id'])
     
     lines = []
@@ -101,13 +100,15 @@ def _format_user_card(user: dict) -> tuple[str, any]:
     
     balance_rub = balance_cents / 100
     lines.append(f'💰 Баланс: <b>{balance_rub:.2f} ₽</b>')
-    lines.append(f'📊 Реферальный коэффициент: <b>{referral_coefficient}x</b>')
     lines.append('')
     if vpn_keys:
         lines.append(f'🔑 <b>VPN-ключи ({len(vpn_keys)}):</b>')
         for key in vpn_keys:
+            # Приоритет отображения: custom_name > tariff_name > UUID
             if key.get('custom_name'):
                 key_name = key['custom_name']
+            elif key.get('tariff_name'):
+                key_name = key['tariff_name']
             else:
                 uuid = key.get('client_uuid') or ''
                 if len(uuid) >= 8:
@@ -159,7 +160,7 @@ def _format_user_card(user: dict) -> tuple[str, any]:
     else:
         lines.append('  _Оплат не было_')
     text = '\n'.join(lines)
-    keyboard = user_view_kb(telegram_id, vpn_keys, is_banned, balance_cents, referral_coefficient)
+    keyboard = user_view_kb(telegram_id, vpn_keys, is_banned, balance_cents)
     return (text, keyboard)
 
 @router.callback_query(F.data.startswith('admin_user_toggle_ban:'))

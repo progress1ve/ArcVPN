@@ -97,8 +97,7 @@ async def on_key_delete_confirm(callback: CallbackQuery):
                     user['telegram_id'],
                     keys,
                     bool(user.get('is_banned', 0)),
-                    user.get('balance_cents', 0),
-                    user.get('referral_coefficient', 1.0)
+                    user.get('balance_cents', 0)
                 )
             )
             return
