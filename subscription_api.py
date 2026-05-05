@@ -189,7 +189,8 @@ def subscription(sub_id: str):
         logger.info(f"Запрос subscription для sub_id={sub_id}, User-Agent: {user_agent}")
         
         # Получаем формат из query параметров
-        output_format = request.args.get('format', 'base64').lower()
+        # По умолчанию plain text для Happ
+        output_format = request.args.get('format', 'plain').lower()
         
         # Находим ключ по sub_id
         with get_db() as conn:
@@ -246,41 +247,22 @@ def subscription(sub_id: str):
         else:
             subscription_data = link
         
-        # Заголовки для VPN клиентов (включая Happ)
+        # Минимальные заголовки для Happ (убираем всё лишнее)
         headers = {
-            # Информация о трафике
-            'subscription-userinfo': f'upload={traffic_used}; download=0; total={traffic_limit}; expire=0',
-            # Интервал обновления (24 часа)
-            'profile-update-interval': '86400',
-            # Название профиля
-            'profile-title': 'ArcVPN',
-            # Веб-страница
-            'profile-web-page-url': 'https://t.me/arcvpn1',
-            # Content-Disposition с красивым именем файла
-            'Content-Disposition': 'inline; filename="ArcVPN.txt"',
-            # Кэширование отключено
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0',
-            # CORS заголовки для веб-клиентов
-            'Access-Control-Allow-Origin': '*',
-            'Access-Control-Allow-Methods': 'GET, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type'
+            'Content-Type': 'text/plain; charset=utf-8',
+            'Cache-Control': 'no-cache'
         }
         
         # Убедимся что в конце есть перенос строки
         if not subscription_data.endswith('\n'):
             subscription_data += '\n'
         
-        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт")
+        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
-        # Создаём Response с правильным Content-Type для Happ
+        # Создаём минимальный Response для Happ
         response = Response(subscription_data)
         
-        # Happ требует text/plain даже для base64!
-        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
-        
-        # Добавляем остальные заголовки
+        # Добавляем заголовки
         for key, value in headers.items():
             response.headers[key] = value
         
