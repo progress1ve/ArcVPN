@@ -189,8 +189,8 @@ def subscription(sub_id: str):
         logger.info(f"Запрос subscription для sub_id={sub_id}, User-Agent: {user_agent}")
         
         # Получаем формат из query параметров
-        # По умолчанию plain text для Happ
-        output_format = request.args.get('format', 'plain').lower()
+        # По умолчанию base64 для совместимости
+        output_format = request.args.get('format', 'base64').lower()
         
         # Находим ключ по sub_id
         with get_db() as conn:
@@ -247,24 +247,18 @@ def subscription(sub_id: str):
         else:
             subscription_data = link
         
-        # Минимальные заголовки для Happ (убираем всё лишнее)
-        headers = {
-            'Content-Type': 'text/plain; charset=utf-8',
-            'Cache-Control': 'no-cache'
-        }
-        
-        # Убедимся что в конце есть перенос строки
-        if not subscription_data.endswith('\n'):
-            subscription_data += '\n'
+        # Убираем перенос строки для base64 (должна быть одна сплошная строка)
+        if output_format == 'base64':
+            subscription_data = subscription_data.strip()
+        else:
+            # Для plain text добавляем перенос строки в конце
+            if not subscription_data.endswith('\n'):
+                subscription_data += '\n'
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
-        # Создаём минимальный Response для Happ
+        # Создаём простой Response без заголовков (Nginx добавит свои)
         response = Response(subscription_data)
-        
-        # Добавляем заголовки
-        for key, value in headers.items():
-            response.headers[key] = value
         
         return response
         
