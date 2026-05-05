@@ -199,7 +199,7 @@ def subscription(sub_id: str):
                     vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
                     s.host, s.port, s.protocol, s.name as server_name,
                     u.telegram_id,
-                    COALESCE(vk.custom_name, t.name) as tariff_name
+                    COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
                 FROM vpn_keys vk
                 JOIN servers s ON vk.server_id = s.id
                 JOIN users u ON vk.user_id = u.id
