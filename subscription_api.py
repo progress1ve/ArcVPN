@@ -274,11 +274,11 @@ def subscription(sub_id: str):
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт")
         
-        # Создаём Response с правильным Content-Type
-        response = Response(subscription_data, mimetype='text/plain')
-        response.charset = 'utf-8'
+        # Создаём Response без указания charset в mimetype
+        response = Response(subscription_data)
+        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
         
-        # Добавляем заголовки
+        # Добавляем остальные заголовки
         for key, value in headers.items():
             response.headers[key] = value
         
