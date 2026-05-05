@@ -104,11 +104,14 @@ def _format_user_card(user: dict) -> tuple[str, any]:
     if vpn_keys:
         lines.append(f'🔑 <b>VPN-ключи ({len(vpn_keys)}):</b>')
         for key in vpn_keys:
-            # Приоритет отображения: custom_name > tariff_name > UUID
+            # Приоритет отображения: custom_name > tariff_name > "Пробная подписка" > UUID
             if key.get('custom_name'):
                 key_name = key['custom_name']
             elif key.get('tariff_name'):
                 key_name = key['tariff_name']
+            elif key.get('tariff_id') is None:
+                # Пробная подписка (tariff_id = NULL)
+                key_name = "Пробная подписка"
             else:
                 uuid = key.get('client_uuid') or ''
                 if len(uuid) >= 8:

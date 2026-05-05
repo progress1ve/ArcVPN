@@ -45,6 +45,9 @@ async def show_key_view(callback: CallbackQuery, state: FSMContext):
     await state.update_data(current_key_id=key_id)
     if key.get('custom_name'):
         key_name = key['custom_name']
+    elif key.get('tariff_id') is None:
+        # Пробная подписка (tariff_id = NULL)
+        key_name = "Пробная подписка"
     else:
         uuid = key.get('client_uuid') or ''
         if len(uuid) >= 8:
@@ -52,7 +55,7 @@ async def show_key_view(callback: CallbackQuery, state: FSMContext):
         else:
             key_name = uuid or f'Ключ #{key_id}'
     server_name = key.get('server_name', 'Неизвестный сервер')
-    tariff_name = key.get('tariff_name', 'Неизвестный тариф')
+    tariff_name = key.get('tariff_name') or 'Пробная подписка' if key.get('tariff_id') is None else key.get('tariff_name', 'Неизвестный тариф')
     expires_at_raw = key.get('expires_at', '')
     created_at_raw = key.get('created_at', '')
     

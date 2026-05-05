@@ -534,6 +534,9 @@ def get_user_keys_for_display(telegram_id: int) -> List[Dict[str, Any]]:
             elif key.get('tariff_name'):
                 # Используем название тарифа
                 key['display_name'] = key['tariff_name']
+            elif key.get('tariff_id') is None:
+                # Пробная подписка (tariff_id = NULL)
+                key['display_name'] = "Пробная подписка"
             elif key['client_uuid']:
                 # Fallback на UUID если нет тарифа
                 uuid = key['client_uuid']
@@ -589,6 +592,9 @@ def get_key_details_for_user(key_id: int, telegram_id: int) -> Optional[Dict[str
         elif key.get('tariff_name'):
             # Используем название тарифа
             key['display_name'] = key['tariff_name']
+        elif key.get('tariff_id') is None:
+            # Пробная подписка (tariff_id = NULL)
+            key['display_name'] = "Пробная подписка"
         elif key['client_uuid']:
             # Fallback на UUID если нет тарифа
             uuid = key['client_uuid']
