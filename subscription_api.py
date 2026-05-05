@@ -279,12 +279,11 @@ def subscription(sub_id: str):
         
         # Кодируем в base64 если нужно
         if output_format == 'base64':
-            # Добавляем маркер перед кодированием для Happ
-            text_with_marker = f"#profile-title: ArcVPN\n{link}\n"
-            subscription_data = base64.b64encode(text_with_marker.encode()).decode()
+            # Для Happ - только чистый ключ без маркеров
+            subscription_data = base64.b64encode(f"{link}\n".encode()).decode()
         else:
-            # Plain text с маркером и переносом строки
-            subscription_data = f"#profile-title: ArcVPN\n{link}\n"
+            # Plain text - только ключ
+            subscription_data = f"{link}\n"
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
