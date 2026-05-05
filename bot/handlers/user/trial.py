@@ -149,4 +149,4 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     await callback.message.answer(trial_info, parse_mode="HTML")
     
     # Сразу показываем subscription ссылку с QR-кодом
-    await send_subscription_link(callback, user_id, builder.as_markup())
+    await send_subscription_link(callback, key_id, builder.as_markup())
