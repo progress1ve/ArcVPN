@@ -273,7 +273,16 @@ def subscription(sub_id: str):
             subscription_data += '\n'
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт")
-        return Response(subscription_data, headers=headers, mimetype='text/plain; charset=utf-8')
+        
+        # Создаём Response с правильным Content-Type
+        response = Response(subscription_data, mimetype='text/plain')
+        response.charset = 'utf-8'
+        
+        # Добавляем заголовки
+        for key, value in headers.items():
+            response.headers[key] = value
+        
+        return response
         
     except Exception as e:
         logger.error(f"❌ Ошибка генерации подписки для sub_id={sub_id}: {e}", exc_info=True)
