@@ -241,11 +241,50 @@ def subscription(sub_id: str):
             logger.error(f"Не удалось сгенерировать ссылку для sub_id={sub_id}")
             return Response("Failed to generate key", status=500, mimetype='text/plain')
         
+        # Проверяем формат вывода
+        if output_format == 'json':
+            # JSON формат для Happ
+            import json
+            import urllib.parse
+            
+            # Парсим VLESS ссылку
+            parsed = urllib.parse.urlparse(link)
+            params = urllib.parse.parse_qs(parsed.query)
+            
+            json_data = {
+                "version": 1,
+                "rules": [],
+                "servers": [{
+                    "name": key.get('tariff_name', 'ArcVPN'),
+                    "type": "vless",
+                    "address": parsed.hostname,
+                    "port": parsed.port or 443,
+                    "uuid": parsed.username,
+                    "flow": params.get('flow', [''])[0],
+                    "encryption": params.get('encryption', ['none'])[0],
+                    "security": params.get('security', [''])[0],
+                    "sni": params.get('sni', [''])[0],
+                    "fp": params.get('fp', [''])[0],
+                    "pbk": params.get('pbk', [''])[0],
+                    "sid": params.get('sid', [''])[0]
+                }]
+            }
+            
+            subscription_data = json.dumps(json_data, ensure_ascii=False, indent=2)
+            logger.info(f"✅ Сгенерирована JSON подписка для sub_id={sub_id}")
+            
+            response = Response(subscription_data)
+            response.headers['Content-Type'] = 'application/json'
+            return response
+        
         # Кодируем в base64 если нужно
         if output_format == 'base64':
-            subscription_data = base64.b64encode(link.encode()).decode()
+            # Добавляем маркер перед кодированием для Happ
+            text_with_marker = f"#profile-title: ArcVPN\n{link}"
+            subscription_data = base64.b64encode(text_with_marker.encode()).decode()
         else:
-            subscription_data = link
+            # Plain text с маркером
+            subscription_data = f"#profile-title: ArcVPN\n{link}"
         
         # Убираем перенос строки для base64 (должна быть одна сплошная строка)
         if output_format == 'base64':
