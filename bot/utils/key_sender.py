@@ -195,7 +195,7 @@ async def send_subscription_link(
         # Формируем сообщение
         message_text = (
             "🔗 <b>Ваша подписка</b>\n\n"
-            f"<pre>{sub_url}</pre>\n\n"
+            f"<code>{sub_url}</code>\n\n"
             "☝️ Нажмите на ссылку, чтобы скопировать.\n\n"
             "📱 <b>Инструкция по подключению:</b>"
         )

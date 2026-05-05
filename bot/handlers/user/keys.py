@@ -368,7 +368,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         builder = InlineKeyboardBuilder()
         
         # Happ
-        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/app/happ-vpn-fast-secure/id6738501697"))
+        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"))
         builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
         
         # Навигация
@@ -435,7 +435,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         builder = InlineKeyboardBuilder()
         
         # Happ
-        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=io.happ.app"))
+        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=com.happproxy&hl=ru"))
         builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
         
         # Навигация
@@ -473,7 +473,7 @@ async def instruction_windows_handler(callback: CallbackQuery):
     
     # Создаём клавиатуру с кнопкой скачивания
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://github.com/hamedap/Happ/releases/latest"))
+    builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://github.com/Happ-proxy/happ-desktop/releases/tag/2.9.1"))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
