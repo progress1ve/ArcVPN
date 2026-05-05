@@ -316,7 +316,8 @@ def subscription(sub_id: str):
             logger.info(f"✅ Сгенерирована JSON подписка для sub_id={sub_id}")
             
             response = Response(subscription_data)
-            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+            response.headers['Content-Type'] = 'application/json'
+            response.headers['profile-update-interval'] = '24'
             response.headers['Content-Disposition'] = 'inline'
             response.headers['Cache-Control'] = 'no-cache'
             return response
@@ -331,10 +332,19 @@ def subscription(sub_id: str):
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
-        # Создаём Response с правильным Content-Type для Happ
-        # ВАЖНО: Happ требует именно "text/plain" БЕЗ charset
+        # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
-        response.headers['Content-Type'] = 'text/plain'
+        
+        # Для base64 используем text/plain или вообще без Content-Type
+        if output_format == 'base64':
+            # Happ ожидает text/plain для base64 подписок
+            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            response.headers['profile-update-interval'] = '24'
+            response.headers['subscription-userinfo'] = f'upload=0; download=0; total=107374182400; expire={int((key.get("expires_at") or 0))}'
+        else:
+            # Для plain text
+            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
         
