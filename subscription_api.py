@@ -277,6 +277,50 @@ def subscription(sub_id: str):
             response.headers['Content-Type'] = 'application/json'
             return response
         
+        # Проверяем формат вывода
+        if output_format == 'json':
+            # JSON формат для Happ (Sing-box format)
+            import json
+            import urllib.parse
+            
+            # Парсим VLESS ссылку
+            parsed = urllib.parse.urlparse(link)
+            params = urllib.parse.parse_qs(parsed.query)
+            
+            # Формируем конфиг в формате Sing-box
+            json_data = {
+                "outbounds": [{
+                    "type": "vless",
+                    "tag": key.get('tariff_name', 'ArcVPN'),
+                    "server": parsed.hostname,
+                    "server_port": parsed.port or 443,
+                    "uuid": parsed.username,
+                    "flow": params.get('flow', [''])[0] or "",
+                    "tls": {
+                        "enabled": True,
+                        "server_name": params.get('sni', [''])[0] or parsed.hostname,
+                        "utls": {
+                            "enabled": True,
+                            "fingerprint": params.get('fp', ['chrome'])[0]
+                        },
+                        "reality": {
+                            "enabled": True,
+                            "public_key": params.get('pbk', [''])[0],
+                            "short_id": params.get('sid', [''])[0]
+                        }
+                    }
+                }]
+            }
+            
+            subscription_data = json.dumps(json_data, ensure_ascii=False, indent=2)
+            logger.info(f"✅ Сгенерирована JSON подписка для sub_id={sub_id}")
+            
+            response = Response(subscription_data)
+            response.headers['Content-Type'] = 'application/json; charset=utf-8'
+            response.headers['Content-Disposition'] = 'inline'
+            response.headers['Cache-Control'] = 'no-cache'
+            return response
+        
         # Кодируем в base64 если нужно
         if output_format == 'base64':
             # Для Happ - только чистый ключ без маркеров
