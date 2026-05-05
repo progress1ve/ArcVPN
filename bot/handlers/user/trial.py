@@ -55,14 +55,15 @@ async def show_trial_subscription(callback: CallbackQuery):
 
 @router.callback_query(F.data == 'trial_activate')
 async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext):
-    """Активирует пробную подписку: создаёт ключ с настроенными днями и трафиком."""
+    """Активирует пробную подписку: создаёт ключи на всех активных серверах."""
     from database.requests import (
         is_trial_enabled, has_used_trial, get_or_create_user, 
-        mark_trial_used, create_initial_vpn_key, create_pending_order, 
-        complete_order, get_trial_days, get_trial_traffic_gb
+        mark_trial_used, create_vpn_key_admin, create_pending_order, 
+        complete_order, get_trial_days, get_trial_traffic_gb, get_active_servers
     )
-    from bot.handlers.user.payments.keys_config import start_new_key_config
+    from bot.services.vpn_api import get_client_from_server_data, VPNAPIError
     from bot.keyboards.admin import home_only_kb
+    import uuid
     
     user_id = callback.from_user.id
     
@@ -89,39 +90,114 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     
     logger.info(f'Пользователь {user_id} активирует пробный период ({trial_days} дней, {trial_traffic_gb} ГБ)')
     
+    # Получаем все активные серверы
+    servers = get_active_servers()
+    if not servers:
+        await callback.answer('❌ Нет активных серверов', show_alert=True)
+        return
+    
     # Конвертируем трафик в байты (0 = безлимит)
     traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
     
-    # Создаем ключ без привязки к тарифу (tariff_id=None для пробного периода)
-    try:
-        key_id = create_initial_vpn_key(
-            user_id=internal_user_id, 
-            tariff_id=None,  # None для пробного периода (без тарифа)
-            days=trial_days, 
-            traffic_limit=traffic_limit_bytes
+    await callback.answer('⏳ Создание пробной подписки...')
+    
+    # Генерируем уникальный email для панели
+    def generate_unique_email(user: dict) -> str:
+        base = f"user_{user['username']}" if user.get('username') else f"user_{user['telegram_id']}"
+        suffix = uuid.uuid4().hex[:5]
+        return f'{base}_{suffix}'
+    
+    created_keys = []
+    failed_servers = []
+    
+    # Создаем ключи на всех серверах
+    for server in servers:
+        try:
+            server_id = server['id']
+            email = generate_unique_email(user)
+            
+            client = get_client_from_server_data(server)
+            
+            # Получаем первый доступный inbound
+            inbounds = await client.get_inbounds()
+            if not inbounds:
+                logger.warning(f"Нет inbound на сервере {server['name']}")
+                failed_servers.append(f"{server['name']} (нет inbound)")
+                continue
+            
+            # Используем первый inbound
+            inbound = inbounds[0]
+            inbound_id = inbound.get('id')
+            
+            flow = await client.get_inbound_flow(inbound_id)
+            
+            # Создаём клиента на панели
+            result = await client.add_client(
+                inbound_id=inbound_id,
+                email=email,
+                total_gb=trial_traffic_gb,
+                expire_days=trial_days,
+                limit_ip=1,
+                tg_id=str(user_id),
+                flow=flow
+            )
+            
+            client_uuid = result['uuid']
+            
+            # Создаем ключ в БД с привязкой к серверу
+            key_id = create_vpn_key_admin(
+                user_id=internal_user_id,
+                server_id=server_id,
+                tariff_id=None,  # None для пробного периода
+                panel_inbound_id=inbound_id,
+                panel_email=email,
+                client_uuid=client_uuid,
+                days=trial_days,
+                traffic_limit=traffic_limit_bytes,
+                custom_name=None  # Будет отображаться как "Пробная подписка"
+            )
+            
+            created_keys.append({
+                'key_id': key_id,
+                'server_name': server['name']
+            })
+            
+            logger.info(f"✅ Создан пробный ключ ID {key_id} на сервере {server['name']} ({trial_days} дней, {trial_traffic_gb} ГБ)")
+            
+        except VPNAPIError as e:
+            logger.error(f'❌ Ошибка создания пробного ключа на сервере {server["name"]}: {e}')
+            failed_servers.append(f"{server['name']} ({str(e)})")
+        except Exception as e:
+            logger.error(f'❌ Неожиданная ошибка на сервере {server["name"]}: {e}')
+            failed_servers.append(f"{server['name']} (ошибка)")
+    
+    if not created_keys:
+        await callback.message.answer(
+            '❌ <b>Не удалось создать пробную подписку</b>\n\n'
+            'Все серверы недоступны. Попробуйте позже.',
+            parse_mode="HTML"
         )
-        logger.info(f'Создан ключ {key_id} для пользователя {user_id}')
-        
-        # Создаем ордер для истории
+        return
+    
+    # Создаем ордер для истории (используем первый созданный ключ)
+    first_key_id = created_keys[0]['key_id']
+    try:
         (_, order_id) = create_pending_order(
             user_id=internal_user_id, 
             tariff_id=None,  # None для пробного периода
             payment_type='trial', 
-            vpn_key_id=key_id
+            vpn_key_id=first_key_id
         )
         complete_order(order_id)
         logger.info(f'Создан и завершен ордер {order_id} для пользователя {user_id}')
-        
-        # Помечаем что пробный период использован ТОЛЬКО после успешного создания ключа
-        mark_trial_used(internal_user_id)
-        logger.info(f'Пользователь {user_id} (internal_id={internal_user_id}) успешно активировал пробный период. Флаг used_trial установлен.')
     except Exception as e:
-        logger.error(f'Ошибка при создании пробного ключа для пользователя {user_id}: {e}', exc_info=True)
-        await callback.answer('❌ Произошла ошибка при создании ключа. Попробуйте позже.', show_alert=True)
-        return
+        logger.error(f'Ошибка создания ордера для пробного периода: {e}')
     
-    await state.update_data(new_key_order_id=order_id, new_key_id=key_id)
-    await callback.answer()
+    # Помечаем что пробный период использован ТОЛЬКО после успешного создания ключей
+    mark_trial_used(internal_user_id)
+    logger.info(f'Пользователь {user_id} (internal_id={internal_user_id}) успешно активировал пробный период. Флаг used_trial установлен.')
+    
+    await state.update_data(new_key_order_id=order_id if 'order_id' in locals() else None, new_key_id=first_key_id)
     
     try:
         await callback.message.delete()
@@ -139,14 +215,20 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
     
     # Отправляем сообщение с информацией о пробном периоде
+    servers_text = "\n".join([f"• {k['server_name']}" for k in created_keys])
     trial_info = (
         f"🎉 <b>Пробный период активирован!</b>\n\n"
         f"✅ {trial_days} дней бесплатного доступа\n"
-        f"📊 Трафик: {trial_traffic_gb} ГБ\n\n"
+        f"📊 Трафик: {trial_traffic_gb} ГБ\n"
+        f"🖥️ Серверов: {len(created_keys)}\n\n"
+        f"{servers_text}\n\n"
         f"👇 <b>Ваша подписка готова!</b>"
     )
+    
+    if failed_servers:
+        trial_info += f"\n\n⚠️ Некоторые серверы недоступны:\n" + "\n".join([f"• {s}" for s in failed_servers])
     
     await callback.message.answer(trial_info, parse_mode="HTML")
     
     # Сразу показываем subscription ссылку с QR-кодом
-    await send_subscription_link(callback, key_id, builder.as_markup())
+    await send_subscription_link(callback, first_key_id, builder.as_markup())
