@@ -274,14 +274,11 @@ def subscription(sub_id: str):
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт")
         
-        # Создаём Response с правильным Content-Type для subscription
+        # Создаём Response с правильным Content-Type для Happ
         response = Response(subscription_data)
         
-        # Для base64 используем application/octet-stream или text/plain
-        if output_format == 'base64':
-            response.headers['Content-Type'] = 'application/octet-stream'
-        else:
-            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+        # Happ требует text/plain даже для base64!
+        response.headers['Content-Type'] = 'text/plain; charset=utf-8'
         
         # Добавляем остальные заголовки
         for key, value in headers.items():
