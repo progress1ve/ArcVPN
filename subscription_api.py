@@ -189,7 +189,7 @@ def subscription(sub_id: str):
         logger.info(f"Запрос subscription для sub_id={sub_id}, User-Agent: {user_agent}")
         
         # Получаем формат из query параметров
-        output_format = request.args.get('format', 'plain').lower()
+        output_format = request.args.get('format', 'base64').lower()
         
         # Находим ключ по sub_id
         with get_db() as conn:
