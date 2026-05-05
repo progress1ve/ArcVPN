@@ -296,8 +296,12 @@ def subscription(sub_id: str):
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
-        # Создаём простой Response без заголовков (Nginx добавит свои)
+        # Создаём Response с правильным Content-Type для Happ
+        # ВАЖНО: Happ требует именно "text/plain" БЕЗ charset
         response = Response(subscription_data)
+        response.headers['Content-Type'] = 'text/plain'
+        response.headers['Content-Disposition'] = 'inline'
+        response.headers['Cache-Control'] = 'no-cache'
         
         return response
         
