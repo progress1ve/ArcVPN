@@ -289,34 +289,41 @@ def subscription(sub_id: str):
             
             # Формируем конфиг в формате Sing-box с routing rules
             json_data = {
-                "outbounds": [{
-                    "type": "vless",
-                    "tag": key.get('tariff_name', 'ArcVPN'),
-                    "server": parsed.hostname,
-                    "server_port": parsed.port or 443,
-                    "uuid": parsed.username,
-                    "flow": params.get('flow', [''])[0] or "",
-                    "tls": {
-                        "enabled": True,
-                        "server_name": params.get('sni', [''])[0] or parsed.hostname,
-                        "utls": {
+                "outbounds": [
+                    {
+                        "type": "vless",
+                        "tag": key.get('tariff_name', 'ArcVPN'),
+                        "server": parsed.hostname,
+                        "server_port": parsed.port or 443,
+                        "uuid": parsed.username,
+                        "flow": params.get('flow', [''])[0] or "",
+                        "tls": {
                             "enabled": True,
-                            "fingerprint": params.get('fp', ['chrome'])[0]
-                        },
-                        "reality": {
-                            "enabled": True,
-                            "public_key": params.get('pbk', [''])[0],
-                            "short_id": params.get('sid', [''])[0]
+                            "server_name": params.get('sni', [''])[0] or parsed.hostname,
+                            "utls": {
+                                "enabled": True,
+                                "fingerprint": params.get('fp', ['chrome'])[0]
+                            },
+                            "reality": {
+                                "enabled": True,
+                                "public_key": params.get('pbk', [''])[0],
+                                "short_id": params.get('sid', [''])[0]
+                            }
                         }
+                    },
+                    {
+                        "type": "direct",
+                        "tag": "direct"
                     }
-                }],
+                ],
                 "route": {
                     "rules": [
                         {
                             "domain": ["sub.arcvpn.mooo.com"],
                             "outbound": "direct"
                         }
-                    ]
+                    ],
+                    "final": key.get('tariff_name', 'ArcVPN')
                 }
             }
             
@@ -332,21 +339,18 @@ def subscription(sub_id: str):
         
         # Кодируем в base64 если нужно
         if output_format == 'base64':
-            # Для Happ - добавляем profile-title и routing rules
-            # Routing rule исключает домен подписки из VPN туннеля
+            # Для Happ - простой формат без правил (правила лучше настроить в самом Happ)
             text_with_title = (
                 f"#profile-title: base64:QXJjVlBO\n"
                 f"#profile-update-interval: 24\n"
-                f"#!MANAGED-CONFIG-RULE:DOMAIN,sub.arcvpn.mooo.com,DIRECT\n"
                 f"{link}\n"
             )
             subscription_data = base64.b64encode(text_with_title.encode()).decode()
         else:
-            # Plain text с заголовком и правилами
+            # Plain text с заголовком
             subscription_data = (
                 f"#profile-title: base64:QXJjVlBO\n"
                 f"#profile-update-interval: 24\n"
-                f"#!MANAGED-CONFIG-RULE:DOMAIN,sub.arcvpn.mooo.com,DIRECT\n"
                 f"{link}\n"
             )
         
