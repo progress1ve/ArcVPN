@@ -8,7 +8,6 @@ Subscription API для VPN бота.
 
 import base64
 import asyncio
-import ipaddress
 import logging
 import urllib.parse
 from flask import Flask, Response
@@ -26,19 +25,6 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-
-
-def build_direct_rule(host: str) -> dict:
-    """
-    Формирует direct-правило для sing-box в зависимости от типа хоста.
-    Для IP используем ip_cidr, для домена — domain.
-    """
-    try:
-        ip = ipaddress.ip_address(host)
-        suffix = "32" if ip.version == 4 else "128"
-        return {"ip_cidr": [f"{ip}/{suffix}"], "outbound": "direct"}
-    except ValueError:
-        return {"domain": [host], "outbound": "direct"}
 
 
 def get_user_active_keys(user_id: int) -> list:
@@ -265,7 +251,6 @@ def subscription(sub_id: str):
             parsed = urllib.parse.urlparse(link)
             params = urllib.parse.parse_qs(parsed.query)
             subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or "arcc.mooo.com"
-            direct_rule = build_direct_rule(subscription_host)
             
             # Формируем конфиг в формате Sing-box с routing rules
             json_data = {
@@ -297,7 +282,12 @@ def subscription(sub_id: str):
                     }
                 ],
                 "route": {
-                    "rules": [direct_rule],
+                    "rules": [
+                        {
+                            "domain": [subscription_host],
+                            "outbound": "direct"
+                        }
+                    ],
                     "final": key.get('tariff_name', 'ArcVPN')
                 }
             }
