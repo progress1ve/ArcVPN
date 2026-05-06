@@ -340,7 +340,6 @@ def subscription(sub_id: str):
             # Happ ожидает text/plain для base64 подписок
             response.headers['Content-Type'] = 'text/plain; charset=utf-8'
             response.headers['profile-update-interval'] = '24'
-            response.headers['subscription-userinfo'] = f'upload=0; download=0; total=107374182400; expire={int((key.get("expires_at") or 0))}'
         else:
             # Для plain text
             response.headers['Content-Type'] = 'text/plain; charset=utf-8'
