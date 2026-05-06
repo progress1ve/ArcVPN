@@ -1,6 +1,10 @@
 import logging
 import uuid
 import asyncio
+import base64
+import ipaddress
+import json
+import urllib.parse
 from datetime import datetime
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -16,6 +20,46 @@ from bot.utils.text import escape_html, safe_edit_or_send
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+def _build_happ_links(subscription_url: str) -> tuple[str, str]:
+    """
+    Возвращает две ссылки:
+    1) deeplink для включения routing-обхода по IP/домену URL подписки;
+    2) deeplink для импорта подписки.
+    """
+    parsed = urllib.parse.urlparse(subscription_url)
+    host = parsed.hostname or ""
+
+    routing_profile = {
+        "Name": "ArcVPN Import",
+        "GlobalProxy": "true",
+        "DomainStrategy": "IPIfNonMatch",
+        "FakeDNS": "false",
+        "DirectSites": [],
+        "DirectIp": [],
+    }
+
+    try:
+        ip = ipaddress.ip_address(host)
+        suffix = "32" if ip.version == 4 else "128"
+        routing_profile["DirectIp"] = [f"{ip}/{suffix}"]
+    except ValueError:
+        if host:
+            routing_profile["DirectSites"] = [host]
+
+    routing_b64 = base64.b64encode(
+        json.dumps(routing_profile, ensure_ascii=False).encode("utf-8")
+    ).decode("ascii")
+
+    routing_deeplink = f"happ://routing/onadd/{routing_b64}"
+    import_deeplink = f"happ://add/{urllib.parse.quote(subscription_url, safe='')}"
+
+    # Открываем deeplink через промежуточную https-страницу, чтобы Telegram корректно запускал Happ
+    routing_link = f"https://braconnect.app/link?url_ha={urllib.parse.quote(routing_deeplink, safe='')}"
+    import_link = f"https://braconnect.app/link?url_ha={urllib.parse.quote(import_deeplink, safe='')}"
+
+    return routing_link, import_link
 
 @router.message(Command('mykeys'))
 async def cmd_mykeys(message: Message, state: FSMContext):
@@ -326,7 +370,6 @@ async def instruction_apple_handler(callback: CallbackQuery):
     from aiogram.types import InlineKeyboardButton
     from config import SUBSCRIPTION_URL
     from database.requests import get_user_keys_for_display
-    import urllib.parse
     
     telegram_id = callback.from_user.id
     
@@ -348,17 +391,17 @@ async def instruction_apple_handler(callback: CallbackQuery):
     # Для Happ используем JSON-формат с direct-правилом для домена подписки
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=json"
     
-    # Создаем ссылку через braconnect для автоматического импорта в Happ
-    encoded_url = urllib.parse.quote(subscription_url, safe='')
-    import_link_happ = f"https://braconnect.app/link?url_ha={encoded_url}"
+    routing_link_happ, import_link_happ = _build_happ_links(subscription_url)
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "<b>Шаг 2:</b> Нажмите «🧭 Обход импорта» (один раз)\n"
+        "Это нужно, чтобы импорт работал даже при уже включенном VPN.\n\n"
+        "<b>Шаг 3:</b> Импортируйте подписку\n"
         "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
@@ -369,6 +412,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         
         # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"))
+        builder.row(InlineKeyboardButton(text="🧭 Обход импорта", url=routing_link_happ))
         builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
         
         # Навигация
@@ -393,7 +437,6 @@ async def instruction_android_handler(callback: CallbackQuery):
     from aiogram.types import InlineKeyboardButton
     from config import SUBSCRIPTION_URL
     from database.requests import get_user_keys_for_display
-    import urllib.parse
     
     telegram_id = callback.from_user.id
     
@@ -415,17 +458,17 @@ async def instruction_android_handler(callback: CallbackQuery):
     # Для Happ используем JSON-формат с direct-правилом для домена подписки
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=json"
     
-    # Создаем ссылку через braconnect для автоматического импорта в Happ
-    encoded_url = urllib.parse.quote(subscription_url, safe='')
-    import_link_happ = f"https://braconnect.app/link?url_ha={encoded_url}"
+    routing_link_happ, import_link_happ = _build_happ_links(subscription_url)
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
+        "<b>Шаг 2:</b> Нажмите «🧭 Обход импорта» (один раз)\n"
+        "Это нужно, чтобы импорт работал даже при уже включенном VPN.\n\n"
+        "<b>Шаг 3:</b> Импортируйте подписку\n"
         "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
     )
@@ -436,6 +479,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         
         # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=com.happproxy&hl=ru"))
+        builder.row(InlineKeyboardButton(text="🧭 Обход импорта", url=routing_link_happ))
         builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
         
         # Навигация
