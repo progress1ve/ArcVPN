@@ -335,13 +335,13 @@ def subscription(sub_id: str):
         # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
         
-        # Для base64 используем text/plain БЕЗ charset (Happ капризный)
+        # Happ может требовать application/octet-stream для подписок
         if output_format == 'base64':
-            response.headers['Content-Type'] = 'text/plain'
+            response.headers['Content-Type'] = 'application/octet-stream'
             response.headers['profile-update-interval'] = '24'
         else:
-            # Для plain text тоже без charset
-            response.headers['Content-Type'] = 'text/plain'
+            # Для plain text тоже octet-stream
+            response.headers['Content-Type'] = 'application/octet-stream'
         
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
