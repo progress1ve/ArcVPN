@@ -287,7 +287,7 @@ def subscription(sub_id: str):
             parsed = urllib.parse.urlparse(link)
             params = urllib.parse.parse_qs(parsed.query)
             
-            # Формируем конфиг в формате Sing-box
+            # Формируем конфиг в формате Sing-box с routing rules
             json_data = {
                 "outbounds": [{
                     "type": "vless",
@@ -309,7 +309,15 @@ def subscription(sub_id: str):
                             "short_id": params.get('sid', [''])[0]
                         }
                     }
-                }]
+                }],
+                "route": {
+                    "rules": [
+                        {
+                            "domain": ["sub.arcvpn.mooo.com"],
+                            "outbound": "direct"
+                        }
+                    ]
+                }
             }
             
             subscription_data = json.dumps(json_data, ensure_ascii=False, indent=2)
@@ -324,12 +332,23 @@ def subscription(sub_id: str):
         
         # Кодируем в base64 если нужно
         if output_format == 'base64':
-            # Для Happ - добавляем profile-title в контент
-            text_with_title = f"#profile-title: base64:QXJjVlBO\n#profile-update-interval: 24\n{link}\n"
+            # Для Happ - добавляем profile-title и routing rules
+            # Routing rule исключает домен подписки из VPN туннеля
+            text_with_title = (
+                f"#profile-title: base64:QXJjVlBO\n"
+                f"#profile-update-interval: 24\n"
+                f"#!MANAGED-CONFIG-RULE:DOMAIN,sub.arcvpn.mooo.com,DIRECT\n"
+                f"{link}\n"
+            )
             subscription_data = base64.b64encode(text_with_title.encode()).decode()
         else:
-            # Plain text с заголовком
-            subscription_data = f"#profile-title: base64:QXJjVlBO\n#profile-update-interval: 24\n{link}\n"
+            # Plain text с заголовком и правилами
+            subscription_data = (
+                f"#profile-title: base64:QXJjVlBO\n"
+                f"#profile-update-interval: 24\n"
+                f"#!MANAGED-CONFIG-RULE:DOMAIN,sub.arcvpn.mooo.com,DIRECT\n"
+                f"{link}\n"
+            )
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
