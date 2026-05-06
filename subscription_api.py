@@ -324,24 +324,29 @@ def subscription(sub_id: str):
         
         # Кодируем в base64 если нужно
         if output_format == 'base64':
-            # Для Happ - только чистый ключ без маркеров
-            subscription_data = base64.b64encode(f"{link}\n".encode()).decode()
+            # Для Happ - добавляем profile-title в контент
+            text_with_title = f"#profile-title: base64:QXJjVlBO\n#profile-update-interval: 24\n{link}\n"
+            subscription_data = base64.b64encode(text_with_title.encode()).decode()
         else:
-            # Plain text - только ключ
-            subscription_data = f"{link}\n"
+            # Plain text с заголовком
+            subscription_data = f"#profile-title: base64:QXJjVlBO\n#profile-update-interval: 24\n{link}\n"
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
         # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
         
-        # Happ может требовать application/octet-stream для подписок
+        # Happ требует application/octet-stream для подписок
         if output_format == 'base64':
             response.headers['Content-Type'] = 'application/octet-stream'
             response.headers['profile-update-interval'] = '24'
+            response.headers['profile-title'] = 'base64:' + base64.b64encode('ArcVPN'.encode()).decode()
+            response.headers['subscription-userinfo'] = 'upload=0; download=0; total=107374182400'
         else:
-            # Для plain text тоже octet-stream
+            # Для plain text
             response.headers['Content-Type'] = 'application/octet-stream'
+            response.headers['profile-title'] = 'base64:' + base64.b64encode('ArcVPN'.encode()).decode()
+            response.headers['profile-update-interval'] = '24'
         
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
