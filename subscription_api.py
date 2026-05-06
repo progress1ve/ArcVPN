@@ -26,6 +26,70 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
+# Домены, которые должны идти напрямую (без прокси) для нормальной работы локальных сервисов.
+# Список очищен от дублей и опечаток.
+DIRECT_DOMAIN_RULES = [
+    "homecredit.ru",
+    "alfabank.ru",
+    "tbank.ru",
+    "vtb.ru",
+    "psbank.ru",
+    "sberbank.ru",
+    "sber.ru",
+    "gasprombank.ru",
+    "rosbank.ru",
+    "unicredit.ru",
+    "banki.ru",
+    "mironline.ru",
+    "nspk.ru",
+    "sdek.ru",
+    "sdek.shopping",
+    "pochta.ru",
+    "cdek.ru",
+    "cdek.shopping",
+    "ozon.travel",
+    "ivi.ru",
+    "okko.tv",
+    "kion.ru",
+    "mts.ru",
+    "beeline.ru",
+    "megafon.ru",
+    "tele2.ru",
+    "yota.ru",
+    "kinopoisk.ru",
+    "2gis.ru",
+    "vkusnoitochka.ru",
+    "ozon.ru",
+    "wildberries.ru",
+    "wb.ru",
+    "sbermegamarket.ru",
+    "megamarket.ru",
+    "avito.ru",
+    "domclick.ru",
+    "vkusvill.ru",
+    "dzen.ru",
+    "ok.ru",
+    "auchan.ru",
+    "spar.ru",
+    "metro-cc.ru",
+    "petrovich.ru",
+    "vk-portal.net",
+    "vkvideo.ru",
+    "goldapple.ru",
+    "5ka.ru",
+    "magnit.ru",
+    "samokat.ru",
+    "delivery.ru",
+    "chizhik.club",
+    "dns.ru",
+    "detmir.ru",
+    "vkuser.net",
+    "okcdn.ru",
+    "trace-flow.ru",
+    "ifconfig.me",
+    "vk-analytics.ru",
+]
+
 
 def get_user_active_keys(user_id: int) -> list:
     """
@@ -253,6 +317,10 @@ def subscription(sub_id: str):
             subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or "arcc.mooo.com"
             
             # Формируем конфиг в формате Sing-box с routing rules
+            # 1) Локальные важные домены -> direct
+            # 2) Домен подписки -> direct (чтобы обновление профиля не ломалось)
+            # 3) Локальные/private подсети -> direct
+            # 4) Все остальное -> proxy (final)
             json_data = {
                 "outbounds": [
                     {
@@ -284,7 +352,22 @@ def subscription(sub_id: str):
                 "route": {
                     "rules": [
                         {
+                            "domain": DIRECT_DOMAIN_RULES,
+                            "outbound": "direct"
+                        },
+                        {
                             "domain": [subscription_host],
+                            "outbound": "direct"
+                        },
+                        {
+                            "ip_cidr": [
+                                "10.0.0.0/8",
+                                "172.16.0.0/12",
+                                "192.168.0.0/16",
+                                "169.254.0.0/16",
+                                "224.0.0.0/4",
+                                "255.255.255.255/32"
+                            ],
                             "outbound": "direct"
                         }
                     ],
