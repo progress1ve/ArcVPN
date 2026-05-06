@@ -282,15 +282,22 @@ def get_revenue_stats() -> Dict[str, Any]:
         return result
 
 
-def get_traffic_stats() -> Dict[str, Any]:
+def get_traffic_stats(page: int = 1, per_page: int = 10) -> Dict[str, Any]:
     """
     Получает статистику использования трафика.
+    
+    Args:
+        page: Номер страницы (начиная с 1)
+        per_page: Количество пользователей на странице
     
     Returns:
         Словарь со статистикой трафика:
         - total_used_gb: всего использовано трафика (ГБ)
         - avg_per_user_gb: средний трафик на пользователя (ГБ)
-        - top_users: топ-5 пользователей по трафику
+        - top_users: список пользователей по трафику
+        - total_users: общее количество пользователей с трафиком
+        - current_page: текущая страница
+        - total_pages: всего страниц
     """
     with get_db() as conn:
         # Всего использовано трафика
@@ -310,7 +317,18 @@ def get_traffic_stats() -> Dict[str, Any]:
         user_count = cursor.fetchone()['user_count']
         avg_gb = total_gb / user_count if user_count > 0 else 0
         
-        # Топ-5 пользователей по трафику
+        # Общее количество пользователей с трафиком
+        cursor = conn.execute("""
+            SELECT COUNT(DISTINCT vk.user_id) as total
+            FROM vpn_keys vk
+            WHERE vk.traffic_used > 0
+        """)
+        total_users = cursor.fetchone()['total']
+        
+        # Вычисляем offset
+        offset = (page - 1) * per_page
+        
+        # Топ пользователей по трафику с пагинацией
         cursor = conn.execute("""
             SELECT 
                 u.telegram_id,
@@ -318,10 +336,11 @@ def get_traffic_stats() -> Dict[str, Any]:
                 SUM(vk.traffic_used) as total_traffic
             FROM vpn_keys vk
             JOIN users u ON vk.user_id = u.id
+            WHERE vk.traffic_used > 0
             GROUP BY vk.user_id
             ORDER BY total_traffic DESC
-            LIMIT 5
-        """)
+            LIMIT ? OFFSET ?
+        """, (per_page, offset))
         
         top_users = []
         for row in cursor.fetchall():
@@ -332,8 +351,14 @@ def get_traffic_stats() -> Dict[str, Any]:
                 'traffic_gb': traffic_gb
             })
         
+        # Вычисляем общее количество страниц
+        total_pages = (total_users + per_page - 1) // per_page if total_users > 0 else 1
+        
         return {
             'total_used_gb': total_gb,
             'avg_per_user_gb': avg_gb,
-            'top_users': top_users
+            'top_users': top_users,
+            'total_users': total_users,
+            'current_page': page,
+            'total_pages': total_pages
         }

@@ -225,34 +225,64 @@ async def show_revenue_statistics(callback: CallbackQuery):
         await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
 
 
-@router.callback_query(F.data == 'admin_stats_traffic')
+@router.callback_query(F.data.startswith('admin_stats_traffic'))
 async def show_traffic_statistics(callback: CallbackQuery):
-    """Показывает статистику использования трафика."""
+    """Показывает статистику использования трафика с пагинацией."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
     
     try:
-        stats = get_traffic_stats()
+        # Парсим номер страницы из callback_data
+        # Формат: admin_stats_traffic или admin_stats_traffic:page
+        parts = callback.data.split(':')
+        page = int(parts[1]) if len(parts) > 1 else 1
+        
+        stats = get_traffic_stats(page=page, per_page=10)
         
         text = (
             "📈 <b>Статистика трафика</b>\n\n"
             f"📊 <b>Всего использовано:</b> {stats['total_used_gb']:.2f} ГБ\n"
-            f"👤 <b>Средний трафик на пользователя:</b> {stats['avg_per_user_gb']:.2f} ГБ\n\n"
+            f"👤 <b>Средний трафик на пользователя:</b> {stats['avg_per_user_gb']:.2f} ГБ\n"
+            f"👥 <b>Всего пользователей с трафиком:</b> {stats['total_users']}\n\n"
         )
         
         if stats['top_users']:
-            text += "<b>🏆 Топ-5 пользователей по трафику:</b>\n"
-            for i, user in enumerate(stats['top_users'], 1):
+            text += f"<b>🏆 Топ пользователей по трафику (стр. {stats['current_page']}/{stats['total_pages']}):</b>\n"
+            # Вычисляем глобальный номер пользователя
+            start_num = (stats['current_page'] - 1) * 10 + 1
+            for i, user in enumerate(stats['top_users'], start_num):
                 username = f"@{user['username']}" if user['username'] else f"ID: {user['telegram_id']}"
                 text += f"{i}. {escape_html(username)} — {user['traffic_gb']:.2f} ГБ\n"
         else:
             text += "<i>Нет данных о трафике</i>"
         
+        # Создаём клавиатуру с пагинацией
+        builder = InlineKeyboardBuilder()
+        
+        # Кнопки навигации
+        nav_buttons = []
+        if stats['current_page'] > 1:
+            nav_buttons.append(InlineKeyboardButton(
+                text='◀️ Назад',
+                callback_data=f'admin_stats_traffic:{stats["current_page"] - 1}'
+            ))
+        if stats['current_page'] < stats['total_pages']:
+            nav_buttons.append(InlineKeyboardButton(
+                text='Вперёд ▶️',
+                callback_data=f'admin_stats_traffic:{stats["current_page"] + 1}'
+            ))
+        
+        if nav_buttons:
+            builder.row(*nav_buttons)
+        
+        # Кнопки возврата
+        builder.row(back_button('admin_statistics'), home_button())
+        
         await safe_edit_or_send(
             callback.message,
             text,
-            reply_markup=stats_detail_kb()
+            reply_markup=builder.as_markup()
         )
         await callback.answer()
         
