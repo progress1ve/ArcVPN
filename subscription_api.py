@@ -337,15 +337,9 @@ def subscription(sub_id: str):
         response = Response(subscription_data)
         
         # Happ требует application/octet-stream для подписок
+        response.headers['Content-Type'] = 'application/octet-stream'
+        
         if output_format == 'base64':
-            response.headers['Content-Type'] = 'application/octet-stream'
-            response.headers['profile-update-interval'] = '24'
-            response.headers['profile-title'] = 'base64:' + base64.b64encode('ArcVPN'.encode()).decode()
-            response.headers['subscription-userinfo'] = 'upload=0; download=0; total=107374182400'
-        else:
-            # Для plain text
-            response.headers['Content-Type'] = 'application/octet-stream'
-            response.headers['profile-title'] = 'base64:' + base64.b64encode('ArcVPN'.encode()).decode()
             response.headers['profile-update-interval'] = '24'
         
         response.headers['Content-Disposition'] = 'inline'
