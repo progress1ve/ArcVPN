@@ -345,8 +345,8 @@ async def instruction_apple_handler(callback: CallbackQuery):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
     
-    # Формируем subscription URL с использованием sub_id
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}"
+    # Для Happ используем JSON-формат с direct-правилом для домена подписки
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=json"
     
     # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
@@ -412,8 +412,8 @@ async def instruction_android_handler(callback: CallbackQuery):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
     
-    # Формируем subscription URL с использованием sub_id
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}"
+    # Для Happ используем JSON-формат с direct-правилом для домена подписки
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=json"
     
     # Создаем ссылку через braconnect для автоматического импорта в Happ
     encoded_url = urllib.parse.quote(subscription_url, safe='')
