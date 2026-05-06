@@ -319,7 +319,7 @@ def subscription(sub_id: str):
                 "route": {
                     "rules": [
                         {
-                            "domain": ["sub.arcvpn.mooo.com"],
+                            "domain": ["arcc.mooo.com"],
                             "outbound": "direct"
                         }
                     ],
