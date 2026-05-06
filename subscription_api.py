@@ -335,14 +335,13 @@ def subscription(sub_id: str):
         # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
         
-        # Для base64 используем text/plain или вообще без Content-Type
+        # Для base64 используем text/plain БЕЗ charset (Happ капризный)
         if output_format == 'base64':
-            # Happ ожидает text/plain для base64 подписок
-            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            response.headers['Content-Type'] = 'text/plain'
             response.headers['profile-update-interval'] = '24'
         else:
-            # Для plain text
-            response.headers['Content-Type'] = 'text/plain; charset=utf-8'
+            # Для plain text тоже без charset
+            response.headers['Content-Type'] = 'text/plain'
         
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
