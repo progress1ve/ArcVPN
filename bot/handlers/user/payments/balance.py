@@ -388,58 +388,149 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
     Берёт данные из FSM state: balance_to_deduct, remaining_cents, tariff_id, key_id
     Создаёт инвойс на remaining_cents / 100 рублей (ЮKassa принимает рубли)
     """
-    from database.requests import get_tariff_by_id, get_user_internal_id, get_user_balance, create_pending_order, save_yookassa_payment_id
+    from database.requests import (
+        get_tariff_by_id, get_user_internal_id, get_user_balance, 
+        create_pending_order, save_yookassa_payment_id, find_order_by_order_id,
+        update_order_tariff
+    )
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb
     from bot.keyboards.admin import home_only_kb
     from aiogram.types import BufferedInputFile
+    
     data = await state.get_data()
     balance_to_deduct = data.get('balance_to_deduct', 0)
     tariff_price_cents = data.get('tariff_price_cents', 0)
     tariff_id = data.get('tariff_id')
     key_id = data.get('key_id')
+    
     parts = callback.data.split(':')
     if not tariff_id:
         tariff_id = int(parts[1]) if len(parts) > 1 else None
     if not key_id:
         key_id = int(parts[2]) if len(parts) > 2 and parts[2] != '0' else None
+    
+    # Получаем order_id если передан
+    existing_order_id = parts[3] if len(parts) > 3 and parts[3] != '0' else None
+    
     if not tariff_id:
         await callback.answer('❌ Ошибка: тариф не определён', show_alert=True)
         return
+    
     tariff = get_tariff_by_id(tariff_id)
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
+    
     user_id = get_user_internal_id(callback.from_user.id)
     if not user_id:
         await callback.answer('❌ Пользователь не найден', show_alert=True)
         return
+    
     if not tariff_price_cents:
         tariff_price_cents = int(tariff.get('price_rub', 0) * 100)
+    
     if not balance_to_deduct:
         balance_cents = get_user_balance(user_id)
         balance_to_deduct = min(balance_cents, tariff_price_cents)
-    remaining_cents = tariff_price_cents - balance_to_deduct
+    
+    # Проверяем есть ли промокод в существующем заказе
+    discount_rub = 0
+    promocode_id = None
+    if existing_order_id:
+        order = find_order_by_order_id(existing_order_id)
+        if order:
+            discount_rub = order.get('discount_rub', 0) or 0
+            promocode_id = order.get('promocode_id')
+            logger.info(f"Найден заказ {existing_order_id} с промокодом {promocode_id}, скидка {discount_rub}₽")
+    
+    # Применяем скидку от промокода
+    final_price_cents = max(0, tariff_price_cents - (discount_rub * 100))
+    remaining_cents = final_price_cents - balance_to_deduct
     remaining_rub = remaining_cents / 100
-    await state.update_data(balance_to_deduct=balance_to_deduct, tariff_price_cents=tariff_price_cents, tariff_id=tariff_id, key_id=key_id, remaining_cents=remaining_cents)
-    (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='yookassa_qr', vpn_key_id=key_id)
+    
+    await state.update_data(
+        balance_to_deduct=balance_to_deduct,
+        tariff_price_cents=tariff_price_cents,
+        tariff_id=tariff_id,
+        key_id=key_id,
+        remaining_cents=remaining_cents
+    )
+    
+    # Используем существующий заказ или создаём новый
+    if existing_order_id:
+        order_id = existing_order_id
+        # Обновляем способ оплаты
+        update_order_tariff(order_id, tariff_id, payment_type='yookassa_qr')
+        logger.info(f"Используем существующий заказ {order_id} с промокодом")
+    else:
+        (_, order_id) = create_pending_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type='yookassa_qr',
+            vpn_key_id=key_id
+        )
+    
     await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
+    
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.username
         description = f"Покупка «{tariff['name']}» — {tariff['duration_days']} дней"
-        result = await create_yookassa_qr_payment(amount_rub=remaining_rub, order_id=order_id, description=description, bot_name=bot_name)
+        
+        result = await create_yookassa_qr_payment(
+            amount_rub=remaining_rub,
+            order_id=order_id,
+            description=description,
+            bot_name=bot_name
+        )
+        
         save_yookassa_payment_id(order_id, result['yookassa_payment_id'])
+        
         qr_image_data = result.get('qr_image_data')
         qr_url = result.get('qr_url', '')
+        
         if not qr_image_data or not qr_url:
-            await safe_edit_or_send(callback.message, '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.', reply_markup=home_only_kb())
+            await safe_edit_or_send(
+                callback.message,
+                '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.',
+                reply_markup=home_only_kb()
+            )
             return
-        text = f"📱 <b>QR-код для оплаты</b>\n\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {remaining_rub:.2f} ₽\n⏳ <b>Срок:</b> {tariff['duration_days']} дней\n\nОтсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        
+        text = (
+            f"📱 <b>QR-код для оплаты</b>\n\n"
+            f"💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
+            f"💰 <b>Сумма:</b> {remaining_rub:.2f} ₽\n"
+            f"⏳ <b>Срок:</b> {tariff['duration_days']} дней\n\n"
+            f"Отсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n"
+            f"<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        )
+        
+        if discount_rub > 0:
+            text = text.replace(
+                f"💰 <b>Сумма:</b> {remaining_rub:.2f} ₽",
+                f"💰 <b>Цена:</b> <s>{tariff['price_rub']:.2f} ₽</s> → {remaining_rub:.2f} ₽\n"
+                f"🎟️ <b>Скидка по промокоду:</b> {discount_rub} ₽"
+            )
+        
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
         back_cb = f'key_renew:{key_id}' if key_id else 'buy_key'
-        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=back_cb, qr_url=qr_url), force_new=True)
+        
+        await safe_edit_or_send(
+            callback.message,
+            text,
+            photo=photo,
+            reply_markup=yookassa_qr_kb(order_id, back_callback=back_cb, qr_url=qr_url),
+            force_new=True
+        )
+        
     except (ValueError, RuntimeError) as e:
         logger.error(f'Ошибка создания QR ЮКасса: {e}')
-        await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.', reply_markup=home_only_kb())
+        await safe_edit_or_send(
+            callback.message,
+            f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.',
+            reply_markup=home_only_kb()
+        )
+    
     await callback.answer()

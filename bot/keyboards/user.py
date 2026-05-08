@@ -378,7 +378,7 @@ def balance_payment_kb(
             builder.row(
                 InlineKeyboardButton(
                     text="📱 Доплатить по QR (СБП)",
-                    callback_data=f"pay_qr_balance:{tariff_id}:{key_id if key_id else '0'}"
+                    callback_data=f"pay_qr_balance:{tariff_id}:{key_id if key_id else '0'}:{order_id if order_id else '0'}"
                 )
             )
     

@@ -256,6 +256,111 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
             
             logger.info(f"Создан черновик ключа {key_id} для заказа {order_id}")
             
+            # АВТОМАТИЧЕСКАЯ НАСТРОЙКА КЛЮЧЕЙ НА ВСЕХ СЕРВЕРАХ
+            try:
+                from database.requests import get_active_servers, get_user_by_id, create_vpn_key_admin
+                from bot.services.vpn_api import get_client
+                import uuid
+                
+                # Получаем ВСЕ активные серверы
+                servers = get_active_servers()
+                if not servers:
+                    logger.warning(f"Нет доступных серверов для автоматической настройки ключа {key_id}")
+                else:
+                    user = get_user_by_id(user_internal_id)
+                    telegram_id = user['telegram_id']
+                    username = user.get('username')
+                    
+                    logger.info(f"Автоматическая настройка ключей на {len(servers)} серверах для заказа {order_id}")
+                    
+                    created_keys = []
+                    
+                    # Создаем ключи на ВСЕХ серверах
+                    for idx, server in enumerate(servers):
+                        try:
+                            server_id = server['id']
+                            server_name = server['name']
+                            
+                            logger.info(f"[{idx+1}/{len(servers)}] Настройка на сервере {server_name} (ID: {server_id})")
+                            
+                            # Подключаемся к панели
+                            client = await get_client(server_id)
+                            inbounds = await client.get_inbounds()
+                            
+                            if not inbounds:
+                                logger.warning(f"На сервере {server_name} нет доступных протоколов, пропускаем")
+                                continue
+                            
+                            # Берем первый inbound
+                            inbound = inbounds[0]
+                            inbound_id = inbound['id']
+                            
+                            # Генерируем уникальный email для панели
+                            base = f"user_{username}" if username else f"user_{telegram_id}"
+                            suffix = uuid.uuid4().hex[:5]
+                            panel_email = f'{base}_{suffix}'
+                            
+                            # Получаем flow для inbound
+                            flow = await client.get_inbound_flow(inbound_id)
+                            
+                            # Создаем клиента на панели
+                            limit_gb = (_tariff.get('traffic_limit_gb', 0) or 0)
+                            
+                            res = await client.add_client(
+                                inbound_id=inbound_id,
+                                email=panel_email,
+                                total_gb=limit_gb,
+                                expire_days=days,
+                                limit_ip=1,
+                                enable=True,
+                                tg_id=str(telegram_id),
+                                flow=flow
+                            )
+                            
+                            client_uuid = res['uuid']
+                            
+                            # Создаем ключ в БД для этого сервера
+                            # Для первого сервера используем уже созданный key_id
+                            if idx == 0:
+                                from database.requests import update_vpn_key_config
+                                update_vpn_key_config(
+                                    key_id=key_id,
+                                    server_id=server_id,
+                                    panel_inbound_id=inbound_id,
+                                    panel_email=panel_email,
+                                    client_uuid=client_uuid
+                                )
+                                created_keys.append(key_id)
+                                logger.info(f"✅ Основной ключ {key_id} настроен на {server_name}")
+                            else:
+                                # Для остальных серверов создаем новые ключи
+                                new_key_id = create_vpn_key_admin(
+                                    user_id=user_internal_id,
+                                    server_id=server_id,
+                                    tariff_id=order['tariff_id'],
+                                    panel_inbound_id=inbound_id,
+                                    panel_email=panel_email,
+                                    client_uuid=client_uuid,
+                                    days=days,
+                                    traffic_limit=traffic_limit_bytes
+                                )
+                                created_keys.append(new_key_id)
+                                logger.info(f"✅ Дополнительный ключ {new_key_id} создан на {server_name}")
+                        
+                        except Exception as e:
+                            logger.error(f"Ошибка настройки на сервере {server.get('name')}: {e}")
+                            continue
+                    
+                    if created_keys:
+                        logger.info(f"🎉 Успешно создано {len(created_keys)} ключей на {len(created_keys)} серверах для заказа {order_id}")
+                    else:
+                        logger.warning(f"⚠️ Не удалось создать ни одного ключа на панелях для заказа {order_id}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка автоматической настройки ключей: {e}", exc_info=True)
+                # Продолжаем выполнение - основной ключ создан, но не настроен
+                # Пользователь сможет настроить его позже через интерфейс
+            
             if order.get('payment_type') == 'crypto':
                 await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
             

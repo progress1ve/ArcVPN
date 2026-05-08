@@ -66,7 +66,7 @@ async def pay_stars_handler(callback: CallbackQuery):
     from aiogram.types import LabeledPrice
     from database.requests import (
         get_tariff_by_id, get_user_internal_id, create_pending_order,
-        update_order_tariff, get_all_tariffs
+        update_order_tariff, get_all_tariffs, find_order_by_order_id
     )
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
@@ -77,7 +77,7 @@ async def pay_stars_handler(callback: CallbackQuery):
     # Если формат pay_stars_tariff:tariff_id:order_id - тариф уже выбран
     if len(parts) >= 3 and parts[0] == 'pay_stars_tariff':
         tariff_id = int(parts[1])
-        order_id = parts[2] if len(parts) > 2 else None
+        order_id = parts[2] if len(parts) > 2 and parts[2] != 'None' else None
         
         tariff = get_tariff_by_id(tariff_id)
         if not tariff:
