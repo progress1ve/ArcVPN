@@ -245,7 +245,7 @@ async def pay_qr_handler(callback: CallbackQuery):
     # Если формат pay_qr_tariff:tariff_id:order_id - тариф уже выбран
     if len(parts) >= 3 and parts[0] == 'pay_qr_tariff':
         tariff_id = int(parts[1])
-        order_id = parts[2] if len(parts) > 2 else None
+        order_id = parts[2] if len(parts) > 2 and parts[2] != 'None' else None
         
         tariff = get_tariff_by_id(tariff_id)
         if not tariff:
@@ -262,8 +262,21 @@ async def pay_qr_handler(callback: CallbackQuery):
             await callback.answer('❌ Ошибка пользователя', show_alert=True)
             return
         
-        # Создаем заказ если нет
-        if not order_id:
+        # Проверяем существующий заказ на наличие промокода
+        from database.requests import find_order_by_order_id, update_order_tariff
+        existing_order = find_order_by_order_id(order_id) if order_id else None
+        
+        # Создаем или обновляем заказ
+        if order_id and existing_order:
+            # Заказ существует - обновляем только тариф, сохраняя промокод
+            update_order_tariff(order_id, tariff_id, payment_type='yookassa_qr')
+            # Применяем скидку от промокода
+            discount_rub = existing_order.get('discount_rub', 0) or 0
+            if discount_rub > 0:
+                price_rub = max(0, price_rub - discount_rub)
+                logger.info(f"Применена скидка промокода: {discount_rub} руб, итоговая цена: {price_rub} руб")
+        else:
+            # Создаем новый заказ
             (_, order_id) = create_pending_order(
                 user_id=user_id,
                 tariff_id=tariff_id,
