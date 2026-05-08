@@ -46,10 +46,22 @@ async def pay_cards_handler(callback: CallbackQuery):
         
         days = tariff['duration_days']
         
+        # Проверяем существующий заказ на наличие промокода
+        from database.requests import find_order_by_order_id
+        existing_order = find_order_by_order_id(order_id) if order_id else None
+        
         # Создаем или обновляем заказ
-        if order_id:
+        if order_id and existing_order:
+            # Заказ существует - обновляем только тариф, сохраняя промокод
             update_order_tariff(order_id, tariff_id, payment_type='cards')
+            # Применяем скидку от промокода
+            price_rub = float(tariff.get('price_rub') or 0)
+            discount_rub = existing_order.get('discount_rub', 0) or 0
+            if discount_rub > 0:
+                price_rub = max(0, price_rub - discount_rub)
+                logger.info(f"Применена скидка промокода: {discount_rub} руб, итоговая цена: {price_rub} руб")
         else:
+            # Создаем новый заказ
             if not user_id:
                 await callback.answer('❌ Ошибка пользователя', show_alert=True)
                 return
@@ -59,8 +71,8 @@ async def pay_cards_handler(callback: CallbackQuery):
                 payment_type='cards', 
                 vpn_key_id=None
             )
+            price_rub = float(tariff.get('price_rub') or 0)
         
-        price_rub = float(tariff.get('price_rub') or 0)
         price_kopecks = int(round(price_rub * 100))
         
         if price_kopecks <= 0:

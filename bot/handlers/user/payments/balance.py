@@ -324,52 +324,115 @@ async def pay_card_balance_handler(callback: CallbackQuery, state: FSMContext):
     """
     Частичная оплата: баланс + карта.
     
-    Берёт данные из FSM state: balance_to_deduct, remaining_cents, tariff_id, key_id
+    Берёт данные из FSM state: balance_to_deduct, remaining_cents, tariff_id, key_id, order_id
     Создаёт инвойс на remaining_cents (не на полную цену тарифа!)
+    Учитывает промокод если он был применен.
     """
     from aiogram.types import LabeledPrice
-    from database.requests import get_tariff_by_id, get_user_internal_id, get_user_balance, create_pending_order, get_setting
+    from database.requests import (
+        get_tariff_by_id, get_user_internal_id, get_user_balance, 
+        create_pending_order, get_setting, find_order_by_order_id,
+        update_order_tariff
+    )
     from aiogram.exceptions import TelegramBadRequest
+    
     data = await state.get_data()
     balance_to_deduct = data.get('balance_to_deduct', 0)
     tariff_price_cents = data.get('tariff_price_cents', 0)
     tariff_id = data.get('tariff_id')
     key_id = data.get('key_id')
+    existing_order_id = data.get('order_id')  # Заказ с промокодом из state
+    
     parts = callback.data.split(':')
     if not tariff_id:
         tariff_id = int(parts[1]) if len(parts) > 1 else None
     if not key_id:
         key_id = int(parts[2]) if len(parts) > 2 and parts[2] != '0' else None
+    
     if not tariff_id:
         await callback.answer('❌ Ошибка: тариф не определён', show_alert=True)
         return
+    
     tariff = get_tariff_by_id(tariff_id)
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
+    
     provider_token = get_setting('cards_provider_token', '')
     if not provider_token:
         await callback.answer('❌ Провайдер платежей не настроен', show_alert=True)
         return
+    
     user_id = get_user_internal_id(callback.from_user.id)
     if not user_id:
         await callback.answer('❌ Ошибка пользователя', show_alert=True)
         return
+    
+    # Проверяем есть ли промокод в существующем заказе
+    discount_rub = 0
+    promocode_id = None
+    if existing_order_id:
+        order = find_order_by_order_id(existing_order_id)
+        if order:
+            discount_rub = order.get('discount_rub', 0) or 0
+            promocode_id = order.get('promocode_id')
+            logger.info(f"Найден заказ {existing_order_id} с промокодом {promocode_id}, скидка {discount_rub}₽")
+    
+    # Пересчитываем цену с учетом промокода
     if not tariff_price_cents:
-        tariff_price_cents = int(tariff.get('price_rub', 0) * 100)
+        base_price_cents = int(tariff.get('price_rub', 0) * 100)
+        tariff_price_cents = max(0, base_price_cents - (discount_rub * 100))
+    
     if not balance_to_deduct:
         balance_cents = get_user_balance(user_id)
         balance_to_deduct = min(balance_cents, tariff_price_cents)
+    
     remaining_cents = tariff_price_cents - balance_to_deduct
-    await state.update_data(balance_to_deduct=balance_to_deduct, tariff_price_cents=tariff_price_cents, tariff_id=tariff_id, key_id=key_id, remaining_cents=remaining_cents)
-    (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='cards', vpn_key_id=key_id)
+    
+    await state.update_data(
+        balance_to_deduct=balance_to_deduct,
+        tariff_price_cents=tariff_price_cents,
+        tariff_id=tariff_id,
+        key_id=key_id,
+        remaining_cents=remaining_cents,
+        order_id=existing_order_id
+    )
+    
+    # Используем существующий заказ или создаём новый
+    if existing_order_id:
+        order_id = existing_order_id
+        # Обновляем способ оплаты
+        update_order_tariff(order_id, tariff_id, payment_type='cards')
+        logger.info(f"Используем существующий заказ {order_id} с промокодом")
+    else:
+        (_, order_id) = create_pending_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type='cards',
+            vpn_key_id=key_id
+        )
+    
     price_rub = remaining_cents / 100
     price_kopecks = remaining_cents
+    
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.first_name
         back_cb = f'key_renew:{key_id}' if key_id else 'buy_key'
-        await callback.message.answer_invoice(title=bot_name, description=f"Оплата тарифа «{tariff['name']}» ({tariff['duration_days']} дн.).", payload=f'vpn_key:{order_id}', provider_token=provider_token, currency='RUB', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_kopecks)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f'💳 Оплатить {price_rub:.2f} ₽', pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data=back_cb)).as_markup())
+        
+        await callback.message.answer_invoice(
+            title=bot_name,
+            description=f"Оплата тарифа «{tariff['name']}» ({tariff['duration_days']} дн.).",
+            payload=f'vpn_key:{order_id}',
+            provider_token=provider_token,
+            currency='RUB',
+            prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_kopecks)],
+            reply_markup=InlineKeyboardBuilder().row(
+                InlineKeyboardButton(text=f'💳 Оплатить {price_rub:.2f} ₽', pay=True)
+            ).row(
+                InlineKeyboardButton(text='❌ Отмена', callback_data=back_cb)
+            ).as_markup()
+        )
     except TelegramBadRequest as e:
         if 'CURRENCY_TOTAL_AMOUNT_INVALID' in str(e):
             logger.warning(f"Ошибка платежа (CARDS): Неправильная сумма. Тариф: ID {tariff['id']}")
@@ -377,6 +440,7 @@ async def pay_card_balance_handler(callback: CallbackQuery, state: FSMContext):
             return
         logger.exception('Ошибка при отправке инвойса картой.')
         raise e
+    
     await callback.message.delete()
     await callback.answer()
 

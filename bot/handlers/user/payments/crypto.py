@@ -86,21 +86,28 @@ async def pay_crypto_handler(callback: CallbackQuery):
     # Если формат pay_crypto_tariff:tariff_id:order_id - тариф уже выбран
     if len(parts) >= 3 and parts[0] == 'pay_crypto_tariff':
         tariff_id = int(parts[1])
-        order_id = parts[2] if len(parts) > 2 else None
+        order_id = parts[2] if len(parts) > 2 and parts[2] != 'None' else None
         
         tariff = get_tariff_by_id(tariff_id)
         if not tariff:
             await callback.answer('❌ Тариф не найден', show_alert=True)
             return
         
+        user_id = get_user_internal_id(callback.from_user.id)
+        if not user_id:
+            await callback.answer('❌ Ошибка пользователя', show_alert=True)
+            return
+        
+        # Проверяем существующий заказ на наличие промокода
+        from database.requests import find_order_by_order_id
+        existing_order = find_order_by_order_id(order_id) if order_id else None
+        
         # Создаем или обновляем заказ
-        if order_id:
+        if order_id and existing_order:
+            # Заказ существует - обновляем только тариф, сохраняя промокод
             update_order_tariff(order_id, tariff_id, payment_type='crypto')
         else:
-            user_id = get_user_internal_id(callback.from_user.id)
-            if not user_id:
-                await callback.answer('❌ Ошибка пользователя', show_alert=True)
-                return
+            # Создаем новый заказ
             (_, order_id) = create_pending_order(
                 user_id=user_id,
                 tariff_id=tariff_id,

@@ -86,14 +86,20 @@ async def pay_stars_handler(callback: CallbackQuery):
         
         days = tariff['duration_days']
         
+        user_id = get_user_internal_id(callback.from_user.id)
+        if not user_id:
+            await callback.answer('❌ Ошибка пользователя', show_alert=True)
+            return
+        
+        # Проверяем существующий заказ на наличие промокода
+        existing_order = find_order_by_order_id(order_id) if order_id else None
+        
         # Создаем или обновляем заказ
-        if order_id:
+        if order_id and existing_order:
+            # Заказ существует - обновляем только тариф, сохраняя промокод
             update_order_tariff(order_id, tariff_id, payment_type='stars')
         else:
-            user_id = get_user_internal_id(callback.from_user.id)
-            if not user_id:
-                await callback.answer('❌ Ошибка пользователя', show_alert=True)
-                return
+            # Создаем новый заказ
             (_, order_id) = create_pending_order(
                 user_id=user_id,
                 tariff_id=tariff_id,
@@ -101,7 +107,25 @@ async def pay_stars_handler(callback: CallbackQuery):
                 vpn_key_id=None
             )
         
-        price_stars = tariff['price_stars']
+        # Получаем финальную цену с учетом промокода
+        base_price_stars = tariff.get('price_stars', 0)
+        
+        if not base_price_stars or base_price_stars <= 0:
+            await callback.answer('❌ Цена в Stars не задана для этого тарифа', show_alert=True)
+            return
+        
+        # Применяем скидку от промокода если есть
+        if existing_order:
+            discount_rub = existing_order.get('discount_rub', 0) or 0
+            if discount_rub > 0:
+                # Конвертируем скидку в Stars (примерно 1 Star ≈ 1.3 RUB)
+                discount_stars = int(discount_rub / 1.3)
+                price_stars = max(1, base_price_stars - discount_stars)
+                logger.info(f"Применена скидка промокода: {discount_rub} руб = {discount_stars} Stars, итого: {price_stars} Stars")
+            else:
+                price_stars = base_price_stars
+        else:
+            price_stars = base_price_stars
         
         try:
             bot_info = await callback.bot.get_me()
