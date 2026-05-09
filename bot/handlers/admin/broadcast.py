@@ -532,7 +532,7 @@ async def broadcast_notify_text(callback: CallbackQuery, state: FSMContext):
             "📝 <b>Справка: Текст уведомления об истечении</b>\n\n"
             "Переменные:\n"
             "• <code>%дней%</code> — количество дней до истечения\n"
-            "• <code>%имяключа%</code> — имя ключа"
+            "• <code>%имяподписки%</code> — название подписки"
         ),
         allowed_types=['text', 'photo'],
     )
