@@ -146,10 +146,10 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
     if payments:
         lines.append('📜 <b>История операций:</b>')
         for p in payments:
-            # Форматируем дату в формате ДД-ММ-ГГГГ (московское время)
+            # Форматируем дату и время в формате ДД-ММ-ГГГГ ЧЧ:ММ (московское время)
             if p['paid_at']:
-                from bot.utils.datetime_utils import format_date
-                date = format_date(p['paid_at'])
+                from bot.utils.datetime_utils import format_datetime
+                date = format_datetime(p['paid_at'], format_str="%d-%m-%Y %H:%M")
             else:
                 date = '—'
             tariff = escape_html(p.get('tariff_name') or 'Тариф')

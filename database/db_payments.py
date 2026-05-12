@@ -97,7 +97,7 @@ def get_user_payments_stats(user_id: int) -> Dict[str, Any]:
         - tariffs: список уникальных тарифов
     """
     with get_db() as conn:
-        # Общая статистика
+        # Общая статистика (исключаем пробные подписки)
         cursor = conn.execute("""
             SELECT 
                 COUNT(*) as total_payments,
@@ -107,7 +107,7 @@ def get_user_payments_stats(user_id: int) -> Dict[str, Any]:
                 MAX(paid_at) as last_payment_at
             FROM payments p
             LEFT JOIN tariffs t ON p.tariff_id = t.id
-            WHERE p.user_id = ? AND p.status = 'paid'
+            WHERE p.user_id = ? AND p.status = 'paid' AND p.payment_type != 'trial'
         """, (user_id,))
         stats = dict(cursor.fetchone())
         
@@ -204,6 +204,7 @@ def get_daily_payments_stats() -> Dict[str, Any]:
 def get_key_payments_history(key_id: int) -> List[Dict[str, Any]]:
     """
     Получает историю платежей по конкретному ключу.
+    Исключает пробные подписки (payment_type='trial').
     
     Args:
         key_id: ID ключа
@@ -218,7 +219,7 @@ def get_key_payments_history(key_id: int) -> List[Dict[str, Any]]:
                 t.name as tariff_name, t.price_rub
             FROM payments p
             LEFT JOIN tariffs t ON p.tariff_id = t.id
-            WHERE p.vpn_key_id = ? AND p.status = 'paid'
+            WHERE p.vpn_key_id = ? AND p.status = 'paid' AND p.payment_type != 'trial'
             ORDER BY p.paid_at DESC
         """, (key_id,))
         return [dict(row) for row in cursor.fetchall()]

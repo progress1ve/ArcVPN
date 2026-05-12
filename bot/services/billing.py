@@ -262,49 +262,67 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
                 from bot.services.vpn_api import get_client
                 import uuid
                 
+                logger.info(f"🔧 Начало автоматической настройки ключей для заказа {order_id}")
+                
                 # Получаем ВСЕ активные серверы
                 servers = get_active_servers()
                 if not servers:
-                    logger.warning(f"Нет доступных серверов для автоматической настройки ключа {key_id}")
+                    logger.warning(f"⚠️  Нет доступных серверов для автоматической настройки ключа {key_id}")
                 else:
                     user = get_user_by_id(user_internal_id)
                     telegram_id = user['telegram_id']
                     username = user.get('username')
                     
-                    logger.info(f"Автоматическая настройка ключей на {len(servers)} серверах для заказа {order_id}")
+                    logger.info(f"📊 Автоматическая настройка ключей на {len(servers)} серверах для заказа {order_id}")
+                    logger.info(f"👤 Пользователь: telegram_id={telegram_id}, username={username}")
                     
                     created_keys = []
                     
                     # Создаем ключи на ВСЕХ серверах
                     for idx, server in enumerate(servers):
+                        server_id = server['id']
+                        server_name = server['name']
+                        
                         try:
-                            server_id = server['id']
-                            server_name = server['name']
-                            
-                            logger.info(f"[{idx+1}/{len(servers)}] Настройка на сервере {server_name} (ID: {server_id})")
+                            logger.info(f"[{idx+1}/{len(servers)}] 🔄 Настройка на сервере {server_name} (ID: {server_id})")
                             
                             # Подключаемся к панели
+                            logger.debug(f"Подключение к панели {server_name}...")
                             client = await get_client(server_id)
+                            logger.debug(f"✅ Подключение установлено")
+                            
+                            # Получаем inbounds
+                            logger.debug(f"Получение inbounds...")
                             inbounds = await client.get_inbounds()
                             
                             if not inbounds:
-                                logger.warning(f"На сервере {server_name} нет доступных протоколов, пропускаем")
+                                logger.warning(f"⚠️  На сервере {server_name} нет доступных протоколов, пропускаем")
                                 continue
+                            
+                            logger.debug(f"✅ Получено {len(inbounds)} inbound(s)")
                             
                             # Берем первый inbound
                             inbound = inbounds[0]
                             inbound_id = inbound['id']
+                            
+                            logger.debug(f"Выбран inbound: {inbound.get('remark', 'N/A')} (ID: {inbound_id}, protocol: {inbound.get('protocol', 'N/A')})")
                             
                             # Генерируем уникальный email для панели
                             base = f"user_{username}" if username else f"user_{telegram_id}"
                             suffix = uuid.uuid4().hex[:5]
                             panel_email = f'{base}_{suffix}'
                             
+                            logger.debug(f"Сгенерирован email: {panel_email}")
+                            
                             # Получаем flow для inbound
+                            logger.debug(f"Получение flow для inbound {inbound_id}...")
                             flow = await client.get_inbound_flow(inbound_id)
+                            logger.debug(f"Flow: {flow}")
                             
                             # Создаем клиента на панели
                             limit_gb = (_tariff.get('traffic_limit_gb', 0) or 0)
+                            
+                            logger.info(f"📝 Создание клиента на панели: email={panel_email}, limit={limit_gb}GB, days={days}")
                             
                             res = await client.add_client(
                                 inbound_id=inbound_id,
@@ -319,10 +337,13 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
                             
                             client_uuid = res['uuid']
                             
+                            logger.info(f"✅ Клиент создан на панели: uuid={client_uuid}")
+                            
                             # Создаем ключ в БД для этого сервера
                             # Для первого сервера используем уже созданный key_id
                             if idx == 0:
                                 from database.requests import update_vpn_key_config
+                                logger.debug(f"Обновление основного ключа {key_id} в БД...")
                                 update_vpn_key_config(
                                     key_id=key_id,
                                     server_id=server_id,
@@ -334,6 +355,7 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
                                 logger.info(f"✅ Основной ключ {key_id} настроен на {server_name}")
                             else:
                                 # Для остальных серверов создаем новые ключи
+                                logger.debug(f"Создание дополнительного ключа в БД...")
                                 new_key_id = create_vpn_key_admin(
                                     user_id=user_internal_id,
                                     server_id=server_id,
@@ -348,16 +370,19 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
                                 logger.info(f"✅ Дополнительный ключ {new_key_id} создан на {server_name}")
                         
                         except Exception as e:
-                            logger.error(f"Ошибка настройки на сервере {server.get('name')}: {e}")
+                            logger.error(f"❌ Ошибка настройки на сервере {server.get('name')}: {e}", exc_info=True)
                             continue
                     
                     if created_keys:
                         logger.info(f"🎉 Успешно создано {len(created_keys)} ключей на {len(created_keys)} серверах для заказа {order_id}")
+                        logger.info(f"   Ключи: {created_keys}")
                     else:
-                        logger.warning(f"⚠️ Не удалось создать ни одного ключа на панелях для заказа {order_id}")
+                        logger.error(f"❌ Не удалось создать ни одного ключа на панелях для заказа {order_id}")
+                        logger.error(f"   Это критическая проблема! Пользователь не сможет подключиться.")
                 
             except Exception as e:
-                logger.error(f"Ошибка автоматической настройки ключей: {e}", exc_info=True)
+                logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА автоматической настройки ключей: {e}", exc_info=True)
+                logger.error(f"   Order ID: {order_id}, Key ID: {key_id}, User ID: {user_internal_id}")
                 # Продолжаем выполнение - основной ключ создан, но не настроен
                 # Пользователь сможет настроить его позже через интерфейс
             
