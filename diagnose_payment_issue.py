@@ -8,7 +8,6 @@ import logging
 import sys
 from database.connection import get_db
 from database.requests import get_active_servers, get_user_by_id
-from bot.services.vpn_api import get_client
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -42,6 +41,9 @@ async def diagnose_payment_system():
     # 2. Проверка подключения к каждому серверу
     print("2️⃣  ПРОВЕРКА ПОДКЛЮЧЕНИЯ К ПАНЕЛЯМ")
     print("-" * 70)
+    
+    # Импортируем здесь чтобы избежать конфликтов
+    from bot.services.vpn_api import get_client
     
     working_servers = []
     failed_servers = []
@@ -188,6 +190,8 @@ async def diagnose_payment_system():
     print(f"Тестовый сервер: {test_server['name']}")
     
     try:
+        from bot.services.vpn_api import get_client
+        
         client = await get_client(test_server['id'])
         inbounds = await client.get_inbounds()
         
