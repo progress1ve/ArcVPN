@@ -462,7 +462,16 @@ class XUIClient(BaseVPNClient):
             })
         }
         
-        await self._request("POST", "/panel/api/inbounds/addClient", data=client_data)
+        response = await self._request("POST", "/panel/api/inbounds/addClient", data=client_data)
+        
+        # Проверяем успешность создания
+        if not response.get("success", True):
+            error_msg = response.get("msg", "Неизвестная ошибка")
+            logger.error(f"Ошибка создания клиента на панели: {error_msg}")
+            raise VPNAPIError(f"Ошибка создания клиента: {error_msg}")
+        
+        # Логируем для отладки
+        logger.debug(f"Клиент создан на панели: email={email}, uuid={client_uuid}, response={response}")
         
         return {
             "uuid": client_uuid,
