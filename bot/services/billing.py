@@ -299,7 +299,7 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
                                 logger.warning(f"⚠️  На сервере {server_name} нет доступных протоколов, пропускаем")
                                 continue
                             
-                            logger.debug(f"✅ Получено {len(inbounds)} inbound(s)")
+                            logger.debug(f"✅ Получено {len(inbounds)} inbound(s))")
                             
                             # Берем первый inbound
                             inbound = inbounds[0]
@@ -308,8 +308,9 @@ async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict
                             logger.debug(f"Выбран inbound: {inbound.get('remark', 'N/A')} (ID: {inbound_id}, protocol: {inbound.get('protocol', 'N/A')})")
                             
                             # Генерируем уникальный email для панели
+                            # Используем 8 символов вместо 5 для большей уникальности
                             base = f"user_{username}" if username else f"user_{telegram_id}"
-                            suffix = uuid.uuid4().hex[:5]
+                            suffix = uuid.uuid4().hex[:8]
                             panel_email = f'{base}_{suffix}'
                             
                             logger.debug(f"Сгенерирован email: {panel_email}")

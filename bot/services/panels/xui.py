@@ -386,6 +386,8 @@ class XUIClient(BaseVPNClient):
         # Определяем протокол inbound для правильной структуры клиента
         protocol = ""
         method = ""
+        existing_client_uuid = None  # UUID существующего клиента с таким email
+        
         try:
             inbounds = await self.get_inbounds()
             for ib in inbounds:
@@ -397,9 +399,26 @@ class XUIClient(BaseVPNClient):
                     else:
                         settings = settings_raw
                     method = settings.get('method', '')
+                    
+                    # Проверяем, не существует ли уже клиент с таким email
+                    clients_list = settings.get('clients', [])
+                    for existing_client in clients_list:
+                        if existing_client.get('email') == email:
+                            existing_client_uuid = existing_client.get('id') or existing_client.get('password')
+                            logger.warning(f"⚠️ Клиент с email={email} уже существует на панели (UUID={existing_client_uuid})")
+                            break
                     break
         except Exception:
             pass
+
+        # Если клиент с таким email уже существует - удаляем его
+        if existing_client_uuid:
+            logger.info(f"🗑️ Удаляем существующего клиента {email} перед созданием нового...")
+            try:
+                await self.delete_client(inbound_id, existing_client_uuid)
+                logger.info(f"✅ Существующий клиент {email} удалён")
+            except Exception as e:
+                logger.error(f"❌ Не удалось удалить существующего клиента {email}: {e}")
 
         client_uuid = str(uuid.uuid4())
         

@@ -27,7 +27,7 @@ def generate_unique_email(user: dict) -> str:
     Формат: user_{username/id}_{random_suffix}
     """
     base = f"user_{user['username']}" if user.get('username') else f"user_{user['telegram_id']}"
-    suffix = uuid.uuid4().hex[:5]
+    suffix = uuid.uuid4().hex[:8]  # 8 символов для большей уникальности
     return f'{base}_{suffix}'
 
 @router.callback_query(F.data.startswith('admin_key_view:'))

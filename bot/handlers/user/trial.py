@@ -104,7 +104,7 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
     # Генерируем уникальный email для панели
     def generate_unique_email(user: dict) -> str:
         base = f"user_{user['username']}" if user.get('username') else f"user_{user['telegram_id']}"
-        suffix = uuid.uuid4().hex[:5]
+        suffix = uuid.uuid4().hex[:8]  # 8 символов для большей уникальности
         return f'{base}_{suffix}'
     
     created_keys = []

@@ -324,7 +324,7 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
                 telegram_id = callback.from_user.id
                 username = callback.from_user.username
                 base = f"user_{username}" if username else f"user_{telegram_id}"
-                suffix = uuid.uuid4().hex[:5]
+                suffix = uuid.uuid4().hex[:8]  # 8 символов для большей уникальности
                 panel_email = f'{base}_{suffix}'
                 
                 # Получаем flow для inbound
