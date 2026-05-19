@@ -345,12 +345,8 @@ async def instruction_apple_handler(callback: CallbackQuery):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
     
-    # Для Happ используем JSON-формат с direct-правилом для домена подписки
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=json"
-    
-    # Создаем ссылку через braconnect для автоматического импорта в Happ
-    encoded_url = urllib.parse.quote(subscription_url, safe='')
-    import_link_happ = f"https://braconnect.app/link?url_ha={encoded_url}"
+    # Создаём deeplink URL для автоматического импорта в Happ
+    import_link_happ = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
@@ -360,7 +356,8 @@ async def instruction_apple_handler(callback: CallbackQuery):
         "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
-        "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
+        "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
+        "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
     )
     
     try:
@@ -412,12 +409,8 @@ async def instruction_android_handler(callback: CallbackQuery):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
     
-    # Для Happ используем JSON-формат с direct-правилом для домена подписки
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=json"
-    
-    # Создаем ссылку через braconnect для автоматического импорта в Happ
-    encoded_url = urllib.parse.quote(subscription_url, safe='')
-    import_link_happ = f"https://braconnect.app/link?url_ha={encoded_url}"
+    # Создаём deeplink URL для автоматического импорта в Happ
+    import_link_happ = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
     
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
@@ -427,7 +420,8 @@ async def instruction_android_handler(callback: CallbackQuery):
         "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
-        "💡 <i>Подписка обновляется автоматически, вам не нужно добавлять ключи вручную</i>"
+        "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
+        "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
     )
     
     try:

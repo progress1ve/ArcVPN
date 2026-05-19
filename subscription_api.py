@@ -566,6 +566,41 @@ def subscription(sub_id: str):
         return Response("Internal server error", status=500, mimetype='text/plain')
 
 
+@app.route('/import/<sub_id>')
+def import_to_happ(sub_id: str):
+    """
+    Deeplink для автоматического импорта в Happ.
+    Редиректит на happ:// URL-схему через HTML страницу.
+    """
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
+    encoded_url = urllib.parse.quote(subscription_url, safe='')
+    happ_url = f"happ://install-sub?url={encoded_url}&name=ArcVPN"
+    
+    # HTML страница с автоматическим редиректом
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Импорт в Happ</title>
+    <meta http-equiv="refresh" content="0;url={happ_url}">
+    <style>
+        body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
+        a {{ color: #007bff; text-decoration: none; }}
+        input {{ width: 80%; padding: 10px; margin: 20px 0; }}
+    </style>
+</head>
+<body>
+    <h2>🚀 Открываем Happ...</h2>
+    <p>Если приложение не открылось автоматически:</p>
+    <p><a href="{happ_url}">👉 Нажмите здесь для открытия Happ</a></p>
+    <hr>
+    <p>Или скопируйте subscription ссылку вручную:</p>
+    <input type="text" value="{subscription_url}" readonly onclick="this.select()">
+</body>
+</html>"""
+    return Response(html, mimetype='text/html')
+
+
 @app.route('/health')
 def health():
     """Health check endpoint."""
