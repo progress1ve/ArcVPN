@@ -15,7 +15,7 @@ from database.connection import get_db
 from bot.services.panels.xui import XUIClient
 from bot.utils.key_generator import generate_link
 from database.db_servers import get_server_by_id
-from config import SUBSCRIPTION_URL
+from config import SUBSCRIPTION_URL, ENABLE_SPLIT_TUNNELING
 
 # Настройка логирования
 logging.basicConfig(
@@ -26,69 +26,185 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Домены, которые должны идти напрямую (без прокси) для нормальной работы локальных сервисов.
-# Список очищен от дублей и опечаток.
+# ============================================================================
+# ROUTING CONFIGURATION ДЛЯ HAPP
+# ============================================================================
+
+# Домены, которые должны идти напрямую (без VPN) для российских пользователей.
+# Используется для split-tunneling в Happ клиенте.
 DIRECT_DOMAIN_RULES = [
-    "homecredit.ru",
-    "alfabank.ru",
-    "tbank.ru",
-    "vtb.ru",
-    "psbank.ru",
+    # === МАРКЕТПЛЕЙСЫ ===
+    "ozon.ru",
+    "ozon.travel",
+    "wildberries.ru",
+    "wb.ru",
+    "market.yandex.ru",
+    "sbermegamarket.ru",
+    "megamarket.ru",
+    "goods.ru",
+    "avito.ru",
+    "youla.ru",
+    "aliexpress.ru",
+    
+    # === СТРИМИНГ И МЕДИА ===
+    "kinopoisk.ru",
+    "okko.tv",
+    "more.tv",
+    "ivi.ru",
+    "premier.one",
+    "start.ru",
+    "wink.ru",
+    "kion.ru",
+    "smotrim.ru",
+    "rutube.ru",
+    
+    # === СОЦСЕТИ И МЕССЕНДЖЕРЫ ===
+    "vk.com",
+    "vk.ru",
+    "ok.ru",
+    "mail.ru",
+    "dzen.ru",
+    "vk-portal.net",
+    "vkvideo.ru",
+    "vkuser.net",
+    "okcdn.ru",
+    "vk-analytics.ru",
+    
+    # === ЯНДЕКС СЕРВИСЫ ===
+    "yandex.ru",
+    "ya.ru",
+    "yandex.net",
+    "yandex.com",
+    "yandex.by",
+    "yandex.kz",
+    "yandex.ua",
+    
+    # === БАНКИ ===
     "sberbank.ru",
     "sber.ru",
-    "gasprombank.ru",
+    "alfabank.ru",
+    "tbank.ru",
+    "tinkoff.ru",
+    "vtb.ru",
+    "psbank.ru",
+    "gazprombank.ru",
     "rosbank.ru",
     "unicredit.ru",
     "banki.ru",
+    "raiffeisen.ru",
+    "homecredit.ru",
+    "sovcombank.ru",
     "mironline.ru",
     "nspk.ru",
+    
+    # === ДОСТАВКА И ЛОГИСТИКА ===
     "sdek.ru",
     "sdek.shopping",
     "pochta.ru",
     "cdek.ru",
     "cdek.shopping",
-    "ozon.travel",
-    "ivi.ru",
-    "okko.tv",
-    "kion.ru",
+    "boxberry.ru",
+    "pickpoint.ru",
+    "dpd.ru",
+    
+    # === ОПЕРАТОРЫ СВЯЗИ ===
     "mts.ru",
     "beeline.ru",
     "megafon.ru",
     "tele2.ru",
     "yota.ru",
-    "kinopoisk.ru",
-    "2gis.ru",
-    "vkusnoitochka.ru",
-    "ozon.ru",
-    "wildberries.ru",
-    "wb.ru",
-    "sbermegamarket.ru",
-    "megamarket.ru",
-    "avito.ru",
-    "domclick.ru",
+    "rt.ru",
+    
+    # === ГОСУСЛУГИ ===
+    "gosuslugi.ru",
+    "mos.ru",
+    "nalog.gov.ru",
+    "pfr.gov.ru",
+    
+    # === ПРОДУКТОВЫЕ РИТЕЙЛЕРЫ ===
     "vkusvill.ru",
-    "dzen.ru",
-    "ok.ru",
+    "5ka.ru",
+    "magnit.ru",
+    "perekrestok.ru",
     "auchan.ru",
     "spar.ru",
     "metro-cc.ru",
-    "petrovich.ru",
-    "vk-portal.net",
-    "vkvideo.ru",
-    "goldapple.ru",
-    "5ka.ru",
-    "magnit.ru",
+    "lenta.com",
+    "dixy.ru",
+    
+    # === ДОСТАВКА ЕДЫ ===
     "samokat.ru",
     "delivery.ru",
+    "yandex.eda",
     "chizhik.club",
+    
+    # === НЕДВИЖИМОСТЬ ===
+    "cian.ru",
+    "domclick.ru",
+    "avito.ru",
+    
+    # === ДРУГИЕ ПОПУЛЯРНЫЕ СЕРВИСЫ ===
+    "2gis.ru",
+    "vkusnoitochka.ru",
+    "petrovich.ru",
+    "goldapple.ru",
     "dns.ru",
+    "mvideo.ru",
+    "eldorado.ru",
     "detmir.ru",
-    "vkuser.net",
-    "okcdn.ru",
+    "lamoda.ru",
+    "sportmaster.ru",
+    "leroy-merlin.ru",
+    "obi.ru",
+    "hh.ru",
+    "superjob.ru",
+    "rambler.ru",
     "trace-flow.ru",
     "ifconfig.me",
-    "vk-analytics.ru",
 ]
+
+# Geo-правила для Happ (используют встроенные geosite/geoip базы)
+# geosite:category-ru - все российские сайты из базы V2Ray
+# geoip:ru - все российские IP-адреса
+HAPP_ROUTING_PROFILE = {
+    "Name": "ArcVPN - Обход РФ",
+    "GlobalProxy": "true",
+    "RemoteDNSType": "DoH",
+    "RemoteDNSDomain": "https://cloudflare-dns.com/dns-query",
+    "RemoteDNSIP": "1.1.1.1",
+    "DomesticDNSType": "DoH",
+    "DomesticDNSDomain": "https://dns.google/dns-query",
+    "DomesticDNSIP": "8.8.8.8",
+    "Geoipurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
+    "Geositeurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
+    "DnsHosts": {
+        "cloudflare-dns.com": "1.1.1.1",
+        "dns.google": "8.8.8.8"
+    },
+    "DirectSites": [
+        "geosite:category-ru",  # Все российские сайты из базы
+        "geosite:yandex",       # Все сервисы Яндекса
+        "geosite:vk",           # VK и связанные сервисы
+    ] + [f"domain:{domain}" for domain in DIRECT_DOMAIN_RULES],  # Добавляем наш список
+    "DirectIp": [
+        "geoip:ru",             # Все российские IP
+        "geoip:private",        # Локальные сети
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16",
+        "169.254.0.0/16",
+        "224.0.0.0/4",
+        "255.255.255.255/32"
+    ],
+    "ProxySites": [],
+    "ProxyIp": [],
+    "BlockSites": [
+        "geosite:category-ads-all",  # Блокировка рекламы (опционально)
+    ],
+    "BlockIp": [],
+    "DomainStrategy": "IPIfNonMatch",
+    "FakeDNS": "false"
+}
 
 
 def get_user_active_keys(user_id: int) -> list:
@@ -385,24 +501,59 @@ def subscription(sub_id: str):
             response.headers['Cache-Control'] = 'no-cache'
             return response
         
+        # ============================================================================
+        # ГЕНЕРАЦИЯ ROUTING ПРОФИЛЯ ДЛЯ HAPP
+        # ============================================================================
+        
+        routing_link = None
+        
+        # Проверяем, включен ли split-tunneling в конфигурации
+        if ENABLE_SPLIT_TUNNELING:
+            # Создаём routing профиль для автоматического обхода российских сайтов
+            import json
+            routing_profile_json = json.dumps(HAPP_ROUTING_PROFILE, ensure_ascii=False)
+            routing_profile_base64 = base64.b64encode(routing_profile_json.encode()).decode()
+            
+            # Формируем ссылку для автоматической активации профиля в Happ
+            # happ://routing/onadd/ - автоматически активирует профиль при импорте
+            routing_link = f"happ://routing/onadd/{routing_profile_base64}"
+            
+            logger.info(f"🔀 Создан routing профиль для Happ: {len(HAPP_ROUTING_PROFILE['DirectSites'])} правил DirectSites")
+        
         # Кодируем в base64 если нужно
         if output_format == 'base64':
-            # Для Happ - простой формат без правил (правила лучше настроить в самом Happ)
-            text_with_title = (
-                f"#profile-title: base64:QXJjVlBO\n"
-                f"#profile-update-interval: 24\n"
-                f"{link}\n"
-            )
+            # Для Happ - добавляем routing ссылку в тело подписки (если включено)
+            if routing_link:
+                text_with_title = (
+                    f"#profile-title: base64:QXJjVlBO\n"
+                    f"#profile-update-interval: 24\n"
+                    f"{routing_link}\n"
+                    f"{link}\n"
+                )
+            else:
+                text_with_title = (
+                    f"#profile-title: base64:QXJjVlBO\n"
+                    f"#profile-update-interval: 24\n"
+                    f"{link}\n"
+                )
             subscription_data = base64.b64encode(text_with_title.encode()).decode()
         else:
-            # Plain text с заголовком
-            subscription_data = (
-                f"#profile-title: base64:QXJjVlBO\n"
-                f"#profile-update-interval: 24\n"
-                f"{link}\n"
-            )
+            # Plain text с заголовком и routing ссылкой (если включено)
+            if routing_link:
+                subscription_data = (
+                    f"#profile-title: base64:QXJjVlBO\n"
+                    f"#profile-update-interval: 24\n"
+                    f"{routing_link}\n"
+                    f"{link}\n"
+                )
+            else:
+                subscription_data = (
+                    f"#profile-title: base64:QXJjVlBO\n"
+                    f"#profile-update-interval: 24\n"
+                    f"{link}\n"
+                )
         
-        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
+        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}, split-tunneling: {ENABLE_SPLIT_TUNNELING}")
         
         # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
@@ -412,6 +563,11 @@ def subscription(sub_id: str):
         
         if output_format == 'base64':
             response.headers['profile-update-interval'] = '24'
+        
+        # ВАЖНО: Добавляем HTTP-заголовок routing для автоматической активации профиля
+        # Happ автоматически импортирует профиль при получении этого заголовка
+        if routing_link:
+            response.headers['routing'] = routing_link
         
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
