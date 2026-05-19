@@ -580,7 +580,7 @@ def import_to_happ(sub_id: str):
     """
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
     encoded_url = urllib.parse.quote(subscription_url, safe='')
-    happ_url = f"happ://install-sub?url={encoded_url}&name=ArcVPN"
+    happ_url = f"happ://install-config?url={encoded_url}"
     
     # HTML страница с автоматическим редиректом
     html = f"""<!DOCTYPE html>
