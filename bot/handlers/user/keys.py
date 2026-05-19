@@ -326,7 +326,6 @@ async def instruction_apple_handler(callback: CallbackQuery):
     from aiogram.types import InlineKeyboardButton
     from config import SUBSCRIPTION_URL
     from database.requests import get_user_keys_for_display
-    import urllib.parse
     
     telegram_id = callback.from_user.id
     
@@ -344,9 +343,6 @@ async def instruction_apple_handler(callback: CallbackQuery):
     if not key_data or not key_data.get('sub_id'):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
-    
-    # Создаём deeplink URL для автоматического импорта в Happ
-    import_link_happ = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
     
     text = (
         "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
@@ -368,9 +364,12 @@ async def instruction_apple_handler(callback: CallbackQuery):
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
         
+        # Прямая subscription ссылка для копирования
+        subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=plain"
+        
         # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
+        builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", url=subscription_url))
         
         # Навигация
         builder.row(
@@ -394,7 +393,6 @@ async def instruction_android_handler(callback: CallbackQuery):
     from aiogram.types import InlineKeyboardButton
     from config import SUBSCRIPTION_URL
     from database.requests import get_user_keys_for_display
-    import urllib.parse
     
     telegram_id = callback.from_user.id
     
@@ -413,16 +411,17 @@ async def instruction_android_handler(callback: CallbackQuery):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
     
-    # Создаём deeplink URL для автоматического импорта в Happ
-    import_link_happ = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
-    
     text = (
         "🤖 <b>Инструкция для Android</b>\n\n"
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «🔗 Импортировать в Happ» - приложение откроется автоматически!\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
+        "<b>Шаг 2:</b> Скопируйте subscription ссылку\n"
+        "Нажмите кнопку «📋 Скопировать ссылку» ниже\n\n"
+        "<b>Шаг 3:</b> Добавьте в Happ\n"
+        "• Откройте приложение Happ\n"
+        "• Нажмите «+» → «Добавить подписку»\n"
+        "• Вставьте скопированную ссылку\n\n"
+        "<b>Шаг 4:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
         "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
         "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
@@ -432,9 +431,12 @@ async def instruction_android_handler(callback: CallbackQuery):
         # Создаём клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
         
+        # Прямая subscription ссылка для копирования
+        subscription_url = f"{SUBSCRIPTION_URL}/sub/{key_data['sub_id']}?format=plain"
+        
         # Happ
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=com.happproxy&hl=ru"))
-        builder.row(InlineKeyboardButton(text="🔗 Импортировать в Happ", url=import_link_happ))
+        builder.row(InlineKeyboardButton(text="📋 Скопировать ссылку", url=subscription_url))
         
         # Навигация
         builder.row(
