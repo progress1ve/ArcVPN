@@ -578,7 +578,7 @@ def import_to_happ(sub_id: str):
     Deeplink для автоматического импорта в Happ.
     Редиректит на happ:// URL-схему через HTML страницу.
     """
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
     encoded_url = urllib.parse.quote(subscription_url, safe='')
     happ_url = f"happ://install-config?url={encoded_url}"
     
