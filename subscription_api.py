@@ -566,6 +566,12 @@ def subscription(sub_id: str):
         return Response("Internal server error", status=500, mimetype='text/plain')
 
 
+@app.route('/health')
+def health():
+    """Health check endpoint."""
+    return Response("OK", mimetype='text/plain')
+
+
 @app.route('/import/<sub_id>')
 def import_to_happ(sub_id: str):
     """
@@ -584,27 +590,29 @@ def import_to_happ(sub_id: str):
     <title>Импорт в Happ</title>
     <meta http-equiv="refresh" content="0;url={happ_url}">
     <style>
-        body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; }}
-        a {{ color: #007bff; text-decoration: none; }}
-        input {{ width: 80%; padding: 10px; margin: 20px 0; }}
+        body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }}
+        .container {{ background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}
+        h2 {{ color: #333; }}
+        a {{ color: #007bff; text-decoration: none; font-weight: bold; }}
+        a:hover {{ text-decoration: underline; }}
+        input {{ width: 90%; padding: 12px; margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; }}
+        .btn {{ display: inline-block; padding: 12px 24px; background: #007bff; color: white; border-radius: 5px; margin: 10px; text-decoration: none; }}
+        .btn:hover {{ background: #0056b3; }}
     </style>
 </head>
 <body>
-    <h2>🚀 Открываем Happ...</h2>
-    <p>Если приложение не открылось автоматически:</p>
-    <p><a href="{happ_url}">👉 Нажмите здесь для открытия Happ</a></p>
-    <hr>
-    <p>Или скопируйте subscription ссылку вручную:</p>
-    <input type="text" value="{subscription_url}" readonly onclick="this.select()">
+    <div class="container">
+        <h2>🚀 Открываем Happ...</h2>
+        <p>Если приложение не открылось автоматически:</p>
+        <a href="{happ_url}" class="btn">👉 Открыть Happ</a>
+        <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
+        <p><strong>Или скопируйте subscription ссылку вручную:</strong></p>
+        <input type="text" value="{subscription_url}" readonly onclick="this.select(); document.execCommand('copy'); alert('Ссылка скопирована!');">
+        <p style="color: #666; font-size: 14px;">💡 Нажмите на ссылку, чтобы скопировать</p>
+    </div>
 </body>
 </html>"""
     return Response(html, mimetype='text/html')
-
-
-@app.route('/health')
-def health():
-    """Health check endpoint."""
-    return Response("OK", mimetype='text/plain')
 
 
 if __name__ == '__main__':
