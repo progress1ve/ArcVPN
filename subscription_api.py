@@ -520,38 +520,27 @@ def subscription(sub_id: str):
             
             logger.info(f"🔀 Создан routing профиль для Happ: {len(HAPP_ROUTING_PROFILE['DirectSites'])} правил DirectSites")
         
-        # Кодируем в base64 если нужно
-        if output_format == 'base64':
-            # Для Happ - добавляем routing ссылку в тело подписки (если включено)
-            if routing_link:
-                text_with_title = (
-                    f"#profile-title: base64:QXJjVlBO\n"
-                    f"#profile-update-interval: 24\n"
-                    f"{routing_link}\n"
-                    f"{link}\n"
-                )
-            else:
-                text_with_title = (
-                    f"#profile-title: base64:QXJjVlBO\n"
-                    f"#profile-update-interval: 24\n"
-                    f"{link}\n"
-                )
-            subscription_data = base64.b64encode(text_with_title.encode()).decode()
+        # ВАЖНО: Happ лучше работает с plain text форматом для routing
+        # Формируем plain text версию с routing ссылкой
+        if routing_link:
+            plain_text_subscription = (
+                f"#profile-title: base64:QXJjVlBO\n"
+                f"#profile-update-interval: 24\n"
+                f"{routing_link}\n"
+                f"{link}\n"
+            )
         else:
-            # Plain text с заголовком и routing ссылкой (если включено)
-            if routing_link:
-                subscription_data = (
-                    f"#profile-title: base64:QXJjVlBO\n"
-                    f"#profile-update-interval: 24\n"
-                    f"{routing_link}\n"
-                    f"{link}\n"
-                )
-            else:
-                subscription_data = (
-                    f"#profile-title: base64:QXJjVlBO\n"
-                    f"#profile-update-interval: 24\n"
-                    f"{link}\n"
-                )
+            plain_text_subscription = (
+                f"#profile-title: base64:QXJjVlBO\n"
+                f"#profile-update-interval: 24\n"
+                f"{link}\n"
+            )
+        
+        # Кодируем в base64 если запрошен этот формат
+        if output_format == 'base64':
+            subscription_data = base64.b64encode(plain_text_subscription.encode()).decode()
+        else:
+            subscription_data = plain_text_subscription
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}, split-tunneling: {ENABLE_SPLIT_TUNNELING}")
         
@@ -560,9 +549,7 @@ def subscription(sub_id: str):
         
         # Happ требует application/octet-stream для подписок
         response.headers['Content-Type'] = 'application/octet-stream'
-        
-        if output_format == 'base64':
-            response.headers['profile-update-interval'] = '24'
+        response.headers['profile-update-interval'] = '24'
         
         # ВАЖНО: Добавляем HTTP-заголовок routing для автоматической активации профиля
         # Happ автоматически импортирует профиль при получении этого заголовка
