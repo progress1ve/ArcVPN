@@ -577,7 +577,7 @@ def import_to_happ(sub_id: str):
     """
     Страница для импорта подписки в Happ.
     Определяет User-Agent и отдаёт разный контент:
-    - Браузер → HTML страница с кнопкой импорта
+    - Браузер → HTML страница с авторедиректом в Happ
     - Happ/VPN клиент → subscription данные
     """
     from flask import request
@@ -586,24 +586,24 @@ def import_to_happ(sub_id: str):
     
     # Если это Happ или другой VPN клиент — отдаём подписку
     if 'happ' in user_agent or 'v2ray' in user_agent or 'clash' in user_agent:
-        # Редирект на subscription endpoint
         subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=base64"
         from flask import redirect
         return redirect(subscription_url)
     
-    # Для браузера — HTML страница с кнопкой импорта
+    # Для браузера — HTML страница с автоматическим редиректом
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
     
-    # Happ deeplink: открывает URL и автоматически импортирует
+    # Happ deeplink
     happ_deeplink = f"happ://{SUBSCRIPTION_URL.replace('https://', '').replace('http://', '')}/sub/{sub_id}"
     
-    # HTML страница с кнопкой для Happ
+    # HTML страница с автоматическим редиректом
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Импорт подписки в Happ</title>
+    <meta http-equiv="refresh" content="0;url={happ_deeplink}">
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }}
@@ -629,7 +629,7 @@ def import_to_happ(sub_id: str):
         <div class="logo">🔐</div>
         <h1>ArcVPN</h1>
         <p class="status">АКТИВНА</p>
-        <p class="subtitle">Нажмите кнопку для импорта в Happ</p>
+        <p class="subtitle">Открываем Happ...</p>
         
         <a href="{happ_deeplink}" class="btn btn-primary">📥 Открыть в Happ</a>
         
