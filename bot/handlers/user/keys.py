@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 import uuid
 import asyncio
 from datetime import datetime
@@ -236,11 +236,6 @@ async def key_details_handler(callback: CallbackQuery):
         
         # Создаем клавиатуру с кнопками
         builder = InlineKeyboardBuilder()
-        
-        # Добавляем кнопку импорта если есть sub_id
-        if sub_id:
-            import_url = f"{SUBSCRIPTION_URL}/import/{sub_id}"
-            builder.row(InlineKeyboardButton(text="📥 Импортировать в Happ", url=import_url))
         
         builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
         builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
@@ -484,7 +479,7 @@ async def instruction_windows_handler(callback: CallbackQuery):
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку ниже и скачайте версию для Windows\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «📥 Импортировать в Happ» ниже\n"
+        "Нажмите кнопку «�� Импортировать в Happ» ниже\n"
         "Подписка автоматически добавится в приложение\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "Нажмите кнопку подключения в приложении"
@@ -496,7 +491,7 @@ async def instruction_windows_handler(callback: CallbackQuery):
     # Создаём клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://github.com/Happ-proxy/happ-desktop/releases/tag/2.9.1"))
-    builder.row(InlineKeyboardButton(text="📥 Импортировать в Happ", url=import_url))
+    builder.row(InlineKeyboardButton(text="�� Импортировать в Happ", url=import_url))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
