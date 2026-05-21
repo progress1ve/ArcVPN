@@ -575,41 +575,88 @@ def health():
 @app.route('/import/<sub_id>')
 def import_to_happ(sub_id: str):
     """
-    Deeplink для автоматического импорта в Happ.
-    Редиректит на happ:// URL-схему через HTML страницу.
+    Страница для импорта подписки в Happ.
+    Определяет User-Agent и отдаёт разный контент:
+    - Браузер → HTML страница с кнопкой импорта
+    - Happ/VPN клиент → subscription данные
     """
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
-    encoded_url = urllib.parse.quote(subscription_url, safe='')
-    happ_url = f"happ://install-config?url={encoded_url}"
+    from flask import request
     
-    # HTML страница с автоматическим редиректом
+    user_agent = request.headers.get('User-Agent', '').lower()
+    
+    # Если это Happ или другой VPN клиент — отдаём подписку
+    if 'happ' in user_agent or 'v2ray' in user_agent or 'clash' in user_agent:
+        # Редирект на subscription endpoint
+        subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=base64"
+        from flask import redirect
+        return redirect(subscription_url)
+    
+    # Для браузера — HTML страница с кнопкой импорта
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
+    
+    # Happ deeplink: открывает URL и автоматически импортирует
+    happ_deeplink = f"happ://{SUBSCRIPTION_URL.replace('https://', '').replace('http://', '')}/sub/{sub_id}"
+    
+    # HTML страница с кнопкой для Happ
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Импорт в Happ</title>
-    <meta http-equiv="refresh" content="0;url={happ_url}">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Импорт подписки в Happ</title>
     <style>
-        body {{ font-family: Arial, sans-serif; text-align: center; padding: 50px; background: #f5f5f5; }}
-        .container {{ background: white; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); max-width: 600px; margin: 0 auto; }}
-        h2 {{ color: #333; }}
-        a {{ color: #007bff; text-decoration: none; font-weight: bold; }}
-        a:hover {{ text-decoration: underline; }}
-        input {{ width: 90%; padding: 12px; margin: 20px 0; border: 1px solid #ddd; border-radius: 5px; font-family: monospace; }}
-        .btn {{ display: inline-block; padding: 12px 24px; background: #007bff; color: white; border-radius: 5px; margin: 10px; text-decoration: none; }}
-        .btn:hover {{ background: #0056b3; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }}
+        .card {{ background: white; border-radius: 20px; padding: 30px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }}
+        .logo {{ width: 80px; height: 80px; margin: 0 auto 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 40px; }}
+        h1 {{ color: #1a1a2e; font-size: 24px; margin-bottom: 8px; }}
+        .status {{ color: #28a745; font-size: 14px; margin-bottom: 20px; font-weight: 600; }}
+        .status::before {{ content: '● '; color: #28a745; }}
+        .subtitle {{ color: #666; font-size: 14px; margin-bottom: 25px; }}
+        .btn {{ display: block; width: 100%; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 600; text-decoration: none; margin-bottom: 12px; transition: all 0.2s; }}
+        .btn-primary {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }}
+        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); }}
+        .btn-secondary {{ background: #f5f5f5; color: #333; }}
+        .btn-secondary:hover {{ background: #eee; }}
+        .divider {{ margin: 20px 0; border: none; border-top: 1px solid #eee; }}
+        .copy-section {{ background: #f8f9fa; border-radius: 12px; padding: 15px; margin-top: 15px; }}
+        .copy-section p {{ color: #666; font-size: 13px; margin-bottom: 10px; }}
+        .url {{ background: #1a1a2e; color: #28a745; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; word-break: break-all; margin-bottom: 10px; }}
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>🚀 Открываем Happ...</h2>
-        <p>Если приложение не открылось автоматически:</p>
-        <a href="{happ_url}" class="btn">👉 Открыть Happ</a>
-        <hr style="margin: 30px 0; border: none; border-top: 1px solid #ddd;">
-        <p><strong>Или скопируйте subscription ссылку вручную:</strong></p>
-        <input type="text" value="{subscription_url}" readonly onclick="this.select(); document.execCommand('copy'); alert('Ссылка скопирована!');">
-        <p style="color: #666; font-size: 14px;">💡 Нажмите на ссылку, чтобы скопировать</p>
+    <div class="card">
+        <div class="logo">🔐</div>
+        <h1>ArcVPN</h1>
+        <p class="status">АКТИВНА</p>
+        <p class="subtitle">Нажмите кнопку для импорта в Happ</p>
+        
+        <a href="{happ_deeplink}" class="btn btn-primary">📥 Открыть в Happ</a>
+        
+        <div class="divider"></div>
+        
+        <div class="copy-section">
+            <p>Или скопируйте ссылку вручную:</p>
+            <div class="url">{subscription_url}</div>
+            <button onclick="copyUrl()" class="btn btn-secondary">📋 Копировать ссылку</button>
+        </div>
     </div>
+    
+    <script>
+        function copyUrl() {{
+            navigator.clipboard.writeText('{subscription_url}').then(() => {{
+                alert('✅ Ссылка скопирована!');
+            }}).catch(() => {{
+                const textarea = document.createElement('textarea');
+                textarea.value = '{subscription_url}';
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('✅ Ссылка скопирована!');
+            }});
+        }}
+    </script>
 </body>
 </html>"""
     return Response(html, mimetype='text/html')
