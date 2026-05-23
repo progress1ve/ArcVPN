@@ -593,8 +593,18 @@ def import_to_happ(sub_id: str):
     # Для браузера — HTML страница с кнопкой импорта
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
     
-    # Happ deeplink
-    happ_deeplink = f"happ://{SUBSCRIPTION_URL.replace('https://', '').replace('http://', '')}/sub/{sub_id}"
+    # Пробуем разные варианты Happ deeplink
+    # Вариант 1: happ:// с полным URL (как у sub.meow.ac)
+    happ_deeplink_v1 = f"happ://{SUBSCRIPTION_URL.replace('https://', '').replace('http://', '')}/sub/{sub_id}"
+    
+    # Вариант 2: просто URL (Happ может распознать автоматически)
+    happ_deeplink_v2 = subscription_url
+    
+    # Вариант 3: happ:// с import
+    happ_deeplink_v3 = f"happ://import?url={urllib.parse.quote(subscription_url)}"
+    
+    # Используем вариант 1 (как у sub.meow.ac)
+    happ_deeplink = happ_deeplink_v1
     
     # HTML страница с кнопкой
     html = f"""<!DOCTYPE html>
@@ -644,7 +654,7 @@ def import_to_happ(sub_id: str):
     <script>
         function copyUrl() {{
             navigator.clipboard.writeText('{subscription_url}').then(() => {{
-                alert('✅ Ссылка скопирована!');
+                alert('✅ Ссылка скопирована!\\n\\nТеперь откройте Happ и вставьте её.');
             }}).catch(() => {{
                 const textarea = document.createElement('textarea');
                 textarea.value = '{subscription_url}';
@@ -652,7 +662,7 @@ def import_to_happ(sub_id: str):
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                alert('✅ Ссылка скопирована!');
+                alert('✅ Ссылка скопирована!\\n\\nТеперь откройте Happ и вставьте её.');
             }});
         }}
     </script>
