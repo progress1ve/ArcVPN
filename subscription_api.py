@@ -69,6 +69,8 @@ DIRECT_DOMAIN_RULES = [
     "vkuser.net",
     "okcdn.ru",
     "vk-analytics.ru",
+    "max.ru",
+    "web.max.ru",
     
     # === ЯНДЕКС СЕРВИСЫ ===
     "yandex.ru",
@@ -596,64 +598,273 @@ def import_to_happ(sub_id: str):
     # Правильный формат Happ deeplink: happ://add/{URL}
     happ_deeplink = f"happ://add/{subscription_url}"
     
-    # HTML страница с кнопкой
+    # HTML страница с кнопкой в стиле monopo saigon
     html = f"""<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Импорт подписки в Happ</title>
+    <title>ArcVPN — Импорт подписки</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Raleway:wght@400&display=swap" rel="stylesheet">
     <style>
+        :root {{
+            --color-midnight-canvas: #000000;
+            --color-frost-white: #ffffff;
+            --color-whisper-gray: #6d6d6d;
+            --color-misty-gray: #636363;
+            --gradient-deep-ocean: linear-gradient(90deg, rgb(160, 224, 171), rgb(255, 172, 46) 50%, rgb(165, 45, 37));
+            --font-primary: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, system-ui, sans-serif;
+            --font-heading: 'Raleway', serif;
+            --radius-buttons: 75.024px;
+            --spacing-unit: 4px;
+        }}
+        
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }}
-        .card {{ background: white; border-radius: 20px; padding: 30px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }}
-        .logo {{ width: 80px; height: 80px; margin: 0 auto 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 40px; }}
-        h1 {{ color: #1a1a2e; font-size: 24px; margin-bottom: 8px; }}
-        .status {{ color: #28a745; font-size: 14px; margin-bottom: 20px; font-weight: 600; }}
-        .status::before {{ content: '● '; color: #28a745; }}
-        .subtitle {{ color: #666; font-size: 14px; margin-bottom: 25px; }}
-        .btn {{ display: block; width: 100%; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 600; text-decoration: none; margin-bottom: 12px; transition: all 0.2s; border: none; cursor: pointer; }}
-        .btn-primary {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }}
-        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); }}
-        .btn-secondary {{ background: #f5f5f5; color: #333; }}
-        .btn-secondary:hover {{ background: #eee; }}
-        .divider {{ margin: 20px 0; border: none; border-top: 1px solid #eee; }}
-        .copy-section {{ background: #f8f9fa; border-radius: 12px; padding: 15px; margin-top: 15px; }}
-        .copy-section p {{ color: #666; font-size: 13px; margin-bottom: 10px; }}
-        .url {{ background: #1a1a2e; color: #28a745; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; word-break: break-all; margin-bottom: 10px; }}
+        
+        body {{
+            font-family: var(--font-primary);
+            background: var(--gradient-deep-ocean);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--color-frost-white);
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        /* Animated gradient background */
+        body::before {{
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: var(--gradient-deep-ocean);
+            animation: gradientShift 15s ease infinite;
+            z-index: 0;
+        }}
+        
+        @keyframes gradientShift {{
+            0%, 100% {{ transform: translate(0, 0) rotate(0deg); }}
+            33% {{ transform: translate(5%, 5%) rotate(120deg); }}
+            66% {{ transform: translate(-5%, 5%) rotate(240deg); }}
+        }}
+        
+        .container {{
+            position: relative;
+            z-index: 1;
+            max-width: 480px;
+            width: 100%;
+            text-align: center;
+        }}
+        
+        .card {{
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 48px 34px;
+        }}
+        
+        .logo {{
+            font-size: 64px;
+            margin-bottom: 24px;
+            filter: drop-shadow(0 4px 12px rgba(255, 255, 255, 0.2));
+        }}
+        
+        h1 {{
+            font-family: var(--font-heading);
+            font-size: 54px;
+            font-weight: 400;
+            line-height: 1.39;
+            color: var(--color-frost-white);
+            margin-bottom: 12px;
+            letter-spacing: -0.02em;
+        }}
+        
+        .status {{
+            font-size: 16px;
+            line-height: 1.25;
+            color: rgb(160, 224, 171);
+            margin-bottom: 28px;
+            font-weight: 400;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+        }}
+        
+        .status::before {{
+            content: '● ';
+            color: rgb(160, 224, 171);
+        }}
+        
+        .subtitle {{
+            font-size: 16px;
+            line-height: 1.25;
+            color: var(--color-whisper-gray);
+            margin-bottom: 40px;
+        }}
+        
+        .btn {{
+            display: block;
+            width: 100%;
+            padding: 16px 34px;
+            border-radius: var(--radius-buttons);
+            font-size: 16px;
+            line-height: 1.25;
+            font-weight: 400;
+            text-decoration: none;
+            margin-bottom: 14px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            font-family: var(--font-primary);
+        }}
+        
+        .btn-primary {{
+            background: rgba(255, 255, 255, 0.95);
+            color: var(--color-midnight-canvas);
+            border-color: var(--color-frost-white);
+        }}
+        
+        .btn-primary:hover {{
+            background: var(--color-frost-white);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(255, 255, 255, 0.2);
+        }}
+        
+        .btn-secondary {{
+            background: rgba(55, 55, 55, 0.78);
+            color: var(--color-frost-white);
+            border-color: rgba(255, 255, 255, 0.3);
+        }}
+        
+        .btn-secondary:hover {{
+            background: rgba(55, 55, 55, 0.95);
+            border-color: rgba(255, 255, 255, 0.5);
+        }}
+        
+        .divider {{
+            margin: 40px 0;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+        }}
+        
+        .copy-section {{
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 28px;
+        }}
+        
+        .copy-section p {{
+            color: var(--color-whisper-gray);
+            font-size: 14px;
+            line-height: 1.25;
+            margin-bottom: 14px;
+        }}
+        
+        .url {{
+            background: rgba(0, 0, 0, 0.5);
+            color: rgb(160, 224, 171);
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-family: 'SF Mono', 'Monaco', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.58;
+            word-break: break-all;
+            margin-bottom: 14px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }}
+        
+        .success-message {{
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(160, 224, 171, 0.95);
+            color: var(--color-midnight-canvas);
+            padding: 16px 34px;
+            border-radius: var(--radius-buttons);
+            font-size: 16px;
+            font-weight: 400;
+            opacity: 0;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: 1000;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        }}
+        
+        .success-message.show {{
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }}
+        
+        @media (max-width: 640px) {{
+            h1 {{
+                font-size: 39px;
+            }}
+            
+            .card {{
+                padding: 34px 24px;
+            }}
+        }}
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="logo">🔐</div>
-        <h1>ArcVPN</h1>
-        <p class="status">АКТИВНА</p>
-        <p class="subtitle">Нажмите кнопку для импорта в Happ</p>
-        
-        <a href="{happ_deeplink}" class="btn btn-primary">📥 Открыть в Happ</a>
-        
-        <div class="divider"></div>
-        
-        <div class="copy-section">
-            <p>Или скопируйте ссылку вручную:</p>
-            <div class="url">{subscription_url}</div>
-            <button onclick="copyUrl()" class="btn btn-secondary">📋 Копировать ссылку</button>
+    <div class="container">
+        <div class="card">
+            <div class="logo">🔐</div>
+            <h1>ArcVPN</h1>
+            <p class="status">Активна</p>
+            <p class="subtitle">Нажмите кнопку для импорта подписки в Happ</p>
+            
+            <a href="{happ_deeplink}" class="btn btn-primary">Открыть в Happ</a>
+            
+            <div class="divider"></div>
+            
+            <div class="copy-section">
+                <p>Или скопируйте ссылку вручную</p>
+                <div class="url">{subscription_url}</div>
+                <button onclick="copyUrl()" class="btn btn-secondary">Копировать ссылку</button>
+            </div>
         </div>
+    </div>
+    
+    <div class="success-message" id="successMessage">
+        ✓ Ссылка скопирована
     </div>
     
     <script>
         function copyUrl() {{
+            const successMsg = document.getElementById('successMessage');
+            
             navigator.clipboard.writeText('{subscription_url}').then(() => {{
-                alert('✅ Ссылка скопирована!\\n\\nТеперь откройте Happ и вставьте её.');
+                showSuccess();
             }}).catch(() => {{
+                // Fallback для старых браузеров
                 const textarea = document.createElement('textarea');
                 textarea.value = '{subscription_url}';
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
                 document.body.appendChild(textarea);
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                alert('✅ Ссылка скопирована!\\n\\nТеперь откройте Happ и вставьте её.');
+                showSuccess();
             }});
+            
+            function showSuccess() {{
+                successMsg.classList.add('show');
+                setTimeout(() => {{
+                    successMsg.classList.remove('show');
+                }}, 2500);
+            }}
         }}
     </script>
 </body>
