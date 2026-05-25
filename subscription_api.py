@@ -173,14 +173,14 @@ DIRECT_DOMAIN_RULES = [
 # geosite:category-ru - все российские сайты из базы V2Ray
 # geoip:ru - все российские IP-адреса
 HAPP_ROUTING_PROFILE = {
-    "Name": "ArcVPN - Обход РФ",
+    "Name": "ArcVPN - Обход РФ | 📢 @arcvpn1 | 💬 @Turan11627",
     "GlobalProxy": "true",
     "RemoteDNSType": "DoH",
     "RemoteDNSDomain": "https://cloudflare-dns.com/dns-query",
     "RemoteDNSIP": "1.1.1.1",
-    "DomesticDNSType": "DoH",
-    "DomesticDNSDomain": "https://dns.google/dns-query",
-    "DomesticDNSIP": "8.8.8.8",
+    "DomesticDNSType": "System",  # Используем системный DNS для российских сайтов (быстрее)
+    "DomesticDNSDomain": "",
+    "DomesticDNSIP": "",
     "Geoipurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
     "Geositeurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
     "DnsHosts": {
@@ -205,9 +205,7 @@ HAPP_ROUTING_PROFILE = {
     ],
     "ProxySites": [],
     "ProxyIp": [],
-    "BlockSites": [
-        "geosite:category-ads-all",  # Блокировка рекламы (опционально)
-    ],
+    "BlockSites": [],  # Отключаем блокировку рекламы для уменьшения задержек
     "BlockIp": [],
     "DomainStrategy": "IPIfNonMatch",
     "FakeDNS": "false"
@@ -525,16 +523,22 @@ def subscription(sub_id: str):
         
         # ВАЖНО: Happ лучше работает с plain text форматом для routing
         # Формируем plain text версию с routing ссылкой
+        
+        # Создаем красивое название профиля с информацией о канале и поддержке
+        # Формат: ArcVPN | 📢 @arcvpn1 | 💬 @Turan11627
+        profile_title = "ArcVPN | 📢 @arcvpn1 | 💬 @Turan11627"
+        profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
+        
         if routing_link:
             plain_text_subscription = (
-                f"#profile-title: base64:QXJjVlBO\n"
+                f"#profile-title: base64:{profile_title_base64}\n"
                 f"#profile-update-interval: 24\n"
                 f"{routing_link}\n"
                 f"{link}\n"
             )
         else:
             plain_text_subscription = (
-                f"#profile-title: base64:QXJjVlBO\n"
+                f"#profile-title: base64:{profile_title_base64}\n"
                 f"#profile-update-interval: 24\n"
                 f"{link}\n"
             )
