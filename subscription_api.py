@@ -31,7 +31,11 @@ app = Flask(__name__)
 # ============================================================================
 
 # Домены, которые должны идти напрямую (без VPN) для российских пользователей.
-# Используется для split-tunneling в Happ клиенте.
+# ВАЖНО: Этот список используется только для документации и справки.
+# В реальной конфигурации используются geosite правила (geosite:category-ru),
+# которые уже содержат все эти домены и многие другие.
+# Это сделано для уменьшения размера конфигурации и избежания ошибки
+# "Лимит памяти туннеля превышен (50 МБ)" в XrayCore.
 DIRECT_DOMAIN_RULES = [
     # === МАРКЕТПЛЕЙСЫ ===
     "ozon.ru",
@@ -184,10 +188,11 @@ HAPP_ROUTING_PROFILE = {
         "dns.google": "8.8.8.8"
     },
     "DirectSites": [
-        "geosite:category-ru",  # Все российские сайты из базы
+        "geosite:category-ru",  # Все российские сайты из базы (включает все домены из DIRECT_DOMAIN_RULES)
         "geosite:yandex",       # Все сервисы Яндекса
         "geosite:vk",           # VK и связанные сервисы
-    ] + [f"domain:{domain}" for domain in DIRECT_DOMAIN_RULES],  # Добавляем наш список
+        "geosite:mailru",       # Mail.ru и связанные сервисы
+    ],
     "DirectIp": [
         "geoip:ru",             # Все российские IP
         "geoip:private",        # Локальные сети
@@ -469,10 +474,6 @@ def subscription(sub_id: str):
                 ],
                 "route": {
                     "rules": [
-                        {
-                            "domain": DIRECT_DOMAIN_RULES,
-                            "outbound": "direct"
-                        },
                         {
                             "domain": [subscription_host],
                             "outbound": "direct"
