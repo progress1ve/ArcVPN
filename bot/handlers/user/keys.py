@@ -356,7 +356,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «� Импортировать в Happ» ниже\n"
+        "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
         "Подписка автоматически добавится в приложение\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
@@ -372,7 +372,7 @@ async def instruction_apple_handler(callback: CallbackQuery):
         import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
         
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"))
-        builder.row(InlineKeyboardButton(text="� Импортировать в Happ", url=import_url))
+        builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
         
         # Навигация
         builder.row(
@@ -419,7 +419,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «� Импортировать в Happ» ниже\n"
+        "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
         "Подписка автоматически добавится в приложение\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "В приложении Happ нажмите кнопку подключения ▶️\n\n"
@@ -435,7 +435,7 @@ async def instruction_android_handler(callback: CallbackQuery):
         import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
         
         builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=com.happproxy&hl=ru"))
-        builder.row(InlineKeyboardButton(text="� Импортировать в Happ", url=import_url))
+        builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
         
         # Навигация
         builder.row(
@@ -479,7 +479,7 @@ async def instruction_windows_handler(callback: CallbackQuery):
         "<b>Шаг 1:</b> Скачайте приложение Happ\n"
         "Нажмите кнопку ниже и скачайте версию для Windows\n\n"
         "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «�� Импортировать в Happ» ниже\n"
+        "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
         "Подписка автоматически добавится в приложение\n\n"
         "<b>Шаг 3:</b> Подключитесь\n"
         "Нажмите кнопку подключения в приложении"
@@ -491,7 +491,7 @@ async def instruction_windows_handler(callback: CallbackQuery):
     # Создаём клавиатуру с кнопками
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://github.com/Happ-proxy/happ-desktop/releases/tag/2.9.1"))
-    builder.row(InlineKeyboardButton(text="�� Импортировать в Happ", url=import_url))
+    builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
     builder.row(
         InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")

@@ -173,7 +173,7 @@ DIRECT_DOMAIN_RULES = [
 # geosite:category-ru - все российские сайты из базы V2Ray
 # geoip:ru - все российские IP-адреса
 HAPP_ROUTING_PROFILE = {
-    "Name": "ArcVPN - Обход РФ | 📢 @arcvpn1 | 💬 @Turan11627",
+    "Name": "ArcVPN - Обход РФ",
     "GlobalProxy": "true",
     "RemoteDNSType": "DoH",
     "RemoteDNSDomain": "https://cloudflare-dns.com/dns-query",
@@ -524,61 +524,19 @@ def subscription(sub_id: str):
         # ВАЖНО: Happ лучше работает с plain text форматом для routing
         # Формируем plain text версию с routing ссылкой
         
-        # Создаем красивое название профиля с информацией о канале и поддержке
-        # Формат: ArcVPN | 📢 @arcvpn1 | 💬 @Turan11627
-        profile_title = "ArcVPN | 📢 @arcvpn1 | 💬 @Turan11627"
+        # Простое название профиля
+        profile_title = "ArcVPN"
         profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
-        
-        # Получаем данные о трафике и дате истечения
-        from datetime import datetime
-        
-        # Трафик
-        traffic_limit = key.get('traffic_limit', 0) or 0
-        traffic_used = key.get('traffic_used', 0) or 0
-        
-        # Конвертируем в GB для отображения
-        traffic_limit_gb = traffic_limit / (1024 ** 3) if traffic_limit > 0 else 0
-        traffic_used_gb = traffic_used / (1024 ** 3) if traffic_used > 0 else 0
-        
-        # Дата истечения
-        expires_at_str = key.get('expires_at', '')
-        if expires_at_str:
-            try:
-                expires_dt = datetime.strptime(expires_at_str, '%Y-%m-%d %H:%M:%S')
-                expires_formatted = expires_dt.strftime('%d.%m.%Y')
-            except:
-                expires_formatted = ''
-        else:
-            expires_formatted = ''
         
         # Добавляем кнопки для информации и Telegram канала
         # support-url - желтая кнопка с информацией (левая)
         # profile-web-page-url - зеленая кнопка Telegram (правая)
-        # upload - использованный трафик в байтах
-        # download - использованный трафик в байтах (для Happ upload+download = total)
-        # total - общий лимит трафика в байтах
-        # expire - дата истечения в Unix timestamp
-        
-        # Конвертируем дату в Unix timestamp
-        if expires_at_str:
-            try:
-                expires_dt = datetime.strptime(expires_at_str, '%Y-%m-%d %H:%M:%S')
-                expire_timestamp = int(expires_dt.timestamp())
-            except:
-                expire_timestamp = 0
-        else:
-            expire_timestamp = 0
-        
         if routing_link:
             plain_text_subscription = (
                 f"#profile-title: base64:{profile_title_base64}\n"
                 f"#profile-update-interval: 24\n"
                 f"#support-url: https://t.me/Turan11627\n"
                 f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"#upload: {traffic_used}\n"
-                f"#download: {traffic_used}\n"
-                f"#total: {traffic_limit if traffic_limit > 0 else 0}\n"
-                f"#expire: {expire_timestamp}\n"
                 f"{routing_link}\n"
                 f"{link}\n"
             )
@@ -588,10 +546,6 @@ def subscription(sub_id: str):
                 f"#profile-update-interval: 24\n"
                 f"#support-url: https://t.me/Turan11627\n"
                 f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"#upload: {traffic_used}\n"
-                f"#download: {traffic_used}\n"
-                f"#total: {traffic_limit if traffic_limit > 0 else 0}\n"
-                f"#expire: {expire_timestamp}\n"
                 f"{link}\n"
             )
         
@@ -684,7 +638,7 @@ def import_to_happ(sub_id: str):
 </head>
 <body>
     <div class="card">
-        <div class="logo">🔐</div>
+        <div class="logo">🔑</div>
         <h1>ArcVPN</h1>
         <p class="status">АКТИВНА</p>
         <p class="subtitle">Нажмите кнопку для импорта в Happ</p>
