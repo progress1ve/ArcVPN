@@ -713,9 +713,9 @@ def import_to_happ(sub_id: str):
         
         /* Логотип с свечением */
         .logo {{
-            width: 180px;
-            height: 180px;
-            margin: 0 auto 40px;
+            width: 280px;
+            height: 280px;
+            margin: 0 auto 50px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -724,8 +724,8 @@ def import_to_happ(sub_id: str):
         }}
         
         .logo img {{
-            width: 180px;
-            height: 180px;
+            width: 280px;
+            height: 280px;
             object-fit: contain;
         }}
         
@@ -735,7 +735,7 @@ def import_to_happ(sub_id: str):
         }}
         
         h1 {{
-            font-size: 56px;
+            font-size: 72px;
             font-weight: 400;
             color: white;
             margin-bottom: 60px;
@@ -813,17 +813,18 @@ def import_to_happ(sub_id: str):
         
         @media (max-width: 640px) {{
             .logo {{
-                width: 140px;
-                height: 140px;
+                width: 200px;
+                height: 200px;
                 margin-bottom: 30px;
             }}
             
-            .logo-text {{
-                font-size: 56px;
+            .logo img {{
+                width: 200px;
+                height: 200px;
             }}
             
             h1 {{
-                font-size: 42px;
+                font-size: 52px;
                 margin-bottom: 40px;
             }}
             
