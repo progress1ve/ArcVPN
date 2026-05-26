@@ -631,7 +631,7 @@ def import_to_happ(sub_id: str):
     <title>ArcVPN - Импорт подписки</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
     <style>
         * {{
             margin: 0;
@@ -640,8 +640,8 @@ def import_to_happ(sub_id: str):
         }}
         
         body {{
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(180deg, #5e79c1 0%, #7b8fc9 50%, #a3abda 100%);
+            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(180deg, #3d5a9e 0%, #516db3 50%, #7a8fc4 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -716,25 +716,22 @@ def import_to_happ(sub_id: str):
             width: 180px;
             height: 180px;
             margin: 0 auto 40px;
-            background: white;
-            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 60px rgba(255, 255, 255, 0.3);
+            filter: drop-shadow(0 0 40px rgba(255, 255, 255, 0.4));
             animation: glow 3s ease-in-out infinite;
         }}
         
-        @keyframes glow {{
-            0%, 100% {{ box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }}
-            50% {{ box-shadow: 0 0 80px rgba(255, 255, 255, 0.5); }}
+        .logo img {{
+            width: 180px;
+            height: 180px;
+            object-fit: contain;
         }}
         
-        .logo-text {{
-            font-size: 72px;
-            font-weight: 700;
-            color: #5e79c1;
-            line-height: 1;
+        @keyframes glow {{
+            0%, 100% {{ filter: drop-shadow(0 0 40px rgba(255, 255, 255, 0.4)); }}
+            50% {{ filter: drop-shadow(0 0 60px rgba(255, 255, 255, 0.6)); }}
         }}
         
         h1 {{
@@ -743,7 +740,7 @@ def import_to_happ(sub_id: str):
             color: white;
             margin-bottom: 60px;
             letter-spacing: 2px;
-            font-family: 'Georgia', serif;
+            font-family: 'Playfair Display', serif;
         }}
         
         /* Кнопки */
@@ -760,12 +757,12 @@ def import_to_happ(sub_id: str):
             transition: all 0.3s ease;
             border: none;
             cursor: pointer;
-            font-family: 'Inter', sans-serif;
+            font-family: 'Geist', sans-serif;
         }}
         
         .btn-primary {{
             background: white;
-            color: #5e79c1;
+            color: #516db3;
             box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
         }}
         
@@ -798,7 +795,7 @@ def import_to_happ(sub_id: str):
             left: 50%;
             transform: translateX(-50%) translateY(-100px);
             background: rgba(255, 255, 255, 0.95);
-            color: #5e79c1;
+            color: #516db3;
             padding: 16px 32px;
             border-radius: 50px;
             font-size: 16px;
@@ -860,7 +857,7 @@ def import_to_happ(sub_id: str):
     <div class="container">
         <!-- Логотип SVG -->
         <div class="logo">
-            <img src="/logo.svg" alt="ArcVPN Logo" style="width: 120px; height: 120px;">
+            <img src="/logo.svg" alt="ArcVPN Logo">
         </div>
         
         <h1>ArcVPN</h1>
