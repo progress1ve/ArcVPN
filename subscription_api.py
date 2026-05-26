@@ -585,6 +585,19 @@ def health():
     return Response("OK", mimetype='text/plain')
 
 
+@app.route('/logo.svg')
+def logo():
+    """Отдает SVG логотип."""
+    import os
+    logo_path = os.path.join(os.path.dirname(__file__), 'arcLOGOsvg.svg')
+    try:
+        with open(logo_path, 'r', encoding='utf-8') as f:
+            svg_content = f.read()
+        return Response(svg_content, mimetype='image/svg+xml')
+    except:
+        return Response("", status=404)
+
+
 @app.route('/import/<sub_id>')
 def import_to_happ(sub_id: str):
     """
@@ -628,7 +641,7 @@ def import_to_happ(sub_id: str):
         
         body {{
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(180deg, #1a2a4e 0%, #2d4a7c 50%, #4a7ba7 100%);
+            background: linear-gradient(180deg, #5e79c1 0%, #7b8fc9 50%, #a3abda 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -720,7 +733,7 @@ def import_to_happ(sub_id: str):
         .logo-text {{
             font-size: 72px;
             font-weight: 700;
-            color: #1a2a4e;
+            color: #5e79c1;
             line-height: 1;
         }}
         
@@ -752,7 +765,7 @@ def import_to_happ(sub_id: str):
         
         .btn-primary {{
             background: white;
-            color: #2d4a7c;
+            color: #5e79c1;
             box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
         }}
         
@@ -785,7 +798,7 @@ def import_to_happ(sub_id: str):
             left: 50%;
             transform: translateX(-50%) translateY(-100px);
             background: rgba(255, 255, 255, 0.95);
-            color: #2d4a7c;
+            color: #5e79c1;
             padding: 16px 32px;
             border-radius: 50px;
             font-size: 16px;
@@ -845,9 +858,9 @@ def import_to_happ(sub_id: str):
     </div>
     
     <div class="container">
-        <!-- Логотип (пока текстовый, потом заменим на SVG) -->
+        <!-- Логотип SVG -->
         <div class="logo">
-            <div class="logo-text">A</div>
+            <img src="/logo.svg" alt="ArcVPN Logo" style="width: 120px; height: 120px;">
         </div>
         
         <h1>ArcVPN</h1>
