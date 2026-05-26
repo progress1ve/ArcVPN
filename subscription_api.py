@@ -609,64 +609,289 @@ def import_to_happ(sub_id: str):
     # Правильный формат Happ deeplink: happ://add/{URL}
     happ_deeplink = f"happ://add/{subscription_url}"
     
-    # HTML страница с кнопкой
+    # HTML страница с новым дизайном на основе референса
     html = f"""<!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Импорт подписки в Happ</title>
+    <title>ArcVPN - Импорт подписки</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }}
-        .card {{ background: white; border-radius: 20px; padding: 30px; max-width: 360px; width: 100%; text-align: center; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }}
-        .logo {{ width: 80px; height: 80px; margin: 0 auto 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 40px; }}
-        h1 {{ color: #1a1a2e; font-size: 24px; margin-bottom: 8px; }}
-        .status {{ color: #28a745; font-size: 14px; margin-bottom: 20px; font-weight: 600; }}
-        .status::before {{ content: '● '; color: #28a745; }}
-        .subtitle {{ color: #666; font-size: 14px; margin-bottom: 25px; }}
-        .btn {{ display: block; width: 100%; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 600; text-decoration: none; margin-bottom: 12px; transition: all 0.2s; border: none; cursor: pointer; }}
-        .btn-primary {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }}
-        .btn-primary:hover {{ transform: translateY(-2px); box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4); }}
-        .btn-secondary {{ background: #f5f5f5; color: #333; }}
-        .btn-secondary:hover {{ background: #eee; }}
-        .divider {{ margin: 20px 0; border: none; border-top: 1px solid #eee; }}
-        .copy-section {{ background: #f8f9fa; border-radius: 12px; padding: 15px; margin-top: 15px; }}
-        .copy-section p {{ color: #666; font-size: 13px; margin-bottom: 10px; }}
-        .url {{ background: #1a1a2e; color: #28a745; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; word-break: break-all; margin-bottom: 10px; }}
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(180deg, #1a2a4e 0%, #2d4a7c 50%, #4a7ba7 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            position: relative;
+            overflow: hidden;
+        }}
+        
+        /* Анимированные звезды на фоне */
+        .stars {{
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }}
+        
+        .star {{
+            position: absolute;
+            width: 2px;
+            height: 2px;
+            background: white;
+            border-radius: 50%;
+            animation: twinkle 3s infinite;
+        }}
+        
+        @keyframes twinkle {{
+            0%, 100% {{ opacity: 0.3; }}
+            50% {{ opacity: 1; }}
+        }}
+        
+        /* Генерируем звезды */
+        .star:nth-child(1) {{ top: 10%; left: 20%; animation-delay: 0s; }}
+        .star:nth-child(2) {{ top: 20%; left: 80%; animation-delay: 0.5s; }}
+        .star:nth-child(3) {{ top: 30%; left: 50%; animation-delay: 1s; }}
+        .star:nth-child(4) {{ top: 40%; left: 10%; animation-delay: 1.5s; }}
+        .star:nth-child(5) {{ top: 50%; left: 90%; animation-delay: 2s; }}
+        .star:nth-child(6) {{ top: 60%; left: 30%; animation-delay: 2.5s; }}
+        .star:nth-child(7) {{ top: 70%; left: 70%; animation-delay: 0.3s; }}
+        .star:nth-child(8) {{ top: 80%; left: 40%; animation-delay: 0.8s; }}
+        .star:nth-child(9) {{ top: 15%; left: 60%; animation-delay: 1.2s; }}
+        .star:nth-child(10) {{ top: 85%; left: 15%; animation-delay: 1.8s; }}
+        .star:nth-child(11) {{ top: 25%; left: 85%; animation-delay: 0.6s; }}
+        .star:nth-child(12) {{ top: 45%; left: 25%; animation-delay: 1.4s; }}
+        .star:nth-child(13) {{ top: 65%; left: 75%; animation-delay: 2.2s; }}
+        .star:nth-child(14) {{ top: 35%; left: 45%; animation-delay: 0.9s; }}
+        .star:nth-child(15) {{ top: 75%; left: 55%; animation-delay: 1.7s; }}
+        
+        /* Большие яркие звезды */
+        .star.bright {{
+            width: 3px;
+            height: 3px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }}
+        
+        .star:nth-child(3), .star:nth-child(7), .star:nth-child(12) {{
+            width: 3px;
+            height: 3px;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        }}
+        
+        .container {{
+            position: relative;
+            z-index: 1;
+            text-align: center;
+            max-width: 480px;
+            width: 100%;
+        }}
+        
+        /* Логотип с свечением */
+        .logo {{
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 40px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 60px rgba(255, 255, 255, 0.3);
+            animation: glow 3s ease-in-out infinite;
+        }}
+        
+        @keyframes glow {{
+            0%, 100% {{ box-shadow: 0 0 60px rgba(255, 255, 255, 0.3); }}
+            50% {{ box-shadow: 0 0 80px rgba(255, 255, 255, 0.5); }}
+        }}
+        
+        .logo-text {{
+            font-size: 72px;
+            font-weight: 700;
+            color: #1a2a4e;
+            line-height: 1;
+        }}
+        
+        h1 {{
+            font-size: 56px;
+            font-weight: 400;
+            color: white;
+            margin-bottom: 60px;
+            letter-spacing: 2px;
+            font-family: 'Georgia', serif;
+        }}
+        
+        /* Кнопки */
+        .btn {{
+            display: block;
+            width: 100%;
+            max-width: 440px;
+            margin: 0 auto 20px;
+            padding: 20px 40px;
+            border-radius: 50px;
+            font-size: 18px;
+            font-weight: 500;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+        }}
+        
+        .btn-primary {{
+            background: white;
+            color: #2d4a7c;
+            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
+        }}
+        
+        .btn-primary:hover {{
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(255, 255, 255, 0.4);
+        }}
+        
+        .btn-secondary {{
+            background: transparent;
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }}
+        
+        .btn-secondary:hover {{
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.8);
+        }}
+        
+        .divider-text {{
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 16px;
+            margin: 30px 0 20px;
+        }}
+        
+        /* Уведомление об успешном копировании */
+        .toast {{
+            position: fixed;
+            top: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            background: rgba(255, 255, 255, 0.95);
+            color: #2d4a7c;
+            padding: 16px 32px;
+            border-radius: 50px;
+            font-size: 16px;
+            font-weight: 500;
+            opacity: 0;
+            transition: all 0.4s ease;
+            z-index: 1000;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }}
+        
+        .toast.show {{
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }}
+        
+        @media (max-width: 640px) {{
+            .logo {{
+                width: 140px;
+                height: 140px;
+                margin-bottom: 30px;
+            }}
+            
+            .logo-text {{
+                font-size: 56px;
+            }}
+            
+            h1 {{
+                font-size: 42px;
+                margin-bottom: 40px;
+            }}
+            
+            .btn {{
+                padding: 18px 32px;
+                font-size: 16px;
+            }}
+        }}
     </style>
 </head>
 <body>
-    <div class="card">
-        <div class="logo">🔑</div>
-        <h1>ArcVPN</h1>
-        <p class="status">АКТИВНА</p>
-        <p class="subtitle">Нажмите кнопку для импорта в Happ</p>
-        
-        <a href="{happ_deeplink}" class="btn btn-primary">📥 Открыть в Happ</a>
-        
-        <div class="divider"></div>
-        
-        <div class="copy-section">
-            <p>Или скопируйте ссылку вручную:</p>
-            <div class="url">{subscription_url}</div>
-            <button onclick="copyUrl()" class="btn btn-secondary">📋 Копировать ссылку</button>
+    <!-- Звезды на фоне -->
+    <div class="stars">
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+        <div class="star"></div>
+    </div>
+    
+    <div class="container">
+        <!-- Логотип (пока текстовый, потом заменим на SVG) -->
+        <div class="logo">
+            <div class="logo-text">A</div>
         </div>
+        
+        <h1>ArcVPN</h1>
+        
+        <!-- Кнопка открытия в Happ -->
+        <a href="{happ_deeplink}" class="btn btn-primary">Открыть в Happ</a>
+        
+        <p class="divider-text">Или скопируйте ссылку вручную</p>
+        
+        <!-- Кнопка копирования -->
+        <button onclick="copyUrl()" class="btn btn-secondary">Копировать вручную</button>
+    </div>
+    
+    <!-- Уведомление -->
+    <div class="toast" id="toast">
+        ✓ Ссылка скопирована
     </div>
     
     <script>
         function copyUrl() {{
-            navigator.clipboard.writeText('{subscription_url}').then(() => {{
-                alert('✅ Ссылка скопирована!\\n\\nТеперь откройте Happ и вставьте её.');
+            const url = '{subscription_url}';
+            const toast = document.getElementById('toast');
+            
+            navigator.clipboard.writeText(url).then(() => {{
+                showToast();
             }}).catch(() => {{
+                // Fallback для старых браузеров
                 const textarea = document.createElement('textarea');
-                textarea.value = '{subscription_url}';
+                textarea.value = url;
+                textarea.style.position = 'fixed';
+                textarea.style.opacity = '0';
                 document.body.appendChild(textarea);
                 textarea.select();
                 document.execCommand('copy');
                 document.body.removeChild(textarea);
-                alert('✅ Ссылка скопирована!\\n\\nТеперь откройте Happ и вставьте её.');
+                showToast();
             }});
+            
+            function showToast() {{
+                toast.classList.add('show');
+                setTimeout(() => {{
+                    toast.classList.remove('show');
+                }}, 2500);
+            }}
         }}
     </script>
 </body>
