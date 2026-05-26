@@ -713,33 +713,33 @@ def import_to_happ(sub_id: str):
         
         /* Логотип с свечением */
         .logo {{
-            width: 280px;
-            height: 280px;
-            margin: 0 auto 50px;
+            width: 360px;
+            height: 360px;
+            margin: 0 auto 60px;
             display: flex;
             align-items: center;
             justify-content: center;
-            filter: drop-shadow(0 0 40px rgba(255, 255, 255, 0.4));
+            filter: drop-shadow(0 0 50px rgba(255, 255, 255, 0.5));
             animation: glow 3s ease-in-out infinite;
         }}
         
         .logo img {{
-            width: 280px;
-            height: 280px;
+            width: 360px;
+            height: 360px;
             object-fit: contain;
         }}
         
         @keyframes glow {{
-            0%, 100% {{ filter: drop-shadow(0 0 40px rgba(255, 255, 255, 0.4)); }}
-            50% {{ filter: drop-shadow(0 0 60px rgba(255, 255, 255, 0.6)); }}
+            0%, 100% {{ filter: drop-shadow(0 0 50px rgba(255, 255, 255, 0.5)); }}
+            50% {{ filter: drop-shadow(0 0 70px rgba(255, 255, 255, 0.7)); }}
         }}
         
         h1 {{
-            font-size: 72px;
+            font-size: 96px;
             font-weight: 400;
             color: white;
-            margin-bottom: 60px;
-            letter-spacing: 2px;
+            margin-bottom: 70px;
+            letter-spacing: 3px;
             font-family: 'Playfair Display', serif;
         }}
         
@@ -813,19 +813,20 @@ def import_to_happ(sub_id: str):
         
         @media (max-width: 640px) {{
             .logo {{
-                width: 200px;
-                height: 200px;
-                margin-bottom: 30px;
+                width: 240px;
+                height: 240px;
+                margin-bottom: 40px;
             }}
             
             .logo img {{
-                width: 200px;
-                height: 200px;
+                width: 240px;
+                height: 240px;
             }}
             
             h1 {{
-                font-size: 52px;
-                margin-bottom: 40px;
+                font-size: 64px;
+                margin-bottom: 50px;
+                letter-spacing: 2px;
             }}
             
             .btn {{
