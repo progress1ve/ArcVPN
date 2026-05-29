@@ -176,7 +176,7 @@ HAPP_ROUTING_PROFILE = {
     "Name": "ArcVPN - Обход РФ",
     "GlobalProxy": "true",
     "RemoteDNSType": "DoH",
-    "RemoteDNSDomain": "https://cloudflare-dns.com/dns-query",
+    "RemoteDNSDomain": "https://1.1.1.1/dns-query",  # Cloudflare DoH (быстрее)
     "RemoteDNSIP": "1.1.1.1",
     "DomesticDNSType": "System",  # Используем системный DNS для российских сайтов (быстрее)
     "DomesticDNSDomain": "",
@@ -184,7 +184,7 @@ HAPP_ROUTING_PROFILE = {
     "Geoipurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
     "Geositeurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
     "DnsHosts": {
-        "cloudflare-dns.com": "1.1.1.1",
+        "1.1.1.1": "1.1.1.1",
         "dns.google": "8.8.8.8"
     },
     "DirectSites": [
@@ -207,7 +207,7 @@ HAPP_ROUTING_PROFILE = {
     "ProxyIp": [],
     "BlockSites": [],  # Отключаем блокировку рекламы для уменьшения задержек
     "BlockIp": [],
-    "DomainStrategy": "IPIfNonMatch",
+    "DomainStrategy": "AsIs",  # Изменено с IPIfNonMatch на AsIs для уменьшения задержек DNS
     "FakeDNS": "false"
 }
 
