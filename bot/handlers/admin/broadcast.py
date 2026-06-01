@@ -236,6 +236,45 @@ async def broadcast_preview(callback: CallbackQuery):
         )
 
 
+@router.callback_query(F.data == "broadcast_send_to_me")
+async def broadcast_send_to_me(callback: CallbackQuery, bot: Bot):
+    """Отправляет сообщение рассылки администратору для проверки."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    msg_data = get_broadcast_message()
+    
+    if not msg_data or not msg_data.get('text'):
+        await callback.answer("❌ Сообщение не задано", show_alert=True)
+        return
+    
+    await callback.answer("📤 Отправляю вам сообщение...")
+    
+    try:
+        # Отправляем сообщение администратору точно так же, как оно будет отправлено пользователям
+        text = msg_data.get('text', '')
+        photo_file_id = msg_data.get('photo_file_id')
+        
+        if photo_file_id:
+            await bot.send_photo(
+                chat_id=callback.from_user.id,
+                photo=photo_file_id,
+                caption=text
+            )
+        else:
+            await bot.send_message(
+                chat_id=callback.from_user.id,
+                text=text
+            )
+        
+        await callback.answer("✅ Сообщение отправлено вам в личку!", show_alert=True)
+        
+    except Exception as e:
+        logger.error(f"Ошибка отправки тестового сообщения: {e}")
+        await callback.answer("❌ Ошибка отправки сообщения", show_alert=True)
+
+
 # ============================================================================
 # ФИЛЬТРЫ
 # ============================================================================

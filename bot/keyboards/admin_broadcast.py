@@ -18,7 +18,11 @@ def broadcast_main_kb(has_message: bool, current_filter: str, broadcast_in_progr
     """
     builder = InlineKeyboardBuilder()
     msg_status = '✅' if has_message else '❌'
-    builder.row(InlineKeyboardButton(text=f'✉️ Сообщение: {msg_status}', callback_data='broadcast_edit_message'), InlineKeyboardButton(text='👁️ Превью', callback_data='broadcast_preview'))
+    builder.row(InlineKeyboardButton(text=f'✉️ Сообщение: {msg_status}', callback_data='broadcast_edit_message'))
+    builder.row(
+        InlineKeyboardButton(text='👁️ Превью', callback_data='broadcast_preview'),
+        InlineKeyboardButton(text='📤 Отправить себе', callback_data='broadcast_send_to_me')
+    )
     builder.row(InlineKeyboardButton(text='📋 Шаблоны сообщений', callback_data='broadcast_templates'))
     for (filter_key, filter_name) in BROADCAST_FILTERS.items():
         radio = '🔘' if filter_key == current_filter else '⚪'
