@@ -260,12 +260,14 @@ async def broadcast_send_to_me(callback: CallbackQuery, bot: Bot):
             await bot.send_photo(
                 chat_id=callback.from_user.id,
                 photo=photo_file_id,
-                caption=text
+                caption=text,
+                parse_mode="HTML"
             )
         else:
             await bot.send_message(
                 chat_id=callback.from_user.id,
-                text=text
+                text=text,
+                parse_mode="HTML"
             )
         
         await callback.answer("✅ Сообщение отправлено вам в личку!", show_alert=True)
@@ -417,12 +419,14 @@ async def broadcast_confirm(callback: CallbackQuery, bot: Bot):
                 await bot.send_photo(
                     chat_id=user_id,
                     photo=photo_file_id,
-                    caption=text
+                    caption=text,
+                    parse_mode="HTML"
                 )
             else:
                 await bot.send_message(
                     chat_id=user_id,
-                    text=text
+                    text=text,
+                    parse_mode="HTML"
                 )
             sent += 1
         except TelegramForbiddenError:
