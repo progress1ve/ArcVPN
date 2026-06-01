@@ -19,6 +19,7 @@ def broadcast_main_kb(has_message: bool, current_filter: str, broadcast_in_progr
     builder = InlineKeyboardBuilder()
     msg_status = '✅' if has_message else '❌'
     builder.row(InlineKeyboardButton(text=f'✉️ Сообщение: {msg_status}', callback_data='broadcast_edit_message'), InlineKeyboardButton(text='👁️ Превью', callback_data='broadcast_preview'))
+    builder.row(InlineKeyboardButton(text='📋 Шаблоны сообщений', callback_data='broadcast_templates'))
     for (filter_key, filter_name) in BROADCAST_FILTERS.items():
         radio = '🔘' if filter_key == current_filter else '⚪'
         builder.row(InlineKeyboardButton(text=f'{radio} {filter_name}', callback_data=f'broadcast_filter:{filter_key}'))
@@ -29,6 +30,41 @@ def broadcast_main_kb(has_message: bool, current_filter: str, broadcast_in_progr
     builder.row(InlineKeyboardButton(text='─────────────────', callback_data='noop'))
     builder.row(InlineKeyboardButton(text='⏰ Настройки автоуведомлений', callback_data='broadcast_notifications'))
     builder.row(back_button('admin_panel'), home_button())
+    return builder.as_markup()
+
+def broadcast_templates_kb() -> InlineKeyboardMarkup:
+    """Клавиатура выбора шаблона сообщения."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='🎁 Для истекших пробных', callback_data='template_trial_expired'))
+    builder.row(InlineKeyboardButton(text='🆕 Для никогда не покупавших', callback_data='template_never_paid'))
+    builder.row(back_button('admin_broadcast'), home_button())
+    return builder.as_markup()
+
+def broadcast_template_promocode_kb(promocodes: List[Dict[str, Any]], template_type: str) -> InlineKeyboardMarkup:
+    """
+    Клавиатура выбора промокода для шаблона.
+    
+    Args:
+        promocodes: Список активных промокодов
+        template_type: Тип шаблона (trial_expired, never_paid)
+    """
+    builder = InlineKeyboardBuilder()
+    
+    if promocodes:
+        for promo in promocodes:
+            code = promo['code']
+            discount = promo['discount_rub']
+            used = promo.get('used_count', 0)
+            max_uses = promo['max_uses']
+            
+            button_text = f"🎟️ {code} (-{discount}₽) [{used}/{max_uses}]"
+            builder.row(InlineKeyboardButton(
+                text=button_text, 
+                callback_data=f'template_promo:{template_type}:{promo["id"]}'
+            ))
+    
+    builder.row(InlineKeyboardButton(text='❌ Без промокода', callback_data=f'template_promo:{template_type}:none'))
+    builder.row(back_button('broadcast_templates'))
     return builder.as_markup()
 
 def broadcast_confirm_kb(user_count: int) -> InlineKeyboardMarkup:

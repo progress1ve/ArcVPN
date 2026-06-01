@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 19
+LATEST_VERSION = 20
 
 
 def get_current_version() -> int:
@@ -1303,6 +1303,32 @@ def migration_19(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v19 применена")
 
 
+def migration_20(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v20: Изменение логики уведомлений - отправка раз в 7 дней вместо раз в день.
+    
+    Изменения:
+    - Удаляет уникальный индекс idx_notification_log_unique (vpn_key_id, sent_at)
+    - Теперь можно записывать несколько уведомлений для одного ключа в разные дни
+    - Логика проверки изменена: is_notification_sent_today проверяет последние 7 дней
+    """
+    logger.info("Применение миграции v20 (Уведомления раз в 7 дней)...")
+    
+    try:
+        # Удаляем уникальный индекс, который мешает записывать несколько уведомлений
+        conn.execute("DROP INDEX IF EXISTS idx_notification_log_unique")
+        logger.info("Уникальный индекс idx_notification_log_unique удалён")
+        
+        # Оставляем обычный индекс для быстрого поиска по vpn_key_id
+        # (он уже существует: idx_notification_log_vpn_key)
+        
+    except Exception as e:
+        logger.error(f"Ошибка при удалении индекса: {e}")
+        raise
+    
+    logger.info("Миграция v20 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1323,6 +1349,7 @@ MIGRATIONS = {
     17: migration_17,
     18: migration_18,
     19: migration_19,
+    20: migration_20,
 }
 
 

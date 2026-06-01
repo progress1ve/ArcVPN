@@ -16,7 +16,8 @@ from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from config import ADMIN_IDS
 from database.requests import (
     get_setting, set_setting,
-    get_users_for_broadcast, count_users_for_broadcast
+    get_users_for_broadcast, count_users_for_broadcast,
+    get_all_promocodes
 )
 from bot.states.admin_states import AdminStates
 from bot.utils.admin import is_admin
@@ -24,7 +25,8 @@ from bot.keyboards.admin import (
     broadcast_main_kb, broadcast_confirm_kb,
     broadcast_notifications_kb, broadcast_back_kb,
     broadcast_notify_back_kb, home_only_kb,
-    BROADCAST_FILTERS
+    BROADCAST_FILTERS, broadcast_templates_kb,
+    broadcast_template_promocode_kb
 )
 
 logger = logging.getLogger(__name__)
@@ -417,6 +419,213 @@ async def broadcast_confirm(callback: CallbackQuery, bot: Bot):
         f"📤 Отправлено: {sent}\n"
         f"🚫 Заблокировали бота: {blocked}",
         reply_markup=home_only_kb()
+    )
+
+
+# ============================================================================
+# ШАБЛОНЫ СООБЩЕНИЙ
+# ============================================================================
+
+@router.callback_query(F.data == "broadcast_templates")
+async def broadcast_templates(callback: CallbackQuery):
+    """Показывает список шаблонов сообщений."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    text = (
+        "📋 <b>Шаблоны сообщений</b>\n\n"
+        "Готовые шаблоны для разных категорий пользователей.\n"
+        "Вы можете добавить промокод в сообщение.\n\n"
+        "Выберите шаблон:"
+    )
+    
+    await safe_edit_or_send(callback.message, 
+        text,
+        reply_markup=broadcast_templates_kb()
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("template_"))
+async def broadcast_template_select(callback: CallbackQuery):
+    """Обрабатывает выбор шаблона."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    
+    template_type = callback.data.split("_", 1)[1]
+    
+    if template_type == "trial_expired":
+        await show_template_promocode_selection(callback, "trial_expired")
+    elif template_type == "never_paid":
+        await show_template_promocode_selection(callback, "never_paid")
+    elif template_type.startswith("promo:"):
+        # Формат: template_promo:template_type:promocode_id
+        parts = callback.data.split(":")
+        if len(parts) >= 3:
+            tmpl_type = parts[1]
+            promo_id = parts[2]
+            await apply_template(callback, tmpl_type, promo_id)
+    else:
+        await callback.answer("❌ Неизвестный шаблон", show_alert=True)
+
+
+async def show_template_promocode_selection(callback: CallbackQuery, template_type: str):
+    """Показывает выбор промокода для шаблона."""
+    from datetime import datetime
+    
+    # Получаем активные промокоды
+    all_promos = get_all_promocodes()
+    active_promos = []
+    
+    for promo in all_promos:
+        expires_at = datetime.fromisoformat(promo['expires_at'])
+        used_count = promo.get('used_count', 0)
+        
+        # Фильтруем только активные
+        if datetime.now() <= expires_at and used_count < promo['max_uses']:
+            active_promos.append(promo)
+    
+    template_names = {
+        'trial_expired': '🎁 Для истекших пробных',
+        'never_paid': '🆕 Для никогда не покупавших'
+    }
+    
+    text = (
+        f"<b>{template_names.get(template_type, 'Шаблон')}</b>\n\n"
+        "Выберите промокод для добавления в сообщение:\n\n"
+    )
+    
+    if active_promos:
+        text += "Доступные промокоды:"
+    else:
+        text += "❌ Нет активных промокодов.\nВы можете создать их в разделе «Промокоды»."
+    
+    await safe_edit_or_send(callback.message, 
+        text,
+        reply_markup=broadcast_template_promocode_kb(active_promos, template_type)
+    )
+    await callback.answer()
+
+
+async def apply_template(callback: CallbackQuery, template_type: str, promo_id: str):
+    """Применяет шаблон с промокодом."""
+    from database.db_promocodes import get_promocode_by_code
+    from database.requests import get_all_promocodes
+    
+    # Получаем промокод если указан
+    promocode = None
+    promo_code = None
+    promo_discount = None
+    
+    if promo_id != "none":
+        try:
+            promo_id_int = int(promo_id)
+            all_promos = get_all_promocodes()
+            for p in all_promos:
+                if p['id'] == promo_id_int:
+                    promocode = p
+                    promo_code = p['code']
+                    promo_discount = p['discount_rub']
+                    break
+        except ValueError:
+            pass
+    
+    # Генерируем текст шаблона
+    if template_type == "trial_expired":
+        if promocode:
+            text = (
+                f"🎁 <b>Ваш пробный период истёк!</b>\n\n"
+                f"Спасибо, что попробовали наш VPN-сервис!\n\n"
+                f"Мы подготовили для вас специальное предложение:\n"
+                f"🎟️ Промокод <code>{promo_code}</code> на скидку <b>{promo_discount}₽</b>\n\n"
+                f"Активируйте промокод при покупке подписки и получите скидку!\n\n"
+                f"💡 Как использовать:\n"
+                f"1. Нажмите «Купить ключ»\n"
+                f"2. Выберите тариф\n"
+                f"3. Введите промокод <code>{promo_code}</code>\n"
+                f"4. Оплатите со скидкой!\n\n"
+                f"⏰ Предложение ограничено!"
+            )
+        else:
+            text = (
+                f"🎁 <b>Ваш пробный период истёк!</b>\n\n"
+                f"Спасибо, что попробовали наш VPN-сервис!\n\n"
+                f"Понравилось? Продолжайте пользоваться нашим сервисом!\n\n"
+                f"🔐 Преимущества платной подписки:\n"
+                f"• Стабильное соединение\n"
+                f"• Высокая скорость\n"
+                f"• Несколько серверов на выбор\n"
+                f"• Техподдержка 24/7\n\n"
+                f"Нажмите «Купить ключ» чтобы продолжить!"
+            )
+    
+    elif template_type == "never_paid":
+        if promocode:
+            text = (
+                f"👋 <b>Привет!</b>\n\n"
+                f"Мы заметили, что вы ещё не пробовали наш VPN-сервис.\n\n"
+                f"Специально для вас:\n"
+                f"🎟️ Промокод <code>{promo_code}</code> на скидку <b>{promo_discount}₽</b>\n\n"
+                f"🔐 Что вы получите:\n"
+                f"• Быстрый и стабильный VPN\n"
+                f"• Доступ к заблокированным сайтам\n"
+                f"• Защиту ваших данных\n"
+                f"• Несколько серверов на выбор\n\n"
+                f"💡 Как использовать промокод:\n"
+                f"1. Нажмите «Купить ключ»\n"
+                f"2. Выберите тариф\n"
+                f"3. Введите промокод <code>{promo_code}</code>\n"
+                f"4. Оплатите со скидкой!\n\n"
+                f"⏰ Предложение ограничено!"
+            )
+        else:
+            text = (
+                f"👋 <b>Привет!</b>\n\n"
+                f"Мы заметили, что вы ещё не пробовали наш VPN-сервис.\n\n"
+                f"🔐 Почему стоит попробовать:\n"
+                f"• Быстрый и стабильный VPN\n"
+                f"• Доступ к заблокированным сайтам\n"
+                f"• Защита ваших данных\n"
+                f"• Несколько серверов на выбор\n"
+                f"• Простая настройка за 2 минуты\n\n"
+                f"Нажмите «Купить ключ» чтобы начать!"
+            )
+    else:
+        await callback.answer("❌ Неизвестный шаблон", show_alert=True)
+        return
+    
+    # Сохраняем сообщение
+    save_broadcast_message(text, None)
+    
+    # Устанавливаем соответствующий фильтр
+    if template_type == "trial_expired":
+        set_setting('broadcast_filter', 'expired')
+    elif template_type == "never_paid":
+        set_setting('broadcast_filter', 'never_paid')
+    
+    await callback.answer("✅ Шаблон применён!")
+    
+    # Возвращаемся в главное меню рассылки
+    msg_data = get_broadcast_message()
+    has_message = msg_data is not None and msg_data.get('text')
+    current_filter = get_setting('broadcast_filter', 'all')
+    in_progress = is_broadcast_in_progress()
+    user_count = count_users_for_broadcast(current_filter)
+    
+    text_menu = (
+        "📢 <b>Рассылка</b>\n\n"
+        "✅ Шаблон применён!\n\n"
+        "Отправьте сообщение всем пользователям бота.\n\n"
+        "1️⃣ Отредактируйте сообщение (если нужно)\n"
+        "2️⃣ Выберите фильтр получателей\n"
+        "3️⃣ Нажмите «Начать рассылку»"
+    )
+    
+    await safe_edit_or_send(callback.message, 
+        text_menu,
+        reply_markup=broadcast_main_kb(has_message, current_filter, in_progress, user_count)
     )
 
 

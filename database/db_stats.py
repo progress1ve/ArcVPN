@@ -177,31 +177,48 @@ def get_all_expired_keys() -> List[Dict[str, Any]]:
 
 def is_notification_sent_today(vpn_key_id: int) -> bool:
     """
-    Проверяет, было ли сегодня отправлено уведомление для этого ключа.
+    Проверяет, было ли уже отправлено уведомление для этого ключа.
+    Уведомление отправляется только один раз, повторное - через 7 дней после последнего.
     
     Args:
         vpn_key_id: ID VPN-ключа
     
     Returns:
-        True если уведомление уже отправлено сегодня
+        True если уведомление было отправлено в течение последних 7 дней
     """
     with get_db() as conn:
         cursor = conn.execute("""
-            SELECT 1 FROM notification_log
-            WHERE vpn_key_id = ? AND sent_at = date('now')
+            SELECT sent_at FROM notification_log
+            WHERE vpn_key_id = ? 
+            ORDER BY sent_at DESC
+            LIMIT 1
         """, (vpn_key_id,))
-        return cursor.fetchone() is not None
+        row = cursor.fetchone()
+        
+        if not row:
+            return False
+        
+        # Проверяем, прошло ли 7 дней с последнего уведомления
+        last_sent = row['sent_at']
+        cursor = conn.execute("""
+            SELECT julianday('now') - julianday(?) as days_passed
+        """, (last_sent,))
+        days_passed = cursor.fetchone()['days_passed']
+        
+        # Если прошло меньше 7 дней - не отправляем
+        return days_passed < 7
 
 def log_notification_sent(vpn_key_id: int) -> None:
     """
     Записывает факт отправки уведомления.
+    Каждое уведомление записывается как отдельная запись.
     
     Args:
         vpn_key_id: ID VPN-ключа
     """
     with get_db() as conn:
         conn.execute("""
-            INSERT OR IGNORE INTO notification_log (vpn_key_id, sent_at)
+            INSERT INTO notification_log (vpn_key_id, sent_at)
             VALUES (?, date('now'))
         """, (vpn_key_id,))
         logger.debug(f"Записано уведомление для ключа {vpn_key_id}")
