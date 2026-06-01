@@ -162,9 +162,9 @@ async def broadcast_save_message(message: Message, state: FSMContext):
     
     if message.photo:
         photo_file_id = message.photo[-1].file_id
-        text = get_message_text_for_storage(message, 'markdown')
+        text = get_message_text_for_storage(message, 'html')
     elif message.text:
-        text = get_message_text_for_storage(message, 'markdown')
+        text = get_message_text_for_storage(message, 'html')
     else:
         await safe_edit_or_send(message,
             "❌ Поддерживаются только текст или фото с подписью.",
@@ -222,17 +222,17 @@ async def broadcast_preview(callback: CallbackQuery):
     
     await callback.answer("📤 Отправляю превью...")
     
-    # Отправляем превью как отдельное сообщение
+    # Отправляем превью как отдельное сообщение с HTML форматированием
     if msg_data.get('photo_file_id'):
-        await safe_edit_or_send(callback.message,
+        await callback.message.answer_photo(
             photo=msg_data['photo_file_id'],
-            text=msg_data.get('text', ''),
-            force_new=True
+            caption=msg_data.get('text', ''),
+            parse_mode="HTML"
         )
     else:
-        await safe_edit_or_send(callback.message,
+        await callback.message.answer(
             text=msg_data['text'],
-            force_new=True
+            parse_mode="HTML"
         )
 
 
