@@ -35,8 +35,7 @@ def broadcast_main_kb(has_message: bool, current_filter: str, broadcast_in_progr
 def broadcast_templates_kb() -> InlineKeyboardMarkup:
     """Клавиатура выбора шаблона сообщения."""
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text='🎁 Для истекших пробных', callback_data='template_trial_expired'))
-    builder.row(InlineKeyboardButton(text='🆕 Для никогда не покупавших', callback_data='template_never_paid'))
+    builder.row(InlineKeyboardButton(text='🎁 Для пользователей без подписки', callback_data='template_no_subscription'))
     builder.row(back_button('admin_broadcast'), home_button())
     return builder.as_markup()
 

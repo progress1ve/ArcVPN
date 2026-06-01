@@ -456,10 +456,8 @@ async def broadcast_template_select(callback: CallbackQuery):
     
     template_type = callback.data.split("_", 1)[1]
     
-    if template_type == "trial_expired":
-        await show_template_promocode_selection(callback, "trial_expired")
-    elif template_type == "never_paid":
-        await show_template_promocode_selection(callback, "never_paid")
+    if template_type == "no_subscription" or template_type == "subscription":
+        await show_template_promocode_selection(callback, "no_subscription")
     elif template_type.startswith("promo:"):
         # Формат: template_promo:template_type:promocode_id
         parts = callback.data.split(":")
@@ -487,13 +485,11 @@ async def show_template_promocode_selection(callback: CallbackQuery, template_ty
         if datetime.now() <= expires_at and used_count < promo['max_uses']:
             active_promos.append(promo)
     
-    template_names = {
-        'trial_expired': '🎁 Для истекших пробных',
-        'never_paid': '🆕 Для никогда не покупавших'
-    }
-    
     text = (
-        f"<b>{template_names.get(template_type, 'Шаблон')}</b>\n\n"
+        "<b>🎁 Шаблон для пользователей без подписки</b>\n\n"
+        "Этот шаблон будет отправлен пользователям, которые:\n"
+        "• Использовали пробную подписку, но она истекла\n"
+        "• Никогда не имели подписок (даже пробной)\n\n"
         "Выберите промокод для добавления в сообщение:\n\n"
     )
     
@@ -532,47 +528,20 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
         except ValueError:
             pass
     
-    # Генерируем текст шаблона
-    if template_type == "trial_expired":
-        if promocode:
-            text = (
-                f"🎁 <b>Ваш пробный период истёк!</b>\n\n"
-                f"Спасибо, что попробовали наш VPN-сервис!\n\n"
-                f"Мы подготовили для вас специальное предложение:\n"
-                f"🎟️ Промокод <code>{promo_code}</code> на скидку <b>{promo_discount}₽</b>\n\n"
-                f"Активируйте промокод при покупке подписки и получите скидку!\n\n"
-                f"💡 Как использовать:\n"
-                f"1. Нажмите «Купить ключ»\n"
-                f"2. Выберите тариф\n"
-                f"3. Введите промокод <code>{promo_code}</code>\n"
-                f"4. Оплатите со скидкой!\n\n"
-                f"⏰ Предложение ограничено!"
-            )
-        else:
-            text = (
-                f"🎁 <b>Ваш пробный период истёк!</b>\n\n"
-                f"Спасибо, что попробовали наш VPN-сервис!\n\n"
-                f"Понравилось? Продолжайте пользоваться нашим сервисом!\n\n"
-                f"🔐 Преимущества платной подписки:\n"
-                f"• Стабильное соединение\n"
-                f"• Высокая скорость\n"
-                f"• Несколько серверов на выбор\n"
-                f"• Техподдержка 24/7\n\n"
-                f"Нажмите «Купить ключ» чтобы продолжить!"
-            )
-    
-    elif template_type == "never_paid":
+    # Генерируем текст шаблона для пользователей без подписки
+    if template_type == "no_subscription":
         if promocode:
             text = (
                 f"👋 <b>Привет!</b>\n\n"
-                f"Мы заметили, что вы ещё не пробовали наш VPN-сервис.\n\n"
+                f"Мы заметили, что у вас нет активной подписки на наш VPN-сервис.\n\n"
                 f"Специально для вас:\n"
                 f"🎟️ Промокод <code>{promo_code}</code> на скидку <b>{promo_discount}₽</b>\n\n"
                 f"🔐 Что вы получите:\n"
                 f"• Быстрый и стабильный VPN\n"
                 f"• Доступ к заблокированным сайтам\n"
                 f"• Защиту ваших данных\n"
-                f"• Несколько серверов на выбор\n\n"
+                f"• Несколько серверов на выбор\n"
+                f"• Простую настройку за 2 минуты\n\n"
                 f"💡 Как использовать промокод:\n"
                 f"1. Нажмите «Купить ключ»\n"
                 f"2. Выберите тариф\n"
@@ -583,7 +552,7 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
         else:
             text = (
                 f"👋 <b>Привет!</b>\n\n"
-                f"Мы заметили, что вы ещё не пробовали наш VPN-сервис.\n\n"
+                f"Мы заметили, что у вас нет активной подписки на наш VPN-сервис.\n\n"
                 f"🔐 Почему стоит попробовать:\n"
                 f"• Быстрый и стабильный VPN\n"
                 f"• Доступ к заблокированным сайтам\n"
@@ -599,11 +568,9 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
     # Сохраняем сообщение
     save_broadcast_message(text, None)
     
-    # Устанавливаем соответствующий фильтр
-    if template_type == "trial_expired":
-        set_setting('broadcast_filter', 'expired')
-    elif template_type == "never_paid":
-        set_setting('broadcast_filter', 'never_paid')
+    # Устанавливаем фильтр "Без активных ключей" (inactive)
+    # Этот фильтр включает и тех, у кого истекла пробная, и тех, кто никогда не покупал
+    set_setting('broadcast_filter', 'inactive')
     
     await callback.answer("✅ Шаблон применён!")
     
