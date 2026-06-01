@@ -575,6 +575,8 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
     if template_type == "no_subscription":
         if promocode:
             text = (
+                f"🔔 <b>Обновление</b>\n\n"
+                f"Извините за предыдущее сообщение с ошибкой форматирования!\n\n"
                 f"👋 <b>Привет!</b>\n\n"
                 f"Мы заметили, что у вас нет активной подписки на наш VPN-сервис.\n\n"
                 f"Специально для вас:\n"
@@ -594,6 +596,8 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
             )
         else:
             text = (
+                f"🔔 <b>Обновление</b>\n\n"
+                f"Извините за предыдущее сообщение с ошибкой форматирования!\n\n"
                 f"👋 <b>Привет!</b>\n\n"
                 f"Мы заметили, что у вас нет активной подписки на наш VPN-сервис.\n\n"
                 f"🔐 Почему стоит попробовать:\n"
