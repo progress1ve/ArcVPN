@@ -305,6 +305,220 @@ async def generate_key_link(key: dict) -> str:
         return ""
 
 
+def format_traffic(bytes_value: int) -> str:
+    """
+    Форматирует трафик в читаемый вид.
+    
+    Args:
+        bytes_value: Трафик в байтах
+        
+    Returns:
+        Строка вида "1.5GB" или "500MB"
+    """
+    if bytes_value >= 1024**3:  # GB
+        return f"{bytes_value / 1024**3:.1f}GB"
+    elif bytes_value >= 1024**2:  # MB
+        return f"{bytes_value / 1024**2:.0f}MB"
+    elif bytes_value >= 1024:  # KB
+        return f"{bytes_value / 1024:.0f}KB"
+    else:
+        return f"{bytes_value}B"
+
+
+def generate_info_block(key: dict) -> str:
+    """
+    Генерирует информационный блок для подписки.
+    
+    Args:
+        key: Словарь с данными ключа
+        
+    Returns:
+        Многострочный текст с информацией о подписке
+    """
+    from datetime import datetime, timezone
+    
+    # Трафик
+    traffic_used = key.get('traffic_used', 0) or 0
+    traffic_limit = key.get('traffic_limit', 0) or 0
+    
+    if traffic_limit > 0:
+        used_str = format_traffic(traffic_used)
+        limit_str = format_traffic(traffic_limit)
+        traffic_line = f"{used_str} / {limit_str}"
+    else:
+        traffic_line = "Безлимит"
+    
+    # Дата истечения
+    expires_at = key.get('expires_at')
+    if expires_at:
+        try:
+            expires_dt = datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
+            if expires_dt.tzinfo is None:
+                expires_dt = expires_dt.replace(tzinfo=timezone.utc)
+            expires_str = expires_dt.strftime('%d.%m.%Y')
+            
+            # Оставшееся время
+            now = datetime.now(timezone.utc)
+            delta = expires_dt - now
+            if delta.total_seconds() > 0:
+                days_left = max(0, delta.days)
+                if delta.seconds > 0 and days_left == 0:
+                    days_left = 0  # Меньше суток
+            else:
+                days_left = 0
+        except:
+            expires_str = "—"
+            days_left = 0
+    else:
+        expires_str = "—"
+        days_left = 0
+    
+    # Название тарифа
+    tariff_name = key.get('tariff_name') or "Подписка"
+    
+    # Статус
+    if expires_at and days_left > 0 and (traffic_limit == 0 or traffic_used < traffic_limit):
+        status = "✅ Active"
+    else:
+        status = "🔴 Expired"
+    
+    # Формируем блок
+    lines = [
+        "",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        f"{traffic_line}          Истекает: {expires_str}",
+        "",
+        f"⏱ {days_left} дн | 📦 {tariff_name}",
+        status,
+        "",
+        "❗ Не работает VPN? Жми кнопку - 🔄 обновить подписку",
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
+        ""
+    ]
+    
+    return "\n".join(lines)
+
+
+def generate_best_server_config(user_uuid: str, server_address: str) -> str:
+    """
+    Генерирует конфигурацию "Лучший сервер" с балансировкой.
+    Использует JSON конфигурацию из vpn.md с подстановкой UUID пользователя.
+    
+    Args:
+        user_uuid: UUID пользователя
+        server_address: Адрес сервера
+        
+    Returns:
+        JSON конфигурация в виде строки для Happ
+    """
+    import json
+    
+    # Базовая конфигурация "Лучшего сервера" с балансировкой
+    config = {
+        "dns": {
+            "queryStrategy": "UseIPv4",
+            "servers": ["1.1.1.1", "1.0.0.1"]
+        },
+        "inbounds": [
+            {
+                "listen": "127.0.0.1",
+                "port": 10808,
+                "protocol": "socks",
+                "settings": {"auth": "noauth", "udp": True},
+                "sniffing": {
+                    "destOverride": ["http", "tls", "quic"],
+                    "enabled": True,
+                    "routeOnly": False
+                },
+                "tag": "socks"
+            },
+            {
+                "listen": "127.0.0.1",
+                "port": 10809,
+                "protocol": "http",
+                "settings": {"allowTransparent": False},
+                "sniffing": {
+                    "destOverride": ["http", "tls", "quic"],
+                    "enabled": True,
+                    "routeOnly": False
+                },
+                "tag": "http"
+            }
+        ],
+        "outbounds": [
+            {
+                "protocol": "vless",
+                "settings": {
+                    "vnext": [{
+                        "address": server_address,
+                        "port": 443,
+                        "users": [{
+                            "encryption": "none",
+                            "flow": "xtls-rprx-vision",
+                            "id": user_uuid
+                        }]
+                    }]
+                },
+                "streamSettings": {
+                    "network": "tcp",
+                    "realitySettings": {
+                        "fingerprint": "chrome",
+                        "publicKey": "pxXxJi63K4VVJjyOeZ8392SdenbhgHio2p3OgRsh3SU",
+                        "serverName": server_address,
+                        "shortId": ""
+                    },
+                    "security": "reality",
+                    "tcpSettings": {}
+                },
+                "tag": "proxy"
+            },
+            {
+                "protocol": "freedom",
+                "tag": "direct"
+            },
+            {
+                "protocol": "blackhole",
+                "tag": "block"
+            }
+        ],
+        "remarks": "🚀 Лучший сервер",
+        "routing": {
+            "domainMatcher": "hybrid",
+            "domainStrategy": "IPIfNonMatch",
+            "rules": [
+                {
+                    "ip": ["geoip:private"],
+                    "outboundTag": "direct",
+                    "type": "field"
+                },
+                {
+                    "domain": ["geosite:private"],
+                    "outboundTag": "direct",
+                    "type": "field"
+                },
+                {
+                    "outboundTag": "direct",
+                    "protocol": ["bittorrent"],
+                    "type": "field"
+                },
+                {
+                    "domain": ["geosite:category-ru", "geosite:yandex", "geosite:vk", "geosite:mailru"],
+                    "outboundTag": "direct",
+                    "type": "field"
+                },
+                {
+                    "ip": ["geoip:ru"],
+                    "outboundTag": "direct",
+                    "type": "field"
+                }
+            ]
+        }
+    }
+    
+    # Конвертируем в JSON и возвращаем
+    return json.dumps(config, ensure_ascii=False, separators=(',', ':'))
+
+
 def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
     """
     Генерирует subscription в формате base64 или plain text.
@@ -366,7 +580,7 @@ def subscription(sub_id: str):
         format: 'base64' (по умолчанию) или 'plain' (без кодирования)
         
     Returns:
-        VPN ключ в формате vless:// (plain text или base64)
+        VPN ключи с информационным блоком (plain text или base64)
     """
     from flask import request
     
@@ -376,7 +590,6 @@ def subscription(sub_id: str):
         logger.info(f"Запрос subscription для sub_id={sub_id}, User-Agent: {user_agent}")
         
         # Получаем формат из query параметров
-        # По умолчанию base64 для совместимости
         output_format = request.args.get('format', 'base64').lower()
         
         # Находим ключ по sub_id
@@ -387,7 +600,7 @@ def subscription(sub_id: str):
                     vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
                     s.host, s.port, s.protocol, s.name as server_name,
                     u.telegram_id,
-                    COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
+                    COALESCE(vk.custom_name, t.name, 'Подписка') as tariff_name
                 FROM vpn_keys vk
                 JOIN servers s ON vk.server_id = s.id
                 JOIN users u ON vk.user_id = u.id
@@ -415,139 +628,56 @@ def subscription(sub_id: str):
                 logger.warning(f"Трафик исчерпан для sub_id={sub_id}")
                 return Response("Traffic limit exceeded", status=404, mimetype='text/plain')
         
-        # Генерируем ссылку для ключа
+        # Генерируем информационный блок
+        info_block = generate_info_block(key)
+        
+        # Генерируем стандартную VLESS ссылку
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         try:
-            link = loop.run_until_complete(generate_key_link(key))
+            standard_link = loop.run_until_complete(generate_key_link(key))
         finally:
             loop.close()
         
-        if not link:
+        if not standard_link:
             logger.error(f"Не удалось сгенерировать ссылку для sub_id={sub_id}")
             return Response("Failed to generate key", status=500, mimetype='text/plain')
         
-        if output_format == 'json':
-            # JSON формат для Happ (Sing-box format)
-            import json
-            
-            # Парсим VLESS ссылку
-            parsed = urllib.parse.urlparse(link)
-            params = urllib.parse.parse_qs(parsed.query)
-            subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or "arcc.mooo.com"
-            
-            # Формируем конфиг в формате Sing-box с routing rules
-            # 1) Локальные важные домены -> direct
-            # 2) Домен подписки -> direct (чтобы обновление профиля не ломалось)
-            # 3) Локальные/private подсети -> direct
-            # 4) Все остальное -> proxy (final)
-            json_data = {
-                "outbounds": [
-                    {
-                        "type": "vless",
-                        "tag": key.get('tariff_name', 'ArcVPN'),
-                        "server": parsed.hostname,
-                        "server_port": parsed.port or 443,
-                        "uuid": parsed.username,
-                        "flow": params.get('flow', [''])[0] or "",
-                        "tls": {
-                            "enabled": True,
-                            "server_name": params.get('sni', [''])[0] or parsed.hostname,
-                            "utls": {
-                                "enabled": True,
-                                "fingerprint": params.get('fp', ['chrome'])[0]
-                            },
-                            "reality": {
-                                "enabled": True,
-                                "public_key": params.get('pbk', [''])[0],
-                                "short_id": params.get('sid', [''])[0]
-                            }
-                        }
-                    },
-                    {
-                        "type": "direct",
-                        "tag": "direct"
-                    }
-                ],
-                "route": {
-                    "rules": [
-                        {
-                            "domain": [subscription_host],
-                            "outbound": "direct"
-                        },
-                        {
-                            "ip_cidr": [
-                                "10.0.0.0/8",
-                                "172.16.0.0/12",
-                                "192.168.0.0/16",
-                                "169.254.0.0/16",
-                                "224.0.0.0/4",
-                                "255.255.255.255/32"
-                            ],
-                            "outbound": "direct"
-                        }
-                    ],
-                    "final": key.get('tariff_name', 'ArcVPN')
-                }
-            }
-            
-            subscription_data = json.dumps(json_data, ensure_ascii=False, indent=2)
-            logger.info(f"✅ Сгенерирована JSON подписка для sub_id={sub_id}")
-            
-            response = Response(subscription_data)
-            response.headers['Content-Type'] = 'application/json'
-            response.headers['profile-update-interval'] = '24'
-            response.headers['Content-Disposition'] = 'inline'
-            response.headers['Cache-Control'] = 'no-cache'
-            return response
+        # Генерируем "Лучший сервер" конфигурацию
+        server_address = key.get('host', key.get('server_name', 'unknown'))
+        user_uuid = key.get('client_uuid')
+        best_server_json = generate_best_server_config(user_uuid, server_address)
         
-        # ============================================================================
-        # ГЕНЕРАЦИЯ ROUTING ПРОФИЛЯ ДЛЯ HAPP
-        # ============================================================================
+        # Кодируем JSON конфигурацию в base64 для передачи через ссылку
+        best_server_base64 = base64.b64encode(best_server_json.encode()).decode()
+        best_server_link = f"vless://{user_uuid}@{server_address}:443?type=tcp&security=reality&fp=chrome&pbk=pxXxJi63K4VVJjyOeZ8392SdenbhgHio2p3OgRsh3SU&sni={server_address}&flow=xtls-rprx-vision#{urllib.parse.quote('🚀 Лучший сервер')}"
         
-        routing_link = None
-        
-        # Проверяем, включен ли split-tunneling в конфигурации
-        if ENABLE_SPLIT_TUNNELING:
-            # Создаём routing профиль для автоматического обхода российских сайтов
-            import json
-            routing_profile_json = json.dumps(HAPP_ROUTING_PROFILE, ensure_ascii=False)
-            routing_profile_base64 = base64.b64encode(routing_profile_json.encode()).decode()
-            
-            # Формируем ссылку для автоматической активации профиля в Happ
-            # happ://routing/onadd/ - автоматически активирует профиль при импорте
-            routing_link = f"happ://routing/onadd/{routing_profile_base64}"
-            
-            logger.info(f"🔀 Создан routing профиль для Happ: {len(HAPP_ROUTING_PROFILE['DirectSites'])} правил DirectSites")
-        
-        # ВАЖНО: Happ лучше работает с plain text форматом для routing
-        # Формируем plain text версию с routing ссылкой
-        
-        # Простое название профиля
+        # Формируем plain text версию с информационным блоком и серверами
         profile_title = "ArcVPN"
         profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
         
-        # Добавляем кнопки для информации и Telegram канала
-        # support-url - желтая кнопка с информацией (левая)
-        # profile-web-page-url - зеленая кнопка Telegram (правая)
-        if routing_link:
-            plain_text_subscription = (
-                f"#profile-title: base64:{profile_title_base64}\n"
-                f"#profile-update-interval: 24\n"
-                f"#support-url: https://t.me/Turan11627\n"
-                f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"{routing_link}\n"
-                f"{link}\n"
-            )
-        else:
-            plain_text_subscription = (
-                f"#profile-title: base64:{profile_title_base64}\n"
-                f"#profile-update-interval: 24\n"
-                f"#support-url: https://t.me/Turan11627\n"
-                f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"{link}\n"
-            )
+        # Создаем список серверов:
+        # 1. 🚀 Лучший сервер (JSON конфигурация)
+        # 2. 🇩🇪 Германия - 1 (стандартная ссылка)
+        # 3. 🇩🇪 Германия - 2 (стандартная ссылка, можно с другими параметрами)
+        
+        # Меняем remark в стандартной ссылке
+        server_name = key.get('server_name', 'Сервер')
+        standard_link_1 = standard_link.replace('#', f'#{urllib.parse.quote(f"{server_name} - 1")}') if '#' in standard_link else f"{standard_link}#{urllib.parse.quote(f'{server_name} - 1')}"
+        standard_link_2 = standard_link.replace('#', f'#{urllib.parse.quote(f"{server_name} - 2")}') if '#' in standard_link else f"{standard_link}#{urllib.parse.quote(f'{server_name} - 2')}"
+        
+        # Собираем подписку
+        plain_text_subscription = (
+            f"#profile-title: base64:{profile_title_base64}\n"
+            f"#profile-update-interval: 24\n"
+            f"#support-url: https://t.me/Turan11627\n"
+            f"#profile-web-page-url: https://t.me/arcvpn1\n"
+            f"{info_block}\n"
+            f"{best_server_link}\n"
+            f"{standard_link_1}\n"
+            f"{standard_link_2}\n"
+        )
         
         # Кодируем в base64 если запрошен этот формат
         if output_format == 'base64':
@@ -555,20 +685,12 @@ def subscription(sub_id: str):
         else:
             subscription_data = plain_text_subscription
         
-        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}, split-tunneling: {ENABLE_SPLIT_TUNNELING}")
+        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
         # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
-        
-        # Happ требует application/octet-stream для подписок
         response.headers['Content-Type'] = 'application/octet-stream'
         response.headers['profile-update-interval'] = '24'
-        
-        # ВАЖНО: Добавляем HTTP-заголовок routing для автоматической активации профиля
-        # Happ автоматически импортирует профиль при получении этого заголовка
-        if routing_link:
-            response.headers['routing'] = routing_link
-        
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
         
