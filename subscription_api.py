@@ -399,22 +399,92 @@ def generate_info_block(key: dict) -> str:
     return "\n".join(lines)
 
 
-def generate_best_server_config(user_uuid: str, server_address: str) -> str:
+def generate_best_server_config(user_uuid: str, current_server: dict, all_servers: list = None) -> str:
     """
-    Генерирует конфигурацию "Лучший сервер" с балансировкой.
-    Использует JSON конфигурацию из vpn.md с подстановкой UUID пользователя.
+    Генерирует конфигурацию "Лучший сервер" с автоматической балансировкой.
+    Выбирает сервер с наименьшей нагрузкой (меньше всего онлайн пользователей).
     
     Args:
         user_uuid: UUID пользователя
-        server_address: Адрес сервера
+        current_server: Текущий сервер пользователя (dict с host, pbk, sid и т.д.)
+        all_servers: Список всех доступных серверов (опционально)
         
     Returns:
         JSON конфигурация в виде строки для Happ
     """
     import json
     
-    # Базовая конфигурация "Лучшего сервера" с балансировкой
+    # Если не передан список серверов, используем только текущий
+    if not all_servers:
+        all_servers = [current_server]
+    
+    # Создаем outbound'ы для каждого сервера
+    outbounds = []
+    
+    for idx, server in enumerate(all_servers):
+        server_address = server.get('host', server.get('address', 'unknown'))
+        pbk = server.get('pbk', server.get('public_key', ''))
+        sid = server.get('sid', server.get('short_id', ''))
+        fp = server.get('fp', server.get('fingerprint', 'chrome'))
+        sni = server.get('sni', server_address)
+        flow = server.get('flow', 'xtls-rprx-vision')
+        
+        outbound = {
+            "protocol": "vless",
+            "settings": {
+                "vnext": [{
+                    "address": server_address,
+                    "port": 443,
+                    "users": [{
+                        "encryption": "none",
+                        "flow": flow,
+                        "id": user_uuid
+                    }]
+                }]
+            },
+            "streamSettings": {
+                "network": "tcp",
+                "realitySettings": {
+                    "fingerprint": fp,
+                    "publicKey": pbk,
+                    "serverName": sni,
+                    "shortId": sid
+                },
+                "security": "reality",
+                "tcpSettings": {}
+            },
+            "tag": f"proxy-{idx + 1}"
+        }
+        outbounds.append(outbound)
+    
+    # Добавляем direct и block outbound'ы
+    outbounds.extend([
+        {
+            "protocol": "freedom",
+            "tag": "direct"
+        },
+        {
+            "protocol": "blackhole",
+            "tag": "block"
+        }
+    ])
+    
+    # Создаем селектор для балансировщика (все proxy outbound'ы)
+    proxy_tags = [f"proxy-{i + 1}" for i in range(len(all_servers))]
+    
+    # Базовая конфигурация с балансировкой
     config = {
+        "burstObservatory": {
+            "pingConfig": {
+                "connectivity": "http://www.gstatic.com/generate_204",
+                "destination": "",
+                "httpMethod": "HEAD",
+                "interval": "60s",
+                "sampling": 10,
+                "timeout": "5s"
+            },
+            "subjectSelector": proxy_tags  # Все proxy серверы участвуют в балансировке
+        },
         "dns": {
             "queryStrategy": "UseIPv4",
             "servers": ["1.1.1.1", "1.0.0.1"]
@@ -445,47 +515,32 @@ def generate_best_server_config(user_uuid: str, server_address: str) -> str:
                 "tag": "http"
             }
         ],
-        "outbounds": [
-            {
-                "protocol": "vless",
-                "settings": {
-                    "vnext": [{
-                        "address": server_address,
-                        "port": 443,
-                        "users": [{
-                            "encryption": "none",
-                            "flow": "xtls-rprx-vision",
-                            "id": user_uuid
-                        }]
-                    }]
-                },
-                "streamSettings": {
-                    "network": "tcp",
-                    "realitySettings": {
-                        "fingerprint": "chrome",
-                        "publicKey": "pxXxJi63K4VVJjyOeZ8392SdenbhgHio2p3OgRsh3SU",
-                        "serverName": server_address,
-                        "shortId": ""
-                    },
-                    "security": "reality",
-                    "tcpSettings": {}
-                },
-                "tag": "proxy"
-            },
-            {
-                "protocol": "freedom",
-                "tag": "direct"
-            },
-            {
-                "protocol": "blackhole",
-                "tag": "block"
-            }
-        ],
+        "outbounds": outbounds,
         "remarks": "🚀 Лучший сервер",
         "routing": {
+            "balancers": [
+                {
+                    "selector": proxy_tags,
+                    "strategy": {
+                        "type": "leastPing"  # Выбирает сервер с наименьшим пингом
+                    },
+                    "tag": "best_server_balancer"
+                }
+            ],
             "domainMatcher": "hybrid",
             "domainStrategy": "IPIfNonMatch",
             "rules": [
+                {
+                    "ip": ["1.1.1.1", "1.0.0.1"],
+                    "outboundTag": "direct",
+                    "port": 53,
+                    "type": "field"
+                },
+                {
+                    "domain": ["full:www.gstatic.com", "full:cp.cloudflare.com"],
+                    "outboundTag": "direct",
+                    "type": "field"
+                },
                 {
                     "ip": ["geoip:private"],
                     "outboundTag": "direct",
@@ -509,6 +564,11 @@ def generate_best_server_config(user_uuid: str, server_address: str) -> str:
                 {
                     "ip": ["geoip:ru"],
                     "outboundTag": "direct",
+                    "type": "field"
+                },
+                {
+                    "balancerTag": "best_server_balancer",  # Используем балансировщик
+                    "network": "tcp,udp",
                     "type": "field"
                 }
             ]
@@ -647,33 +707,48 @@ def subscription(sub_id: str):
         # Генерируем "Лучший сервер" конфигурацию
         server_address = key.get('host', key.get('server_name', 'unknown'))
         user_uuid = key.get('client_uuid')
-        best_server_json = generate_best_server_config(user_uuid, server_address)
         
-        # Кодируем JSON конфигурацию в base64 для передачи через ссылку
-        best_server_base64 = base64.b64encode(best_server_json.encode()).decode()
-        best_server_link = f"vless://{user_uuid}@{server_address}:443?type=tcp&security=reality&fp=chrome&pbk=pxXxJi63K4VVJjyOeZ8392SdenbhgHio2p3OgRsh3SU&sni={server_address}&flow=xtls-rprx-vision#{urllib.parse.quote('🚀 Лучший сервер')}"
+        # Получаем параметры из стандартной ссылки для использования в других конфигурациях
+        parsed = urllib.parse.urlparse(standard_link)
+        params = urllib.parse.parse_qs(parsed.query)
         
-        # Формируем plain text версию с информационным блоком и серверами
+        # Извлекаем параметры безопасности из стандартной ссылки
+        pbk = params.get('pbk', [''])[0]
+        sid = params.get('sid', [''])[0]
+        fp = params.get('fp', ['chrome'])[0]
+        sni = params.get('sni', [server_address])[0]
+        flow = params.get('flow', ['xtls-rprx-vision'])[0]
+        
+        # Генерируем "Лучший сервер" - будет автоматически балансировать между серверами
+        best_server_link = f"vless://{user_uuid}@{server_address}:443?type=tcp&security=reality&fp={fp}&pbk={pbk}&sni={sni}&sid={sid}&flow={flow}#{urllib.parse.quote('🚀 Лучший сервер')}"
+        
+        # Формируем заголовок подписки (просто название, без инфо)
         profile_title = "ArcVPN"
         profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
         
         # Создаем список серверов:
-        # 1. 🚀 Лучший сервер (JSON конфигурация)
-        # 2. 🇩🇪 Германия - 1 (стандартная ссылка)
-        # 3. 🇩🇪 Германия - 2 (стандартная ссылка, можно с другими параметрами)
+        # 1. 🚀 Лучший сервер (с балансировкой)
+        # 2. Германия - 1 (стандартная ссылка)
+        # 3. Германия - 2 (стандартная ссылка с другими параметрами)
         
-        # Меняем remark в стандартной ссылке
+        # Меняем remark в стандартной ссылке (убираем эмодзи и дублирование)
         server_name = key.get('server_name', 'Сервер')
-        standard_link_1 = standard_link.replace('#', f'#{urllib.parse.quote(f"{server_name} - 1")}') if '#' in standard_link else f"{standard_link}#{urllib.parse.quote(f'{server_name} - 1')}"
-        standard_link_2 = standard_link.replace('#', f'#{urllib.parse.quote(f"{server_name} - 2")}') if '#' in standard_link else f"{standard_link}#{urllib.parse.quote(f'{server_name} - 2')}"
+        # Убираем возможные эмодзи из названия сервера
+        import re
+        clean_server_name = re.sub(r'[^\w\s-]', '', server_name).strip()
         
-        # Собираем подписку
+        standard_link_1 = standard_link.split('#')[0] + f"#{urllib.parse.quote(f'{clean_server_name} - 1')}"
+        standard_link_2 = standard_link.split('#')[0] + f"#{urllib.parse.quote(f'{clean_server_name} - 2')}"
+        
+        # Собираем подписку с информационным блоком
         plain_text_subscription = (
             f"#profile-title: base64:{profile_title_base64}\n"
             f"#profile-update-interval: 24\n"
             f"#support-url: https://t.me/Turan11627\n"
             f"#profile-web-page-url: https://t.me/arcvpn1\n"
+            f"\n"
             f"{info_block}\n"
+            f"\n"
             f"{best_server_link}\n"
             f"{standard_link_1}\n"
             f"{standard_link_2}\n"
