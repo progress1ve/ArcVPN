@@ -305,100 +305,6 @@ async def generate_key_link(key: dict) -> str:
         return ""
 
 
-def format_traffic(bytes_value: int) -> str:
-    """
-    Форматирует трафик в читаемый вид.
-    
-    Args:
-        bytes_value: Трафик в байтах
-        
-    Returns:
-        Строка вида "1.5GB" или "500MB"
-    """
-    if bytes_value >= 1024**3:  # GB
-        return f"{bytes_value / 1024**3:.1f}GB"
-    elif bytes_value >= 1024**2:  # MB
-        return f"{bytes_value / 1024**2:.0f}MB"
-    elif bytes_value >= 1024:  # KB
-        return f"{bytes_value / 1024:.0f}KB"
-    else:
-        return f"{bytes_value}B"
-
-
-def generate_info_block(key: dict) -> str:
-    """
-    Генерирует информационный блок для подписки.
-    
-    Args:
-        key: Словарь с данными ключа
-        
-    Returns:
-        Многострочный текст с информацией о подписке
-    """
-    from datetime import datetime, timezone
-    
-    # Трафик
-    traffic_used = key.get('traffic_used', 0) or 0
-    traffic_limit = key.get('traffic_limit', 0) or 0
-    
-    if traffic_limit > 0:
-        used_str = format_traffic(traffic_used)
-        limit_str = format_traffic(traffic_limit)
-        traffic_line = f"{used_str} / {limit_str}"
-    else:
-        traffic_line = "Безлимит"
-    
-    # Дата истечения
-    expires_at = key.get('expires_at')
-    if expires_at:
-        try:
-            expires_dt = datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
-            if expires_dt.tzinfo is None:
-                expires_dt = expires_dt.replace(tzinfo=timezone.utc)
-            expires_str = expires_dt.strftime('%d.%m.%Y')
-            
-            # Оставшееся время
-            now = datetime.now(timezone.utc)
-            delta = expires_dt - now
-            if delta.total_seconds() > 0:
-                days_left = max(0, delta.days)
-                if delta.seconds > 0 and days_left == 0:
-                    days_left = 0  # Меньше суток
-            else:
-                days_left = 0
-        except:
-            expires_str = "—"
-            days_left = 0
-    else:
-        expires_str = "—"
-        days_left = 0
-    
-    # Название тарифа
-    tariff_name = key.get('tariff_name') or "Подписка"
-    
-    # Статус
-    if expires_at and days_left > 0 and (traffic_limit == 0 or traffic_used < traffic_limit):
-        status = "✅ Active"
-    else:
-        status = "🔴 Expired"
-    
-    # Формируем блок
-    lines = [
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        f"{traffic_line}          Истекает: {expires_str}",
-        "",
-        f"⏱ {days_left} дн | 📦 {tariff_name}",
-        status,
-        "",
-        "❗ Не работает VPN? Жми кнопку - 🔄 обновить подписку",
-        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━",
-        ""
-    ]
-    
-    return "\n".join(lines)
-
-
 def generate_best_server_config(user_uuid: str, current_server: dict, all_servers: list = None) -> str:
     """
     Генерирует конфигурацию "Лучший сервер" с автоматической балансировкой.
@@ -718,20 +624,13 @@ def subscription(sub_id: str):
         profile_title = "ArcVPN"
         profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
         
-        # ЭКСПЕРИМЕНТ: Добавляем информационный блок ПРЯМО В ТЕКСТ (не в заголовок)
-        # Генерируем информацию о подписке
-        info_block = generate_info_block(key)
-        
-        # Формируем подписку
+        # Формируем подписку (БЕЗ текстового info_block - информация передаётся через HTTP заголовок)
         if routing_link:
             plain_text_subscription = (
                 f"#profile-title: base64:{profile_title_base64}\n"
                 f"#profile-update-interval: 24\n"
                 f"#support-url: https://t.me/Turan11627\n"
                 f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"\n"
-                f"{info_block}\n"
-                f"\n"
                 f"{routing_link}\n"
                 f"{link}\n"
             )
@@ -741,9 +640,6 @@ def subscription(sub_id: str):
                 f"#profile-update-interval: 24\n"
                 f"#support-url: https://t.me/Turan11627\n"
                 f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"\n"
-                f"{info_block}\n"
-                f"\n"
                 f"{link}\n"
             )
         
@@ -755,12 +651,46 @@ def subscription(sub_id: str):
         
         logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
         
+        # ============================================================================
+        # ДОБАВЛЯЕМ SUBSCRIPTION-USERINFO ЗАГОЛОВОК
+        # ============================================================================
+        # Это стандартный заголовок для V2Ray/Xray который показывает информацию о подписке
+        # Формат: upload=0; download={используемый_трафик}; total={лимит_трафика}; expire={unix_timestamp}
+        
+        from datetime import datetime
+        
+        # Получаем данные из ключа
+        traffic_used = key.get('traffic_used', 0) or 0
+        traffic_limit = key.get('traffic_limit', 0) or 0
+        expires_at = key.get('expires_at')
+        
+        # Конвертируем дату истечения в unix timestamp
+        if expires_at:
+            try:
+                expires_dt = datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
+                expire_ts = int(expires_dt.timestamp())
+            except:
+                expire_ts = 0
+        else:
+            expire_ts = 0
+        
+        # Формируем заголовок Subscription-Userinfo
+        # upload=0 - загружено на сервер (не отслеживаем)
+        # download={traffic_used} - скачано с сервера (в байтах)
+        # total={traffic_limit} - общий лимит трафика (в байтах)
+        # expire={expire_ts} - дата истечения (unix timestamp)
+        subscription_userinfo = f"upload=0; download={traffic_used}; total={traffic_limit}; expire={expire_ts}"
+        
         # Создаём Response с правильными заголовками для Happ
         response = Response(subscription_data)
         response.headers['Content-Type'] = 'application/octet-stream'
+        response.headers['Subscription-Userinfo'] = subscription_userinfo
         response.headers['profile-update-interval'] = '24'
+        response.headers['profile-title'] = 'ArcVPN'
         response.headers['Content-Disposition'] = 'inline'
         response.headers['Cache-Control'] = 'no-cache'
+        
+        logger.info(f"📊 Subscription-Userinfo: {subscription_userinfo}")
         
         return response
         
