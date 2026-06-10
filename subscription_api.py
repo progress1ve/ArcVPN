@@ -741,13 +741,15 @@ def subscription(sub_id: str):
         standard_link_2 = standard_link.split('#')[0] + f"#{urllib.parse.quote(f'{clean_server_name} - 2')}"
         
         # Собираем подписку с информационным блоком
+        # Кодируем информационный блок в base64 для заголовка (как у панели 3X-UI)
+        info_block_base64 = base64.b64encode(info_block.encode()).decode()
+        
         plain_text_subscription = (
             f"#profile-title: base64:{profile_title_base64}\n"
             f"#profile-update-interval: 24\n"
             f"#support-url: https://t.me/Turan11627\n"
             f"#profile-web-page-url: https://t.me/arcvpn1\n"
-            f"\n"
-            f"{info_block}\n"
+            f"#profile-info: base64:{info_block_base64}\n"
             f"\n"
             f"{best_server_link}\n"
             f"{standard_link_1}\n"
