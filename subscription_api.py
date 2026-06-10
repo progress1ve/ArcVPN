@@ -688,73 +688,64 @@ def subscription(sub_id: str):
                 logger.warning(f"Трафик исчерпан для sub_id={sub_id}")
                 return Response("Traffic limit exceeded", status=404, mimetype='text/plain')
         
-        # Генерируем информационный блок
-        info_block = generate_info_block(key)
-        
         # Генерируем стандартную VLESS ссылку
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         try:
-            standard_link = loop.run_until_complete(generate_key_link(key))
+            link = loop.run_until_complete(generate_key_link(key))
         finally:
             loop.close()
         
-        if not standard_link:
+        if not link:
             logger.error(f"Не удалось сгенерировать ссылку для sub_id={sub_id}")
             return Response("Failed to generate key", status=500, mimetype='text/plain')
         
-        # Генерируем "Лучший сервер" конфигурацию
-        server_address = key.get('host', key.get('server_name', 'unknown'))
-        user_uuid = key.get('client_uuid')
+        # ============================================================================
+        # ГЕНЕРАЦИЯ ROUTING ПРОФИЛЯ ДЛЯ HAPP
+        # ============================================================================
         
-        # Получаем параметры из стандартной ссылки для использования в других конфигурациях
-        parsed = urllib.parse.urlparse(standard_link)
-        params = urllib.parse.parse_qs(parsed.query)
+        routing_link = None
         
-        # Извлекаем параметры безопасности из стандартной ссылки
-        pbk = params.get('pbk', [''])[0]
-        sid = params.get('sid', [''])[0]
-        fp = params.get('fp', ['chrome'])[0]
-        sni = params.get('sni', [server_address])[0]
-        flow = params.get('flow', ['xtls-rprx-vision'])[0]
+        if ENABLE_SPLIT_TUNNELING:
+            import json
+            routing_profile_json = json.dumps(HAPP_ROUTING_PROFILE, ensure_ascii=False)
+            routing_profile_base64 = base64.b64encode(routing_profile_json.encode()).decode()
+            routing_link = f"happ://routing/onadd/{routing_profile_base64}"
+            logger.info(f"� Создан routing профиль для Happ")
         
-        # Генерируем "Лучший сервер" - будет автоматически балансировать между серверами
-        best_server_link = f"vless://{user_uuid}@{server_address}:443?type=tcp&security=reality&fp={fp}&pbk={pbk}&sni={sni}&sid={sid}&flow={flow}#{urllib.parse.quote('🚀 Лучший сервер')}"
-        
-        # Формируем заголовок подписки (просто название, без инфо)
+        # Формируем заголовок подписки
         profile_title = "ArcVPN"
         profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
         
-        # Создаем список серверов:
-        # 1. 🚀 Лучший сервер (с балансировкой)
-        # 2. Германия - 1 (стандартная ссылка)
-        # 3. Германия - 2 (стандартная ссылка с другими параметрами)
+        # ЭКСПЕРИМЕНТ: Добавляем информационный блок ПРЯМО В ТЕКСТ (не в заголовок)
+        # Генерируем информацию о подписке
+        info_block = generate_info_block(key)
         
-        # Меняем remark в стандартной ссылке (убираем эмодзи и дублирование)
-        server_name = key.get('server_name', 'Сервер')
-        # Убираем возможные эмодзи из названия сервера
-        import re
-        clean_server_name = re.sub(r'[^\w\s-]', '', server_name).strip()
-        
-        standard_link_1 = standard_link.split('#')[0] + f"#{urllib.parse.quote(f'{clean_server_name} - 1')}"
-        standard_link_2 = standard_link.split('#')[0] + f"#{urllib.parse.quote(f'{clean_server_name} - 2')}"
-        
-        # Собираем подписку с информационным блоком
-        # Кодируем информационный блок в base64 для заголовка (как у панели 3X-UI)
-        info_block_base64 = base64.b64encode(info_block.encode()).decode()
-        
-        plain_text_subscription = (
-            f"#profile-title: base64:{profile_title_base64}\n"
-            f"#profile-update-interval: 24\n"
-            f"#support-url: https://t.me/Turan11627\n"
-            f"#profile-web-page-url: https://t.me/arcvpn1\n"
-            f"#profile-info: base64:{info_block_base64}\n"
-            f"\n"
-            f"{best_server_link}\n"
-            f"{standard_link_1}\n"
-            f"{standard_link_2}\n"
-        )
+        # Формируем подписку
+        if routing_link:
+            plain_text_subscription = (
+                f"#profile-title: base64:{profile_title_base64}\n"
+                f"#profile-update-interval: 24\n"
+                f"#support-url: https://t.me/Turan11627\n"
+                f"#profile-web-page-url: https://t.me/arcvpn1\n"
+                f"\n"
+                f"{info_block}\n"
+                f"\n"
+                f"{routing_link}\n"
+                f"{link}\n"
+            )
+        else:
+            plain_text_subscription = (
+                f"#profile-title: base64:{profile_title_base64}\n"
+                f"#profile-update-interval: 24\n"
+                f"#support-url: https://t.me/Turan11627\n"
+                f"#profile-web-page-url: https://t.me/arcvpn1\n"
+                f"\n"
+                f"{info_block}\n"
+                f"\n"
+                f"{link}\n"
+            )
         
         # Кодируем в base64 если запрошен этот формат
         if output_format == 'base64':
