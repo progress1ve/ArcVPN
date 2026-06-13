@@ -535,10 +535,29 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
 
     client = XUIClient(server.to_panel_dict())
     try:
-        configs = await asyncio.wait_for(
-            client.get_client_configs(sorted(emails)),
-            timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
-        )
+        if hasattr(client, "get_client_configs"):
+            configs = await asyncio.wait_for(
+                client.get_client_configs(sorted(emails)),
+                timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
+            )
+        else:
+            logger.warning(
+                "XUIClient на сервере %s без get_client_configs(); используем совместимый fallback",
+                server.name,
+            )
+            async def _load_single(email: str) -> tuple[str, Optional[Dict[str, Any]]]:
+                config = await client.get_client_config(email)
+                return email, config
+
+            results = await asyncio.wait_for(
+                asyncio.gather(*(_load_single(email) for email in sorted(emails))),
+                timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
+            )
+            configs = {
+                email: config
+                for email, config in results
+                if config is not None
+            }
         for email, config in configs.items():
             CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), config)
     except asyncio.TimeoutError:
@@ -807,7 +826,7 @@ def import_to_happ(sub_id: str):
     safe_happ_deeplink = html.escape(happ_deeplink, quote=True)
     
     # HTML страница с новым дизайном на основе референса
-    html = f"""<!DOCTYPE html>
+    html_page = f"""<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
@@ -1093,7 +1112,7 @@ def import_to_happ(sub_id: str):
     </script>
 </body>
 </html>"""
-    response = Response(html, mimetype='text/html')
+    response = Response(html_page, mimetype='text/html')
     response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"
