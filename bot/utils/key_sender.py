@@ -232,7 +232,8 @@ async def send_subscription_link(
                 parse_mode="HTML"
             )
             
-        logger.info(f"Отправлена subscription ссылка для подписки {key_id} (sub_id={sub_id})")
+        masked_sub_id = f"{sub_id[:4]}...{sub_id[-4:]}" if len(sub_id) > 8 else "***"
+        logger.info(f"Отправлена subscription ссылка для подписки {key_id} (sub_id={masked_sub_id})")
         
     except Exception as e:
         logger.error(f"Ошибка отправки subscription ссылки: {e}")

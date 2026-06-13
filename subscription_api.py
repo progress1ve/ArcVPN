@@ -6,16 +6,27 @@ Subscription API для VPN бота.
 Клиенты VPN подключаются по ссылке и автоматически получают обновления.
 """
 
-import base64
 import asyncio
+import base64
+import json
 import logging
+import re
+import threading
+import time
 import urllib.parse
-from flask import Flask, Response
-from database.connection import get_db
+from collections import defaultdict, deque
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
+
+from flask import Flask, Response, redirect, request
+
+from bot.services.panels.base import VPNAPIError
 from bot.services.panels.xui import XUIClient
 from bot.utils.key_generator import generate_link
-from database.db_servers import get_server_by_id
 from config import SUBSCRIPTION_URL, ENABLE_SPLIT_TUNNELING
+from database.connection import get_db
+from database.db_servers import get_server_by_id
 
 # Настройка логирования
 logging.basicConfig(
@@ -26,193 +37,503 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# ============================================================================
-# ROUTING CONFIGURATION ДЛЯ HAPP
-# ============================================================================
+SERVER_CACHE_TTL_SECONDS = 300
+CLIENT_CONFIG_CACHE_TTL_SECONDS = 180
+MAX_CACHE_ITEMS = 2048
+SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS = 60
+SUBSCRIPTION_RATE_LIMIT_PER_TOKEN = 12
+SUBSCRIPTION_RATE_LIMIT_PER_IP = 120
+VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
+PROFILE_TITLE = "ArcVPN"
+PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
+SUPPORT_URL = "https://t.me/Turan11627"
+PROFILE_WEB_PAGE_URL = "https://t.me/arcvpn1"
 
-# Домены, которые должны идти напрямую (без VPN) для российских пользователей.
-# ВАЖНО: Этот список используется только для документации и справки.
-# В реальной конфигурации используются geosite правила (geosite:category-ru),
-# которые уже содержат все эти домены и многие другие.
-# Это сделано для уменьшения размера конфигурации и избежания ошибки
-# "Лимит памяти туннеля превышен (50 МБ)" в XrayCore.
-DIRECT_DOMAIN_RULES = [
-    # === МАРКЕТПЛЕЙСЫ ===
-    "ozon.ru",
-    "ozon.travel",
-    "wildberries.ru",
-    "wb.ru",
-    "market.yandex.ru",
-    "sbermegamarket.ru",
-    "megamarket.ru",
-    "goods.ru",
-    "avito.ru",
-    "youla.ru",
-    "aliexpress.ru",
-    
-    # === СТРИМИНГ И МЕДИА ===
-    "kinopoisk.ru",
-    "okko.tv",
-    "more.tv",
-    "ivi.ru",
-    "premier.one",
-    "start.ru",
-    "wink.ru",
-    "kion.ru",
-    "smotrim.ru",
-    "rutube.ru",
-    
-    # === СОЦСЕТИ И МЕССЕНДЖЕРЫ ===
-    "vk.com",
-    "vk.ru",
-    "ok.ru",
-    "mail.ru",
-    "dzen.ru",
-    "vk-portal.net",
-    "vkvideo.ru",
-    "vkuser.net",
-    "okcdn.ru",
-    "vk-analytics.ru",
-    "max.ru",
-    "web.max.ru",
-    
-    # === ЯНДЕКС СЕРВИСЫ ===
-    "yandex.ru",
-    "ya.ru",
-    "yandex.net",
-    "yandex.com",
-    "yandex.by",
-    "yandex.kz",
-    "yandex.ua",
-    
-    # === БАНКИ ===
-    "sberbank.ru",
-    "sber.ru",
-    "alfabank.ru",
-    "tbank.ru",
-    "tinkoff.ru",
-    "vtb.ru",
-    "psbank.ru",
-    "gazprombank.ru",
-    "rosbank.ru",
-    "unicredit.ru",
-    "banki.ru",
-    "raiffeisen.ru",
-    "homecredit.ru",
-    "sovcombank.ru",
-    "mironline.ru",
-    "nspk.ru",
-    
-    # === ДОСТАВКА И ЛОГИСТИКА ===
-    "sdek.ru",
-    "sdek.shopping",
-    "pochta.ru",
-    "cdek.ru",
-    "cdek.shopping",
-    "boxberry.ru",
-    "pickpoint.ru",
-    "dpd.ru",
-    
-    # === ОПЕРАТОРЫ СВЯЗИ ===
-    "mts.ru",
-    "beeline.ru",
-    "megafon.ru",
-    "tele2.ru",
-    "yota.ru",
-    "rt.ru",
-    
-    # === ГОСУСЛУГИ ===
-    "gosuslugi.ru",
-    "mos.ru",
-    "nalog.gov.ru",
-    "pfr.gov.ru",
-    
-    # === ПРОДУКТОВЫЕ РИТЕЙЛЕРЫ ===
-    "vkusvill.ru",
-    "5ka.ru",
-    "magnit.ru",
-    "perekrestok.ru",
-    "auchan.ru",
-    "spar.ru",
-    "metro-cc.ru",
-    "lenta.com",
-    "dixy.ru",
-    
-    # === ДОСТАВКА ЕДЫ ===
-    "samokat.ru",
-    "delivery.ru",
-    "yandex.eda",
-    "chizhik.club",
-    
-    # === НЕДВИЖИМОСТЬ ===
-    "cian.ru",
-    "domclick.ru",
-    "avito.ru",
-    
-    # === ДРУГИЕ ПОПУЛЯРНЫЕ СЕРВИСЫ ===
-    "2gis.ru",
-    "vkusnoitochka.ru",
-    "petrovich.ru",
-    "goldapple.ru",
-    "dns.ru",
-    "mvideo.ru",
-    "eldorado.ru",
-    "detmir.ru",
-    "lamoda.ru",
-    "sportmaster.ru",
-    "leroy-merlin.ru",
-    "obi.ru",
-    "hh.ru",
-    "superjob.ru",
-    "rambler.ru",
-    "trace-flow.ru",
-    "ifconfig.me",
-]
-
-# Geo-правила для Happ (используют встроенные geosite/geoip базы)
-# geosite:category-ru - все российские сайты из базы V2Ray
-# geoip:ru - все российские IP-адреса
 HAPP_ROUTING_PROFILE = {
     "Name": "ArcVPN - Обход РФ",
     "GlobalProxy": "true",
     "RemoteDNSType": "DoH",
-    "RemoteDNSDomain": "https://1.1.1.1/dns-query",  # Cloudflare DoH (быстрее)
+    "RemoteDNSDomain": "https://1.1.1.1/dns-query",
     "RemoteDNSIP": "1.1.1.1",
-    "DomesticDNSType": "System",  # Используем системный DNS для российских сайтов (быстрее)
-    "DomesticDNSDomain": "",
-    "DomesticDNSIP": "",
-    "Geoipurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
-    "Geositeurl": "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
-    "DnsHosts": {
-        "1.1.1.1": "1.1.1.1",
-        "dns.google": "8.8.8.8"
-    },
+    "DomesticDNSType": "System",
     "DirectSites": [
-        "geosite:category-ru",  # Все российские сайты из базы (включает все домены из DIRECT_DOMAIN_RULES)
-        "geosite:yandex",       # Все сервисы Яндекса
-        "geosite:vk",           # VK и связанные сервисы
-        "geosite:mailru",       # Mail.ru и связанные сервисы
+        "geosite:category-ru"
     ],
     "DirectIp": [
-        "geoip:ru",             # Все российские IP
-        "geoip:private",        # Локальные сети
-        "10.0.0.0/8",
-        "172.16.0.0/12",
-        "192.168.0.0/16",
-        "169.254.0.0/16",
-        "224.0.0.0/4",
-        "255.255.255.255/32"
+        "geoip:ru",
+        "geoip:private"
     ],
     "ProxySites": [],
     "ProxyIp": [],
-    "BlockSites": [],  # Отключаем блокировку рекламы для уменьшения задержек
+    "BlockSites": [],
     "BlockIp": [],
-    "DomainStrategy": "AsIs",  # Изменено с IPIfNonMatch на AsIs для уменьшения задержек DNS
+    "DomainStrategy": "AsIs",
     "FakeDNS": "false"
 }
 
 
-def get_user_active_keys(user_id: int) -> list:
+@dataclass(frozen=True)
+class ActiveKeyRecord:
+    id: int
+    server_id: int
+    panel_email: str
+    expires_at: str
+    traffic_limit: int
+    traffic_used: int
+    tariff_name: str
+    telegram_id: int
+    sub_id: Optional[str] = None
+
+    @property
+    def traffic_exhausted(self) -> bool:
+        return self.traffic_limit > 0 and self.traffic_used >= self.traffic_limit
+
+    @property
+    def has_available_traffic(self) -> bool:
+        return not self.traffic_exhausted
+
+    @property
+    def expires_at_unix(self) -> int:
+        parsed = _parse_db_datetime(self.expires_at)
+        return int(parsed.timestamp()) if parsed else 0
+
+
+@dataclass(frozen=True)
+class ServerRecord:
+    id: int
+    name: str
+    host: str
+    port: int
+    protocol: str
+    web_base_path: str
+    login: str
+    password: str
+
+    def to_panel_dict(self) -> Dict[str, Any]:
+        return {
+            "id": self.id,
+            "name": self.name,
+            "host": self.host,
+            "port": self.port,
+            "protocol": self.protocol,
+            "web_base_path": self.web_base_path,
+            "login": self.login,
+            "password": self.password,
+        }
+
+
+@dataclass(frozen=True)
+class PreparedSubscription:
+    body: str
+    content_type: str
+    userinfo_header: str
+    routing_link: Optional[str] = None
+
+
+class TTLCache:
+    """Простой потокобезопасный TTL-кэш для данных подписок."""
+
+    def __init__(self, ttl_seconds: int, max_items: int):
+        self._ttl_seconds = ttl_seconds
+        self._max_items = max_items
+        self._store: Dict[str, tuple[float, Any]] = {}
+        self._lock = threading.RLock()
+
+    def get(self, key: str) -> Optional[Any]:
+        now = time.monotonic()
+        with self._lock:
+            item = self._store.get(key)
+            if item is None:
+                return None
+            expires_at, value = item
+            if expires_at <= now:
+                self._store.pop(key, None)
+                return None
+            return value
+
+    def set(self, key: str, value: Any) -> None:
+        with self._lock:
+            if len(self._store) >= self._max_items:
+                oldest_key = next(iter(self._store))
+                self._store.pop(oldest_key, None)
+            self._store[key] = (time.monotonic() + self._ttl_seconds, value)
+
+
+class SlidingWindowRateLimiter:
+    """Ограничивает частоту обновления подписки по токену и IP."""
+
+    def __init__(self, limit: int, window_seconds: int):
+        self._limit = limit
+        self._window_seconds = window_seconds
+        self._events: Dict[str, Deque[float]] = {}
+        self._lock = threading.RLock()
+
+    def allow(self, key: str) -> tuple[bool, int]:
+        now = time.monotonic()
+        with self._lock:
+            bucket = self._events.setdefault(key, deque())
+            while bucket and bucket[0] <= now - self._window_seconds:
+                bucket.popleft()
+            if len(bucket) >= self._limit:
+                retry_after = max(1, int(self._window_seconds - (now - bucket[0])))
+                return False, retry_after
+            bucket.append(now)
+            return True, 0
+
+
+class AsyncExecutor:
+    """Один общий asyncio loop в фоне вместо создания loop на каждый запрос."""
+
+    def __init__(self):
+        self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._ready = threading.Event()
+        self._lock = threading.Lock()
+        self._thread: Optional[threading.Thread] = None
+
+    def _run_loop(self) -> None:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        self._loop = loop
+        self._ready.set()
+        loop.run_forever()
+
+    def _ensure_started(self) -> asyncio.AbstractEventLoop:
+        with self._lock:
+            if self._thread is None or not self._thread.is_alive():
+                self._ready.clear()
+                self._thread = threading.Thread(
+                    target=self._run_loop,
+                    name="subscription-api-loop",
+                    daemon=True,
+                )
+                self._thread.start()
+        self._ready.wait()
+        if self._loop is None:
+            raise RuntimeError("Async loop was not initialized")
+        return self._loop
+
+    def run(self, coro: Coroutine[Any, Any, Any]) -> Any:
+        loop = self._ensure_started()
+        future = asyncio.run_coroutine_threadsafe(coro, loop)
+        return future.result()
+
+
+SERVER_CACHE = TTLCache(SERVER_CACHE_TTL_SECONDS, 256)
+CLIENT_CONFIG_CACHE = TTLCache(CLIENT_CONFIG_CACHE_TTL_SECONDS, MAX_CACHE_ITEMS)
+TOKEN_RATE_LIMITER = SlidingWindowRateLimiter(
+    SUBSCRIPTION_RATE_LIMIT_PER_TOKEN,
+    SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS,
+)
+IP_RATE_LIMITER = SlidingWindowRateLimiter(
+    SUBSCRIPTION_RATE_LIMIT_PER_IP,
+    SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS,
+)
+ASYNC_EXECUTOR = AsyncExecutor()
+
+
+def _parse_db_datetime(value: Optional[str]) -> Optional[datetime]:
+    if not value:
+        return None
+    normalized = str(value).strip().replace("Z", "+00:00").replace(" ", "T")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _mask_token(token: str) -> str:
+    if len(token) <= 8:
+        return "***"
+    return f"{token[:4]}...{token[-4:]}"
+
+
+def _mask_email(email: str) -> str:
+    if "@" not in email:
+        return _mask_token(email)
+    local_part, _, domain = email.partition("@")
+    if len(local_part) <= 2:
+        return f"***@{domain}"
+    return f"{local_part[:2]}***@{domain}"
+
+
+def _detect_client_family(user_agent: str) -> str:
+    agent = user_agent.lower()
+    if "happ" in agent:
+        return "happ"
+    if "hiddify" in agent:
+        return "hiddify"
+    if "clash" in agent or "meta" in agent:
+        return "clash"
+    if "sing-box" in agent or "singbox" in agent:
+        return "sing-box"
+    if "v2ray" in agent or "nekobox" in agent:
+        return "v2ray"
+    return "generic"
+
+
+def _extract_client_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def _is_valid_subscription_id(sub_id: str) -> bool:
+    return bool(VALID_SUBSCRIPTION_ID_PATTERN.fullmatch(sub_id))
+
+
+def _row_to_active_key(row: Any) -> ActiveKeyRecord:
+    return ActiveKeyRecord(
+        id=int(row["id"]),
+        server_id=int(row["server_id"]),
+        panel_email=str(row["panel_email"]),
+        expires_at=str(row["expires_at"]),
+        traffic_limit=int(row["traffic_limit"] or 0),
+        traffic_used=int(row["traffic_used"] or 0),
+        tariff_name=str(row["tariff_name"] or "Subscription"),
+        telegram_id=int(row["telegram_id"]),
+        sub_id=row["sub_id"],
+    )
+
+
+def _build_subscription_userinfo(key: ActiveKeyRecord) -> str:
+    parts = [
+        "upload=0",
+        f"download={max(0, key.traffic_used)}",
+    ]
+    if key.traffic_limit > 0:
+        parts.append(f"total={key.traffic_limit}")
+    if key.expires_at_unix > 0:
+        parts.append(f"expire={key.expires_at_unix}")
+    return "; ".join(parts)
+
+
+def _build_routing_link() -> Optional[str]:
+    if not ENABLE_SPLIT_TUNNELING:
+        return None
+    routing_profile_json = json.dumps(
+        HAPP_ROUTING_PROFILE,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    encoded_profile = base64.b64encode(routing_profile_json.encode("utf-8")).decode("ascii")
+    return f"happ://routing/onadd/{encoded_profile}"
+
+
+def _build_plain_text_subscription(link: str, routing_link: Optional[str]) -> str:
+    lines = [
+        f"#profile-title: base64:{PROFILE_TITLE_BASE64}",
+        "#profile-update-interval: 24",
+        f"#support-url: {SUPPORT_URL}",
+        f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
+    ]
+    if routing_link:
+        lines.append(routing_link)
+    lines.append(link)
+    return "\n".join(lines) + "\n"
+
+
+def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
+    parsed = urllib.parse.urlparse(link)
+    params = urllib.parse.parse_qs(parsed.query)
+    subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or "arcc.mooo.com"
+
+    payload = {
+        "outbounds": [
+            {
+                "type": "vless",
+                "tag": key.tariff_name,
+                "server": parsed.hostname,
+                "server_port": parsed.port or 443,
+                "uuid": parsed.username,
+                "flow": params.get("flow", [""])[0] or "",
+                "tls": {
+                    "enabled": True,
+                    "server_name": params.get("sni", [""])[0] or parsed.hostname,
+                    "utls": {
+                        "enabled": True,
+                        "fingerprint": params.get("fp", ["chrome"])[0],
+                    },
+                    "reality": {
+                        "enabled": True,
+                        "public_key": params.get("pbk", [""])[0],
+                        "short_id": params.get("sid", [""])[0],
+                    },
+                },
+            },
+            {
+                "type": "direct",
+                "tag": "direct",
+            },
+        ],
+        "route": {
+            "rules": [
+                {
+                    "domain": [subscription_host],
+                    "outbound": "direct",
+                },
+                {
+                    "ip_cidr": [
+                        "10.0.0.0/8",
+                        "172.16.0.0/12",
+                        "192.168.0.0/16",
+                        "169.254.0.0/16",
+                        "224.0.0.0/4",
+                        "255.255.255.255/32",
+                    ],
+                    "outbound": "direct",
+                },
+            ],
+            "final": key.tariff_name,
+        },
+    }
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
+
+
+def _prepare_subscription(key: ActiveKeyRecord, link: str, output_format: str) -> PreparedSubscription:
+    routing_link = _build_routing_link()
+    userinfo_header = _build_subscription_userinfo(key)
+
+    if output_format == "json":
+        return PreparedSubscription(
+            body=_build_json_subscription(key, link),
+            content_type="application/json; charset=utf-8",
+            userinfo_header=userinfo_header,
+        )
+
+    plain_text_subscription = _build_plain_text_subscription(link, routing_link)
+    if output_format == "base64":
+        body = base64.b64encode(plain_text_subscription.encode("utf-8")).decode("ascii")
+        content_type = "application/octet-stream"
+    else:
+        body = plain_text_subscription
+        content_type = "text/plain; charset=utf-8"
+
+    return PreparedSubscription(
+        body=body,
+        content_type=content_type,
+        userinfo_header=userinfo_header,
+        routing_link=routing_link,
+    )
+
+
+def _subscription_not_available() -> Response:
+    return Response("Subscription not available", status=404, mimetype="text/plain")
+
+
+def _subscription_temporarily_unavailable() -> Response:
+    return Response("Subscription temporarily unavailable", status=503, mimetype="text/plain")
+
+
+def _response_from_prepared(prepared: PreparedSubscription) -> Response:
+    response = Response(prepared.body)
+    response.headers["Content-Type"] = prepared.content_type
+    response.headers["Content-Disposition"] = "inline"
+    response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["profile-update-interval"] = "24"
+    response.headers["profile-title"] = f"base64:{PROFILE_TITLE_BASE64}"
+    response.headers["support-url"] = SUPPORT_URL
+    response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
+    response.headers["Subscription-Userinfo"] = prepared.userinfo_header
+    if prepared.routing_link:
+        response.headers["routing"] = prepared.routing_link
+    return response
+
+
+def _client_config_cache_key(server_id: int, panel_email: str) -> str:
+    return f"{server_id}:{panel_email.lower()}"
+
+
+def _get_cached_server(server_id: int) -> Optional[ServerRecord]:
+    cache_key = str(server_id)
+    cached = SERVER_CACHE.get(cache_key)
+    if cached is not None:
+        return cached
+
+    server = get_server_by_id(server_id)
+    if not server or not server.get("is_active"):
+        return None
+
+    result = ServerRecord(
+        id=int(server["id"]),
+        name=str(server["name"]),
+        host=str(server["host"]),
+        port=int(server["port"]),
+        protocol=str(server.get("protocol", "https")),
+        web_base_path=str(server.get("web_base_path", "")),
+        login=str(server["login"]),
+        password=str(server["password"]),
+    )
+    SERVER_CACHE.set(cache_key, result)
+    return result
+
+
+async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) -> None:
+    server = _get_cached_server(server_id)
+    if not server:
+        logger.warning("Активный сервер %s не найден при генерации подписки", server_id)
+        return
+
+    client = XUIClient(server.to_panel_dict())
+    try:
+        configs = await client.get_client_configs(sorted(emails))
+        for email, config in configs.items():
+            CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), config)
+    except VPNAPIError as exc:
+        logger.warning("XUI недоступен для сервера %s: %s", server.name, exc)
+    except Exception as exc:
+        logger.error("Ошибка загрузки конфигов с сервера %s: %s", server.name, exc)
+    finally:
+        await client.close()
+
+
+async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]:
+    ordered_keys = [key for key in keys if key.has_available_traffic]
+    if not ordered_keys:
+        return []
+
+    missing_by_server: Dict[int, set[str]] = defaultdict(set)
+    for key in ordered_keys:
+        cache_key = _client_config_cache_key(key.server_id, key.panel_email)
+        if CLIENT_CONFIG_CACHE.get(cache_key) is None:
+            missing_by_server[key.server_id].add(key.panel_email)
+
+    if missing_by_server:
+        await asyncio.gather(
+            *(
+                _fetch_missing_configs_for_server(server_id, emails)
+                for server_id, emails in missing_by_server.items()
+            )
+        )
+
+    links: list[str] = []
+    for key in ordered_keys:
+        cache_key = _client_config_cache_key(key.server_id, key.panel_email)
+        config = CLIENT_CONFIG_CACHE.get(cache_key)
+        server = _get_cached_server(key.server_id)
+        if not config or not server:
+            logger.warning(
+                "Пропущен ключ %s: не удалось получить конфиг для %s",
+                key.id,
+                _mask_email(key.panel_email),
+            )
+            continue
+
+        link_payload = dict(config)
+        display_name = f"ArcVPN - {key.tariff_name} ({server.name})"
+        link_payload["server_name"] = display_name
+        link_payload["remark"] = display_name
+        links.append(generate_link(link_payload))
+
+    return links
+
+
+def get_user_active_keys(user_id: int) -> list[ActiveKeyRecord]:
     """
     Получает активные ключи пользователя из базы данных.
     
@@ -220,7 +541,7 @@ def get_user_active_keys(user_id: int) -> list:
         user_id: Telegram ID пользователя
         
     Returns:
-        Список словарей с данными ключей
+        Список активных ключей пользователя
     """
     with get_db() as conn:
         cursor = conn.execute("""
@@ -229,7 +550,8 @@ def get_user_active_keys(user_id: int) -> list:
                 vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
                 s.host, s.port, s.protocol, s.name as server_name,
                 u.telegram_id,
-                COALESCE(vk.custom_name, t.name) as tariff_name
+                vk.sub_id,
+                COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
             FROM vpn_keys vk
             JOIN servers s ON vk.server_id = s.id
             JOIN users u ON vk.user_id = u.id
@@ -240,249 +562,31 @@ def get_user_active_keys(user_id: int) -> list:
             AND s.is_active = 1
             ORDER BY vk.expires_at DESC
         """, (user_id,))
-        
-        keys = []
-        for row in cursor.fetchall():
-            key_dict = dict(row)
-            # Проверка трафика
-            traffic_limit = key_dict.get('traffic_limit', 0) or 0
-            traffic_used = key_dict.get('traffic_used', 0) or 0
-            
-            # Пропускаем ключи с исчерпанным трафиком
-            if traffic_limit > 0 and traffic_used >= traffic_limit:
-                continue
-                
-            keys.append(key_dict)
-        
-        return keys
+        keys = [_row_to_active_key(row) for row in cursor.fetchall()]
+        return [key for key in keys if key.has_available_traffic]
 
 
-async def generate_key_link(key: dict) -> str:
-    """
-    Генерирует VPN ссылку для ключа с красивым названием.
-    
-    Args:
-        key: Словарь с данными ключа из БД
-        
-    Returns:
-        VPN ссылка (vless://, vmess://, trojan://, ss://)
-    """
-    try:
-        # Получаем сервер
-        server = get_server_by_id(key['server_id'])
-        if not server:
-            logger.error(f"Сервер {key['server_id']} не найден")
-            return ""
-        
-        # Создаём клиент для получения конфигурации
-        client = XUIClient(server)
-        
-        # Получаем полную конфигурацию клиента
-        config = await client.get_client_config(key['panel_email'])
-        
-        await client.close()
-        
-        if not config:
-            logger.error(f"Не удалось получить конфигурацию для {key['panel_email']}")
-            return ""
-        
-        # Формируем красивое название для ключа
-        # Формат: ArcVPN - {название тарифа} ({название сервера})
-        tariff_name = key.get('tariff_name', 'VPN')
-        server_name = server.get('name', 'Server')
-        
-        # Обновляем remark в конфигурации
-        config['remark'] = f"ArcVPN - {tariff_name} ({server_name})"
-        
-        logger.info(f"Генерация ключа: tariff_name={tariff_name}, server_name={server_name}, final_remark={config['remark']}")
-        
-        # Генерируем ссылку
-        link = generate_link(config)
-        return link
-        
-    except Exception as e:
-        logger.error(f"Ошибка генерации ключа для {key.get('panel_email')}: {e}")
-        return ""
-
-
-def generate_best_server_config(user_uuid: str, current_server: dict, all_servers: list = None) -> str:
-    """
-    Генерирует конфигурацию "Лучший сервер" с автоматической балансировкой.
-    Выбирает сервер с наименьшей нагрузкой (меньше всего онлайн пользователей).
-    
-    Args:
-        user_uuid: UUID пользователя
-        current_server: Текущий сервер пользователя (dict с host, pbk, sid и т.д.)
-        all_servers: Список всех доступных серверов (опционально)
-        
-    Returns:
-        JSON конфигурация в виде строки для Happ
-    """
-    import json
-    
-    # Если не передан список серверов, используем только текущий
-    if not all_servers:
-        all_servers = [current_server]
-    
-    # Создаем outbound'ы для каждого сервера
-    outbounds = []
-    
-    for idx, server in enumerate(all_servers):
-        server_address = server.get('host', server.get('address', 'unknown'))
-        pbk = server.get('pbk', server.get('public_key', ''))
-        sid = server.get('sid', server.get('short_id', ''))
-        fp = server.get('fp', server.get('fingerprint', 'chrome'))
-        sni = server.get('sni', server_address)
-        flow = server.get('flow', 'xtls-rprx-vision')
-        
-        outbound = {
-            "protocol": "vless",
-            "settings": {
-                "vnext": [{
-                    "address": server_address,
-                    "port": 443,
-                    "users": [{
-                        "encryption": "none",
-                        "flow": flow,
-                        "id": user_uuid
-                    }]
-                }]
-            },
-            "streamSettings": {
-                "network": "tcp",
-                "realitySettings": {
-                    "fingerprint": fp,
-                    "publicKey": pbk,
-                    "serverName": sni,
-                    "shortId": sid
-                },
-                "security": "reality",
-                "tcpSettings": {}
-            },
-            "tag": f"proxy-{idx + 1}"
-        }
-        outbounds.append(outbound)
-    
-    # Добавляем direct и block outbound'ы
-    outbounds.extend([
-        {
-            "protocol": "freedom",
-            "tag": "direct"
-        },
-        {
-            "protocol": "blackhole",
-            "tag": "block"
-        }
-    ])
-    
-    # Создаем селектор для балансировщика (все proxy outbound'ы)
-    proxy_tags = [f"proxy-{i + 1}" for i in range(len(all_servers))]
-    
-    # Базовая конфигурация с балансировкой
-    config = {
-        "burstObservatory": {
-            "pingConfig": {
-                "connectivity": "http://www.gstatic.com/generate_204",
-                "destination": "",
-                "httpMethod": "HEAD",
-                "interval": "60s",
-                "sampling": 10,
-                "timeout": "5s"
-            },
-            "subjectSelector": proxy_tags  # Все proxy серверы участвуют в балансировке
-        },
-        "dns": {
-            "queryStrategy": "UseIPv4",
-            "servers": ["1.1.1.1", "1.0.0.1"]
-        },
-        "inbounds": [
-            {
-                "listen": "127.0.0.1",
-                "port": 10808,
-                "protocol": "socks",
-                "settings": {"auth": "noauth", "udp": True},
-                "sniffing": {
-                    "destOverride": ["http", "tls", "quic"],
-                    "enabled": True,
-                    "routeOnly": False
-                },
-                "tag": "socks"
-            },
-            {
-                "listen": "127.0.0.1",
-                "port": 10809,
-                "protocol": "http",
-                "settings": {"allowTransparent": False},
-                "sniffing": {
-                    "destOverride": ["http", "tls", "quic"],
-                    "enabled": True,
-                    "routeOnly": False
-                },
-                "tag": "http"
-            }
-        ],
-        "outbounds": outbounds,
-        "remarks": "🚀 Лучший сервер",
-        "routing": {
-            "balancers": [
-                {
-                    "selector": proxy_tags,
-                    "strategy": {
-                        "type": "leastPing"  # Выбирает сервер с наименьшим пингом
-                    },
-                    "tag": "best_server_balancer"
-                }
-            ],
-            "domainMatcher": "hybrid",
-            "domainStrategy": "IPIfNonMatch",
-            "rules": [
-                {
-                    "ip": ["1.1.1.1", "1.0.0.1"],
-                    "outboundTag": "direct",
-                    "port": 53,
-                    "type": "field"
-                },
-                {
-                    "domain": ["full:www.gstatic.com", "full:cp.cloudflare.com"],
-                    "outboundTag": "direct",
-                    "type": "field"
-                },
-                {
-                    "ip": ["geoip:private"],
-                    "outboundTag": "direct",
-                    "type": "field"
-                },
-                {
-                    "domain": ["geosite:private"],
-                    "outboundTag": "direct",
-                    "type": "field"
-                },
-                {
-                    "outboundTag": "direct",
-                    "protocol": ["bittorrent"],
-                    "type": "field"
-                },
-                {
-                    "domain": ["geosite:category-ru", "geosite:yandex", "geosite:vk", "geosite:mailru"],
-                    "outboundTag": "direct",
-                    "type": "field"
-                },
-                {
-                    "ip": ["geoip:ru"],
-                    "outboundTag": "direct",
-                    "type": "field"
-                },
-                {
-                    "balancerTag": "best_server_balancer",  # Используем балансировщик
-                    "network": "tcp,udp",
-                    "type": "field"
-                }
-            ]
-        }
-    }
-    
-    # Конвертируем в JSON и возвращаем
-    return json.dumps(config, ensure_ascii=False, separators=(',', ':'))
+def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
+    """Находит активный ключ по subscription id."""
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT 
+                vk.id, vk.panel_email, vk.server_id, vk.expires_at,
+                vk.traffic_limit, vk.traffic_used, vk.sub_id,
+                u.telegram_id,
+                COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
+            FROM vpn_keys vk
+            JOIN servers s ON vk.server_id = s.id
+            JOIN users u ON vk.user_id = u.id
+            LEFT JOIN tariffs t ON vk.tariff_id = t.id
+            WHERE vk.sub_id = ?
+            AND vk.expires_at > datetime('now')
+            AND vk.panel_email IS NOT NULL
+            AND s.is_active = 1
+            LIMIT 1
+        """, (sub_id,))
+        row = cursor.fetchone()
+        return _row_to_active_key(row) if row else None
 
 
 def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
@@ -497,41 +601,28 @@ def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
         Base64-encoded строка с ключами или plain text
     """
     keys = get_user_active_keys(user_id)
-    
     if not keys:
-        logger.info(f"Нет активных ключей для пользователя {user_id}")
+        logger.info("Нет активных ключей для пользователя %s", user_id)
         return ""
-    
-    # Генерируем ссылки для всех ключей
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    links = []
-    for key in keys:
-        try:
-            link = loop.run_until_complete(generate_key_link(key))
-            if link:
-                links.append(link)
-        except Exception as e:
-            logger.error(f"Ошибка генерации ключа {key['id']}: {e}")
-    
-    loop.close()
-    
+
+    try:
+        links = ASYNC_EXECUTOR.run(_generate_links_for_keys(keys))
+    except Exception as exc:
+        logger.error("Ошибка генерации подписки пользователя %s: %s", user_id, exc)
+        return ""
+
     if not links:
-        logger.warning(f"Не удалось сгенерировать ни одного ключа для пользователя {user_id}")
+        logger.warning("Не удалось сгенерировать ни одного ключа для пользователя %s", user_id)
         return ""
-    
-    # Объединяем ключи через перенос строки
+
     keys_text = "\n".join(links)
-    
-    # Кодируем в base64 если нужно
     if encode_base64:
-        encoded = base64.b64encode(keys_text.encode()).decode()
-        logger.info(f"Сгенерирована подписка для пользователя {user_id}: {len(links)} ключей (base64)")
+        encoded = base64.b64encode(keys_text.encode("utf-8")).decode("ascii")
+        logger.info("Сгенерирована подписка для пользователя %s: %s ключей (base64)", user_id, len(links))
         return encoded
-    else:
-        logger.info(f"Сгенерирована подписка для пользователя {user_id}: {len(links)} ключей (plain text)")
-        return keys_text
+
+    logger.info("Сгенерирована подписка для пользователя %s: %s ключей (plain text)", user_id, len(links))
+    return keys_text
 
 
 @app.route('/sub/<sub_id>')
@@ -546,157 +637,60 @@ def subscription(sub_id: str):
         format: 'base64' (по умолчанию) или 'plain' (без кодирования)
         
     Returns:
-        VPN ключи с информационным блоком (plain text или base64)
+        VPN ключ в формате vless:// (plain text или base64)
     """
-    from flask import request
-    
+    masked_sub_id = _mask_token(sub_id)
     try:
-        # Логируем User-Agent для отладки Happ
-        user_agent = request.headers.get('User-Agent', 'Unknown')
-        logger.info(f"Запрос subscription для sub_id={sub_id}, User-Agent: {user_agent}")
-        
-        # Получаем формат из query параметров
-        output_format = request.args.get('format', 'base64').lower()
-        
-        # Находим ключ по sub_id
-        with get_db() as conn:
-            cursor = conn.execute("""
-                SELECT 
-                    vk.id, vk.client_uuid, vk.panel_email, vk.server_id,
-                    vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
-                    s.host, s.port, s.protocol, s.name as server_name,
-                    u.telegram_id,
-                    COALESCE(vk.custom_name, t.name, 'Подписка') as tariff_name
-                FROM vpn_keys vk
-                JOIN servers s ON vk.server_id = s.id
-                JOIN users u ON vk.user_id = u.id
-                LEFT JOIN tariffs t ON vk.tariff_id = t.id
-                WHERE vk.sub_id = ?
-                AND vk.expires_at > datetime('now')
-                AND vk.panel_email IS NOT NULL
-                AND s.is_active = 1
-            """, (sub_id,))
-            
-            row = cursor.fetchone()
-            
-            if not row:
-                logger.warning(f"Ключ не найден для sub_id={sub_id}")
-                return Response("No active key found", status=404, mimetype='text/plain')
-            
-            key = dict(row)
-            
-            # Проверка трафика
-            traffic_limit = key.get('traffic_limit', 0) or 0
-            traffic_used = key.get('traffic_used', 0) or 0
-            
-            # Если трафик исчерпан
-            if traffic_limit > 0 and traffic_used >= traffic_limit:
-                logger.warning(f"Трафик исчерпан для sub_id={sub_id}")
-                return Response("Traffic limit exceeded", status=404, mimetype='text/plain')
-        
-        # Генерируем стандартную VLESS ссылку
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        
-        try:
-            link = loop.run_until_complete(generate_key_link(key))
-        finally:
-            loop.close()
-        
+        if not _is_valid_subscription_id(sub_id):
+            logger.warning("Отклонен subscription-запрос с некорректным ID: %s", masked_sub_id)
+            return _subscription_not_available()
+
+        client_family = _detect_client_family(request.headers.get("User-Agent", ""))
+        client_ip = _extract_client_ip()
+
+        token_allowed, token_retry_after = TOKEN_RATE_LIMITER.allow(sub_id)
+        if not token_allowed:
+            logger.warning("Превышен rate limit обновления подписки: %s", masked_sub_id)
+            response = Response("Too many refresh requests", status=429, mimetype="text/plain")
+            response.headers["Retry-After"] = str(token_retry_after)
+            return response
+
+        ip_allowed, ip_retry_after = IP_RATE_LIMITER.allow(client_ip)
+        if not ip_allowed:
+            logger.warning("Превышен rate limit по IP для подписки %s", masked_sub_id)
+            response = Response("Too many refresh requests", status=429, mimetype="text/plain")
+            response.headers["Retry-After"] = str(ip_retry_after)
+            return response
+
+        output_format = request.args.get("format", "").strip().lower()
+        if not output_format:
+            output_format = "plain" if client_family in {"happ", "hiddify"} else "base64"
+        if output_format not in {"base64", "plain", "json"}:
+            return Response("Unsupported format", status=400, mimetype="text/plain")
+
+        key = get_active_key_by_subscription_id(sub_id)
+        if not key or not key.has_available_traffic:
+            logger.info("Подписка недоступна: %s", masked_sub_id)
+            return _subscription_not_available()
+
+        links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
+        link = links[0] if links else ""
         if not link:
-            logger.error(f"Не удалось сгенерировать ссылку для sub_id={sub_id}")
-            return Response("Failed to generate key", status=500, mimetype='text/plain')
-        
-        # ============================================================================
-        # ГЕНЕРАЦИЯ ROUTING ПРОФИЛЯ ДЛЯ HAPP
-        # ============================================================================
-        
-        routing_link = None
-        
-        if ENABLE_SPLIT_TUNNELING:
-            import json
-            routing_profile_json = json.dumps(HAPP_ROUTING_PROFILE, ensure_ascii=False)
-            routing_profile_base64 = base64.b64encode(routing_profile_json.encode()).decode()
-            routing_link = f"happ://routing/onadd/{routing_profile_base64}"
-            logger.info(f"� Создан routing профиль для Happ")
-        
-        # Формируем заголовок подписки
-        profile_title = "ArcVPN"
-        profile_title_base64 = base64.b64encode(profile_title.encode()).decode()
-        
-        # Формируем подписку (БЕЗ текстового info_block - информация передаётся через HTTP заголовок)
-        if routing_link:
-            plain_text_subscription = (
-                f"#profile-title: base64:{profile_title_base64}\n"
-                f"#profile-update-interval: 24\n"
-                f"#support-url: https://t.me/Turan11627\n"
-                f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"{routing_link}\n"
-                f"{link}\n"
-            )
-        else:
-            plain_text_subscription = (
-                f"#profile-title: base64:{profile_title_base64}\n"
-                f"#profile-update-interval: 24\n"
-                f"#support-url: https://t.me/Turan11627\n"
-                f"#profile-web-page-url: https://t.me/arcvpn1\n"
-                f"{link}\n"
-            )
-        
-        # Кодируем в base64 если запрошен этот формат
-        if output_format == 'base64':
-            subscription_data = base64.b64encode(plain_text_subscription.encode()).decode()
-        else:
-            subscription_data = plain_text_subscription
-        
-        logger.info(f"✅ Сгенерирована подписка для sub_id={sub_id}, длина: {len(subscription_data)} байт, format: {output_format}")
-        
-        # ============================================================================
-        # ДОБАВЛЯЕМ SUBSCRIPTION-USERINFO ЗАГОЛОВОК
-        # ============================================================================
-        # Это стандартный заголовок для V2Ray/Xray который показывает информацию о подписке
-        # Формат: upload=0; download={используемый_трафик}; total={лимит_трафика}; expire={unix_timestamp}
-        
-        from datetime import datetime
-        
-        # Получаем данные из ключа
-        traffic_used = key.get('traffic_used', 0) or 0
-        traffic_limit = key.get('traffic_limit', 0) or 0
-        expires_at = key.get('expires_at')
-        
-        # Конвертируем дату истечения в unix timestamp
-        if expires_at:
-            try:
-                expires_dt = datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
-                expire_ts = int(expires_dt.timestamp())
-            except:
-                expire_ts = 0
-        else:
-            expire_ts = 0
-        
-        # Формируем заголовок Subscription-Userinfo
-        # upload=0 - загружено на сервер (не отслеживаем)
-        # download={traffic_used} - скачано с сервера (в байтах)
-        # total={traffic_limit} - общий лимит трафика (в байтах)
-        # expire={expire_ts} - дата истечения (unix timestamp)
-        subscription_userinfo = f"upload=0; download={traffic_used}; total={traffic_limit}; expire={expire_ts}"
-        
-        # Создаём Response с правильными заголовками для Happ
-        response = Response(subscription_data)
-        response.headers['Content-Type'] = 'application/octet-stream'
-        response.headers['Subscription-Userinfo'] = subscription_userinfo
-        response.headers['profile-update-interval'] = '24'
-        response.headers['profile-title'] = 'ArcVPN'
-        response.headers['Content-Disposition'] = 'inline'
-        response.headers['Cache-Control'] = 'no-cache'
-        
-        logger.info(f"📊 Subscription-Userinfo: {subscription_userinfo}")
-        
-        return response
-        
-    except Exception as e:
-        logger.error(f"❌ Ошибка генерации подписки для sub_id={sub_id}: {e}", exc_info=True)
-        return Response("Internal server error", status=500, mimetype='text/plain')
+            logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
+            return _subscription_temporarily_unavailable()
+
+        prepared = _prepare_subscription(key, link, output_format)
+        logger.info(
+            "Подписка выдана: %s, client=%s, format=%s",
+            masked_sub_id,
+            client_family,
+            output_format,
+        )
+        return _response_from_prepared(prepared)
+
+    except Exception:
+        logger.exception("Ошибка генерации подписки для %s", masked_sub_id)
+        return _subscription_temporarily_unavailable()
 
 
 @app.route('/health')
@@ -726,18 +720,14 @@ def import_to_happ(sub_id: str):
     - Браузер → HTML страница с кнопкой импорта
     - Happ/VPN клиент → subscription данные
     """
-    from flask import request
-    
-    user_agent = request.headers.get('User-Agent', '').lower()
-    
-    # Если это Happ или другой VPN клиент — отдаём подписку
-    if 'happ' in user_agent or 'v2ray' in user_agent or 'clash' in user_agent:
-        subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=base64"
-        from flask import redirect
+    client_family = _detect_client_family(request.headers.get("User-Agent", ""))
+
+    if client_family != "generic":
+        output_format = "plain" if client_family in {"happ", "hiddify"} else "base64"
+        subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format={output_format}"
         return redirect(subscription_url)
-    
-    # Для браузера — HTML страница с кнопкой импорта
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}"
+
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
     
     # Правильный формат Happ deeplink: happ://add/{URL}
     happ_deeplink = f"happ://add/{subscription_url}"

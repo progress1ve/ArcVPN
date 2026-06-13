@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 import uuid
 import asyncio
 from datetime import datetime
@@ -382,7 +382,8 @@ async def instruction_apple_handler(callback: CallbackQuery):
         
         await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
         await callback.answer()
-        logger.info(f"instruction_apple_handler успешно выполнен (sub_id={key_data['sub_id']})")
+        masked_sub_id = f"{key_data['sub_id'][:4]}...{key_data['sub_id'][-4:]}"
+        logger.info(f"instruction_apple_handler успешно выполнен (sub_id={masked_sub_id})")
     except Exception as e:
         logger.error(f"Ошибка в instruction_apple_handler: {e}", exc_info=True)
         await callback.answer("❌ Произошла ошибка", show_alert=True)
@@ -445,7 +446,8 @@ async def instruction_android_handler(callback: CallbackQuery):
         
         await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
         await callback.answer()
-        logger.info(f"instruction_android_handler успешно выполнен (sub_id={key_data['sub_id']})")
+        masked_sub_id = f"{key_data['sub_id'][:4]}...{key_data['sub_id'][-4:]}"
+        logger.info(f"instruction_android_handler успешно выполнен (sub_id={masked_sub_id})")
     except Exception as e:
         logger.error(f"Ошибка в instruction_android_handler: {e}", exc_info=True)
         await callback.answer("❌ Произошла ошибка", show_alert=True)

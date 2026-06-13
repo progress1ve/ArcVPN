@@ -8,6 +8,19 @@ from .connection import get_db
 
 logger = logging.getLogger(__name__)
 
+SUBSCRIPTION_TOKEN_BYTES = 24
+
+
+def _generate_subscription_token() -> str:
+    """Генерирует стойкий bearer-токен для subscription endpoint."""
+    return secrets.token_urlsafe(SUBSCRIPTION_TOKEN_BYTES).rstrip("=")
+
+
+def _mask_subscription_token(token: str) -> str:
+    if len(token) <= 8:
+        return "***"
+    return f"{token[:4]}...{token[-4:]}"
+
 __all__ = [
     'get_user_vpn_keys',
     'get_vpn_key_by_id',
@@ -144,10 +157,7 @@ def create_vpn_key_admin(
     Returns:
         ID созданного ключа
     """
-    import uuid
-    
-    # Генерируем уникальный sub_id для subscription URL
-    sub_id = uuid.uuid4().hex
+    sub_id = _generate_subscription_token()
     
     # Определяем срок действия
     if minutes is not None:
@@ -164,7 +174,7 @@ def create_vpn_key_admin(
             cursor = conn.execute("SELECT 1 FROM vpn_keys WHERE sub_id = ?", (sub_id,))
             if not cursor.fetchone():
                 break
-            sub_id = uuid.uuid4().hex
+            sub_id = _generate_subscription_token()
             attempts += 1
         
         cursor = conn.execute(f"""
@@ -177,9 +187,20 @@ def create_vpn_key_admin(
         key_id = cursor.lastrowid
         
         if minutes is not None:
-            logger.info(f"Администратор создал тестовую подписку ID {key_id} (sub_id: {sub_id}) на {minutes} минут для user_id {user_id}")
+            logger.info(
+                "Администратор создал тестовую подписку ID %s (sub_id: %s) на %s минут для user_id %s",
+                key_id,
+                _mask_subscription_token(sub_id),
+                minutes,
+                user_id,
+            )
         else:
-            logger.info(f"Администратор создал подписку ID {key_id} (sub_id: {sub_id}) для user_id {user_id}")
+            logger.info(
+                "Администратор создал подписку ID %s (sub_id: %s) для user_id %s",
+                key_id,
+                _mask_subscription_token(sub_id),
+                user_id,
+            )
         return key_id
 
 def update_vpn_key_connection(
@@ -255,10 +276,7 @@ def create_initial_vpn_key(
     Returns:
         ID созданного ключа
     """
-    import uuid
-    
-    # Генерируем уникальный sub_id для subscription ссылки
-    sub_id = uuid.uuid4().hex
+    sub_id = _generate_subscription_token()
     
     with get_db() as conn:
         cursor = conn.execute("""

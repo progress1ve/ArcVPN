@@ -880,6 +880,90 @@ class XUIClient(BaseVPNClient):
         logger.info(f"Продлен ключ клиента {email} на {days} дней. Новый expiry: {new_expiry}")
         return True
 
+    def _build_client_config(
+        self,
+        inbound: Dict[str, Any],
+        settings: Dict[str, Any],
+        target_client: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Собирает клиентский конфиг из inbound и записи клиента."""
+        stream_raw = inbound.get("streamSettings", "{}")
+        stream_settings = json.loads(stream_raw) if isinstance(stream_raw, str) else stream_raw
+        protocol = inbound.get("protocol", "vless")
+        email = target_client.get("email", "")
+
+        logger.debug(f"Stream settings for {email}: {json.dumps(stream_settings, ensure_ascii=False)}")
+        if stream_settings.get("security") == "reality":
+            reality = stream_settings.get("realitySettings", {})
+            logger.info(
+                "Reality settings for %s: pbk=%s, sni=%s, fp=%s, shortIds=%s",
+                email,
+                reality.get("publicKey"),
+                reality.get("serverName"),
+                reality.get("fingerprint"),
+                reality.get("shortIds"),
+            )
+
+        result: Dict[str, Any] = {
+            "uuid": target_client.get("id", ""),
+            "email": email,
+            "port": inbound["port"],
+            "protocol": protocol,
+            "host": self.server["host"],
+            "stream_settings": stream_settings,
+            "inbound_name": inbound.get("remark", "VPN"),
+            "server_name": self.server.get("name", "VPN Server"),
+            "sub_id": target_client.get("subId", ""),
+            "flow": target_client.get("flow", "")
+        }
+
+        if protocol == 'trojan':
+            result["password"] = target_client.get("password", target_client.get("id", ""))
+        elif protocol == 'shadowsocks':
+            result["method"] = settings.get("method", "aes-256-gcm")
+            result["password"] = target_client.get("password", settings.get("password", ""))
+            result["server_password"] = settings.get("password", "")
+        elif protocol == 'vmess':
+            result["security_method"] = target_client.get("security", "auto")
+
+        return result
+
+    async def get_client_configs(self, emails: List[str]) -> Dict[str, Dict[str, Any]]:
+        """
+        Получает конфигурации сразу для нескольких клиентов одним чтением inbounds.
+        
+        Args:
+            emails: Список email/идентификаторов клиентов
+            
+        Returns:
+            Словарь вида {email: config}
+        """
+        email_set = {email for email in emails if email}
+        if not email_set:
+            return {}
+
+        configs: Dict[str, Dict[str, Any]] = {}
+
+        try:
+            inbounds = await self.get_inbounds()
+            for inbound in inbounds:
+                settings_raw = inbound.get("settings", "{}")
+                settings = json.loads(settings_raw) if isinstance(settings_raw, str) else settings_raw
+                clients = settings.get("clients", [])
+
+                for client in clients:
+                    email = client.get("email", "")
+                    if email not in email_set or email in configs:
+                        continue
+                    configs[email] = self._build_client_config(inbound, settings, client)
+
+                if len(configs) == len(email_set):
+                    break
+        except Exception as e:
+            logger.error(f"Error getting client configs: {e}")
+
+        return configs
+
     async def get_client_config(self, email: str) -> Optional[Dict[str, Any]]:
         """
         Получает полную конфигурацию клиента для подключения.
@@ -890,58 +974,8 @@ class XUIClient(BaseVPNClient):
         Returns:
             Словарь с настройками подключения или None
         """
-        try:
-            inbounds = await self.get_inbounds()
-            for inbound in inbounds:
-                settings = json.loads(inbound.get("settings", "{}"))
-                clients = settings.get("clients", [])
-                
-                target_client = None
-                for client in clients:
-                    if client.get("email") == email:
-                        target_client = client
-                        break
-                
-                if target_client:
-                    # Нашли клиента, возвращаем конфигурацию
-                    stream_settings = json.loads(inbound.get("streamSettings", "{}"))
-                    protocol = inbound.get("protocol", "vless")
-                    
-                    # DEBUG: логируем stream_settings для отладки Reality-параметров
-                    logger.debug(f"Stream settings for {email}: {json.dumps(stream_settings, ensure_ascii=False)}")
-                    if stream_settings.get("security") == "reality":
-                        reality = stream_settings.get("realitySettings", {})
-                        logger.info(f"Reality settings for {email}: pbk={reality.get('publicKey')}, sni={reality.get('serverName')}, fp={reality.get('fingerprint')}, shortIds={reality.get('shortIds')}")
-                    
-                    result = {
-                        "uuid": target_client.get("id", ""),
-                        "email": target_client.get("email", ""),
-                        "port": inbound["port"],
-                        "protocol": protocol,
-                        "host": self.server["host"],
-                        "stream_settings": stream_settings,
-                        "inbound_name": inbound.get("remark", "VPN"),
-                        "server_name": self.server.get("name", "VPN Server"),  # Добавляем название сервера
-                        "sub_id": target_client.get("subId", ""),
-                        "flow": target_client.get("flow", "")
-                    }
-                    
-                    # Протокол-специфичные поля
-                    if protocol == 'trojan':
-                        result["password"] = target_client.get("password", target_client.get("id", ""))
-                    elif protocol == 'shadowsocks':
-                        # Для Shadowsocks method хранится в inbound settings, 
-                        # а пароль у каждого клиента свой (с fallback на общие)
-                        result["method"] = settings.get("method", "aes-256-gcm")
-                        result["password"] = target_client.get("password", settings.get("password", ""))
-                        result["server_password"] = settings.get("password", "")
-                    elif protocol == 'vmess':
-                        result["security_method"] = target_client.get("security", "auto")
-                    
-                    return result
-        except Exception as e:
-            logger.error(f"Error getting client config for {email}: {e}")
-        return None
+        configs = await self.get_client_configs([email])
+        return configs.get(email)
 
     async def get_subscription_link(self, sub_id: str) -> Optional[str]:
         """
