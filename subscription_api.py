@@ -274,6 +274,8 @@ IP_RATE_LIMITER = SlidingWindowRateLimiter(
     SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS,
 )
 ASYNC_EXECUTOR = AsyncExecutor()
+SERVER_FETCH_LOCKS: Dict[int, asyncio.Lock] = {}
+SERVER_FETCH_LOCKS_GUARD = threading.Lock()
 
 
 def _parse_db_datetime(value: Optional[str]) -> Optional[datetime]:
@@ -368,6 +370,34 @@ def _build_routing_link() -> Optional[str]:
     return f"happ://routing/onadd/{encoded_profile}"
 
 
+ROUTING_LINK = _build_routing_link()
+
+
+def _content_type_for_format(output_format: str) -> str:
+    if output_format == "json":
+        return "application/json; charset=utf-8"
+    if output_format == "base64":
+        return "application/octet-stream"
+    return "text/plain; charset=utf-8"
+
+
+def _prepare_headers_only_subscription(key: ActiveKeyRecord, output_format: str) -> PreparedSubscription:
+    return PreparedSubscription(
+        body="",
+        content_type=_content_type_for_format(output_format),
+        userinfo_header=_build_subscription_userinfo(key),
+        routing_link=ROUTING_LINK if output_format != "json" else None,
+    )
+
+
+def _normalize_output_format(raw_format: str, client_family: str) -> str:
+    output_format = raw_format.strip().lower()
+    if not output_format:
+        return "plain" if client_family in {"happ", "hiddify"} else "base64"
+    output_format = output_format.partition("?")[0].partition("&")[0].strip()
+    return output_format
+
+
 def _build_plain_text_subscription(
     link: str,
     routing_link: Optional[str],
@@ -444,7 +474,7 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
 
 
 def _prepare_subscription(key: ActiveKeyRecord, link: str, output_format: str) -> PreparedSubscription:
-    routing_link = _build_routing_link()
+    routing_link = ROUTING_LINK
     userinfo_header = _build_subscription_userinfo(key)
 
     if output_format == "json":
@@ -503,6 +533,15 @@ def _client_config_cache_key(server_id: int, panel_email: str) -> str:
     return f"{server_id}:{panel_email.lower()}"
 
 
+def _get_server_fetch_lock(server_id: int) -> asyncio.Lock:
+    with SERVER_FETCH_LOCKS_GUARD:
+        lock = SERVER_FETCH_LOCKS.get(server_id)
+        if lock is None:
+            lock = asyncio.Lock()
+            SERVER_FETCH_LOCKS[server_id] = lock
+        return lock
+
+
 def _get_cached_server(server_id: int) -> Optional[ServerRecord]:
     cache_key = str(server_id)
     cached = SERVER_CACHE.get(cache_key)
@@ -535,31 +574,41 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
 
     client = XUIClient(server.to_panel_dict())
     try:
-        if hasattr(client, "get_client_configs"):
-            configs = await asyncio.wait_for(
-                client.get_client_configs(sorted(emails)),
-                timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
-            )
-        else:
-            logger.warning(
-                "XUIClient на сервере %s без get_client_configs(); используем совместимый fallback",
-                server.name,
-            )
-            async def _load_single(email: str) -> tuple[str, Optional[Dict[str, Any]]]:
-                config = await client.get_client_config(email)
-                return email, config
-
-            results = await asyncio.wait_for(
-                asyncio.gather(*(_load_single(email) for email in sorted(emails))),
-                timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
-            )
-            configs = {
-                email: config
-                for email, config in results
-                if config is not None
+        async with _get_server_fetch_lock(server_id):
+            unresolved_emails = {
+                email for email in emails
+                if CLIENT_CONFIG_CACHE.get(_client_config_cache_key(server_id, email)) is None
             }
-        for email, config in configs.items():
-            CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), config)
+            if not unresolved_emails:
+                return
+
+            if hasattr(client, "get_client_configs"):
+                configs = await asyncio.wait_for(
+                    client.get_client_configs(sorted(unresolved_emails)),
+                    timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
+                )
+            else:
+                logger.warning(
+                    "XUIClient на сервере %s без get_client_configs(); используем совместимый fallback",
+                    server.name,
+                )
+
+                async def _load_single(email: str) -> tuple[str, Optional[Dict[str, Any]]]:
+                    config = await client.get_client_config(email)
+                    return email, config
+
+                results = await asyncio.wait_for(
+                    asyncio.gather(*(_load_single(email) for email in sorted(unresolved_emails))),
+                    timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
+                )
+                configs = {
+                    email: config
+                    for email, config in results
+                    if config is not None
+                }
+
+            for email, config in configs.items():
+                CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), config)
     except asyncio.TimeoutError:
         logger.warning(
             "XUI сервер %s не ответил за %s сек, продолжаем с остальными",
@@ -712,7 +761,7 @@ def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
     return keys_text
 
 
-@app.route('/sub/<sub_id>')
+@app.route('/sub/<sub_id>', methods=['GET', 'HEAD'])
 def subscription(sub_id: str):
     """
     Endpoint для получения subscription по уникальному sub_id ключа.
@@ -749,9 +798,7 @@ def subscription(sub_id: str):
             response.headers["Retry-After"] = str(ip_retry_after)
             return response
 
-        output_format = request.args.get("format", "").strip().lower()
-        if not output_format:
-            output_format = "plain" if client_family in {"happ", "hiddify"} else "base64"
+        output_format = _normalize_output_format(request.args.get("format", ""), client_family)
         if output_format not in {"base64", "plain", "json"}:
             return Response("Unsupported format", status=400, mimetype="text/plain")
 
@@ -759,6 +806,16 @@ def subscription(sub_id: str):
         if not key or not key.has_available_traffic:
             logger.info("Подписка недоступна: %s", masked_sub_id)
             return _subscription_not_available()
+
+        if request.method == "HEAD":
+            prepared = _prepare_headers_only_subscription(key, output_format)
+            logger.info(
+                "HEAD подписка выдана без генерации ссылок: %s, client=%s, format=%s",
+                masked_sub_id,
+                client_family,
+                output_format,
+            )
+            return _response_from_prepared(prepared)
 
         links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
         link = links[0] if links else ""
