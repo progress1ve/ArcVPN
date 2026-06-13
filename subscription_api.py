@@ -8,13 +8,15 @@ Subscription API для VPN бота.
 
 import asyncio
 import base64
+import concurrent.futures
+import html
 import json
 import logging
 import re
 import threading
 import time
 import urllib.parse
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
@@ -43,6 +45,10 @@ MAX_CACHE_ITEMS = 2048
 SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS = 60
 SUBSCRIPTION_RATE_LIMIT_PER_TOKEN = 12
 SUBSCRIPTION_RATE_LIMIT_PER_IP = 120
+PROFILE_UPDATE_INTERVAL_HOURS = 24
+XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
+ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
+RATE_LIMITER_MAX_KEYS = 10000
 VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 PROFILE_TITLE = "ArcVPN"
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
@@ -136,8 +142,16 @@ class TTLCache:
     def __init__(self, ttl_seconds: int, max_items: int):
         self._ttl_seconds = ttl_seconds
         self._max_items = max_items
-        self._store: Dict[str, tuple[float, Any]] = {}
+        self._store: OrderedDict[str, tuple[float, Any]] = OrderedDict()
         self._lock = threading.RLock()
+
+    def _purge_expired_locked(self, now: float) -> None:
+        expired_keys = [
+            key for key, (expires_at, _) in self._store.items()
+            if expires_at <= now
+        ]
+        for key in expired_keys:
+            self._store.pop(key, None)
 
     def get(self, key: str) -> Optional[Any]:
         now = time.monotonic()
@@ -149,35 +163,62 @@ class TTLCache:
             if expires_at <= now:
                 self._store.pop(key, None)
                 return None
+            self._store.move_to_end(key)
             return value
 
     def set(self, key: str, value: Any) -> None:
+        now = time.monotonic()
         with self._lock:
-            if len(self._store) >= self._max_items:
-                oldest_key = next(iter(self._store))
-                self._store.pop(oldest_key, None)
-            self._store[key] = (time.monotonic() + self._ttl_seconds, value)
+            self._purge_expired_locked(now)
+            if key in self._store:
+                self._store.pop(key, None)
+            elif len(self._store) >= self._max_items:
+                self._store.popitem(last=False)
+            self._store[key] = (now + self._ttl_seconds, value)
 
 
 class SlidingWindowRateLimiter:
     """Ограничивает частоту обновления подписки по токену и IP."""
 
-    def __init__(self, limit: int, window_seconds: int):
+    def __init__(self, limit: int, window_seconds: int, max_keys: int = RATE_LIMITER_MAX_KEYS):
         self._limit = limit
         self._window_seconds = window_seconds
-        self._events: Dict[str, Deque[float]] = {}
+        self._max_keys = max_keys
+        self._events: OrderedDict[str, Deque[float]] = OrderedDict()
         self._lock = threading.RLock()
+
+    def _cleanup_locked(self, now: float) -> None:
+        cutoff = now - self._window_seconds
+        while self._events:
+            oldest_key, bucket = next(iter(self._events.items()))
+            while bucket and bucket[0] <= cutoff:
+                bucket.popleft()
+            if bucket:
+                break
+            self._events.pop(oldest_key, None)
+
+        # При аномально большом количестве уникальных ключей удерживаем память bounded.
+        while len(self._events) > self._max_keys:
+            self._events.popitem(last=False)
 
     def allow(self, key: str) -> tuple[bool, int]:
         now = time.monotonic()
         with self._lock:
-            bucket = self._events.setdefault(key, deque())
+            self._cleanup_locked(now)
+            bucket = self._events.get(key)
+            if bucket is None:
+                bucket = deque()
+                self._events[key] = bucket
+            else:
+                self._events.move_to_end(key)
             while bucket and bucket[0] <= now - self._window_seconds:
                 bucket.popleft()
             if len(bucket) >= self._limit:
                 retry_after = max(1, int(self._window_seconds - (now - bucket[0])))
                 return False, retry_after
             bucket.append(now)
+            if len(self._events) > self._max_keys:
+                self._events.popitem(last=False)
             return True, 0
 
 
@@ -215,7 +256,11 @@ class AsyncExecutor:
     def run(self, coro: Coroutine[Any, Any, Any]) -> Any:
         loop = self._ensure_started()
         future = asyncio.run_coroutine_threadsafe(coro, loop)
-        return future.result()
+        try:
+            return future.result(timeout=ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS)
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            raise TimeoutError("Subscription generation timed out")
 
 
 SERVER_CACHE = TTLCache(SERVER_CACHE_TTL_SECONDS, 256)
@@ -323,10 +368,15 @@ def _build_routing_link() -> Optional[str]:
     return f"happ://routing/onadd/{encoded_profile}"
 
 
-def _build_plain_text_subscription(link: str, routing_link: Optional[str]) -> str:
+def _build_plain_text_subscription(
+    link: str,
+    routing_link: Optional[str],
+    userinfo_header: str,
+) -> str:
     lines = [
         f"#profile-title: base64:{PROFILE_TITLE_BASE64}",
-        "#profile-update-interval: 24",
+        f"#profile-update-interval: {PROFILE_UPDATE_INTERVAL_HOURS}",
+        f"#subscription-userinfo: {userinfo_header}",
         f"#support-url: {SUPPORT_URL}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
     ]
@@ -404,7 +454,7 @@ def _prepare_subscription(key: ActiveKeyRecord, link: str, output_format: str) -
             userinfo_header=userinfo_header,
         )
 
-    plain_text_subscription = _build_plain_text_subscription(link, routing_link)
+    plain_text_subscription = _build_plain_text_subscription(link, routing_link, userinfo_header)
     if output_format == "base64":
         body = base64.b64encode(plain_text_subscription.encode("utf-8")).decode("ascii")
         content_type = "application/octet-stream"
@@ -430,12 +480,16 @@ def _subscription_temporarily_unavailable() -> Response:
 
 def _response_from_prepared(prepared: PreparedSubscription) -> Response:
     response = Response(prepared.body)
+    filename = f"{PROFILE_TITLE}.txt"
     response.headers["Content-Type"] = prepared.content_type
-    response.headers["Content-Disposition"] = "inline"
+    response.headers["Content-Disposition"] = (
+        f"inline; filename={json.dumps(filename)}; "
+        f"filename*=UTF-8''{urllib.parse.quote(filename)}"
+    )
     response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["profile-update-interval"] = "24"
+    response.headers["profile-update-interval"] = str(PROFILE_UPDATE_INTERVAL_HOURS)
     response.headers["profile-title"] = f"base64:{PROFILE_TITLE_BASE64}"
     response.headers["support-url"] = SUPPORT_URL
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
@@ -481,9 +535,18 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
 
     client = XUIClient(server.to_panel_dict())
     try:
-        configs = await client.get_client_configs(sorted(emails))
+        configs = await asyncio.wait_for(
+            client.get_client_configs(sorted(emails)),
+            timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
+        )
         for email, config in configs.items():
             CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), config)
+    except asyncio.TimeoutError:
+        logger.warning(
+            "XUI сервер %s не ответил за %s сек, продолжаем с остальными",
+            server.name,
+            XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
+        )
     except VPNAPIError as exc:
         logger.warning("XUI недоступен для сервера %s: %s", server.name, exc)
     except Exception as exc:
@@ -497,8 +560,14 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     if not ordered_keys:
         return []
 
+    servers_by_id = {
+        server_id: _get_cached_server(server_id)
+        for server_id in {key.server_id for key in ordered_keys}
+    }
     missing_by_server: Dict[int, set[str]] = defaultdict(set)
     for key in ordered_keys:
+        if not servers_by_id.get(key.server_id):
+            continue
         cache_key = _client_config_cache_key(key.server_id, key.panel_email)
         if CLIENT_CONFIG_CACHE.get(cache_key) is None:
             missing_by_server[key.server_id].add(key.panel_email)
@@ -515,7 +584,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     for key in ordered_keys:
         cache_key = _client_config_cache_key(key.server_id, key.panel_email)
         config = CLIENT_CONFIG_CACHE.get(cache_key)
-        server = _get_cached_server(key.server_id)
+        server = servers_by_id.get(key.server_id)
         if not config or not server:
             logger.warning(
                 "Пропущен ключ %s: не удалось получить конфиг для %s",
@@ -546,9 +615,8 @@ def get_user_active_keys(user_id: int) -> list[ActiveKeyRecord]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT 
-                vk.id, vk.client_uuid, vk.panel_email, vk.server_id,
-                vk.panel_inbound_id, vk.expires_at, vk.traffic_limit, vk.traffic_used,
-                s.host, s.port, s.protocol, s.name as server_name,
+                vk.id, vk.panel_email, vk.server_id,
+                vk.expires_at, vk.traffic_limit, vk.traffic_used,
                 u.telegram_id,
                 vk.sub_id,
                 COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
@@ -720,6 +788,9 @@ def import_to_happ(sub_id: str):
     - Браузер → HTML страница с кнопкой импорта
     - Happ/VPN клиент → subscription данные
     """
+    if not _is_valid_subscription_id(sub_id):
+        return _subscription_not_available()
+
     client_family = _detect_client_family(request.headers.get("User-Agent", ""))
 
     if client_family != "generic":
@@ -728,9 +799,12 @@ def import_to_happ(sub_id: str):
         return redirect(subscription_url)
 
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
-    
+    safe_subscription_url = html.escape(subscription_url, quote=True)
+    js_subscription_url = json.dumps(subscription_url)
+
     # Правильный формат Happ deeplink: happ://add/{URL}
     happ_deeplink = f"happ://add/{subscription_url}"
+    safe_happ_deeplink = html.escape(happ_deeplink, quote=True)
     
     # HTML страница с новым дизайном на основе референса
     html = f"""<!DOCTYPE html>
@@ -975,12 +1049,13 @@ def import_to_happ(sub_id: str):
         <h1>ArcVPN</h1>
         
         <!-- Кнопка открытия в Happ -->
-        <a href="{happ_deeplink}" class="btn btn-primary">Открыть в Happ</a>
+        <a href="{safe_happ_deeplink}" class="btn btn-primary" rel="noopener noreferrer">Открыть в Happ</a>
         
         <p class="divider-text">Или скопируйте ссылку вручную</p>
         
         <!-- Кнопка копирования -->
         <button onclick="copyUrl()" class="btn btn-secondary">Копировать вручную</button>
+        <a href="{safe_subscription_url}" class="btn btn-secondary" rel="noopener noreferrer">Открыть URL подписки</a>
     </div>
     
     <!-- Уведомление -->
@@ -990,7 +1065,7 @@ def import_to_happ(sub_id: str):
     
     <script>
         function copyUrl() {{
-            const url = '{subscription_url}';
+            const url = {js_subscription_url};
             const toast = document.getElementById('toast');
             
             navigator.clipboard.writeText(url).then(() => {{
@@ -1018,7 +1093,13 @@ def import_to_happ(sub_id: str):
     </script>
 </body>
 </html>"""
-    return Response(html, mimetype='text/html')
+    response = Response(html, mimetype='text/html')
+    response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["X-Frame-Options"] = "DENY"
+    return response
 
 
 if __name__ == '__main__':
