@@ -82,6 +82,7 @@ LOCAL_AND_RESERVED_CIDRS = [
 def _build_happ_routing_profile() -> Dict[str, Any]:
     mode = (SPLIT_TUNNELING_MODE or "speed").strip().lower()
     use_remote_doh = mode == "compatibility"
+    direct_ip_rules = list(dict.fromkeys([*SPLIT_TUNNELING_DIRECT_IP, *LOCAL_AND_RESERVED_CIDRS]))
 
     profile: Dict[str, Any] = {
         "Name": "ArcVPN - Smart Route",
@@ -89,7 +90,7 @@ def _build_happ_routing_profile() -> Dict[str, Any]:
         "RemoteDNSType": "DoH" if use_remote_doh else "System",
         "DomesticDNSType": "System",
         "DirectSites": list(SPLIT_TUNNELING_DIRECT_SITES),
-        "DirectIp": list(SPLIT_TUNNELING_DIRECT_IP),
+        "DirectIp": direct_ip_rules,
         "ProxySites": [],
         "ProxyIp": [],
         "BlockSites": [],
