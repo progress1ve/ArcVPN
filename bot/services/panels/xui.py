@@ -19,6 +19,10 @@ from config import RETRY_CONFIG
 
 logger = logging.getLogger(__name__)
 
+XUI_HTTP_TOTAL_TIMEOUT_SECONDS = 6
+XUI_HTTP_CONNECT_TIMEOUT_SECONDS = 3
+XUI_HTTP_SOCK_READ_TIMEOUT_SECONDS = 5
+
 
 from .base import BaseVPNClient, VPNAPIError
 class XUIClient(BaseVPNClient):
@@ -57,9 +61,18 @@ class XUIClient(BaseVPNClient):
         """Создаёт сессию если её нет."""
         if self.session is None or self.session.closed:
             # Unsafe=True важно для IP-адресов и самоподписанных сертификатов
-            connector = aiohttp.TCPConnector(ssl=False)
+            connector = aiohttp.TCPConnector(
+                ssl=False,
+                ttl_dns_cache=300,
+                enable_cleanup_closed=True,
+            )
             jar = aiohttp.CookieJar(unsafe=True)
-            timeout = aiohttp.ClientTimeout(total=5)
+            timeout = aiohttp.ClientTimeout(
+                total=XUI_HTTP_TOTAL_TIMEOUT_SECONDS,
+                connect=XUI_HTTP_CONNECT_TIMEOUT_SECONDS,
+                sock_connect=XUI_HTTP_CONNECT_TIMEOUT_SECONDS,
+                sock_read=XUI_HTTP_SOCK_READ_TIMEOUT_SECONDS,
+            )
             self.session = aiohttp.ClientSession(connector=connector, cookie_jar=jar, timeout=timeout)
             self.is_authenticated = False
             logger.debug(f"Создана новая сессия для {self.server['name']}")
@@ -204,7 +217,7 @@ class XUIClient(BaseVPNClient):
         Raises:
             VPNAPIError: При ошибке авторизации
         """
-        logger.info(f"Авторизация на {self.server['name']}...")
+        logger.debug(f"Авторизация на {self.server['name']}...")
         
         session = await self._ensure_session()
         url = f"{self.base_url}/login"
@@ -219,7 +232,7 @@ class XUIClient(BaseVPNClient):
                     data = json.loads(text)
                     if data.get("success"):
                         self.is_authenticated = True
-                        logger.info("✅ Успешная авторизация")
+                        logger.debug("Успешная авторизация в XUI")
                         return True
                     else:
                         raise VPNAPIError(f"Ошибка логина: {data.get('msg')}")
@@ -895,7 +908,7 @@ class XUIClient(BaseVPNClient):
         logger.debug(f"Stream settings for {email}: {json.dumps(stream_settings, ensure_ascii=False)}")
         if stream_settings.get("security") == "reality":
             reality = stream_settings.get("realitySettings", {})
-            logger.info(
+            logger.debug(
                 "Reality settings for %s: pbk=%s, sni=%s, fp=%s, shortIds=%s",
                 email,
                 reality.get("publicKey"),

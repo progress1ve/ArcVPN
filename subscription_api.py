@@ -26,7 +26,15 @@ from flask import Flask, Response, redirect, request
 from bot.services.panels.base import VPNAPIError
 from bot.services.panels.xui import XUIClient
 from bot.utils.key_generator import generate_link
-from config import SUBSCRIPTION_URL, ENABLE_SPLIT_TUNNELING
+from config import (
+    SUBSCRIPTION_URL,
+    ENABLE_SPLIT_TUNNELING,
+    SPLIT_TUNNELING_DIRECT_IP,
+    SPLIT_TUNNELING_DIRECT_SITES,
+    SPLIT_TUNNELING_MODE,
+    SPLIT_TUNNELING_REMOTE_DNS_DOMAIN,
+    SPLIT_TUNNELING_REMOTE_DNS_IP,
+)
 from database.connection import get_db
 from database.db_servers import get_server_by_id
 
@@ -55,27 +63,49 @@ PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("a
 SUPPORT_URL = "https://t.me/Turan11627"
 PROFILE_WEB_PAGE_URL = "https://t.me/arcvpn1"
 
-HAPP_ROUTING_PROFILE = {
-    "Name": "ArcVPN - Обход РФ",
-    "GlobalProxy": "true",
-    "RemoteDNSType": "DoH",
-    "RemoteDNSDomain": "https://1.1.1.1/dns-query",
-    "RemoteDNSIP": "1.1.1.1",
-    "DomesticDNSType": "System",
-    "DirectSites": [
-        "geosite:category-ru"
-    ],
-    "DirectIp": [
-        "geoip:ru",
-        "geoip:private"
-    ],
-    "ProxySites": [],
-    "ProxyIp": [],
-    "BlockSites": [],
-    "BlockIp": [],
-    "DomainStrategy": "AsIs",
-    "FakeDNS": "false"
-}
+LOCAL_AND_RESERVED_CIDRS = [
+    "10.0.0.0/8",
+    "100.64.0.0/10",
+    "127.0.0.0/8",
+    "169.254.0.0/16",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "198.18.0.0/15",
+    "224.0.0.0/4",
+    "255.255.255.255/32",
+    "::1/128",
+    "fc00::/7",
+    "fe80::/10",
+]
+
+
+def _build_happ_routing_profile() -> Dict[str, Any]:
+    mode = (SPLIT_TUNNELING_MODE or "speed").strip().lower()
+    use_remote_doh = mode == "compatibility"
+
+    profile: Dict[str, Any] = {
+        "Name": "ArcVPN - Smart Route",
+        "GlobalProxy": "true",
+        "RemoteDNSType": "DoH" if use_remote_doh else "System",
+        "DomesticDNSType": "System",
+        "DirectSites": list(SPLIT_TUNNELING_DIRECT_SITES),
+        "DirectIp": list(SPLIT_TUNNELING_DIRECT_IP),
+        "ProxySites": [],
+        "ProxyIp": [],
+        "BlockSites": [],
+        "BlockIp": [],
+        "DomainStrategy": "IPIfNonMatch" if mode == "speed" else "AsIs",
+        "FakeDNS": "false",
+    }
+
+    if use_remote_doh:
+        profile["RemoteDNSDomain"] = SPLIT_TUNNELING_REMOTE_DNS_DOMAIN
+        profile["RemoteDNSIP"] = SPLIT_TUNNELING_REMOTE_DNS_IP
+
+    return profile
+
+
+HAPP_ROUTING_PROFILE = _build_happ_routing_profile()
 
 
 @dataclass(frozen=True)
@@ -457,12 +487,7 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                 },
                 {
                     "ip_cidr": [
-                        "10.0.0.0/8",
-                        "172.16.0.0/12",
-                        "192.168.0.0/16",
-                        "169.254.0.0/16",
-                        "224.0.0.0/4",
-                        "255.255.255.255/32",
+                        *LOCAL_AND_RESERVED_CIDRS,
                     ],
                     "outbound": "direct",
                 },
