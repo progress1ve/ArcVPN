@@ -86,7 +86,7 @@ def _build_happ_routing_profile() -> Dict[str, Any]:
 
     profile: Dict[str, Any] = {
         "Name": "ArcVPN - Smart Route",
-        "GlobalProxy": "true",
+        "GlobalProxy": True,
         "RemoteDNSType": "DoH" if use_remote_doh else "System",
         "DomesticDNSType": "System",
         "DirectSites": list(SPLIT_TUNNELING_DIRECT_SITES),
@@ -96,7 +96,7 @@ def _build_happ_routing_profile() -> Dict[str, Any]:
         "BlockSites": [],
         "BlockIp": [],
         "DomainStrategy": "IPIfNonMatch" if mode == "speed" else "AsIs",
-        "FakeDNS": "false",
+        "FakeDNS": False,
     }
 
     if use_remote_doh:

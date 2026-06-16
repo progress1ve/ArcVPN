@@ -28,8 +28,4 @@ env*/
 venv*/
 .env
 
-
-vpn.md
-SUBSCRIPTION_MVP.md
-SUBSCRIPTION_MVP_FINAL.md
-CHANGES_SUMMARY.md
+debug-vpn-slow-speed.md
