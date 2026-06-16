@@ -412,12 +412,16 @@ def _content_type_for_format(output_format: str) -> str:
     return "text/plain; charset=utf-8"
 
 
-def _prepare_headers_only_subscription(key: ActiveKeyRecord, output_format: str) -> PreparedSubscription:
+def _prepare_headers_only_subscription(
+    key: ActiveKeyRecord,
+    output_format: str,
+    include_routing: bool = True,
+) -> PreparedSubscription:
     return PreparedSubscription(
         body="",
         content_type=_content_type_for_format(output_format),
         userinfo_header=_build_subscription_userinfo(key),
-        routing_link=ROUTING_LINK if output_format != "json" else None,
+        routing_link=ROUTING_LINK if include_routing and output_format != "json" else None,
     )
 
 
@@ -499,8 +503,13 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def _prepare_subscription(key: ActiveKeyRecord, link: str, output_format: str) -> PreparedSubscription:
-    routing_link = ROUTING_LINK
+def _prepare_subscription(
+    key: ActiveKeyRecord,
+    link: str,
+    output_format: str,
+    include_routing: bool = True,
+) -> PreparedSubscription:
+    routing_link = ROUTING_LINK if include_routing else None
     userinfo_header = _build_subscription_userinfo(key)
 
     if output_format == "json":
@@ -834,7 +843,8 @@ def subscription(sub_id: str):
             return _subscription_not_available()
 
         if request.method == "HEAD":
-            prepared = _prepare_headers_only_subscription(key, output_format)
+            include_routing = client_family != "happ"
+            prepared = _prepare_headers_only_subscription(key, output_format, include_routing=include_routing)
             logger.info(
                 "HEAD подписка выдана без генерации ссылок: %s, client=%s, format=%s",
                 masked_sub_id,
@@ -849,7 +859,8 @@ def subscription(sub_id: str):
             logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
             return _subscription_temporarily_unavailable()
 
-        prepared = _prepare_subscription(key, link, output_format)
+        include_routing = client_family != "happ"
+        prepared = _prepare_subscription(key, link, output_format, include_routing=include_routing)
         logger.info(
             "Подписка выдана: %s, client=%s, format=%s",
             masked_sub_id,
