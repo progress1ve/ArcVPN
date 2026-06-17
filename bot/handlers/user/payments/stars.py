@@ -36,7 +36,7 @@ async def renew_stars_select_tariff(callback: CallbackQuery):
 async def renew_stars_invoice(callback: CallbackQuery):
     """Инвойс для продления (Stars)."""
     from aiogram.types import LabeledPrice
-    from database.requests import get_tariff_by_id, get_user_internal_id, create_pending_order, get_key_details_for_user, update_order_tariff, update_payment_type
+    from database.requests import get_tariff_by_id, get_user_internal_id, get_key_details_for_user, prepare_payment_order
     parts = callback.data.split(':')
     key_id = int(parts[1])
     tariff_id = int(parts[2])
@@ -49,11 +49,14 @@ async def renew_stars_invoice(callback: CallbackQuery):
     user_id = get_user_internal_id(callback.from_user.id)
     if not user_id:
         return
-    if order_id:
-        update_order_tariff(order_id, tariff_id)
-        update_payment_type(order_id, 'stars')
-    else:
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='stars', vpn_key_id=key_id)
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='stars',
+        vpn_key_id=key_id,
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     bot_info = await callback.bot.get_me()
     bot_name = bot_info.first_name
     await callback.message.answer_invoice(title=bot_name, description=f"Продление ключа «{key['display_name']}»: {tariff['name']}.", payload=f'renew:{order_id}', currency='XTR', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=tariff['price_stars'])], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f"⭐️ Оплатить {tariff['price_stars']} XTR", pay=True)).row(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'renew_invoice_cancel:{key_id}:{tariff_id}')).as_markup())
@@ -65,8 +68,7 @@ async def pay_stars_handler(callback: CallbackQuery):
     """Обработчик оплаты Stars - создает инвойс напрямую если тариф уже выбран."""
     from aiogram.types import LabeledPrice
     from database.requests import (
-        get_tariff_by_id, get_user_internal_id, create_pending_order,
-        update_order_tariff, get_all_tariffs, find_order_by_order_id
+        get_tariff_by_id, get_user_internal_id, get_all_tariffs, prepare_payment_order
     )
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
@@ -91,21 +93,13 @@ async def pay_stars_handler(callback: CallbackQuery):
             await callback.answer('❌ Ошибка пользователя', show_alert=True)
             return
         
-        # Проверяем существующий заказ на наличие промокода
-        existing_order = find_order_by_order_id(order_id) if order_id else None
-        
-        # Создаем или обновляем заказ
-        if order_id and existing_order:
-            # Заказ существует - обновляем только тариф, сохраняя промокод
-            update_order_tariff(order_id, tariff_id, payment_type='stars')
-        else:
-            # Создаем новый заказ
-            (_, order_id) = create_pending_order(
-                user_id=user_id,
-                tariff_id=tariff_id,
-                payment_type='stars',
-                vpn_key_id=None
-            )
+        prepared_order = prepare_payment_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type='stars',
+            order_id=order_id,
+        )
+        order_id = prepared_order['order_id']
         
         # Получаем финальную цену с учетом промокода
         base_price_stars = tariff.get('price_stars', 0)
@@ -115,8 +109,8 @@ async def pay_stars_handler(callback: CallbackQuery):
             return
         
         # Применяем скидку от промокода если есть
-        if existing_order:
-            discount_rub = existing_order.get('discount_rub', 0) or 0
+        if prepared_order:
+            discount_rub = prepared_order.get('discount_rub', 0) or 0
             if discount_rub > 0:
                 # Конвертируем скидку в Stars (примерно 1 Star ≈ 1.3 RUB)
                 discount_stars = int(discount_rub / 1.3)
@@ -177,7 +171,7 @@ async def pay_stars_handler(callback: CallbackQuery):
 async def pay_stars_invoice(callback: CallbackQuery):
     """Создание инвойса для оплаты Stars."""
     from aiogram.types import LabeledPrice
-    from database.requests import get_tariff_by_id, update_order_tariff, update_payment_type
+    from database.requests import get_tariff_by_id, get_user_internal_id, prepare_payment_order
     parts = callback.data.split(':')
     tariff_id = int(parts[1])
     order_id = parts[2] if len(parts) > 2 else None
@@ -186,15 +180,17 @@ async def pay_stars_invoice(callback: CallbackQuery):
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
     days = tariff['duration_days']
-    from database.requests import get_user_internal_id, create_pending_order
-    if order_id:
-        update_order_tariff(order_id, tariff_id, payment_type='stars')
-    else:
-        user_id = get_user_internal_id(callback.from_user.id)
-        if not user_id:
-            await callback.answer('❌ Ошибка пользователя', show_alert=True)
-            return
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='stars', vpn_key_id=None)
+    user_id = get_user_internal_id(callback.from_user.id)
+    if not user_id:
+        await callback.answer('❌ Ошибка пользователя', show_alert=True)
+        return
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='stars',
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.first_name

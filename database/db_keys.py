@@ -25,6 +25,7 @@ __all__ = [
     'get_user_vpn_keys',
     'get_vpn_key_by_id',
     'extend_vpn_key',
+    'update_key_tariff',
     'create_vpn_key_admin',
     'update_vpn_key_connection',
     'create_vpn_key',
@@ -455,6 +456,36 @@ def update_key_traffic_limit(key_id: int, traffic_limit_bytes: int) -> None:
         conn.execute("""
             UPDATE vpn_keys SET traffic_limit = ? WHERE id = ?
         """, (traffic_limit_bytes, key_id))
+
+def update_key_tariff(key_id: int, tariff_id: int, traffic_limit_bytes: int) -> bool:
+    """
+    Применяет новый тариф к существующему ключу.
+
+    Используется при апгрейде trial -> paid и при смене тарифа на продлении.
+
+    Args:
+        key_id: ID ключа
+        tariff_id: Новый ID тарифа
+        traffic_limit_bytes: Лимит трафика из нового тарифа в байтах (0 = безлимит)
+
+    Returns:
+        True если ключ найден и обновлен
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            UPDATE vpn_keys
+            SET tariff_id = ?, traffic_limit = ?
+            WHERE id = ?
+        """, (tariff_id, traffic_limit_bytes, key_id))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(
+                "Ключ %s переведен на тариф %s с лимитом %s байт",
+                key_id,
+                tariff_id,
+                traffic_limit_bytes,
+            )
+        return success
 
 def update_vpn_key_config(
     key_id: int,

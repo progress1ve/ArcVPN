@@ -473,9 +473,8 @@ def restore_traffic_limit_in_db(key_id: int) -> bool:
     # Обнуляем traffic_used и пороги уведомлений
     reset_key_traffic_notification(key_id)
     
-    # Обновляем traffic_limit (на случай если тариф менялся)
-    if traffic_limit > 0:
-        update_key_traffic_limit(key_id, traffic_limit)
+    # Обновляем traffic_limit всегда, включая 0 (безлимит), иначе старый лимит "залипает"
+    update_key_traffic_limit(key_id, traffic_limit)
     
     logger.info(f'Лимит трафика ключа {key_id} восстановлен в БД: {traffic_limit / 1024**3:.1f} ГБ')
     return True

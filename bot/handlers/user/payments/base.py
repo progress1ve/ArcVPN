@@ -40,9 +40,8 @@ async def successful_payment_handler(message: Message, state: FSMContext):
     
     Делегирует общую post-payment логику в complete_payment_flow().
     """
-    from bot.services.billing import complete_payment_flow
-    from database.requests import find_order_by_order_id, get_user_internal_id, add_to_balance, complete_order, get_user_balance
-    from bot.services.user_locks import user_locks
+    from bot.services.billing import complete_payment_flow, apply_paid_order
+    from database.requests import find_order_by_order_id, get_user_balance
     
     payment = message.successful_payment
     payload = payment.invoice_payload
@@ -63,20 +62,16 @@ async def successful_payment_handler(message: Message, state: FSMContext):
     if order and order.get('tariff_id') is None and order.get('vpn_key_id') is None:
         # Это пополнение баланса (tariff_id=None и vpn_key_id=None)
         logger.info(f"Обработка пополнения баланса: order_id={order_id}")
-        
-        user_internal_id = order['user_id']
-        amount_cents = order.get('amount_cents', 0)
-        
-        # Пополняем баланс
-        async with user_locks[user_internal_id]:
-            add_to_balance(user_internal_id, amount_cents)
-        
-        # Закрываем заказ
-        complete_order(order_id)
-        
-        logger.info(f"Баланс пополнен на {amount_cents} коп для user {user_internal_id} (order {order_id})")
-        
-        # Показываем успех
+        success, _, updated_order = await apply_paid_order(order_id)
+        if not success or not updated_order:
+            await message.answer(
+                "❌ Произошла ошибка при обработке пополнения баланса.",
+                parse_mode="HTML"
+            )
+            return
+
+        user_internal_id = updated_order['user_id']
+        amount_cents = updated_order.get('amount_cents', 0)
         new_balance = get_user_balance(user_internal_id)
         
         from aiogram.types import InlineKeyboardButton
@@ -141,10 +136,11 @@ async def finalize_payment_ui(message: Message, state: FSMContext, text: str, or
 async def renew_invoice_cancel_handler(callback: CallbackQuery):
     """Отмена инвойса и возврат к выбору способа оплаты."""
     from bot.keyboards.user import renew_payment_method_kb
-    from database.requests import get_key_details_for_user, get_all_tariffs, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_user_internal_id, create_pending_order, get_setting, is_yookassa_qr_configured, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
+    from database.requests import get_key_details_for_user, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_user_internal_id, create_pending_order, get_setting, is_yookassa_qr_configured, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     parts = callback.data.split(':')
     key_id = int(parts[1])
+    tariff_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
     telegram_id = callback.from_user.id
 
     key = get_key_details_for_user(key_id, telegram_id)
@@ -167,9 +163,8 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
     user_id = get_user_internal_id(telegram_id)
     
     if crypto_configured and user_id:
-        tariffs = get_all_tariffs(include_hidden=False)
-        if tariffs:
-            (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariffs[0]['id'], payment_type='crypto', vpn_key_id=key_id)
+        if tariff_id:
+            (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='crypto', vpn_key_id=key_id)
             if crypto_mode == 'standard':
                 item_url = get_setting('crypto_item_url')
                 item_id = extract_item_id_from_url(item_url)
@@ -188,6 +183,7 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
         f"💳 <b>Продление ключа</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите способ оплаты:",
         reply_markup=renew_payment_method_kb(
             key_id=key_id,
+            tariff_id=tariff_id,
             crypto_url=crypto_url,
             crypto_mode=crypto_mode,
             crypto_configured=crypto_configured,
@@ -195,7 +191,8 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
             cards_enabled=cards_enabled,
             yookassa_qr_enabled=yookassa_qr_enabled,
             show_balance_button=show_balance_button,
-            demo_enabled=demo_enabled
+            demo_enabled=demo_enabled,
+            order_id=order_id if 'order_id' in locals() else None
         ),
         force_new=True
     )

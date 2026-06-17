@@ -34,7 +34,7 @@ async def demo_tariffs_handler(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('demo_pay_tariff:'))
 async def demo_pay_tariff_handler(callback: CallbackQuery):
     """Обработчик выбора тарифа для демо-оплаты - показывает экран подтверждения."""
-    from database.requests import get_user_internal_id, create_pending_order, update_order_tariff
+    from database.requests import get_user_internal_id, prepare_payment_order
     
     # Парсим callback_data
     parts = callback.data.split(':')
@@ -52,17 +52,14 @@ async def demo_pay_tariff_handler(callback: CallbackQuery):
     if not user_id:
         await callback.answer('❌ Ошибка пользователя', show_alert=True)
         return
-    
-    # Создаем или обновляем заказ
-    if order_id:
-        update_order_tariff(order_id, tariff_id, payment_type='demo')
-    else:
-        (_, order_id) = create_pending_order(
-            user_id=user_id,
-            tariff_id=tariff_id,
-            payment_type='demo',
-            vpn_key_id=None
-        )
+
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='demo',
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     
     price_rub = float(tariff.get('price_rub') or 0)
     
@@ -146,7 +143,7 @@ async def demo_pay_handler(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('renew_demo_pay:'))
 async def renew_demo_pay_handler(callback: CallbackQuery):
     """Показ демонстрационного экрана оплаты с подтверждением (Продление)."""
-    from database.requests import get_user_internal_id, create_pending_order, update_order_tariff
+    from database.requests import get_user_internal_id, prepare_payment_order
     
     parts = callback.data.split(':')
     key_id = int(parts[1])
@@ -164,17 +161,15 @@ async def renew_demo_pay_handler(callback: CallbackQuery):
     if not user_id:
         await callback.answer('❌ Ошибка пользователя', show_alert=True)
         return
-    
-    # Создаем или обновляем заказ
-    if order_id:
-        update_order_tariff(order_id, tariff_id, payment_type='demo')
-    else:
-        (_, order_id) = create_pending_order(
-            user_id=user_id,
-            tariff_id=tariff_id,
-            payment_type='demo',
-            vpn_key_id=key_id
-        )
+
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='demo',
+        vpn_key_id=key_id,
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
 
     price_rub = float(tariff.get('price_rub') or 0)
     
@@ -205,6 +200,7 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
     from database.requests import (
         find_order_by_order_id, complete_order, get_tariff_by_id,
         create_initial_vpn_key, update_payment_key_id, extend_vpn_key,
+        update_key_tariff,
         get_active_servers, update_vpn_key_config
     )
     from bot.utils.key_sender import send_subscription_link
@@ -237,6 +233,8 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
             
             if extend_vpn_key(key_id, days):
                 complete_order(order_id)
+                traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
+                update_key_tariff(key_id, order['tariff_id'], traffic_limit_bytes)
                 
                 logger.info(f"Демо-оплата (продление) завершена: order_id={order_id}, key_id={key_id}, user={callback.from_user.id}")
                 

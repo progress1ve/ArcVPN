@@ -280,12 +280,24 @@ def get_all_users_paginated(offset: int = 0, limit: int = 20,
             base_query = """
                 SELECT u.* FROM users u
                 WHERE u.is_banned = 0 
-                AND u.id NOT IN (SELECT DISTINCT user_id FROM vpn_keys)
+                AND u.id NOT IN (
+                    SELECT DISTINCT user_id
+                    FROM payments
+                    WHERE status = 'paid'
+                    AND payment_type IS NOT NULL
+                    AND payment_type != 'trial'
+                )
             """
             count_query = """
                 SELECT COUNT(*) as cnt FROM users u
                 WHERE u.is_banned = 0 
-                AND u.id NOT IN (SELECT DISTINCT user_id FROM vpn_keys)
+                AND u.id NOT IN (
+                    SELECT DISTINCT user_id
+                    FROM payments
+                    WHERE status = 'paid'
+                    AND payment_type IS NOT NULL
+                    AND payment_type != 'trial'
+                )
             """
         elif filter_type == 'expired':
             base_query = """

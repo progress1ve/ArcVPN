@@ -23,7 +23,8 @@ from database.requests import (
     is_referral_enabled, get_referral_reward_type, get_active_referral_levels,
     get_user_referrer, get_user_referral_coefficient, get_user_balance,
     add_to_balance, deduct_from_balance, add_days_to_first_active_key,
-    update_referral_stat, get_user_by_id
+    update_referral_stat, get_user_by_id, update_order_fulfillment,
+    infer_order_operation_type
 )
 from bot.services.exchange_rate import get_usd_rub_rate
 
@@ -150,251 +151,228 @@ def parse_crypto_callback(start_param: str) -> Optional[Dict[str, Any]]:
         return None
 
 
-async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-    """
-    Универсальная обработка успешного ордера (Crypto или Stars).
-    Закрывает ордер, продлевает ключ или создаёт черновик.
-    Также обрабатывает пополнение баланса (когда tariff_id=None и vpn_key_id=None).
-    
-    Returns:
-        (success, message_text, order_data)
-    """
-    from database.requests import (
-        is_order_already_paid, find_order_by_order_id, complete_order, 
-        extend_vpn_key, create_initial_vpn_key, update_payment_key_id,
-        add_to_balance, get_user_balance
+def _get_order_operation_type(order: Dict[str, Any]) -> str:
+    return infer_order_operation_type(
+        vpn_key_id=order.get('vpn_key_id'),
+        payment_type=order.get('payment_type'),
+        explicit_operation_type=order.get('operation_type'),
+        tariff_id=order.get('tariff_id'),
     )
-    from database.db_promocodes import use_promocode
-    from bot.services.user_locks import user_locks
-    
-    # 1. Проверка на дубликат (на всякий случай, если вызывающий не проверил)
-    if is_order_already_paid(order_id):
-        # Получаем ордер чтобы вернуть контекст
-        order = find_order_by_order_id(order_id)
-        return True, "✅ Этот платёж уже был обработан ранее.", order
 
-    # 2. Поиск ордера
-    order = find_order_by_order_id(order_id)
-    if not order:
-        logger.warning(f"Ордер не найден: {order_id}")
-        return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
-    
-    # 3. Проверяем, это пополнение баланса или покупка подписки
-    if order.get('tariff_id') is None and order.get('vpn_key_id') is None:
-        # Это пополнение баланса
-        logger.info(f"Обработка пополнения баланса: order_id={order_id}")
-        
-        user_internal_id = order['user_id']
-        amount_cents = order.get('amount_cents', 0)
-        
-        # Пополняем баланс
-        async with user_locks[user_internal_id]:
-            add_to_balance(user_internal_id, amount_cents)
-        
-        # Закрываем заказ
-        if not complete_order(order_id):
-            if order['status'] == 'paid':
-                pass
-            else:
-                return False, "❌ Ошибка обновления статуса платежа.", order
-        
-        logger.info(f"Баланс пополнен на {amount_cents} коп для user {user_internal_id} (order {order_id})")
-        
-        return True, f"✅ Баланс успешно пополнен на {amount_cents // 100} ₽!", order
-    
-    # 4. Закрываем ордер (для покупки подписки)
-    if not complete_order(order_id):
-        # Если статус уже paid, process_payment_order вызван повторно - обрабатываем как успех
-        if order['status'] == 'paid':
-             pass
-        else:
-             return False, "❌ Ошибка обновления статуса платежа.", order
-    
-    logger.info(f"Order {order_id} processed (paid)")
+
+def _reload_order(order_id: str) -> Optional[Dict[str, Any]]:
+    return find_order_by_order_id(order_id)
+
+
+async def _apply_topup_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    from bot.services.user_locks import user_locks
+
+    user_internal_id = order['user_id']
+    amount_cents = order.get('amount_cents', 0)
+
+    async with user_locks[user_internal_id]:
+        add_to_balance(user_internal_id, amount_cents)
+
+    update_order_fulfillment(order_id, 'applied')
+    logger.info("Баланс пополнен на %s коп для user %s (order %s)", amount_cents, user_internal_id, order_id)
+    return True, f"✅ Баланс успешно пополнен на {amount_cents // 100} ₽!", _reload_order(order_id)
+
+
+async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    from database.requests import get_tariff_by_id as _get_tariff, update_key_tariff
+    from bot.services.vpn_api import push_key_to_panel, restore_traffic_limit_in_db
+
+    user_internal_id = order['user_id']
+    key_id = order.get('vpn_key_id')
+    days = order.get('period_days') or order.get('duration_days') or 30
+
+    if not key_id:
+        update_order_fulfillment(order_id, 'failed', 'renew order without vpn_key_id')
+        return False, "❌ Ошибка исполнения заказа.", order
+
+    if days and extend_vpn_key(key_id, days):
+        logger.info("Ключ %s продлён на %s дней (order=%s)", key_id, days, order_id)
+        if order.get('tariff_id'):
+            tariff = _get_tariff(order['tariff_id'])
+            traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * (1024**3) if tariff else 0
+            update_key_tariff(key_id, order['tariff_id'], traffic_limit_bytes)
+
+        restore_traffic_limit_in_db(key_id)
+        await push_key_to_panel(key_id, reset_traffic=True)
+        update_order_fulfillment(order_id, 'applied')
+
+        if order.get('payment_type') == 'crypto':
+            await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
+
+        return True, f"✅ Оплата прошла успешно!\n\nВаш ключ продлён на {days} дней.", _reload_order(order_id)
+
+    logger.error("Не удалось продлить ключ %s после оплаты!", key_id)
+    update_order_fulfillment(order_id, 'manual_review', 'failed to extend vpn key')
+    return True, "✅ Оплата принята!\n\n⚠️ Возникла проблема с продлением. Мы разберёмся.", _reload_order(order_id)
+
+
+async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    from database.requests import (
+        create_initial_vpn_key, update_payment_key_id, get_tariff_by_id as _get_tariff,
+        get_active_servers, create_vpn_key_admin, update_vpn_key_config,
+    )
+    from bot.services.vpn_api import get_client
+
+    if not order.get('tariff_id'):
+        logger.error("Ордер %s: тариф не найден или неактивен в БД.", order_id)
+        update_order_fulfillment(order_id, 'failed', 'tariff missing for new subscription')
+        from bot.errors import TariffNotFoundError
+        raise TariffNotFoundError()
 
     user_internal_id = order['user_id']
     days = order.get('period_days') or order.get('duration_days') or 30
-    
-    # 5. Отмечаем использование промокода (если был применен)
-    if order.get('promocode_id'):
-        use_promocode(order['promocode_id'], user_internal_id)
-        logger.info(f"Промокод {order['promocode_id']} отмечен как использованный для user {user_internal_id}")
+    tariff = _get_tariff(order['tariff_id'])
+    traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * (1024**3) if tariff else 0
 
-    if order['vpn_key_id']:
-        if days and extend_vpn_key(order['vpn_key_id'], days):
-            logger.info(f"Ключ {order['vpn_key_id']} продлён на {days} дней (order={order_id})")
-            
-            from bot.services.vpn_api import push_key_to_panel, restore_traffic_limit_in_db
-            # Восстанавливаем лимит трафика в БД (без обращения к панели)
-            restore_traffic_limit_in_db(order['vpn_key_id'])
-            # Пушим ВСЕ данные из БД на панель одним вызовом (сброс up/down + обновление)
-            await push_key_to_panel(order['vpn_key_id'], reset_traffic=True)
-            
-            if order.get('payment_type') == 'crypto':
-                await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
-            
-            return True, f"✅ Оплата прошла успешно!\n\nВаш ключ продлён на {days} дней.", order
-        else:
-            logger.error(f"Не удалось продлить ключ {order['vpn_key_id']} после оплаты!")
-            return True, "✅ Оплата принята!\n\n⚠️ Возникла проблема с продлением. Мы разберёмся.", order
-    else:
-        if not order.get('tariff_id'):
-            logger.error(f"Ордер {order_id}: тариф не найден или неактивен в БД (received tariff_id could not be resolved).")
-            from bot.errors import TariffNotFoundError
-            raise TariffNotFoundError()
-        
+    try:
+        key_id = create_initial_vpn_key(order['user_id'], order['tariff_id'], days, traffic_limit=traffic_limit_bytes)
+        update_payment_key_id(order_id, key_id)
+        order['vpn_key_id'] = key_id
+
+        logger.info("Создан черновик ключа %s для заказа %s", key_id, order_id)
+
         try:
-            days = order.get('period_days') or order.get('duration_days') or 30
-            # Получаем лимит трафика из тарифа
-            from database.requests import get_tariff_by_id as _get_tariff
-            _tariff = _get_tariff(order['tariff_id'])
-            traffic_limit_bytes = (_tariff.get('traffic_limit_gb', 0) or 0) * (1024**3) if _tariff else 0
-            key_id = create_initial_vpn_key(order['user_id'], order['tariff_id'], days, traffic_limit=traffic_limit_bytes)
-            
-            update_payment_key_id(order_id, key_id)
-            order['vpn_key_id'] = key_id
-            
-            logger.info(f"Создан черновик ключа {key_id} для заказа {order_id}")
-            
-            # АВТОМАТИЧЕСКАЯ НАСТРОЙКА КЛЮЧЕЙ НА ВСЕХ СЕРВЕРАХ
-            try:
-                from database.requests import get_active_servers, get_user_by_id, create_vpn_key_admin
-                from bot.services.vpn_api import get_client
-                import uuid
-                
-                logger.info(f"🔧 Начало автоматической настройки ключей для заказа {order_id}")
-                
-                # Получаем ВСЕ активные серверы
-                servers = get_active_servers()
-                if not servers:
-                    logger.warning(f"⚠️  Нет доступных серверов для автоматической настройки ключа {key_id}")
-                else:
-                    user = get_user_by_id(user_internal_id)
-                    telegram_id = user['telegram_id']
-                    username = user.get('username')
-                    
-                    logger.info(f"📊 Автоматическая настройка ключей на {len(servers)} серверах для заказа {order_id}")
-                    logger.info(f"👤 Пользователь: telegram_id={telegram_id}, username={username}")
-                    
-                    created_keys = []
-                    
-                    # Создаем ключи на ВСЕХ серверах
-                    for idx, server in enumerate(servers):
-                        server_id = server['id']
-                        server_name = server['name']
-                        
-                        try:
-                            logger.info(f"[{idx+1}/{len(servers)}] 🔄 Настройка на сервере {server_name} (ID: {server_id})")
-                            
-                            # Подключаемся к панели
-                            logger.debug(f"Подключение к панели {server_name}...")
-                            client = await get_client(server_id)
-                            logger.debug(f"✅ Подключение установлено")
-                            
-                            # Получаем inbounds
-                            logger.debug(f"Получение inbounds...")
-                            inbounds = await client.get_inbounds()
-                            
-                            if not inbounds:
-                                logger.warning(f"⚠️  На сервере {server_name} нет доступных протоколов, пропускаем")
-                                continue
-                            
-                            logger.debug(f"✅ Получено {len(inbounds)} inbound(s))")
-                            
-                            # Берем первый inbound
-                            inbound = inbounds[0]
-                            inbound_id = inbound['id']
-                            
-                            logger.debug(f"Выбран inbound: {inbound.get('remark', 'N/A')} (ID: {inbound_id}, protocol: {inbound.get('protocol', 'N/A')})")
-                            
-                            # Генерируем уникальный email для панели
-                            # Используем 8 символов вместо 5 для большей уникальности
-                            base = f"user_{username}" if username else f"user_{telegram_id}"
-                            suffix = uuid.uuid4().hex[:8]
-                            panel_email = f'{base}_{suffix}'
-                            
-                            logger.debug(f"Сгенерирован email: {panel_email}")
-                            
-                            # Получаем flow для inbound
-                            logger.debug(f"Получение flow для inbound {inbound_id}...")
-                            flow = await client.get_inbound_flow(inbound_id)
-                            logger.debug(f"Flow: {flow}")
-                            
-                            # Создаем клиента на панели
-                            limit_gb = (_tariff.get('traffic_limit_gb', 0) or 0)
-                            
-                            logger.info(f"📝 Создание клиента на панели: email={panel_email}, limit={limit_gb}GB, days={days}")
-                            
-                            res = await client.add_client(
-                                inbound_id=inbound_id,
-                                email=panel_email,
-                                total_gb=limit_gb,
-                                expire_days=days,
-                                limit_ip=1,
-                                enable=True,
-                                tg_id=str(telegram_id),
-                                flow=flow
-                            )
-                            
-                            client_uuid = res['uuid']
-                            
-                            logger.info(f"✅ Клиент создан на панели: uuid={client_uuid}")
-                            
-                            # Создаем ключ в БД для этого сервера
-                            # Для первого сервера используем уже созданный key_id
-                            if idx == 0:
-                                from database.requests import update_vpn_key_config
-                                logger.debug(f"Обновление основного ключа {key_id} в БД...")
-                                update_vpn_key_config(
-                                    key_id=key_id,
-                                    server_id=server_id,
-                                    panel_inbound_id=inbound_id,
-                                    panel_email=panel_email,
-                                    client_uuid=client_uuid
-                                )
-                                created_keys.append(key_id)
-                                logger.info(f"✅ Основной ключ {key_id} настроен на {server_name}")
-                            else:
-                                # Для остальных серверов создаем новые ключи
-                                logger.debug(f"Создание дополнительного ключа в БД...")
-                                new_key_id = create_vpn_key_admin(
-                                    user_id=user_internal_id,
-                                    server_id=server_id,
-                                    tariff_id=order['tariff_id'],
-                                    panel_inbound_id=inbound_id,
-                                    panel_email=panel_email,
-                                    client_uuid=client_uuid,
-                                    days=days,
-                                    traffic_limit=traffic_limit_bytes
-                                )
-                                created_keys.append(new_key_id)
-                                logger.info(f"✅ Дополнительный ключ {new_key_id} создан на {server_name}")
-                        
-                        except Exception as e:
-                            logger.error(f"❌ Ошибка настройки на сервере {server.get('name')}: {e}", exc_info=True)
+            logger.info("🔧 Начало автоматической настройки ключей для заказа %s", order_id)
+            servers = get_active_servers()
+            if not servers:
+                logger.warning("⚠️  Нет доступных серверов для автоматической настройки ключа %s", key_id)
+            else:
+                user = get_user_by_id(user_internal_id)
+                telegram_id = user['telegram_id']
+                username = user.get('username')
+                created_keys = []
+
+                for idx, server in enumerate(servers):
+                    server_id = server['id']
+                    server_name = server['name']
+                    try:
+                        logger.info("[%s/%s] 🔄 Настройка на сервере %s (ID: %s)", idx + 1, len(servers), server_name, server_id)
+                        client = await get_client(server_id)
+                        inbounds = await client.get_inbounds()
+                        if not inbounds:
+                            logger.warning("⚠️  На сервере %s нет доступных протоколов, пропускаем", server_name)
                             continue
-                    
-                    if created_keys:
-                        logger.info(f"🎉 Успешно создано {len(created_keys)} ключей на {len(created_keys)} серверах для заказа {order_id}")
-                        logger.info(f"   Ключи: {created_keys}")
-                    else:
-                        logger.error(f"❌ Не удалось создать ни одного ключа на панелях для заказа {order_id}")
-                        logger.error(f"   Это критическая проблема! Пользователь не сможет подключиться.")
-                
-            except Exception as e:
-                logger.error(f"❌ КРИТИЧЕСКАЯ ОШИБКА автоматической настройки ключей: {e}", exc_info=True)
-                logger.error(f"   Order ID: {order_id}, Key ID: {key_id}, User ID: {user_internal_id}")
-                # Продолжаем выполнение - основной ключ создан, но не настроен
-                # Пользователь сможет настроить его позже через интерфейс
-            
-            if order.get('payment_type') == 'crypto':
-                await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
-            
-            return True, "✅ Оплата прошла успешно!", order
-            
+
+                        inbound = inbounds[0]
+                        inbound_id = inbound['id']
+                        base = f"user_{username}" if username else f"user_{telegram_id}"
+                        suffix = uuid.uuid4().hex[:8]
+                        panel_email = f'{base}_{suffix}'
+                        flow = await client.get_inbound_flow(inbound_id)
+                        limit_gb = (tariff.get('traffic_limit_gb', 0) or 0)
+
+                        res = await client.add_client(
+                            inbound_id=inbound_id,
+                            email=panel_email,
+                            total_gb=limit_gb,
+                            expire_days=days,
+                            limit_ip=1,
+                            enable=True,
+                            tg_id=str(telegram_id),
+                            flow=flow
+                        )
+                        client_uuid = res['uuid']
+
+                        if idx == 0:
+                            update_vpn_key_config(
+                                key_id=key_id,
+                                server_id=server_id,
+                                panel_inbound_id=inbound_id,
+                                panel_email=panel_email,
+                                client_uuid=client_uuid
+                            )
+                            created_keys.append(key_id)
+                        else:
+                            new_key_id = create_vpn_key_admin(
+                                user_id=user_internal_id,
+                                server_id=server_id,
+                                tariff_id=order['tariff_id'],
+                                panel_inbound_id=inbound_id,
+                                panel_email=panel_email,
+                                client_uuid=client_uuid,
+                                days=days,
+                                traffic_limit=traffic_limit_bytes
+                            )
+                            created_keys.append(new_key_id)
+                    except Exception as e:
+                        logger.error("❌ Ошибка настройки на сервере %s: %s", server.get('name'), e, exc_info=True)
+                        continue
+
+                if created_keys:
+                    logger.info("🎉 Успешно создано %s ключей для заказа %s", len(created_keys), order_id)
+                else:
+                    logger.error("❌ Не удалось создать ни одного ключа на панелях для заказа %s", order_id)
         except Exception as e:
-            logger.error(f"Ошибка создания черновика ключа: {e}")
-            return True, "✅ Оплата принята, но произошла ошибка при создании ключа. Обратитесь в поддержку.", order
+            logger.error("❌ Критическая ошибка автоматической настройки ключей: %s", e, exc_info=True)
+            logger.error("   Order ID: %s, Key ID: %s, User ID: %s", order_id, key_id, user_internal_id)
+
+        update_order_fulfillment(order_id, 'applied')
+
+        if order.get('payment_type') == 'crypto':
+            await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
+
+        return True, "✅ Оплата прошла успешно!", _reload_order(order_id)
+    except Exception as e:
+        logger.error("Ошибка создания черновика ключа: %s", e)
+        update_order_fulfillment(order_id, 'manual_review', str(e))
+        return True, "✅ Оплата принята, но произошла ошибка при создании ключа. Обратитесь в поддержку.", _reload_order(order_id)
+
+
+async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """
+    Единая post-payment оркестрация:
+    1. Подтверждает оплату ордера
+    2. Вычисляет доменную операцию
+    3. Выполняет fulfillment
+    4. Сохраняет lifecycle-статус исполнения
+    """
+    from database.db_promocodes import use_promocode
+
+    order = find_order_by_order_id(order_id)
+    if not order:
+        logger.warning("Ордер не найден: %s", order_id)
+        return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
+
+    fulfillment_status = order.get('fulfillment_status')
+    if order.get('status') == 'paid' and fulfillment_status == 'applied':
+        return True, "✅ Этот платёж уже был обработан ранее.", order
+
+    payment_marked_paid = False
+    if not is_order_already_paid(order_id):
+        if not complete_order(order_id):
+            if order.get('status') != 'paid':
+                return False, "❌ Ошибка обновления статуса платежа.", order
+        else:
+            payment_marked_paid = True
+
+    order = _reload_order(order_id)
+    if not order:
+        return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
+
+    update_order_fulfillment(order_id, 'pending', None, increment_attempt_count=True)
+
+    if payment_marked_paid and order.get('promocode_id'):
+        use_promocode(order['promocode_id'], order['user_id'])
+        logger.info("Промокод %s отмечен как использованный для user %s", order['promocode_id'], order['user_id'])
+
+    operation_type = _get_order_operation_type(order)
+    logger.info("Order %s apply started: operation=%s, payment_type=%s", order_id, operation_type, order.get('payment_type'))
+
+    if operation_type == 'topup':
+        return await _apply_topup_order(order_id, order)
+    if operation_type in {'renew', 'upgrade'}:
+        return await _apply_renew_order(order_id, order)
+    return await _apply_new_subscription_order(order_id, order)
+
+
+async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Backwards-compatible alias для единого post-payment lifecycle."""
+    return await apply_paid_order(order_id)
 
 
 async def process_crypto_payment(start_param: str, user_id: Optional[int] = None) -> Tuple[bool, str, Optional[Dict[str, Any]]]:

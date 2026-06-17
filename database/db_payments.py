@@ -28,6 +28,8 @@ __all__ = [
     'update_payment_type',
     'update_payment_key_id',
     'update_payment_yookassa_id',
+    'update_order_fulfillment',
+    'prepare_payment_order',
     'is_order_already_paid',
     'get_key_payments_history',
     'get_referral_levels',
@@ -40,7 +42,35 @@ __all__ = [
     'get_referral_conditions_text',
     'update_referral_setting',
     'get_payment_token',
+    'infer_order_operation_type',
 ]
+
+
+def infer_order_operation_type(
+    vpn_key_id: Optional[int],
+    payment_type: Optional[str] = None,
+    explicit_operation_type: Optional[str] = None,
+    tariff_id: Optional[int] = None,
+) -> str:
+    """
+    Определяет доменную операцию ордера.
+
+    Приоритет:
+    1. Явно переданный operation_type
+    2. Trial-платеж
+    3. Пополнение баланса
+    4. Продление существующего ключа
+    5. Новая подписка
+    """
+    if explicit_operation_type:
+        return explicit_operation_type
+    if payment_type == 'trial':
+        return 'trial_start'
+    if tariff_id is None and vpn_key_id is None:
+        return 'topup'
+    if vpn_key_id is not None:
+        return 'renew'
+    return 'new'
 
 def save_yookassa_payment_id(order_id: str, yookassa_payment_id: str) -> bool:
     """
@@ -252,7 +282,8 @@ def create_pending_order(
     amount_cents: Optional[int] = None,
     amount_stars: Optional[int] = None,
     promocode_id: Optional[int] = None,
-    discount_rub: int = 0
+    discount_rub: int = 0,
+    operation_type: Optional[str] = None,
 ) -> tuple[int, str]:
     """
     Создаёт pending order и генерирует уникальный order_id.
@@ -280,6 +311,12 @@ def create_pending_order(
     final_amount_cents = tariff['price_cents'] if tariff else (amount_cents or 0)
     final_amount_stars = tariff['price_stars'] if tariff else (amount_stars or 0)
     final_period_days = tariff['duration_days'] if tariff else None
+    final_operation_type = infer_order_operation_type(
+        vpn_key_id=vpn_key_id,
+        payment_type=payment_type,
+        explicit_operation_type=operation_type,
+        tariff_id=tariff_id,
+    )
     
     with get_db() as conn:
         # Шаг 1: создаём запись с временным order_id
@@ -287,15 +324,18 @@ def create_pending_order(
             INSERT INTO payments 
             (user_id, tariff_id, order_id, payment_type, vpn_key_id, 
              amount_cents, amount_stars, period_days, status, paid_at,
-             promocode_id, discount_rub)
-            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, 'pending', NULL, ?, ?)
+             promocode_id, discount_rub, operation_type, target_tariff_id,
+             fulfillment_status, fulfilled_at, fulfillment_error, attempt_count)
+            VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, 'pending', NULL, ?, ?, ?, ?, 'pending', NULL, NULL, 0)
         """, (
             user_id, tariff_id, payment_type, vpn_key_id,
             final_amount_cents,
             final_amount_stars,
             final_period_days,
             promocode_id,
-            discount_rub
+            discount_rub,
+            final_operation_type,
+            tariff_id,
         ))
         payment_id = cursor.lastrowid
         
@@ -308,7 +348,16 @@ def create_pending_order(
             UPDATE payments SET order_id = ? WHERE id = ?
         """, (order_id, payment_id))
         
-        logger.info(f"Создан pending order: {order_id} (id={payment_id}, user={user_id}, type={payment_type}, promo={promocode_id}, discount={discount_rub}₽)")
+        logger.info(
+            "Создан pending order: %s (id=%s, user=%s, type=%s, operation=%s, promo=%s, discount=%s₽)",
+            order_id,
+            payment_id,
+            user_id,
+            payment_type,
+            final_operation_type,
+            promocode_id,
+            discount_rub,
+        )
         return payment_id, order_id
 
 def create_paid_order_external(
@@ -318,7 +367,8 @@ def create_paid_order_external(
     payment_type: str,
     amount_cents: int,
     amount_stars: int,
-    period_days: int
+    period_days: int,
+    operation_type: Optional[str] = None,
 ) -> bool:
     """
     Создаёт сразу оплаченный ордер (для внешних платежей).
@@ -338,17 +388,31 @@ def create_paid_order_external(
         True если успешно
     """
     try:
+        final_operation_type = infer_order_operation_type(
+            vpn_key_id=None,
+            payment_type=payment_type,
+            explicit_operation_type=operation_type,
+            tariff_id=tariff_id,
+        )
         with get_db() as conn:
             conn.execute("""
                 INSERT INTO payments 
                 (user_id, tariff_id, order_id, payment_type, vpn_key_id, 
-                 amount_cents, amount_stars, period_days, status, paid_at)
-                VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'pending', NULL)
+                 amount_cents, amount_stars, period_days, status, paid_at,
+                 operation_type, target_tariff_id, fulfillment_status,
+                 fulfilled_at, fulfillment_error, attempt_count)
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?, 'pending', NULL, ?, ?, 'pending', NULL, NULL, 0)
             """, (
                 user_id, tariff_id, order_id, payment_type,
-                amount_cents, amount_stars, period_days
+                amount_cents, amount_stars, period_days,
+                final_operation_type, tariff_id,
             ))
-            logger.info(f"Создан external pending order: {order_id} (user={user_id})")
+            logger.info(
+                "Создан external pending order: %s (user=%s, operation=%s)",
+                order_id,
+                user_id,
+                final_operation_type,
+            )
             return True
     except Exception as e:
         logger.error(f"Ошибка создания external order {order_id}: {e}")
@@ -415,6 +479,7 @@ def update_order_tariff(order_id: str, tariff_id: int, payment_type: Optional[st
         cursor = conn.execute("""
             UPDATE payments 
             SET tariff_id = ?, 
+                target_tariff_id = ?,
                 amount_cents = ?, 
                 amount_stars = ?, 
                 period_days = ?,
@@ -422,6 +487,7 @@ def update_order_tariff(order_id: str, tariff_id: int, payment_type: Optional[st
             WHERE order_id = ?
         """, (
             tariff_id, 
+            tariff_id,
             tariff['price_cents'], 
             tariff['price_stars'], 
             tariff['duration_days'], 
@@ -487,6 +553,135 @@ def update_payment_yookassa_id(order_id: str, yookassa_payment_id: str) -> bool:
     """
     return save_yookassa_payment_id(order_id, yookassa_payment_id)
 
+
+def update_order_fulfillment(
+    order_id: str,
+    fulfillment_status: str,
+    error_message: Optional[str] = None,
+    increment_attempt_count: bool = False,
+) -> bool:
+    """
+    Обновляет статус исполнения ордера после оплаты.
+
+    fulfillment_status:
+    - pending
+    - applied
+    - failed
+    - manual_review
+    """
+    fulfilled_at_sql = "CURRENT_TIMESTAMP" if fulfillment_status == 'applied' else "NULL"
+    with get_db() as conn:
+        cursor = conn.execute(f"""
+            UPDATE payments
+            SET fulfillment_status = ?,
+                fulfilled_at = {fulfilled_at_sql},
+                fulfillment_error = ?,
+                attempt_count = attempt_count + CASE WHEN ? THEN 1 ELSE 0 END
+            WHERE order_id = ?
+        """, (fulfillment_status, error_message, 1 if increment_attempt_count else 0, order_id))
+        success = cursor.rowcount > 0
+        if success:
+            logger.info(
+                "Order %s fulfillment updated: status=%s attempts+1=%s",
+                order_id,
+                fulfillment_status,
+                increment_attempt_count,
+            )
+        return success
+
+
+def prepare_payment_order(
+    user_id: int,
+    tariff_id: Optional[int],
+    payment_type: Optional[str],
+    vpn_key_id: Optional[int] = None,
+    order_id: Optional[str] = None,
+    promocode_id: Optional[int] = None,
+    discount_rub: int = 0,
+    operation_type: Optional[str] = None,
+) -> Dict[str, Any]:
+    """
+    Единая точка create/update pending order для payment handlers.
+
+    Если order_id существует, заказ обновляется с сохранением промокода и скидки.
+    Иначе создается новый pending order.
+    """
+    final_operation_type = infer_order_operation_type(
+        vpn_key_id=vpn_key_id,
+        payment_type=payment_type,
+        explicit_operation_type=operation_type,
+        tariff_id=tariff_id,
+    )
+
+    existing_order = find_order_by_order_id(order_id) if order_id else None
+    if existing_order:
+        tariff = get_tariff_by_id(tariff_id) if tariff_id else None
+        with get_db() as conn:
+            cursor = conn.execute("""
+                UPDATE payments
+                SET tariff_id = COALESCE(?, tariff_id),
+                    target_tariff_id = COALESCE(?, target_tariff_id, tariff_id),
+                    amount_cents = CASE WHEN ? IS NOT NULL THEN ? ELSE amount_cents END,
+                    amount_stars = CASE WHEN ? IS NOT NULL THEN ? ELSE amount_stars END,
+                    period_days = CASE WHEN ? IS NOT NULL THEN ? ELSE period_days END,
+                    payment_type = COALESCE(?, payment_type),
+                    vpn_key_id = COALESCE(?, vpn_key_id),
+                    operation_type = ?
+                WHERE order_id = ?
+            """, (
+                tariff_id,
+                tariff_id,
+                tariff['price_cents'] if tariff else None,
+                tariff['price_cents'] if tariff else None,
+                tariff['price_stars'] if tariff else None,
+                tariff['price_stars'] if tariff else None,
+                tariff['duration_days'] if tariff else None,
+                tariff['duration_days'] if tariff else None,
+                payment_type,
+                vpn_key_id,
+                final_operation_type,
+                order_id,
+            ))
+            if cursor.rowcount <= 0:
+                raise RuntimeError(f"Не удалось обновить order {order_id}")
+
+        updated_order = find_order_by_order_id(order_id)
+        if not updated_order:
+            raise RuntimeError(f"Не удалось перечитать order {order_id} после обновления")
+        logger.info(
+            "Prepared existing order %s: user=%s type=%s operation=%s tariff=%s key=%s",
+            order_id,
+            user_id,
+            payment_type,
+            final_operation_type,
+            tariff_id,
+            vpn_key_id,
+        )
+        return updated_order
+
+    _, new_order_id = create_pending_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type=payment_type,
+        vpn_key_id=vpn_key_id,
+        promocode_id=promocode_id,
+        discount_rub=discount_rub,
+        operation_type=final_operation_type,
+    )
+    created_order = find_order_by_order_id(new_order_id)
+    if not created_order:
+        raise RuntimeError(f"Не удалось найти созданный order {new_order_id}")
+    logger.info(
+        "Prepared new order %s: user=%s type=%s operation=%s tariff=%s key=%s",
+        new_order_id,
+        user_id,
+        payment_type,
+        final_operation_type,
+        tariff_id,
+        vpn_key_id,
+    )
+    return created_order
+
 def get_payment_token() -> Optional[str]:
     """
     Получает токен провайдера для оплаты картами.
@@ -533,7 +728,9 @@ def get_key_payments_history(key_id: int) -> List[Dict[str, Any]]:
             SELECT p.*, t.name as tariff_name, t.price_rub as amount_rub
             FROM payments p
             LEFT JOIN tariffs t ON p.tariff_id = t.id
-            WHERE p.vpn_key_id = ? AND p.status = 'paid'
+            WHERE p.vpn_key_id = ?
+            AND p.status = 'paid'
+            AND p.payment_type != 'trial'
             ORDER BY p.paid_at DESC
         """, (key_id,))
         return [dict(row) for row in cursor.fetchall()]

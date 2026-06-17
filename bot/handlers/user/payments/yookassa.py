@@ -17,8 +17,8 @@ async def pay_cards_handler(callback: CallbackQuery):
     """Обработчик оплаты картой - создает инвойс напрямую если тариф уже выбран."""
     from aiogram.types import LabeledPrice
     from database.requests import (
-        get_tariff_by_id, get_user_internal_id, create_pending_order, 
-        update_order_tariff, get_setting, get_all_tariffs
+        get_tariff_by_id, get_user_internal_id, get_setting, get_all_tariffs,
+        prepare_payment_order
     )
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
@@ -46,32 +46,22 @@ async def pay_cards_handler(callback: CallbackQuery):
         
         days = tariff['duration_days']
         
-        # Проверяем существующий заказ на наличие промокода
-        from database.requests import find_order_by_order_id
-        existing_order = find_order_by_order_id(order_id) if order_id else None
-        
-        # Создаем или обновляем заказ
-        if order_id and existing_order:
-            # Заказ существует - обновляем только тариф, сохраняя промокод
-            update_order_tariff(order_id, tariff_id, payment_type='cards')
-            # Применяем скидку от промокода
-            price_rub = float(tariff.get('price_rub') or 0)
-            discount_rub = existing_order.get('discount_rub', 0) or 0
-            if discount_rub > 0:
-                price_rub = max(0, price_rub - discount_rub)
-                logger.info(f"Применена скидка промокода: {discount_rub} руб, итоговая цена: {price_rub} руб")
-        else:
-            # Создаем новый заказ
-            if not user_id:
-                await callback.answer('❌ Ошибка пользователя', show_alert=True)
-                return
-            (_, order_id) = create_pending_order(
-                user_id=user_id, 
-                tariff_id=tariff_id, 
-                payment_type='cards', 
-                vpn_key_id=None
-            )
-            price_rub = float(tariff.get('price_rub') or 0)
+        if not user_id:
+            await callback.answer('❌ Ошибка пользователя', show_alert=True)
+            return
+
+        prepared_order = prepare_payment_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type='cards',
+            order_id=order_id,
+        )
+        order_id = prepared_order['order_id']
+        price_rub = float(tariff.get('price_rub') or 0)
+        discount_rub = prepared_order.get('discount_rub', 0) or 0
+        if discount_rub > 0:
+            price_rub = max(0, price_rub - discount_rub)
+            logger.info(f"Применена скидка промокода: {discount_rub} руб, итоговая цена: {price_rub} руб")
         
         price_kopecks = int(round(price_rub * 100))
         
@@ -133,7 +123,7 @@ async def pay_cards_handler(callback: CallbackQuery):
 async def pay_cards_invoice(callback: CallbackQuery):
     """Создание инвойса для оплаты Картой (Новый ключ)."""
     from aiogram.types import LabeledPrice
-    from database.requests import get_tariff_by_id, get_user_internal_id, create_pending_order, update_order_tariff, get_setting
+    from database.requests import get_tariff_by_id, get_user_internal_id, get_setting, prepare_payment_order
     parts = callback.data.split(':')
     tariff_id = int(parts[1])
     order_id = parts[2] if len(parts) > 2 else None
@@ -147,13 +137,16 @@ async def pay_cards_invoice(callback: CallbackQuery):
         await callback.answer('❌ Провайдер платежей не настроен', show_alert=True)
         return
     days = tariff['duration_days']
-    if order_id:
-        update_order_tariff(order_id, tariff_id, payment_type='cards')
-    else:
-        if not user_id:
-            await callback.answer('❌ Ошибка пользователя', show_alert=True)
-            return
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='cards', vpn_key_id=None)
+    if not user_id:
+        await callback.answer('❌ Ошибка пользователя', show_alert=True)
+        return
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='cards',
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     price_rub = float(tariff.get('price_rub') or 0)
     price_kopecks = int(round(price_rub * 100))
     if price_kopecks <= 0:
@@ -199,7 +192,7 @@ async def renew_cards_select_tariff(callback: CallbackQuery):
 async def renew_cards_invoice(callback: CallbackQuery):
     """Инвойс для продления (Картой)."""
     from aiogram.types import LabeledPrice
-    from database.requests import get_tariff_by_id, get_user_internal_id, create_pending_order, get_key_details_for_user, update_order_tariff, get_setting
+    from database.requests import get_tariff_by_id, get_user_internal_id, get_key_details_for_user, get_setting, prepare_payment_order
     parts = callback.data.split(':')
     key_id = int(parts[1])
     tariff_id = int(parts[2])
@@ -216,10 +209,14 @@ async def renew_cards_invoice(callback: CallbackQuery):
         return
     if not user_id:
         return
-    if order_id:
-        update_order_tariff(order_id, tariff_id, payment_type='cards')
-    else:
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='cards', vpn_key_id=key_id)
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='cards',
+        vpn_key_id=key_id,
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     price_rub = float(tariff.get('price_rub') or 0)
     price_kopecks = int(round(price_rub * 100))
     if price_kopecks <= 0:
@@ -244,8 +241,8 @@ async def renew_cards_invoice(callback: CallbackQuery):
 async def pay_qr_handler(callback: CallbackQuery):
     """Обработчик QR-оплаты - создает платеж напрямую если тариф уже выбран."""
     from database.requests import (
-        get_tariff_by_id, get_user_internal_id, create_pending_order,
-        save_yookassa_payment_id, get_all_tariffs
+        get_tariff_by_id, get_user_internal_id, save_yookassa_payment_id,
+        get_all_tariffs, prepare_payment_order
     )
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb, tariff_select_kb
@@ -274,27 +271,17 @@ async def pay_qr_handler(callback: CallbackQuery):
             await callback.answer('❌ Ошибка пользователя', show_alert=True)
             return
         
-        # Проверяем существующий заказ на наличие промокода
-        from database.requests import find_order_by_order_id, update_order_tariff
-        existing_order = find_order_by_order_id(order_id) if order_id else None
-        
-        # Создаем или обновляем заказ
-        if order_id and existing_order:
-            # Заказ существует - обновляем только тариф, сохраняя промокод
-            update_order_tariff(order_id, tariff_id, payment_type='yookassa_qr')
-            # Применяем скидку от промокода
-            discount_rub = existing_order.get('discount_rub', 0) or 0
-            if discount_rub > 0:
-                price_rub = max(0, price_rub - discount_rub)
-                logger.info(f"Применена скидка промокода: {discount_rub} руб, итоговая цена: {price_rub} руб")
-        else:
-            # Создаем новый заказ
-            (_, order_id) = create_pending_order(
-                user_id=user_id,
-                tariff_id=tariff_id,
-                payment_type='yookassa_qr',
-                vpn_key_id=None
-            )
+        prepared_order = prepare_payment_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type='yookassa_qr',
+            order_id=order_id,
+        )
+        order_id = prepared_order['order_id']
+        discount_rub = prepared_order.get('discount_rub', 0) or 0
+        if discount_rub > 0:
+            price_rub = max(0, price_rub - discount_rub)
+            logger.info(f"Применена скидка промокода: {discount_rub} руб, итоговая цена: {price_rub} руб")
         
         try:
             # Создаем платеж в ЮКассе
@@ -362,7 +349,7 @@ async def pay_qr_handler(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('qr_pay:'))
 async def qr_pay_create(callback: CallbackQuery):
     """Создаёт QR-платёж ЮКасса для нового ключа и отправляет QR-фото."""
-    from database.requests import get_tariff_by_id, get_user_internal_id, create_pending_order, save_yookassa_payment_id
+    from database.requests import get_tariff_by_id, get_user_internal_id, save_yookassa_payment_id, prepare_payment_order
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb
     from bot.keyboards.admin import home_only_kb
@@ -379,7 +366,12 @@ async def qr_pay_create(callback: CallbackQuery):
     if not user_id:
         await callback.answer('❌ Пользователь не найден', show_alert=True)
         return
-    (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='yookassa_qr', vpn_key_id=None)
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='yookassa_qr',
+    )
+    order_id = prepared_order['order_id']
     await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
     try:
         bot_info = await callback.bot.get_me()
@@ -413,10 +405,10 @@ async def check_yookassa_payment(callback: CallbackQuery, state: FSMContext):
     order_id = callback.data.split(':', 1)[1]
     if is_order_already_paid(order_id):
         order = find_order_by_order_id(order_id)
-        if order:
+        if order and order.get('fulfillment_status') == 'applied':
             await finalize_payment_ui(callback.message, state, '✅ Оплата уже была обработана ранее.', order, user_id=callback.from_user.id)
-        await callback.answer()
-        return
+            await callback.answer()
+            return
     order = find_order_by_order_id(order_id)
     if not order:
         await callback.answer('❌ Ордер не найден', show_alert=True)
@@ -486,7 +478,7 @@ async def renew_qr_select_tariff(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('renew_pay_qr:'))
 async def renew_qr_create(callback: CallbackQuery):
     """Создаёт QR-платёж ЮКасса для продления ключа."""
-    from database.requests import get_tariff_by_id, get_user_internal_id, create_pending_order, save_yookassa_payment_id, get_key_details_for_user
+    from database.requests import get_tariff_by_id, get_user_internal_id, save_yookassa_payment_id, get_key_details_for_user, prepare_payment_order
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb
     from bot.keyboards.admin import home_only_kb
@@ -506,7 +498,13 @@ async def renew_qr_create(callback: CallbackQuery):
     if not user_id:
         await callback.answer('❌ Пользователь не найден', show_alert=True)
         return
-    (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='yookassa_qr', vpn_key_id=key_id)
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='yookassa_qr',
+        vpn_key_id=key_id,
+    )
+    order_id = prepared_order['order_id']
     await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
     try:
         bot_info = await callback.bot.get_me()

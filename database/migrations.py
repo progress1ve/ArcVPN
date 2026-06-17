@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 20
+LATEST_VERSION = 21
 
 
 def get_current_version() -> int:
@@ -1329,6 +1329,69 @@ def migration_20(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v20 применена")
 
 
+def migration_21(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v21: Lifecycle-поля ордера.
+
+    Изменения:
+    - payments.operation_type: new / renew / upgrade / topup / trial_start
+    - payments.target_tariff_id: целевой тариф доменной операции
+    - payments.fulfillment_status: pending / applied / failed / manual_review
+    - payments.fulfilled_at: время успешного исполнения
+    - payments.fulfillment_error: последняя ошибка исполнения
+    - payments.attempt_count: количество попыток post-payment исполнения
+    """
+    logger.info("Применение миграции v21 (Lifecycle ордера)...")
+
+    _add_column(conn, "payments", "operation_type TEXT")
+    _add_column(conn, "payments", "target_tariff_id INTEGER")
+    _add_column(conn, "payments", "fulfillment_status TEXT DEFAULT 'pending'")
+    _add_column(conn, "payments", "fulfilled_at DATETIME")
+    _add_column(conn, "payments", "fulfillment_error TEXT")
+    _add_column(conn, "payments", "attempt_count INTEGER DEFAULT 0")
+
+    # Backfill operation_type и target_tariff_id для существующих заказов.
+    conn.execute("""
+        UPDATE payments
+        SET operation_type = CASE
+            WHEN payment_type = 'trial' THEN 'trial_start'
+            WHEN tariff_id IS NULL AND vpn_key_id IS NULL THEN 'topup'
+            WHEN vpn_key_id IS NOT NULL THEN 'renew'
+            ELSE 'new'
+        END
+        WHERE operation_type IS NULL
+    """)
+    conn.execute("""
+        UPDATE payments
+        SET target_tariff_id = tariff_id
+        WHERE target_tariff_id IS NULL
+    """)
+    conn.execute("""
+        UPDATE payments
+        SET fulfillment_status = CASE
+            WHEN status = 'paid' THEN 'applied'
+            ELSE COALESCE(fulfillment_status, 'pending')
+        END
+        WHERE fulfillment_status IS NULL OR fulfillment_status = ''
+    """)
+    conn.execute("""
+        UPDATE payments
+        SET fulfilled_at = paid_at
+        WHERE status = 'paid' AND paid_at IS NOT NULL AND fulfilled_at IS NULL
+    """)
+    conn.execute("""
+        UPDATE payments
+        SET attempt_count = 1
+        WHERE status = 'paid' AND (attempt_count IS NULL OR attempt_count = 0)
+    """)
+
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_operation_type ON payments(operation_type)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_fulfillment_status ON payments(fulfillment_status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_payments_target_tariff_id ON payments(target_tariff_id)")
+
+    logger.info("Миграция v21 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1350,6 +1413,7 @@ MIGRATIONS = {
     18: migration_18,
     19: migration_19,
     20: migration_20,
+    21: migration_21,
 }
 
 

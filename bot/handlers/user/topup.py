@@ -453,20 +453,20 @@ async def topup_crypto_handler(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("check_topup_qr:"))
 async def check_topup_qr_payment(callback: CallbackQuery, state: FSMContext):
     """Проверка статуса QR-платежа для пополнения баланса"""
-    from database.requests import find_order_by_order_id, is_order_already_paid, get_user_internal_id, add_to_balance, complete_order
-    from bot.services.billing import check_yookassa_payment_status
+    from database.requests import find_order_by_order_id, is_order_already_paid, get_user_balance
+    from bot.services.billing import check_yookassa_payment_status, apply_paid_order
     
     parts = callback.data.split(":")
     order_id = parts[1]
     
-    # Проверяем что заказ еще не оплачен
-    if is_order_already_paid(order_id):
-        await callback.answer("✅ Платеж уже обработан!", show_alert=True)
-        return
-    
     order = find_order_by_order_id(order_id)
     if not order:
         await callback.answer("❌ Заказ не найден", show_alert=True)
+        return
+
+    # Если и платёж, и исполнение уже завершены — просто сообщаем об этом.
+    if is_order_already_paid(order_id) and order.get('fulfillment_status') == 'applied':
+        await callback.answer("✅ Платеж уже обработан!", show_alert=True)
         return
     
     yookassa_payment_id = order.get('yookassa_payment_id')
@@ -480,24 +480,14 @@ async def check_topup_qr_payment(callback: CallbackQuery, state: FSMContext):
         # Проверяем статус в ЮКасса
         status = await check_yookassa_payment_status(yookassa_payment_id)
         
-        if status == 'succeeded':
-            # Платеж успешен - пополняем баланс
-            user_id = order['user_id']
-            amount_cents = order.get('amount_cents', 0)
-            
-            # Пополняем баланс
-            from bot.services.user_locks import user_locks
-            async with user_locks[user_id]:
-                add_to_balance(user_id, amount_cents)
-            
-            # Закрываем заказ
-            complete_order(order_id)
-            
-            logger.info(f"Баланс пополнен на {amount_cents} коп для user {user_id} (order {order_id})")
-            
-            # Показываем успех
-            from database.requests import get_user_balance
-            new_balance = get_user_balance(user_id)
+        if status == 'succeeded' or is_order_already_paid(order_id):
+            success, _, updated_order = await apply_paid_order(order_id)
+            if not success or not updated_order:
+                await callback.answer("❌ Ошибка обработки платежа", show_alert=True)
+                return
+
+            amount_cents = updated_order.get('amount_cents', 0)
+            new_balance = get_user_balance(updated_order['user_id'])
             
             # Удаляем QR-фото
             try:

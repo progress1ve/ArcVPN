@@ -61,12 +61,19 @@ def get_users_for_broadcast(filter_type: str) -> List[int]:
                 )
             """)
         elif filter_type == 'never_paid':
-            # Никогда не покупали VPN (нет ключей вообще)
+            # Никогда не покупали VPN за деньги.
+            # Trial не должен исключать пользователя из этой выборки.
             cursor = conn.execute("""
                 SELECT u.telegram_id 
                 FROM users u
                 WHERE u.is_banned = 0 
-                AND u.id NOT IN (SELECT DISTINCT user_id FROM vpn_keys)
+                AND u.id NOT IN (
+                    SELECT DISTINCT user_id
+                    FROM payments
+                    WHERE status = 'paid'
+                    AND payment_type IS NOT NULL
+                    AND payment_type != 'trial'
+                )
             """)
         elif filter_type == 'expired':
             # Был ключ, но он уже истёк (и нет активных)

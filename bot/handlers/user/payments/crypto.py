@@ -35,7 +35,7 @@ async def renew_crypto_select_tariff(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('renew_pay_crypto:'))
 async def renew_crypto_invoice(callback: CallbackQuery):
     """Инвойс для оплаты Crypto (за продление ключа)."""
-    from database.requests import get_tariff_by_id, get_user_internal_id, create_pending_order, get_key_details_for_user, update_order_tariff, update_payment_type, get_setting
+    from database.requests import get_tariff_by_id, get_user_internal_id, get_key_details_for_user, get_setting, prepare_payment_order
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     parts = callback.data.split(':')
     key_id = int(parts[1])
@@ -49,11 +49,14 @@ async def renew_crypto_invoice(callback: CallbackQuery):
     user_id = get_user_internal_id(callback.from_user.id)
     if not user_id:
         return
-    if order_id:
-        update_order_tariff(order_id, tariff_id)
-        update_payment_type(order_id, 'crypto')
-    else:
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='crypto', vpn_key_id=key_id)
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='crypto',
+        vpn_key_id=key_id,
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     crypto_item_url = get_setting('crypto_item_url')
     item_id = extract_item_id_from_url(crypto_item_url)
     if not item_id:
@@ -73,8 +76,8 @@ async def renew_crypto_invoice(callback: CallbackQuery):
 async def pay_crypto_handler(callback: CallbackQuery):
     """Обработчик оплаты Crypto - создает ссылку напрямую если тариф уже выбран."""
     from database.requests import (
-        get_tariff_by_id, get_user_internal_id, create_pending_order,
-        update_order_tariff, get_setting, get_all_tariffs
+        get_tariff_by_id, get_user_internal_id, get_setting, get_all_tariffs,
+        prepare_payment_order
     )
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     from bot.keyboards.user import tariff_select_kb, InlineKeyboardBuilder, InlineKeyboardButton
@@ -98,22 +101,13 @@ async def pay_crypto_handler(callback: CallbackQuery):
             await callback.answer('❌ Ошибка пользователя', show_alert=True)
             return
         
-        # Проверяем существующий заказ на наличие промокода
-        from database.requests import find_order_by_order_id
-        existing_order = find_order_by_order_id(order_id) if order_id else None
-        
-        # Создаем или обновляем заказ
-        if order_id and existing_order:
-            # Заказ существует - обновляем только тариф, сохраняя промокод
-            update_order_tariff(order_id, tariff_id, payment_type='crypto')
-        else:
-            # Создаем новый заказ
-            (_, order_id) = create_pending_order(
-                user_id=user_id,
-                tariff_id=tariff_id,
-                payment_type='crypto',
-                vpn_key_id=None
-            )
+        prepared_order = prepare_payment_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type='crypto',
+            order_id=order_id,
+        )
+        order_id = prepared_order['order_id']
         
         # Получаем настройки крипто-оплаты
         item_url = get_setting('crypto_item_url')
@@ -173,7 +167,7 @@ async def pay_crypto_handler(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('crypto_pay:'))
 async def pay_crypto_invoice(callback: CallbackQuery):
     """Создание ссылки на оплату Crypto (Простой режим)."""
-    from database.requests import get_tariff_by_id, update_order_tariff, get_setting, get_user_internal_id, create_pending_order
+    from database.requests import get_tariff_by_id, get_setting, get_user_internal_id, prepare_payment_order
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     parts = callback.data.split(':')
     tariff_id = int(parts[1])
@@ -182,14 +176,17 @@ async def pay_crypto_invoice(callback: CallbackQuery):
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
-    if order_id:
-        update_order_tariff(order_id, tariff_id, payment_type='crypto')
-    else:
-        user_id = get_user_internal_id(callback.from_user.id)
-        if not user_id:
-            await callback.answer('❌ Ошибка пользователя', show_alert=True)
-            return
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='crypto', vpn_key_id=None)
+    user_id = get_user_internal_id(callback.from_user.id)
+    if not user_id:
+        await callback.answer('❌ Ошибка пользователя', show_alert=True)
+        return
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='crypto',
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
     crypto_item_url = get_setting('crypto_item_url')
     item_id = extract_item_id_from_url(crypto_item_url)
     if not item_id:

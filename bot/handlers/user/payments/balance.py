@@ -224,7 +224,7 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     from database.requests import (
         get_user_internal_id, get_user_balance, deduct_from_balance, 
         get_tariff_by_id, get_or_create_user, create_initial_vpn_key, 
-        extend_vpn_key, find_order_by_order_id, complete_order
+        extend_vpn_key, find_order_by_order_id, complete_order, update_key_tariff
     )
     from database.db_promocodes import use_promocode
     from bot.services.user_locks import user_locks
@@ -285,6 +285,8 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
         
         if key_id:
             extend_vpn_key(key_id, days)
+            traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
+            update_key_tariff(key_id, tariff_id, traffic_limit_bytes)
             # Восстанавливаем лимит трафика в БД
             restore_traffic_limit_in_db(key_id)
             # Пушим ВСЕ данные из БД на панель (сброс up/down + обновление)
