@@ -148,7 +148,21 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
     if not key:
         await callback.answer('❌ Ключ не найден', show_alert=True)
         return
-        
+
+    # Если тариф известен — рисуем тот же единый экран способов оплаты,
+    # что и обычный renew flow (сохраняем order_id и скидку).
+    if tariff_id:
+        from bot.utils.payment_flow_ui import show_payment_method_selection_screen
+        await show_payment_method_selection_screen(
+            callback.message,
+            telegram_id,
+            tariff_id,
+            key_id=key_id,
+            order_id=order_id,
+        )
+        await callback.answer()
+        return
+
     crypto_configured = is_crypto_configured()
     stars_enabled = is_stars_enabled()
     cards_enabled = is_cards_enabled()

@@ -164,86 +164,44 @@ async def process_promocode_input(message: Message, state: FSMContext):
             )
         
         builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-    else:
-        text += "Выберите способ оплаты со скидкой:"
-        
-        # Возвращаемся к выбору способа оплаты с новым order_id
-        from bot.keyboards.user import payment_method_kb, renew_payment_method_kb
-        from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
-        from database.requests import (
-            is_crypto_configured, is_stars_enabled, is_cards_enabled,
-            is_yookassa_qr_configured, is_demo_payment_enabled,
-            get_crypto_integration_mode, is_referral_enabled,
-            get_referral_reward_type, get_user_balance
-        )
-        
-        # Получаем настройки оплаты
-        crypto_configured = is_crypto_configured()
-        crypto_mode = get_crypto_integration_mode()
-        stars_enabled = is_stars_enabled()
-        cards_enabled = is_cards_enabled()
-        yookassa_qr_enabled = is_yookassa_qr_configured()
-        demo_enabled = is_demo_payment_enabled()
-        
-        # Проверяем баланс
-        show_balance_button = False
-        if is_referral_enabled() and get_referral_reward_type() == 'balance':
-            balance_cents = get_user_balance(user_internal_id)
-            if balance_cents > 0:
-                show_balance_button = True
-        
-        # Генерируем crypto URL если нужно
-        crypto_url = None
-        if crypto_configured and crypto_mode == 'standard':
-            crypto_item_url = get_setting('crypto_item_url')
-            item_id = extract_item_id_from_url(crypto_item_url)
-            if item_id:
-                crypto_url = build_crypto_payment_url(
-                    item_id=item_id,
-                    invoice_id=new_order_id,
-                    tariff_external_id=tariff.get('external_id'),
-                    price_cents=tariff['price_cents']
-                )
-        
-        if action == 'renew':
-            key_id = data.get('promocode_key_id')
-            builder = renew_payment_method_kb(
-                key_id=key_id,
-                tariff_id=tariff_id,
-                crypto_url=crypto_url,
-                crypto_mode=crypto_mode,
-                crypto_configured=crypto_configured,
-                stars_enabled=stars_enabled,
-                cards_enabled=cards_enabled,
-                yookassa_qr_enabled=yookassa_qr_enabled,
-                demo_enabled=demo_enabled,
-                show_balance_button=show_balance_button,
-                order_id=new_order_id,
-                has_promocode=True  # Промокод уже применен
-            )
-        else:
-            builder = payment_method_kb(
-                tariff_id=tariff_id,
-                crypto_url=crypto_url,
-                crypto_mode=crypto_mode,
-                crypto_configured=crypto_configured,
-                stars_enabled=stars_enabled,
-                cards_enabled=cards_enabled,
-                yookassa_qr_enabled=yookassa_qr_enabled,
-                order_id=new_order_id,
-                demo_enabled=demo_enabled,
-                show_balance_button=show_balance_button,
-                has_promocode=True  # Промокод уже применен
-            )
-    
-    await message.answer(text, parse_mode='HTML', reply_markup=builder)
-    
-    # Удаляем сообщение пользователя
+
+        await message.answer(text, parse_mode='HTML', reply_markup=builder)
+
+        # Удаляем сообщение пользователя
+        try:
+            await message.delete()
+        except:
+            pass
+
+        await state.clear()
+        return
+
+    # final_price > 0: возвращаемся к единому экрану способов оплаты со скидкой.
+    # Полный прайс-блок (strike-through + строка скидки) рисует общий хелпер,
+    # сюда передаём только краткое подтверждение применения промокода.
+    from bot.utils.payment_flow_ui import show_payment_method_selection_screen
+
+    helper_key_id = data.get('promocode_key_id') if action == 'renew' else None
+    intro = (
+        f"✅ <b>Промокод применён!</b>\n\n"
+        f"🎟️ <code>{escape_html(code)}</code> — скидка {discount} ₽"
+    )
+    await show_payment_method_selection_screen(
+        message,
+        message.from_user.id,
+        tariff_id,
+        key_id=helper_key_id,
+        order_id=new_order_id,
+        intro_text=intro,
+        has_promocode=True,
+    )
+
+    # Удаляем введённый пользователем код
     try:
         await message.delete()
-    except:
+    except Exception:
         pass
-    
+
     await state.clear()
 
 

@@ -587,102 +587,19 @@ async def key_renew_select_tariff(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key_renew_tariff:'))
 async def key_renew_select_payment(callback: CallbackQuery):
-    """Выбор способа оплаты после выбора тарифа."""
-    from database.requests import get_tariff_by_id, get_key_details_for_user, get_user_internal_id, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_setting, prepare_payment_order, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
-    from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
-    from bot.keyboards.user import renew_payment_method_kb, back_and_home_kb
-    
+    """Выбор способа оплаты после выбора тарифа (единый экран)."""
+    from bot.utils.payment_flow_ui import show_payment_method_selection_screen
+
     parts = callback.data.split(':')
     key_id = int(parts[1])
     tariff_id = int(parts[2])
     telegram_id = callback.from_user.id
-    
-    key = get_key_details_for_user(key_id, telegram_id)
-    if not key:
-        await callback.answer('❌ Подписка не найдена или вы не являетесь её владельцем.', show_alert=True)
-        return
-    
-    tariff = get_tariff_by_id(tariff_id)
-    if not tariff:
-        await callback.answer('❌ Тариф не найден', show_alert=True)
-        return
-    
-    # Проверяем доступные способы оплаты
-    crypto_configured = is_crypto_configured()
-    stars_enabled = is_stars_enabled()
-    cards_enabled = is_cards_enabled()
-    demo_enabled = is_demo_payment_enabled()
-    from database.requests import is_yookassa_qr_configured
-    yookassa_qr = is_yookassa_qr_configured()
-    
-    if not crypto_configured and not stars_enabled and not cards_enabled and not yookassa_qr and not demo_enabled:
-        await safe_edit_or_send(
-            callback.message,
-            '💳 <b>Продление подписки</b>\n\n😔 Способы оплаты временно недоступны.\nПопробуйте позже.',
-            reply_markup=back_and_home_kb(back_callback=f'key_renew:{key_id}')
-        )
-        await callback.answer()
-        return
-    
-    # Создаем placeholder order для крипты если нужно
-    crypto_url = None
-    crypto_mode = get_crypto_integration_mode()
-    user_id = get_user_internal_id(telegram_id)
-    
-    if crypto_configured and user_id:
-        prepared_order = prepare_payment_order(
-            user_id=user_id,
-            tariff_id=tariff_id,
-            payment_type=None,
-            vpn_key_id=key_id,
-        )
-        order_id = prepared_order['order_id']
-        if crypto_mode == 'standard':
-            item_url = get_setting('crypto_item_url')
-            item_id = extract_item_id_from_url(item_url)
-            if item_id:
-                crypto_url = build_crypto_payment_url(item_id=item_id, invoice_id=order_id, tariff_external_id=None, price_cents=None)
-    
-    # Проверяем баланс для кнопки оплаты с баланса
-    show_balance_button = False
-    if is_referral_enabled() and get_referral_reward_type() == 'balance':
-        if user_id:
-            balance_cents = get_user_balance(user_id)
-            if balance_cents > 0:
-                show_balance_button = True
-    
-    # Показываем цену
-    if tariff.get('price_rub') and tariff['price_rub'] > 0:
-        price_display = f"{tariff['price_rub']} ₽"
-    else:
-        price_usd = tariff['price_cents'] / 100
-        price_str = f"{price_usd:g}".replace('.', ',')
-        price_display = f"${price_str}"
-    
-    text = (
-        f"💳 <b>Продление подписки</b>\n\n"
-        f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}\n"
-        f"📦 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
-        f"⏰ <b>Продление на:</b> {tariff['duration_days']} дней\n"
-        f"💰 <b>Стоимость:</b> {price_display}\n\n"
-        f"Выберите способ оплаты:"
-    )
-    
-    await safe_edit_or_send(
+
+    await show_payment_method_selection_screen(
         callback.message,
-        text,
-        reply_markup=renew_payment_method_kb(
-            key_id=key_id,
-            tariff_id=tariff_id,
-            crypto_url=crypto_url,
-            crypto_mode=crypto_mode,
-            crypto_configured=crypto_configured,
-            stars_enabled=stars_enabled,
-            cards_enabled=cards_enabled,
-            yookassa_qr_enabled=yookassa_qr,
-            show_balance_button=show_balance_button,
-            demo_enabled=demo_enabled
-        )
+        telegram_id,
+        tariff_id,
+        key_id=key_id,
     )
     await callback.answer()
 
