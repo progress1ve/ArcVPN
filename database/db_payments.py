@@ -631,7 +631,9 @@ def prepare_payment_order(
                     period_days = CASE WHEN ? IS NOT NULL THEN ? ELSE period_days END,
                     payment_type = COALESCE(?, payment_type),
                     vpn_key_id = COALESCE(?, vpn_key_id),
-                    operation_type = ?
+                    operation_type = ?,
+                    promocode_id = COALESCE(?, promocode_id),
+                    discount_rub = CASE WHEN ? > 0 THEN ? ELSE discount_rub END
                 WHERE order_id = ?
             """, (
                 tariff_id,
@@ -645,6 +647,9 @@ def prepare_payment_order(
                 payment_type,
                 vpn_key_id,
                 final_operation_type,
+                promocode_id,
+                discount_rub,
+                discount_rub,
                 order_id,
             ))
             if cursor.rowcount <= 0:

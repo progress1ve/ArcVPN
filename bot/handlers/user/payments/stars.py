@@ -57,9 +57,16 @@ async def renew_stars_invoice(callback: CallbackQuery):
         order_id=order_id,
     )
     order_id = prepared_order['order_id']
+    base_price_stars = tariff.get('price_stars', 0)
+    discount_rub = prepared_order.get('discount_rub', 0) or 0
+    if discount_rub > 0:
+        discount_stars = int(discount_rub / 1.3)
+        price_stars = max(1, base_price_stars - discount_stars)
+    else:
+        price_stars = base_price_stars
     bot_info = await callback.bot.get_me()
     bot_name = bot_info.first_name
-    await callback.message.answer_invoice(title=bot_name, description=f"Продление ключа «{key['display_name']}»: {tariff['name']}.", payload=f'renew:{order_id}', currency='XTR', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=tariff['price_stars'])], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f"⭐️ Оплатить {tariff['price_stars']} XTR", pay=True)).row(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'renew_invoice_cancel:{key_id}:{tariff_id}')).as_markup())
+    await callback.message.answer_invoice(title=bot_name, description=f"Продление ключа «{key['display_name']}»: {tariff['name']}.", payload=f'renew:{order_id}', currency='XTR', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_stars)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f"⭐️ Оплатить {price_stars} XTR", pay=True)).row(InlineKeyboardButton(text='⬅️ Назад', callback_data=f'renew_invoice_cancel:{key_id}:{tariff_id}:{order_id}')).as_markup())
     await callback.message.delete()
     await callback.answer()
 
@@ -135,7 +142,7 @@ async def pay_stars_handler(callback: CallbackQuery):
                 reply_markup=InlineKeyboardBuilder().row(
                     InlineKeyboardButton(text=f'⭐ Оплатить {price_stars} звёзд', pay=True)
                 ).row(
-                    InlineKeyboardButton(text='❌ Отмена', callback_data='buy_key')
+                    InlineKeyboardButton(text='❌ Отмена', callback_data=f'pay_stars:{order_id}')
                 ).as_markup()
             )
             
@@ -191,11 +198,15 @@ async def pay_stars_invoice(callback: CallbackQuery):
         order_id=order_id,
     )
     order_id = prepared_order['order_id']
+    price_stars = tariff['price_stars']
+    discount_rub = prepared_order.get('discount_rub', 0) or 0
+    if discount_rub > 0:
+        discount_stars = int(discount_rub / 1.3)
+        price_stars = max(1, price_stars - discount_stars)
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.first_name
-        price_stars = tariff['price_stars']
-        await callback.message.answer_invoice(title=bot_name, description=f"Оплата тарифа «{tariff['name']}» ({days} дн.).", payload=order_id, currency='XTR', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_stars)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f'⭐️ Оплатить {price_stars} XTR', pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data='buy_key')).as_markup())
+        await callback.message.answer_invoice(title=bot_name, description=f"Оплата тарифа «{tariff['name']}» ({days} дн.).", payload=order_id, currency='XTR', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_stars)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f'⭐️ Оплатить {price_stars} XTR', pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data=f'pay_stars:{order_id}')).as_markup())
     except Exception as e:
         import logging
         logging.getLogger(__name__).error(f'Ошибка при выставлении счета Stars: {e}')

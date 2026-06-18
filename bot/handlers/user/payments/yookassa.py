@@ -83,7 +83,7 @@ async def pay_cards_handler(callback: CallbackQuery):
                 reply_markup=InlineKeyboardBuilder().row(
                     InlineKeyboardButton(text=f'💳 Оплатить {price_rub} ₽', pay=True)
                 ).row(
-                    InlineKeyboardButton(text='❌ Отмена', callback_data='buy_key')
+                    InlineKeyboardButton(text='❌ Отмена', callback_data=f'pay_cards:{order_id}')
                 ).as_markup()
             )
             
@@ -148,6 +148,9 @@ async def pay_cards_invoice(callback: CallbackQuery):
     )
     order_id = prepared_order['order_id']
     price_rub = float(tariff.get('price_rub') or 0)
+    discount_rub = prepared_order.get('discount_rub', 0) or 0
+    if discount_rub > 0:
+        price_rub = max(0, price_rub - discount_rub)
     price_kopecks = int(round(price_rub * 100))
     if price_kopecks <= 0:
         await callback.answer('❌ Ошибка: цена тарифа в рублях не задана.', show_alert=True)
@@ -156,7 +159,7 @@ async def pay_cards_invoice(callback: CallbackQuery):
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.first_name
-        await callback.message.answer_invoice(title=bot_name, description=f"Оплата тарифа «{tariff['name']}» ({days} дн.).", payload=f'vpn_key:{order_id}', provider_token=provider_token, currency='RUB', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_kopecks)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f'💳 Оплатить {price_rub} ₽', pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data='buy_key')).as_markup())
+        await callback.message.answer_invoice(title=bot_name, description=f"Оплата тарифа «{tariff['name']}» ({days} дн.).", payload=f'vpn_key:{order_id}', provider_token=provider_token, currency='RUB', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_kopecks)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f'💳 Оплатить {price_rub} ₽', pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data=f'pay_cards:{order_id}')).as_markup())
     except TelegramBadRequest as e:
         if 'CURRENCY_TOTAL_AMOUNT_INVALID' in str(e):
             logger.warning(f"Ошибка платежа (CARDS): Неправильная сумма (меньше лимита ~$1). Тариф: ID {tariff['id']}, Цена {price_rub} руб. Подробности: {e}")
@@ -218,6 +221,9 @@ async def renew_cards_invoice(callback: CallbackQuery):
     )
     order_id = prepared_order['order_id']
     price_rub = float(tariff.get('price_rub') or 0)
+    discount_rub = prepared_order.get('discount_rub', 0) or 0
+    if discount_rub > 0:
+        price_rub = max(0, price_rub - discount_rub)
     price_kopecks = int(round(price_rub * 100))
     if price_kopecks <= 0:
         await callback.answer('❌ Ошибка: цена тарифа в рублях не задана.', show_alert=True)
@@ -226,7 +232,7 @@ async def renew_cards_invoice(callback: CallbackQuery):
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.first_name
-        await callback.message.answer_invoice(title=bot_name, description=f"Продление ключа «{key['display_name']}»: {tariff['name']}.", payload=f'renew:{order_id}', provider_token=provider_token, currency='RUB', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_kopecks)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f"💳 Оплатить {tariff.get('price_rub', 0)} ₽", pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data=f'renew_invoice_cancel:{key_id}:{tariff_id}')).as_markup())
+        await callback.message.answer_invoice(title=bot_name, description=f"Продление ключа «{key['display_name']}»: {tariff['name']}.", payload=f'renew:{order_id}', provider_token=provider_token, currency='RUB', prices=[LabeledPrice(label=f"Тариф {tariff['name']}", amount=price_kopecks)], reply_markup=InlineKeyboardBuilder().row(InlineKeyboardButton(text=f"💳 Оплатить {price_rub} ₽", pay=True)).row(InlineKeyboardButton(text='❌ Отмена', callback_data=f'renew_invoice_cancel:{key_id}:{tariff_id}:{order_id}')).as_markup())
     except TelegramBadRequest as e:
         if 'CURRENCY_TOTAL_AMOUNT_INVALID' in str(e):
             logger.warning(f"Ошибка платежа (CARDS_RENEW): Неправильная сумма (меньше лимита ~$1). Тариф: ID {tariff['id']}, Цена {price_rub} руб. Подробности: {e}")
@@ -250,6 +256,7 @@ async def pay_qr_handler(callback: CallbackQuery):
     
     # Парсим callback_data
     parts = callback.data.split(':')
+    existing_order_id = parts[1] if len(parts) > 1 else None
     
     # Если формат pay_qr_tariff:tariff_id:order_id - тариф уже выбран
     if len(parts) >= 3 and parts[0] == 'pay_qr_tariff':
@@ -308,6 +315,11 @@ async def pay_qr_handler(callback: CallbackQuery):
                 f"Отсканируйте QR-код камерой телефона или нажмите кнопку «Оплатить».\n\n"
                 f"После оплаты нажмите «Я оплатил»."
             )
+            if discount_rub > 0:
+                text = text.replace(
+                    f"💵 Сумма: <b>{price_rub} ₽</b>",
+                    f"💵 Цена: <s>{float(tariff.get('price_rub') or 0)} ₽</s> → <b>{price_rub} ₽</b>\n🎟️ Скидка по промокоду: <b>{discount_rub} ₽</b>"
+                )
             
             from aiogram.types import BufferedInputFile
             photo = BufferedInputFile(qr_image_data, filename='qr.png')
@@ -316,7 +328,7 @@ async def pay_qr_handler(callback: CallbackQuery):
                 callback.message,
                 text,
                 photo=photo,
-                reply_markup=yookassa_qr_kb(order_id, back_callback='buy_key', qr_url=qr_url),
+                reply_markup=yookassa_qr_kb(order_id, back_callback=f'pay_qr:{order_id}', qr_url=qr_url),
                 force_new=True
             )
             await callback.answer()
@@ -342,7 +354,7 @@ async def pay_qr_handler(callback: CallbackQuery):
         await safe_edit_or_send(
             callback.message,
             '📱 <b>QR-оплата (Карта/СБП)</b>\n\nВыберите тариф:\n\n<i>Оплата через ЮКассу — поддерживает банковские карты и СБП.</i>',
-            reply_markup=tariff_select_kb(rub_tariffs, is_qr=True)
+            reply_markup=tariff_select_kb(rub_tariffs, order_id=existing_order_id, is_qr=True)
         )
         await callback.answer()
 
@@ -353,7 +365,9 @@ async def qr_pay_create(callback: CallbackQuery):
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb
     from bot.keyboards.admin import home_only_kb
-    tariff_id = int(callback.data.split(':')[1])
+    parts = callback.data.split(':')
+    tariff_id = int(parts[1])
+    order_id = parts[2] if len(parts) > 2 else None
     tariff = get_tariff_by_id(tariff_id)
     if not tariff:
         await callback.answer('❌ Тариф не найден', show_alert=True)
@@ -370,8 +384,12 @@ async def qr_pay_create(callback: CallbackQuery):
         user_id=user_id,
         tariff_id=tariff_id,
         payment_type='yookassa_qr',
+        order_id=order_id,
     )
     order_id = prepared_order['order_id']
+    discount_rub = prepared_order.get('discount_rub', 0) or 0
+    if discount_rub > 0:
+        price_rub = max(0, price_rub - discount_rub)
     await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
     try:
         bot_info = await callback.bot.get_me()
@@ -385,9 +403,14 @@ async def qr_pay_create(callback: CallbackQuery):
             await safe_edit_or_send(callback.message, '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.', reply_markup=home_only_kb())
             return
         text = f"📱 <b>QR-код для оплаты</b>\n\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {int(price_rub)} ₽\n⏳ <b>Срок:</b> {tariff['duration_days']} дней\n\nОтсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        if discount_rub > 0:
+            text = text.replace(
+                f"💰 <b>Сумма:</b> {int(price_rub)} ₽",
+                f"💰 <b>Цена:</b> <s>{int(float(tariff.get('price_rub') or 0))} ₽</s> → {int(price_rub)} ₽\n🎟️ <b>Скидка по промокоду:</b> {discount_rub} ₽"
+            )
         from aiogram.types import BufferedInputFile
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
-        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback='pay_qr', qr_url=qr_url), force_new=True)
+        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'pay_qr:{order_id}', qr_url=qr_url), force_new=True)
     except (ValueError, RuntimeError) as e:
         logger.error(f'Ошибка создания QR ЮКасса: {e}')
         await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.', reply_markup=home_only_kb())
@@ -462,7 +485,9 @@ async def renew_qr_select_tariff(callback: CallbackQuery):
     from database.requests import get_key_details_for_user
     from bot.keyboards.user import renew_tariff_select_kb
     from bot.utils.groups import get_tariffs_for_renewal
-    key_id = int(callback.data.split(':')[1])
+    parts = callback.data.split(':')
+    key_id = int(parts[1])
+    order_id = parts[2] if len(parts) > 2 else None
     key = get_key_details_for_user(key_id, callback.from_user.id)
     if not key:
         await callback.answer('❌ Ключ не найден', show_alert=True)
@@ -472,7 +497,7 @@ async def renew_qr_select_tariff(callback: CallbackQuery):
     if not rub_tariffs:
         await callback.answer('😔 Нет тарифов с ценой в рублях', show_alert=True)
         return
-    await safe_edit_or_send(callback.message, f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите тариф для продления:", reply_markup=renew_tariff_select_kb(rub_tariffs, key_id, is_qr=True))
+    await safe_edit_or_send(callback.message, f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите тариф для продления:", reply_markup=renew_tariff_select_kb(rub_tariffs, key_id, order_id=order_id, is_qr=True))
     await callback.answer()
 
 @router.callback_query(F.data.startswith('renew_pay_qr:'))
@@ -485,6 +510,7 @@ async def renew_qr_create(callback: CallbackQuery):
     parts = callback.data.split(':')
     key_id = int(parts[1])
     tariff_id = int(parts[2])
+    order_id = parts[3] if len(parts) > 3 else None
     tariff = get_tariff_by_id(tariff_id)
     key = get_key_details_for_user(key_id, callback.from_user.id)
     if not tariff or not key:
@@ -503,8 +529,12 @@ async def renew_qr_create(callback: CallbackQuery):
         tariff_id=tariff_id,
         payment_type='yookassa_qr',
         vpn_key_id=key_id,
+        order_id=order_id,
     )
     order_id = prepared_order['order_id']
+    discount_rub = prepared_order.get('discount_rub', 0) or 0
+    if discount_rub > 0:
+        price_rub = max(0, price_rub - discount_rub)
     await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
     try:
         bot_info = await callback.bot.get_me()
@@ -518,9 +548,14 @@ async def renew_qr_create(callback: CallbackQuery):
             await safe_edit_or_send(callback.message, '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.', reply_markup=home_only_kb())
             return
         text = f"📱 <b>QR-код для оплаты</b>\n\n🔑 <b>Ключ:</b> {escape_html(key['display_name'])}\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {int(price_rub)} ₽\n⏳ <b>Продление:</b> +{tariff['duration_days']} дней\n\nОтсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        if discount_rub > 0:
+            text = text.replace(
+                f"💰 <b>Сумма:</b> {int(price_rub)} ₽",
+                f"💰 <b>Цена:</b> <s>{int(float(tariff.get('price_rub') or 0))} ₽</s> → {int(price_rub)} ₽\n🎟️ <b>Скидка по промокоду:</b> {discount_rub} ₽"
+            )
         from aiogram.types import BufferedInputFile
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
-        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'renew_qr_tariff:{key_id}', qr_url=qr_url), force_new=True)
+        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'renew_qr_tariff:{key_id}:{order_id}', qr_url=qr_url), force_new=True)
     except (ValueError, RuntimeError) as e:
         logger.error(f'Ошибка QR ЮКасса (продление): {e}')
         await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>', reply_markup=home_only_kb())

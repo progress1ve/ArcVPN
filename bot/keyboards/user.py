@@ -777,7 +777,7 @@ def renew_payment_method_kb(
         if crypto_mode == 'simple':
             if tariff_id:
                 builder.row(
-                    InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_pay_crypto:{key_id}:{tariff_id}")
+                    InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_pay_crypto:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_crypto:{key_id}:{tariff_id}")
                 )
             else:
                 builder.row(
@@ -794,7 +794,7 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(
                     text="⭐ Оплатить звёздами",
-                    callback_data=f"renew_pay_stars:{key_id}:{tariff_id}"
+                    callback_data=f"renew_pay_stars:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_stars:{key_id}:{tariff_id}"
                 )
             )
         else:
@@ -811,7 +811,7 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(
                     text="💳 Оплатить картой",
-                    callback_data=f"renew_pay_cards:{key_id}:{tariff_id}"
+                    callback_data=f"renew_pay_cards:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_cards:{key_id}:{tariff_id}"
                 )
             )
         else:
@@ -828,7 +828,7 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(
                     text="📱 QR-оплата (Карта/СБП)",
-                    callback_data=f"renew_pay_qr:{key_id}:{tariff_id}"
+                    callback_data=f"renew_pay_qr:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}"
                 )
             )
         else:
@@ -845,7 +845,7 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(
                     text="🏦 Демо оплата (РФ карта)",
-                    callback_data=f"renew_demo_pay:{key_id}:{tariff_id}"
+                    callback_data=f"renew_demo_pay:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_demo_pay:{key_id}:{tariff_id}"
                 )
             )
         else:
@@ -875,7 +875,7 @@ def renew_payment_method_kb(
         builder.row(
             InlineKeyboardButton(
                 text="🎟️ Использовать промокод",
-                callback_data=f"use_promocode_renew:{key_id}:{tariff_id}"
+                callback_data=f"use_promocode_renew:{key_id}:{tariff_id}:{order_id}" if order_id else f"use_promocode_renew:{key_id}:{tariff_id}"
             )
         )
 

@@ -141,6 +141,7 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
     parts = callback.data.split(':')
     key_id = int(parts[1])
     tariff_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else None
+    order_id = parts[3] if len(parts) > 3 else None
     telegram_id = callback.from_user.id
 
     key = get_key_details_for_user(key_id, telegram_id)
@@ -161,8 +162,6 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
     crypto_url = None
     crypto_mode = get_crypto_integration_mode()
     user_id = get_user_internal_id(telegram_id)
-    order_id = None
-    
     if crypto_configured and user_id:
         if tariff_id:
             prepared_order = prepare_payment_order(
@@ -170,6 +169,7 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
                 tariff_id=tariff_id,
                 payment_type='crypto',
                 vpn_key_id=key_id,
+                order_id=order_id,
             )
             order_id = prepared_order['order_id']
             if crypto_mode == 'standard':
