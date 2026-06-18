@@ -224,7 +224,8 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     from database.requests import (
         get_user_internal_id, get_user_balance, deduct_from_balance, 
         get_tariff_by_id, get_or_create_user, create_initial_vpn_key, 
-        extend_vpn_key, find_order_by_order_id, complete_order, update_key_tariff
+        extend_vpn_key, find_order_by_order_id, complete_order, update_key_tariff,
+        prepare_payment_order, update_payment_key_id
     )
     from database.db_promocodes import use_promocode
     from bot.services.user_locks import user_locks
@@ -257,13 +258,17 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     
     days = tariff['duration_days']
     
-    # Проверяем, есть ли промокод в заказе
-    promocode_id = None
-    if order_id:
-        order = find_order_by_order_id(order_id)
-        if order and order.get('promocode_id'):
-            promocode_id = order['promocode_id']
-            logger.info(f"Найден промокод {promocode_id} в заказе {order_id}")
+    prepared_order = prepare_payment_order(
+        user_id=user_internal_id,
+        tariff_id=tariff_id,
+        payment_type='balance',
+        vpn_key_id=key_id,
+        order_id=order_id,
+    )
+    order_id = prepared_order['order_id']
+    promocode_id = prepared_order.get('promocode_id')
+    if promocode_id:
+        logger.info(f"Найден промокод {promocode_id} в заказе {order_id}")
     
     async with user_locks[user_internal_id]:
         current_balance = get_user_balance(user_internal_id)
@@ -278,10 +283,8 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
             use_promocode(promocode_id, user_internal_id)
             logger.info(f"Промокод {promocode_id} отмечен как использованный при оплате балансом")
         
-        # Закрываем заказ если он есть
-        if order_id:
-            complete_order(order_id)
-            logger.info(f"Заказ {order_id} закрыт после оплаты балансом")
+        complete_order(order_id)
+        logger.info(f"Заказ {order_id} закрыт после оплаты балансом")
         
         if key_id:
             extend_vpn_key(key_id, days)
@@ -312,12 +315,9 @@ async def pay_with_balance_handler(callback: CallbackQuery, state: FSMContext):
     else:
         # Новый ключ — нужно настроить (выбор сервера/inbound)
         from bot.handlers.user.payments.base import finalize_payment_ui
-        from database.requests import create_pending_order, update_payment_key_id
-        # Создаём ордер для корректной работы finalize_payment_ui (если его еще нет)
-        if not order_id:
-            (_, order_id) = create_pending_order(user_id=user_internal_id, tariff_id=tariff_id, payment_type='balance', vpn_key_id=new_key_id)
         update_payment_key_id(order_id, new_key_id)
-        order = {'order_id': order_id, 'vpn_key_id': new_key_id, 'tariff_id': tariff_id}
+        order = find_order_by_order_id(order_id) or {'order_id': order_id, 'vpn_key_id': new_key_id, 'tariff_id': tariff_id}
+        order['vpn_key_id'] = new_key_id
         await finalize_payment_ui(callback.message, state, f'✅ <b>Оплата успешно завершена!</b>\n\nС вашего баланса списано {price_str}', order, user_id=telegram_id)
     await callback.answer()
 
@@ -333,8 +333,7 @@ async def pay_card_balance_handler(callback: CallbackQuery, state: FSMContext):
     from aiogram.types import LabeledPrice
     from database.requests import (
         get_tariff_by_id, get_user_internal_id, get_user_balance, 
-        create_pending_order, get_setting, find_order_by_order_id,
-        update_order_tariff
+        prepare_payment_order, get_setting, find_order_by_order_id
     )
     from aiogram.exceptions import TelegramBadRequest
     
@@ -400,19 +399,16 @@ async def pay_card_balance_handler(callback: CallbackQuery, state: FSMContext):
         order_id=existing_order_id
     )
     
-    # Используем существующий заказ или создаём новый
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='cards',
+        vpn_key_id=key_id,
+        order_id=existing_order_id,
+    )
+    order_id = prepared_order['order_id']
     if existing_order_id:
-        order_id = existing_order_id
-        # Обновляем способ оплаты
-        update_order_tariff(order_id, tariff_id, payment_type='cards')
         logger.info(f"Используем существующий заказ {order_id} с промокодом")
-    else:
-        (_, order_id) = create_pending_order(
-            user_id=user_id,
-            tariff_id=tariff_id,
-            payment_type='cards',
-            vpn_key_id=key_id
-        )
     
     price_rub = remaining_cents / 100
     price_kopecks = remaining_cents
@@ -456,8 +452,7 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
     """
     from database.requests import (
         get_tariff_by_id, get_user_internal_id, get_user_balance, 
-        create_pending_order, save_yookassa_payment_id, find_order_by_order_id,
-        update_order_tariff
+        prepare_payment_order, save_yookassa_payment_id, find_order_by_order_id
     )
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb
@@ -477,7 +472,7 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
         key_id = int(parts[2]) if len(parts) > 2 and parts[2] != '0' else None
     
     # Получаем order_id если передан
-    existing_order_id = parts[3] if len(parts) > 3 and parts[3] != '0' else None
+    existing_order_id = data.get('order_id') or (parts[3] if len(parts) > 3 and parts[3] != '0' else None)
     
     if not tariff_id:
         await callback.answer('❌ Ошибка: тариф не определён', show_alert=True)
@@ -523,19 +518,16 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
         remaining_cents=remaining_cents
     )
     
-    # Используем существующий заказ или создаём новый
+    prepared_order = prepare_payment_order(
+        user_id=user_id,
+        tariff_id=tariff_id,
+        payment_type='yookassa_qr',
+        vpn_key_id=key_id,
+        order_id=existing_order_id,
+    )
+    order_id = prepared_order['order_id']
     if existing_order_id:
-        order_id = existing_order_id
-        # Обновляем способ оплаты
-        update_order_tariff(order_id, tariff_id, payment_type='yookassa_qr')
         logger.info(f"Используем существующий заказ {order_id} с промокодом")
-    else:
-        (_, order_id) = create_pending_order(
-            user_id=user_id,
-            tariff_id=tariff_id,
-            payment_type='yookassa_qr',
-            vpn_key_id=key_id
-        )
     
     await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
     

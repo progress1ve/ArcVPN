@@ -136,7 +136,7 @@ async def finalize_payment_ui(message: Message, state: FSMContext, text: str, or
 async def renew_invoice_cancel_handler(callback: CallbackQuery):
     """Отмена инвойса и возврат к выбору способа оплаты."""
     from bot.keyboards.user import renew_payment_method_kb
-    from database.requests import get_key_details_for_user, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_user_internal_id, create_pending_order, get_setting, is_yookassa_qr_configured, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
+    from database.requests import get_key_details_for_user, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_user_internal_id, prepare_payment_order, get_setting, is_yookassa_qr_configured, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     parts = callback.data.split(':')
     key_id = int(parts[1])
@@ -161,10 +161,17 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
     crypto_url = None
     crypto_mode = get_crypto_integration_mode()
     user_id = get_user_internal_id(telegram_id)
+    order_id = None
     
     if crypto_configured and user_id:
         if tariff_id:
-            (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='crypto', vpn_key_id=key_id)
+            prepared_order = prepare_payment_order(
+                user_id=user_id,
+                tariff_id=tariff_id,
+                payment_type='crypto',
+                vpn_key_id=key_id,
+            )
+            order_id = prepared_order['order_id']
             if crypto_mode == 'standard':
                 item_url = get_setting('crypto_item_url')
                 item_id = extract_item_id_from_url(item_url)
@@ -192,7 +199,7 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
             yookassa_qr_enabled=yookassa_qr_enabled,
             show_balance_button=show_balance_button,
             demo_enabled=demo_enabled,
-            order_id=order_id if 'order_id' in locals() else None
+            order_id=order_id
         ),
         force_new=True
     )

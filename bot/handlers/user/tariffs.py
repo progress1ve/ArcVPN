@@ -67,7 +67,7 @@ async def select_tariff_handler(callback: CallbackQuery):
     from database.requests import (
         is_crypto_configured, is_stars_enabled, is_cards_enabled, 
         get_setting, get_user_internal_id, get_tariff_by_id,
-        create_pending_order, is_yookassa_qr_configured, 
+        prepare_payment_order, is_yookassa_qr_configured, 
         get_crypto_integration_mode, is_referral_enabled, 
         get_referral_reward_type, get_user_balance, is_demo_payment_enabled
     )
@@ -111,13 +111,13 @@ async def select_tariff_handler(callback: CallbackQuery):
     existing_order_id = None
     
     if user_id:
-        (_, order_id) = create_pending_order(
-            user_id=user_id, 
-            tariff_id=tariff_id, 
-            payment_type=None, 
-            vpn_key_id=None
+        prepared_order = prepare_payment_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type=None,
         )
-        existing_order_id = order_id
+        existing_order_id = prepared_order['order_id']
+        order_id = existing_order_id
         
         if crypto_configured and crypto_mode == 'standard':
             crypto_item_url = get_setting('crypto_item_url')

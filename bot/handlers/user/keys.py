@@ -588,7 +588,7 @@ async def key_renew_select_tariff(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('key_renew_tariff:'))
 async def key_renew_select_payment(callback: CallbackQuery):
     """Выбор способа оплаты после выбора тарифа."""
-    from database.requests import get_tariff_by_id, get_key_details_for_user, get_user_internal_id, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_setting, create_pending_order, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
+    from database.requests import get_tariff_by_id, get_key_details_for_user, get_user_internal_id, is_crypto_configured, is_stars_enabled, is_cards_enabled, get_setting, prepare_payment_order, get_crypto_integration_mode, is_referral_enabled, get_referral_reward_type, get_user_balance, is_demo_payment_enabled
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     from bot.keyboards.user import renew_payment_method_kb, back_and_home_kb
     
@@ -630,7 +630,13 @@ async def key_renew_select_payment(callback: CallbackQuery):
     user_id = get_user_internal_id(telegram_id)
     
     if crypto_configured and user_id:
-        (_, order_id) = create_pending_order(user_id=user_id, tariff_id=tariff_id, payment_type='crypto', vpn_key_id=key_id)
+        prepared_order = prepare_payment_order(
+            user_id=user_id,
+            tariff_id=tariff_id,
+            payment_type=None,
+            vpn_key_id=key_id,
+        )
+        order_id = prepared_order['order_id']
         if crypto_mode == 'standard':
             item_url = get_setting('crypto_item_url')
             item_id = extract_item_id_from_url(item_url)

@@ -155,7 +155,7 @@ async def show_topup_payment_methods(callback: CallbackQuery, state: FSMContext)
 async def topup_stars_handler(callback: CallbackQuery, state: FSMContext):
     """Пополнение баланса через Telegram Stars"""
     from aiogram.types import LabeledPrice
-    from database.requests import create_pending_order, get_user_internal_id
+    from database.requests import prepare_payment_order, get_user_internal_id
     
     parts = callback.data.split(":")
     amount_cents = int(parts[1])
@@ -171,8 +171,7 @@ async def topup_stars_handler(callback: CallbackQuery, state: FSMContext):
     # Итого: 1 Star ≈ 1.3 рубля
     stars_amount = int(amount_rub / 1.3)
     
-    # Создаем pending order для пополнения (tariff_id=None означает пополнение баланса)
-    success, order_id = create_pending_order(
+    prepared_order = prepare_payment_order(
         user_id=user_id,
         tariff_id=None,  # None означает пополнение баланса
         payment_type='stars',
@@ -180,10 +179,7 @@ async def topup_stars_handler(callback: CallbackQuery, state: FSMContext):
         amount_cents=amount_cents,
         amount_stars=stars_amount
     )
-    
-    if not success:
-        await callback.answer("❌ Ошибка создания заказа", show_alert=True)
-        return
+    order_id = prepared_order['order_id']
     
     # Сохраняем в state что это пополнение баланса
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
@@ -214,7 +210,7 @@ async def topup_stars_handler(callback: CallbackQuery, state: FSMContext):
 async def topup_cards_handler(callback: CallbackQuery, state: FSMContext):
     """Пополнение баланса через банковскую карту"""
     from aiogram.types import LabeledPrice
-    from database.requests import create_pending_order, get_user_internal_id, get_payment_token
+    from database.requests import prepare_payment_order, get_user_internal_id, get_payment_token
     
     parts = callback.data.split(":")
     amount_cents = int(parts[1])
@@ -230,18 +226,14 @@ async def topup_cards_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Минимальная сумма для оплаты картой: 100 ₽", show_alert=True)
         return
     
-    # Создаем pending order
-    success, order_id = create_pending_order(
+    prepared_order = prepare_payment_order(
         user_id=user_id,
         tariff_id=None,
         payment_type='cards',
         vpn_key_id=None,
         amount_cents=amount_cents
     )
-    
-    if not success:
-        await callback.answer("❌ Ошибка создания заказа", show_alert=True)
-        return
+    order_id = prepared_order['order_id']
     
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
     
@@ -277,7 +269,7 @@ async def topup_cards_handler(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("topup_qr:"))
 async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
     """Пополнение баланса через QR-код (ЮКасса)"""
-    from database.requests import create_pending_order, get_user_internal_id
+    from database.requests import prepare_payment_order, get_user_internal_id
     from bot.services.billing import create_yookassa_qr_payment
     from aiogram.types import BufferedInputFile
     
@@ -290,18 +282,14 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Ошибка пользователя", show_alert=True)
         return
     
-    # Создаем pending order
-    success, order_id = create_pending_order(
+    prepared_order = prepare_payment_order(
         user_id=user_id,
         tariff_id=None,
         payment_type='yookassa_qr',
         vpn_key_id=None,
         amount_cents=amount_cents
     )
-    
-    if not success:
-        await callback.answer("❌ Ошибка создания заказа", show_alert=True)
-        return
+    order_id = prepared_order['order_id']
     
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
     
@@ -388,7 +376,7 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(F.data.startswith("topup_crypto:"))
 async def topup_crypto_handler(callback: CallbackQuery, state: FSMContext):
     """Пополнение баланса через криптовалюту"""
-    from database.requests import create_pending_order, get_user_internal_id, get_setting
+    from database.requests import prepare_payment_order, get_user_internal_id, get_setting
     from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     
     parts = callback.data.split(":")
@@ -400,18 +388,14 @@ async def topup_crypto_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Ошибка пользователя", show_alert=True)
         return
     
-    # Создаем pending order
-    success, order_id = create_pending_order(
+    prepared_order = prepare_payment_order(
         user_id=user_id,
         tariff_id=None,
         payment_type='crypto',
         vpn_key_id=None,
         amount_cents=amount_cents
     )
-    
-    if not success:
-        await callback.answer("❌ Ошибка создания заказа", show_alert=True)
-        return
+    order_id = prepared_order['order_id']
     
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
     

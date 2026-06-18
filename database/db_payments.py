@@ -596,6 +596,8 @@ def prepare_payment_order(
     payment_type: Optional[str],
     vpn_key_id: Optional[int] = None,
     order_id: Optional[str] = None,
+    amount_cents: Optional[int] = None,
+    amount_stars: Optional[int] = None,
     promocode_id: Optional[int] = None,
     discount_rub: int = 0,
     operation_type: Optional[str] = None,
@@ -616,6 +618,9 @@ def prepare_payment_order(
     existing_order = find_order_by_order_id(order_id) if order_id else None
     if existing_order:
         tariff = get_tariff_by_id(tariff_id) if tariff_id else None
+        final_amount_cents = tariff['price_cents'] if tariff else amount_cents
+        final_amount_stars = tariff['price_stars'] if tariff else amount_stars
+        final_period_days = tariff['duration_days'] if tariff else None
         with get_db() as conn:
             cursor = conn.execute("""
                 UPDATE payments
@@ -631,12 +636,12 @@ def prepare_payment_order(
             """, (
                 tariff_id,
                 tariff_id,
-                tariff['price_cents'] if tariff else None,
-                tariff['price_cents'] if tariff else None,
-                tariff['price_stars'] if tariff else None,
-                tariff['price_stars'] if tariff else None,
-                tariff['duration_days'] if tariff else None,
-                tariff['duration_days'] if tariff else None,
+                final_amount_cents,
+                final_amount_cents,
+                final_amount_stars,
+                final_amount_stars,
+                final_period_days,
+                final_period_days,
                 payment_type,
                 vpn_key_id,
                 final_operation_type,
@@ -664,6 +669,8 @@ def prepare_payment_order(
         tariff_id=tariff_id,
         payment_type=payment_type,
         vpn_key_id=vpn_key_id,
+        amount_cents=amount_cents,
+        amount_stars=amount_stars,
         promocode_id=promocode_id,
         discount_rub=discount_rub,
         operation_type=final_operation_type,

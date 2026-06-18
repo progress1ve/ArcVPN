@@ -196,20 +196,11 @@ async def renew_demo_pay_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('demo_confirm:'))
 async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
-    """Подтверждение демо-оплаты и выдача subscription или продление ключа."""
-    from database.requests import (
-        find_order_by_order_id, complete_order, get_tariff_by_id,
-        create_initial_vpn_key, update_payment_key_id, extend_vpn_key,
-        update_key_tariff,
-        get_active_servers, update_vpn_key_config
-    )
-    from bot.utils.key_sender import send_subscription_link
-    from bot.handlers.user.keys import show_key_details
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
-    from bot.services.vpn_api import get_client
-    import uuid
-    
+    """Подтверждение демо-оплаты через единый lifecycle заказа."""
+    from database.requests import find_order_by_order_id, get_tariff_by_id, infer_order_operation_type
+    from bot.services.billing import apply_paid_order, process_referral_reward
+    from bot.handlers.user.payments.base import finalize_payment_ui
+
     order_id = callback.data.split(':')[1]
     
     order = find_order_by_order_id(order_id)
@@ -222,187 +213,56 @@ async def demo_confirm_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer('❌ Тариф не найден', show_alert=True)
         return
     
+    already_applied = order.get('status') == 'paid' and order.get('fulfillment_status') == 'applied'
+    operation_type = infer_order_operation_type(
+        vpn_key_id=order.get('vpn_key_id'),
+        payment_type=order.get('payment_type'),
+        explicit_operation_type=order.get('operation_type'),
+        tariff_id=order.get('tariff_id'),
+    )
+
     try:
-        # Проверяем, это продление или новый ключ
-        is_renewal = order.get('vpn_key_id') is not None
-        
-        if is_renewal:
-            # Продление существующего ключа
-            key_id = order['vpn_key_id']
-            days = tariff['duration_days']
-            
-            if extend_vpn_key(key_id, days):
-                complete_order(order_id)
-                traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
-                update_key_tariff(key_id, order['tariff_id'], traffic_limit_bytes)
-                
-                logger.info(f"Демо-оплата (продление) завершена: order_id={order_id}, key_id={key_id}, user={callback.from_user.id}")
-                
-                # Восстанавливаем лимит трафика
-                from bot.services.vpn_api import push_key_to_panel, restore_traffic_limit_in_db
-                restore_traffic_limit_in_db(key_id)
-                await push_key_to_panel(key_id, reset_traffic=True)
-                
-                # Начисляем реферальное вознаграждение
-                from bot.services.billing import process_referral_reward
-                user_internal_id = order['user_id']
-                price_rub = float(tariff.get('price_rub') or 0)
-                amount_cents = int(price_rub * 100)  # Конвертируем рубли в копейки
-                logger.info(f"Вызов process_referral_reward: user_internal_id={user_internal_id}, days={days}, amount_cents={amount_cents}")
-                await process_referral_reward(user_internal_id, days, amount_cents, 'demo')
-                
-                # Удаляем предыдущее сообщение
-                try:
-                    await callback.message.delete()
-                except Exception:
-                    pass
-                
-                # Отправляем сообщение об успехе
-                success_message = (
-                    "🎉 <b>Демо-оплата успешна!</b>\n\n"
-                    f"✅ Ключ продлён на {days} дней\n"
-                    f"📦 Тариф: {escape_html(tariff['name'])}\n\n"
-                    "👇 <b>Информация о ключе:</b>"
-                )
-                
-                # Показываем детали ключа
-                await show_key_details(
-                    telegram_id=callback.from_user.id,
-                    key_id=key_id,
-                    message=callback.message,
-                    is_callback=False,
-                    prepend_text=success_message
-                )
-                
-                await callback.answer("✅ Оплата прошла успешно!")
-            else:
-                logger.error(f"Не удалось продлить ключ {key_id} после демо-оплаты!")
-                await callback.answer("❌ Ошибка продления ключа", show_alert=True)
-        else:
-            # Создание нового ключа
-            traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * 1024 ** 3
-            key_id = create_initial_vpn_key(
-                user_id=order['user_id'],
-                tariff_id=order['tariff_id'],
-                days=tariff['duration_days'],
-                traffic_limit=traffic_limit_bytes
+        success, _, updated_order = await apply_paid_order(order_id)
+        if not success or not updated_order:
+            await callback.answer('❌ Ошибка обработки демо-оплаты', show_alert=True)
+            return
+
+        days = updated_order.get('period_days') or updated_order.get('duration_days') or tariff['duration_days']
+        amount_cents = updated_order.get('amount_cents') or int(float(tariff.get('price_rub') or 0) * 100)
+
+        if not already_applied:
+            logger.info(
+                "Демо-оплата обработана через lifecycle: order_id=%s, operation=%s, user=%s",
+                order_id,
+                operation_type,
+                callback.from_user.id,
             )
-            
-            # Обновляем заказ
-            update_payment_key_id(order_id, key_id)
-            
-            logger.info(f"Демо-оплата: создан черновик ключа key_id={key_id}, начинаем настройку на панели...")
-            
-            # АВТОМАТИЧЕСКАЯ НАСТРОЙКА КЛЮЧА НА ПАНЕЛИ
-            try:
-                # Получаем первый доступный сервер
-                servers = get_active_servers()
-                if not servers:
-                    raise Exception("Нет доступных серверов")
-                
-                server = servers[0]  # Берем первый активный сервер
-                server_id = server['id']
-                
-                logger.info(f"Выбран сервер: {server['name']} (ID: {server_id})")
-                
-                # Подключаемся к панели
-                client = await get_client(server_id)
-                inbounds = await client.get_inbounds()
-                
-                if not inbounds:
-                    raise Exception(f"На сервере {server['name']} нет доступных протоколов")
-                
-                # Берем первый inbound
-                inbound = inbounds[0]
-                inbound_id = inbound['id']
-                
-                logger.info(f"Выбран inbound: {inbound.get('remark', 'N/A')} (ID: {inbound_id}, protocol: {inbound.get('protocol', 'N/A')})")
-                
-                # Генерируем уникальный email для панели
-                telegram_id = callback.from_user.id
-                username = callback.from_user.username
-                base = f"user_{username}" if username else f"user_{telegram_id}"
-                suffix = uuid.uuid4().hex[:8]  # 8 символов для большей уникальности
-                panel_email = f'{base}_{suffix}'
-                
-                # Получаем flow для inbound
-                flow = await client.get_inbound_flow(inbound_id)
-                
-                # Создаем клиента на панели
-                limit_gb = (tariff.get('traffic_limit_gb', 0) or 0)
-                days = tariff['duration_days']
-                
-                logger.info(f"Создаем клиента на панели: email={panel_email}, limit={limit_gb}GB, days={days}")
-                
-                res = await client.add_client(
-                    inbound_id=inbound_id,
-                    email=panel_email,
-                    total_gb=limit_gb,
-                    expire_days=days,
-                    limit_ip=1,
-                    enable=True,
-                    tg_id=str(telegram_id),
-                    flow=flow
-                )
-                
-                client_uuid = res['uuid']
-                
-                logger.info(f"Клиент создан на панели: uuid={client_uuid}")
-                
-                # Обновляем ключ в БД с данными панели
-                update_vpn_key_config(
-                    key_id=key_id,
-                    server_id=server_id,
-                    panel_inbound_id=inbound_id,
-                    panel_email=panel_email,
-                    client_uuid=client_uuid
-                )
-                
-                logger.info(f"Ключ {key_id} успешно настроен на панели")
-                
-            except Exception as e:
-                logger.error(f"Ошибка настройки ключа на панели: {e}", exc_info=True)
-                # Продолжаем выполнение - ключ создан, но не настроен
-                # Пользователь сможет настроить его позже через интерфейс
-            
-            # Завершаем заказ
-            complete_order(order_id)
-            
-            # Начисляем реферальное вознаграждение
-            from bot.services.billing import process_referral_reward
-            user_internal_id = order['user_id']
-            days = tariff['duration_days']
-            price_rub = float(tariff.get('price_rub') or 0)
-            amount_cents = int(price_rub * 100)  # Конвертируем рубли в копейки
-            logger.info(f"Вызов process_referral_reward: user_internal_id={user_internal_id}, days={days}, amount_cents={amount_cents}")
-            await process_referral_reward(user_internal_id, days, amount_cents, 'demo')
-            
-            # Удаляем предыдущее сообщение
-            try:
-                await callback.message.delete()
-            except Exception:
-                pass
-            
-            # Отправляем сообщение об успехе
+            await process_referral_reward(updated_order['user_id'], days, amount_cents, 'demo')
+
+        if operation_type == 'renew':
+            success_message = (
+                "🎉 <b>Демо-оплата успешна!</b>\n\n"
+                f"✅ Ключ продлён на {days} дней\n"
+                f"📦 Тариф: {escape_html(tariff['name'])}\n\n"
+                "👇 <b>Информация о ключе:</b>"
+            )
+        else:
             success_message = (
                 "🎉 <b>Демо-оплата успешна!</b>\n\n"
                 f"✅ Подписка активирована\n"
                 f"📦 Тариф: {escape_html(tariff['name'])}\n"
-                f"📅 Срок: {tariff['duration_days']} дней\n\n"
+                f"📅 Срок: {days} дней\n\n"
                 "👇 <b>Ваша подписка готова!</b>"
             )
-            
-            await callback.message.answer(success_message, parse_mode="HTML")
-            
-            # Создаем клавиатуру
-            builder = InlineKeyboardBuilder()
-            builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
-            builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-            
-            # Сразу показываем subscription ссылку с QR-кодом
-            await send_subscription_link(callback, key_id, builder.as_markup())
-            
-            await callback.answer("✅ Оплата прошла успешно!")
+
+        await finalize_payment_ui(
+            callback.message,
+            state,
+            success_message,
+            updated_order,
+            user_id=callback.from_user.id,
+        )
+        await callback.answer("✅ Оплата прошла успешно!")
         
     except Exception as e:
         logger.error(f"Ошибка при демо-оплате: {e}", exc_info=True)
