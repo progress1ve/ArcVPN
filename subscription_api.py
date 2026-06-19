@@ -46,6 +46,9 @@ RESERVE_ACCESS_ENABLED = getattr(config, "RESERVE_ACCESS_ENABLED", False)
 RESERVE_CLIENT_EMAIL = getattr(config, "RESERVE_CLIENT_EMAIL", "reserve_shared_fallback")
 RESERVE_PROXY_SITES = getattr(config, "RESERVE_PROXY_SITES", ["geosite:telegram"])
 RESERVE_PROXY_IP = getattr(config, "RESERVE_PROXY_IP", ["geoip:telegram"])
+# Имя, которое видит пользователь в VPN-клиенте, когда подписка истекла
+# (вместо обычного "ArcVPN - <тариф>"). Призыв к действию — продлить.
+RESERVE_DISPLAY_NAME = getattr(config, "RESERVE_DISPLAY_NAME", "⚠️ Оплатите VPN — подписка истекла")
 
 # Настройка логирования
 logging.basicConfig(
@@ -750,7 +753,12 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             continue
 
         link_payload = dict(config)
-        display_name = f"ArcVPN - {key.tariff_name} ({server.name})"
+        # Резервный (аварийный) ключ показываем как призыв к действию, без
+        # "ArcVPN - ... (сервер)", чтобы пользователь сразу понял: нужно продлить.
+        if key.id == -1:
+            display_name = key.tariff_name
+        else:
+            display_name = f"ArcVPN - {key.tariff_name} ({server.name})"
         link_payload["server_name"] = display_name
         link_payload["remark"] = display_name
         links.append(generate_link(link_payload))
@@ -805,7 +813,7 @@ def _build_reserve_active_key(reserve_info: Dict[str, Any]) -> ActiveKeyRecord:
         expires_at=RESERVE_EXPIRES_AT,
         traffic_limit=0,
         traffic_used=0,
-        tariff_name="Reserve",
+        tariff_name=RESERVE_DISPLAY_NAME,
         telegram_id=0,
         sub_id=None,
     )
