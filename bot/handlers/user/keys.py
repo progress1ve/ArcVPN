@@ -277,6 +277,18 @@ async def key_details_handler(callback: CallbackQuery):
         lines.append(f'📅 <b>Действует до:</b> {expires}')
         lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
 
+        # Подсказка о резервном (аварийном) Telegram-доступе, если он настроен.
+        try:
+            from config import RESERVE_ACCESS_ENABLED
+            from bot.services.reserve import get_reserve_client_info
+            if RESERVE_ACCESS_ENABLED and get_reserve_client_info():
+                lines.append(
+                    '\n🟡 <i>Действует резервный доступ (только Telegram). '
+                    'Продлите подписку для полной скорости и доступа ко всему.</i>'
+                )
+        except Exception:
+            pass
+
         text = '\n'.join(lines)
 
         # Клавиатура

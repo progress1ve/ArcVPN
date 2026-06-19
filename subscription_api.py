@@ -34,9 +34,14 @@ from config import (
     SPLIT_TUNNELING_MODE,
     SPLIT_TUNNELING_REMOTE_DNS_DOMAIN,
     SPLIT_TUNNELING_REMOTE_DNS_IP,
+    RESERVE_ACCESS_ENABLED,
+    RESERVE_CLIENT_EMAIL,
+    RESERVE_PROXY_SITES,
+    RESERVE_PROXY_IP,
 )
 from database.connection import get_db
 from database.db_servers import get_server_by_id
+from bot.services.reserve import get_reserve_client_info
 
 # Настройка логирования
 logging.basicConfig(
@@ -404,6 +409,44 @@ def _build_routing_link() -> Optional[str]:
 ROUTING_LINK = _build_routing_link()
 
 
+def _build_reserve_routing_profile() -> Dict[str, Any]:
+    """Happ routing-профиль для резервного доступа: через VPN идёт только Telegram."""
+    return {
+        "Name": "ArcVPN - Reserve (Telegram only)",
+        "GlobalProxy": False,
+        "RemoteDNSType": "System",
+        "DomesticDNSType": "System",
+        "DirectSites": [],
+        "DirectIp": [],
+        "ProxySites": list(RESERVE_PROXY_SITES),
+        "ProxyIp": list(RESERVE_PROXY_IP),
+        "BlockSites": [],
+        "BlockIp": [],
+        "DomainStrategy": "AsIs",
+        "FakeDNS": False,
+    }
+
+
+def _build_reserve_routing_link() -> str:
+    """
+    Резервный routing-профиль отдаётся всегда (независимо от ENABLE_SPLIT_TUNNELING),
+    т.к. Telegram-only маршрутизация — суть резервного доступа.
+    """
+    profile_json = json.dumps(
+        _build_reserve_routing_profile(),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    encoded_profile = base64.b64encode(profile_json.encode("utf-8")).decode("ascii")
+    return f"happ://routing/onadd/{encoded_profile}"
+
+
+RESERVE_ROUTING_LINK = _build_reserve_routing_link()
+# Срок «годности» для резервного конфига в userinfo (далеко в будущем — клиент
+# не считает подписку истёкшей и продолжает опрашивать тот же /sub/<sub_id>).
+RESERVE_EXPIRES_AT = "2999-01-01T00:00:00+00:00"
+
+
 def _content_type_for_format(output_format: str) -> str:
     if output_format == "json":
         return "application/json; charset=utf-8"
@@ -412,12 +455,17 @@ def _content_type_for_format(output_format: str) -> str:
     return "text/plain; charset=utf-8"
 
 
-def _prepare_headers_only_subscription(key: ActiveKeyRecord, output_format: str) -> PreparedSubscription:
+def _prepare_headers_only_subscription(
+    key: ActiveKeyRecord,
+    output_format: str,
+    routing_link_override: Optional[str] = None,
+) -> PreparedSubscription:
+    routing_link = routing_link_override if routing_link_override is not None else ROUTING_LINK
     return PreparedSubscription(
         body="",
         content_type=_content_type_for_format(output_format),
         userinfo_header=_build_subscription_userinfo(key),
-        routing_link=ROUTING_LINK if output_format != "json" else None,
+        routing_link=routing_link if output_format != "json" else None,
     )
 
 
@@ -499,8 +547,13 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
-def _prepare_subscription(key: ActiveKeyRecord, link: str, output_format: str) -> PreparedSubscription:
-    routing_link = ROUTING_LINK
+def _prepare_subscription(
+    key: ActiveKeyRecord,
+    link: str,
+    output_format: str,
+    routing_link_override: Optional[str] = None,
+) -> PreparedSubscription:
+    routing_link = routing_link_override if routing_link_override is not None else ROUTING_LINK
     userinfo_header = _build_subscription_userinfo(key)
 
     if output_format == "json":
@@ -751,6 +804,76 @@ def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
         return _row_to_active_key(row) if row else None
 
 
+def subscription_id_is_known(sub_id: str) -> bool:
+    """
+    Проверяет, что sub_id принадлежит реальному (пусть и истёкшему) ключу.
+
+    Резервный доступ выдаётся только тем, кто когда-то был платным клиентом,
+    а не любому корректному по формату идентификатору.
+    """
+    with get_db() as conn:
+        cursor = conn.execute(
+            "SELECT 1 FROM vpn_keys WHERE sub_id = ? LIMIT 1",
+            (sub_id,),
+        )
+        return cursor.fetchone() is not None
+
+
+def _build_reserve_active_key(reserve_info: Dict[str, Any]) -> ActiveKeyRecord:
+    """Синтезирует виртуальную запись ключа для общего резервного клиента."""
+    return ActiveKeyRecord(
+        id=-1,
+        server_id=int(reserve_info["server_id"]),
+        panel_email=str(reserve_info.get("panel_email") or RESERVE_CLIENT_EMAIL),
+        expires_at=RESERVE_EXPIRES_AT,
+        traffic_limit=0,
+        traffic_used=0,
+        tariff_name="Reserve",
+        telegram_id=0,
+        sub_id=None,
+    )
+
+
+def _build_reserve_response(sub_id: str, output_format: str, is_head: bool) -> Optional[Response]:
+    """
+    Пытается отдать резервный (Telegram-only) конфиг для истёкшей/исчерпанной подписки.
+
+    Возвращает Response при успехе либо None — тогда вызывающий код отдаёт 404.
+    """
+    if not RESERVE_ACCESS_ENABLED:
+        return None
+    # Telegram-only маршрутизация задаётся Happ routing-профилем, который есть
+    # только в plain/base64 (Happ/Hiddify). Для json (clash/sing-box/v2ray)
+    # ограничить трафик роутингом нельзя — резерв там не выдаём.
+    if output_format == "json":
+        return None
+    if not subscription_id_is_known(sub_id):
+        return None
+    reserve_info = get_reserve_client_info()
+    if not reserve_info:
+        return None
+
+    reserve_key = _build_reserve_active_key(reserve_info)
+
+    if is_head:
+        prepared = _prepare_headers_only_subscription(
+            reserve_key, output_format, routing_link_override=RESERVE_ROUTING_LINK
+        )
+        return _response_from_prepared(prepared)
+
+    links = ASYNC_EXECUTOR.run(_generate_links_for_keys([reserve_key]))
+    link = links[0] if links else ""
+    if not link:
+        logger.warning("Резервный конфиг недоступен для %s (нет ссылки)", _mask_token(sub_id))
+        return None
+
+    prepared = _prepare_subscription(
+        reserve_key, link, output_format, routing_link_override=RESERVE_ROUTING_LINK
+    )
+    logger.info("Выдан резервный доступ для %s, format=%s", _mask_token(sub_id), output_format)
+    return _response_from_prepared(prepared)
+
+
 def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
     """
     Генерирует subscription в формате base64 или plain text.
@@ -830,6 +953,13 @@ def subscription(sub_id: str):
 
         key = get_active_key_by_subscription_id(sub_id)
         if not key or not key.has_available_traffic:
+            # Подписка истекла или исчерпан трафик — пробуем выдать резервный
+            # (Telegram-only) доступ, чтобы пользователь смог продлить через бота.
+            reserve_response = _build_reserve_response(
+                sub_id, output_format, request.method == "HEAD"
+            )
+            if reserve_response is not None:
+                return reserve_response
             logger.info("Подписка недоступна: %s", masked_sub_id)
             return _subscription_not_available()
 

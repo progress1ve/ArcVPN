@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 21
+LATEST_VERSION = 22
 
 
 def get_current_version() -> int:
@@ -1392,6 +1392,25 @@ def migration_21(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v21 применена")
 
 
+def migration_22(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v22: Резервные (бэкап) серверы.
+
+    Изменения:
+    - Добавляет колонку is_reserve в таблицу servers.
+    - Все существующие серверы по умолчанию НЕ резервные (is_reserve = 0).
+
+    Резервный сервер используется для аварийного Telegram-доступа, когда
+    подписка истекла или исчерпан трафик: пользователь сохраняет доступ
+    к Telegram (через резервный конфиг), чтобы продлить подписку.
+    """
+    logger.info("Применение миграции v22 (Резервные серверы)...")
+
+    _add_column(conn, "servers", "is_reserve INTEGER DEFAULT 0")
+
+    logger.info("Миграция v22 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1414,6 +1433,7 @@ MIGRATIONS = {
     19: migration_19,
     20: migration_20,
     21: migration_21,
+    22: migration_22,
 }
 
 

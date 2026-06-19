@@ -36,17 +36,19 @@ def servers_list_kb(servers: List[Dict[str, Any]]) -> InlineKeyboardMarkup:
                 builder.row(InlineKeyboardButton(text=f'📂⬇ {g_name}', callback_data='noop'))
                 for server in grouped_servers[g_id]:
                     status_emoji = '🟢' if server.get('is_active') else '🔴'
-                    text = f"  {status_emoji} {server['name']}"
+                    reserve_tag = ' 🟡' if server.get('is_reserve') else ''
+                    text = f"  {status_emoji} {server['name']}{reserve_tag}"
                     builder.row(InlineKeyboardButton(text=text, callback_data=f"admin_server_view:{server['id']}"))
     else:
         for server in servers:
             status_emoji = '🟢' if server.get('is_active') else '🔴'
-            text = f"{server['name']}"
+            reserve_tag = ' 🟡' if server.get('is_reserve') else ''
+            text = f"{status_emoji} {server['name']}{reserve_tag}"
             builder.row(InlineKeyboardButton(text=text, callback_data=f"admin_server_view:{server['id']}"))
     builder.row(back_button('admin_panel'), home_button())
     return builder.as_markup()
 
-def server_view_kb(server_id: int, is_active: bool, show_group_button: bool=False) -> InlineKeyboardMarkup:
+def server_view_kb(server_id: int, is_active: bool, show_group_button: bool=False, is_reserve: bool=False) -> InlineKeyboardMarkup:
     """
     Клавиатура просмотра сервера.
 
@@ -54,11 +56,14 @@ def server_view_kb(server_id: int, is_active: bool, show_group_button: bool=Fals
         server_id: ID сервера
         is_active: Активен ли сервер
         show_group_button: Показывать ли кнопку «Изменить группу»
+        is_reserve: Является ли сервер резервным (аварийный Telegram-доступ)
     """
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text='✏️ Изменить настройки', callback_data=f'admin_server_edit:{server_id}'))
     toggle_text = '⏸️ Деактивировать' if is_active else '🔄 Активировать'
     builder.row(InlineKeyboardButton(text=toggle_text, callback_data=f'admin_server_toggle:{server_id}'))
+    reserve_text = '⚪ Сделать обычным' if is_reserve else '🟡 Сделать резервным'
+    builder.row(InlineKeyboardButton(text=reserve_text, callback_data=f'admin_server_toggle_reserve:{server_id}'))
     if show_group_button:
         builder.row(InlineKeyboardButton(text='Изменить группу', callback_data=f'admin_server_change_group:{server_id}'))
     builder.row(InlineKeyboardButton(text='🗑️ Удалить сервер', callback_data=f'admin_server_delete:{server_id}'))

@@ -12,6 +12,7 @@ __all__ = [
     'get_all_servers',
     'get_server_by_id',
     'get_active_servers',
+    'get_reserve_server',
     'add_server',
     'update_server',
     'update_server_field',
@@ -28,7 +29,7 @@ def get_all_servers() -> List[Dict[str, Any]]:
     """
     with get_db() as conn:
         cursor = conn.execute("""
-            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol
+            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve
             FROM servers
             ORDER BY id
         """)
@@ -46,7 +47,7 @@ def get_server_by_id(server_id: int) -> Optional[Dict[str, Any]]:
     """
     with get_db() as conn:
         cursor = conn.execute("""
-            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol
+            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve
             FROM servers
             WHERE id = ?
         """, (server_id,))
@@ -55,19 +56,41 @@ def get_server_by_id(server_id: int) -> Optional[Dict[str, Any]]:
 
 def get_active_servers() -> List[Dict[str, Any]]:
     """
-    Получает список активных VPN-серверов.
-    
+    Получает список активных VPN-серверов, доступных для покупки/выдачи ключей.
+
+    ВАЖНО: резервные серверы (is_reserve = 1) исключаются — они используются
+    только для аварийного Telegram-доступа при истёкшей подписке и не должны
+    появляться в выборе сервера при покупке/замене ключа.
+
     Returns:
-        Список словарей с данными активных серверов
+        Список словарей с данными активных НЕрезервных серверов
     """
     with get_db() as conn:
         cursor = conn.execute("""
-            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol
+            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve
             FROM servers
-            WHERE is_active = 1
+            WHERE is_active = 1 AND is_reserve = 0
             ORDER BY id
         """)
         return [dict(row) for row in cursor.fetchall()]
+
+def get_reserve_server() -> Optional[Dict[str, Any]]:
+    """
+    Получает активный резервный сервер (для аварийного Telegram-доступа).
+
+    Returns:
+        Словарь с данными резервного сервера или None, если он не настроен
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve
+            FROM servers
+            WHERE is_active = 1 AND is_reserve = 1
+            ORDER BY id
+            LIMIT 1
+        """)
+        row = cursor.fetchone()
+        return dict(row) if row else None
 
 def add_server(
     name: str,
@@ -122,7 +145,7 @@ def update_server(server_id: int, **fields) -> bool:
     Returns:
         True если обновление успешно
     """
-    allowed_fields = {'name', 'host', 'port', 'web_base_path', 'login', 'password', 'is_active', 'protocol'}
+    allowed_fields = {'name', 'host', 'port', 'web_base_path', 'login', 'password', 'is_active', 'protocol', 'is_reserve'}
     fields = {k: v for k, v in fields.items() if k in allowed_fields}
     
     if not fields:

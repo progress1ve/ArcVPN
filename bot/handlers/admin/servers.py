@@ -140,6 +140,9 @@ async def render_server_view(message: Message, server_id: int, state: FSMContext
         f"   {status_emoji} Статус: {status_text}",
     ]
 
+    if server.get('is_reserve'):
+        lines.append("   🟡 Тип: резервный (аварийный Telegram-доступ)")
+
     if server['is_active']:
         try:
             client = get_client_from_server_data(server)
@@ -170,9 +173,9 @@ async def render_server_view(message: Message, server_id: int, state: FSMContext
         groups_str = ", ".join(group_names) if group_names else "Основная"
         lines.append(f"\n📂 Группы: <code>{groups_str}</code>")
 
-    await safe_edit_or_send(message, 
+    await safe_edit_or_send(message,
         "\n".join(lines),
-        reply_markup=server_view_kb(server_id, server['is_active'], groups_count > 1)
+        reply_markup=server_view_kb(server_id, server['is_active'], groups_count > 1, is_reserve=bool(server.get('is_reserve')))
     )
 
 
@@ -832,9 +835,51 @@ async def toggle_server(callback: CallbackQuery, state: FSMContext):
     
     status_text = "активирован 🟢" if new_status else "деактивирован 🔴"
     await callback.answer(f"Сервер {status_text}")
-    
+
     # Обновляем экран просмотра
     # Обновляем экран просмотра
+    await render_server_view(callback.message, server_id, state)
+
+
+# ============================================================================
+# РЕЗЕРВНЫЙ СЕРВЕР (аварийный Telegram-доступ)
+# ============================================================================
+
+@router.callback_query(F.data.startswith("admin_server_toggle_reserve:"))
+async def toggle_server_reserve(callback: CallbackQuery, state: FSMContext):
+    """Переключает признак резервного сервера и поднимает резервного клиента."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    server_id = int(callback.data.split(":")[1])
+    server = get_server_by_id(server_id)
+    if not server:
+        await callback.answer("❌ Сервер не найден", show_alert=True)
+        return
+
+    new_reserve = 0 if server.get('is_reserve') else 1
+    update_server_field(server_id, 'is_reserve', new_reserve)
+    invalidate_client_cache(server_id)
+
+    if new_reserve:
+        # Поднимаем общий резервный клиент на панели.
+        from bot.services.reserve import ensure_reserve_client
+        try:
+            await ensure_reserve_client(server_id)
+            await callback.answer("🟡 Сервер назначен резервным. Резервный клиент создан.", show_alert=True)
+        except Exception as e:
+            logger.error(f"Не удалось создать резервного клиента на сервере {server_id}: {e}")
+            await callback.answer(
+                "⚠️ Сервер помечен резервным, но создать резервного клиента не удалось. "
+                "Проверьте доступность панели и повторите.",
+                show_alert=True,
+            )
+    else:
+        from bot.services.reserve import clear_reserve_client_info
+        clear_reserve_client_info()
+        await callback.answer("⚪ Сервер снова обычный.")
+
     await render_server_view(callback.message, server_id, state)
 
 
