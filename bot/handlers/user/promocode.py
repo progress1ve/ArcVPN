@@ -18,8 +18,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 PROMOCODE_INPUT_TEXT = (
     "🎟️ <b>Использование промокода</b>\n\n"
-    "Введите код промокода для получения скидки.\n\n"
-    "Например: <code>SUMMER2026</code>"
+    "Введите код промокода для получения скидки:"
 )
 
 
