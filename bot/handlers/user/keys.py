@@ -268,22 +268,22 @@ async def key_details_handler(callback: CallbackQuery):
         else:
             lines.append(f'📊 <b>Трафик:</b> Безлимит')
         
-        # Срок действия
+        # Срок действия (в московском времени, как и в остальных экранах)
         if key['expires_at']:
-            expires_dt = datetime.fromisoformat(key['expires_at'])
-            expires = expires_dt.strftime('%d-%m-%Y')
+            from bot.utils.datetime_utils import format_date
+            expires = format_date(key['expires_at'])
         else:
             expires = '—'
         lines.append(f'📅 <b>Действует до:</b> {expires}')
         lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
-        
+
         text = '\n'.join(lines)
-        
+
         # Клавиатура
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="� Продлить", callback_data=f"key_renew:{key_id}"))
+        builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
         builder.row(
-            InlineKeyboardButton(text="� Мои ключи", callback_data="my_keys"),
+            InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
             InlineKeyboardButton(text="🏠 На главную", callback_data="start")
         )
         
@@ -514,74 +514,16 @@ async def show_subscription_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key_renew:'))
 async def key_renew_select_tariff(callback: CallbackQuery):
-    """Выбор тарифа для продления подписки."""
-    from database.requests import get_all_tariffs, get_key_details_for_user
-    from bot.keyboards.user import key_renew_tariff_list_kb, back_and_home_kb
-    
+    """Выбор тарифа для продления подписки (единый UI с покупкой)."""
+    from bot.utils.payment_flow_ui import show_tariff_selection_screen
+
     key_id = int(callback.data.split(':')[1])
     telegram_id = callback.from_user.id
-    
-    key = get_key_details_for_user(key_id, telegram_id)
-    if not key:
-        await callback.answer('❌ Подписка не найдена или вы не являетесь её владельцем.', show_alert=True)
+
+    ok = await show_tariff_selection_screen(callback.message, telegram_id, key_id=key_id)
+    if not ok:
+        await callback.answer('❌ Подписка не найдена или нет доступных тарифов.', show_alert=True)
         return
-    
-    # Получаем все доступные тарифы
-    tariffs = get_all_tariffs(include_hidden=False)
-    if not tariffs:
-        await safe_edit_or_send(
-            callback.message,
-            '💳 <b>Продление подписки</b>\n\n😔 Нет доступных тарифов.\nПопробуйте позже.',
-            reply_markup=back_and_home_kb(back_callback=f'key:{key_id}')
-        )
-        await callback.answer()
-        return
-    
-    # Функция для склонения слова "день"
-    def pluralize_days(n):
-        """Возвращает правильную форму слова 'день' для числа n."""
-        if n % 10 == 1 and n % 100 != 11:
-            return f"{n} день"
-        elif n % 10 in [2, 3, 4] and n % 100 not in [12, 13, 14]:
-            return f"{n} дня"
-        else:
-            return f"{n} дней"
-    
-    # Показываем информацию о текущей подписке и список тарифов
-    if key['expires_at']:
-        from bot.utils.datetime_utils import format_date, utc_to_local
-        expires_dt_utc = datetime.fromisoformat(key['expires_at'])
-        expires_dt_local = utc_to_local(expires_dt_utc)
-        expires = expires_dt_local.strftime('%d-%m-%Y')
-        # Округляем вверх: если осталось хоть немного времени, показываем минимум 1 день
-        delta = expires_dt_local - datetime.now(expires_dt_local.tzinfo)
-        if delta.total_seconds() > 0:
-            days_left = max(1, delta.days + (1 if delta.seconds > 0 else 0))
-        else:
-            days_left = 0
-    else:
-        expires = '—'
-        days_left = 0
-    
-    # Формируем текст с правильным склонением
-    if days_left > 0:
-        days_text = pluralize_days(days_left)
-    else:
-        days_text = "истек"
-    
-    text = (
-        f"💳 <b>Продление подписки</b>\n\n"
-        f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}\n"
-        f"📅 <b>Действует до:</b> {expires}\n"
-        f"⏳ <b>Осталось:</b> {days_text}\n\n"
-        f"Выберите тариф для продления:"
-    )
-    
-    await safe_edit_or_send(
-        callback.message,
-        text,
-        reply_markup=key_renew_tariff_list_kb(tariffs, key_id)
-    )
     await callback.answer()
 
 

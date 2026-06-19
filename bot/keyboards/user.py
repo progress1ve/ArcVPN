@@ -20,7 +20,7 @@ def main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral
     
     # Первая строка: Мои подписки
     builder.row(
-        InlineKeyboardButton(text="� Мои подписки", callback_data="my_keys")
+        InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys")
     )
     
     # Вторая строка: Купить подписку
@@ -390,7 +390,7 @@ def balance_payment_kb(
     return builder.as_markup()
 
 
-def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: str = None, is_cards: bool = False, is_crypto: bool = False, is_balance: bool = False, is_qr: bool = False, groups_data: list = None, is_demo: bool = False, is_select_only: bool = False) -> InlineKeyboardMarkup:
+def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: str = None, is_cards: bool = False, is_crypto: bool = False, is_balance: bool = False, is_qr: bool = False, groups_data: list = None, is_demo: bool = False, is_select_only: bool = False, select_callback_prefix: str = "select_tariff", select_callback_suffix: str = "") -> InlineKeyboardMarkup:
     """
     Клавиатура выбора тарифа для оплаты Stars, Картами, Криптой или Балансом.
     
@@ -404,6 +404,11 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
         is_qr: True если выбор тарифа для QR-оплаты (ЮКасса)
         is_demo: True если выбор тарифа для демонстрационной РФ оплаты
         is_select_only: True если просто выбор тарифа (без привязки к способу оплаты)
+        select_callback_prefix: Префикс callback для режима is_select_only
+                                (по умолчанию 'select_tariff' — покупка;
+                                 'key_renew_tariff' — продление)
+        select_callback_suffix: Доп. суффикс callback для is_select_only
+                                (например ':{key_id}' при продлении)
         groups_data: Список dict с ключами 'group' и 'tariffs' для группировки.
                      Если None — tariffs отображаются без группировки.
     """
@@ -425,7 +430,7 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
                 
                 # Формат: Название (дни) — цена
                 text = f"📋 {tariff['name']} ({tariff['duration_days']} дн.) — {price_display}"
-                cb_data = f"select_tariff:{tariff['id']}"
+                cb_data = f"{select_callback_prefix}{select_callback_suffix}:{tariff['id']}"
                 
                 builder.row(
                     InlineKeyboardButton(text=text, callback_data=cb_data)
