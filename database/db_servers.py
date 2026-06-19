@@ -58,18 +58,31 @@ def get_active_servers() -> List[Dict[str, Any]]:
     """
     Получает список активных VPN-серверов, доступных для покупки/выдачи ключей.
 
-    ВАЖНО: резервные серверы (is_reserve = 1) исключаются — они используются
-    только для аварийного Telegram-доступа при истёкшей подписке и не должны
-    появляться в выборе сервера при покупке/замене ключа.
+    Резервные серверы (is_reserve = 1) обычно исключаются — они для аварийного
+    Telegram-доступа. НО если резервный сервер единственный активный (типичный
+    случай с одним сервером), мы НЕ прячем его из покупки, иначе покупать ключи
+    будет негде. То есть: отдаём нерезервные активные серверы, а если их нет —
+    откатываемся ко всем активным (включая резервный).
 
     Returns:
-        Список словарей с данными активных НЕрезервных серверов
+        Список словарей с данными активных серверов
     """
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve
             FROM servers
             WHERE is_active = 1 AND is_reserve = 0
+            ORDER BY id
+        """)
+        rows = [dict(row) for row in cursor.fetchall()]
+        if rows:
+            return rows
+
+        # Нет нерезервных серверов — отдаём все активные (single-server setup).
+        cursor = conn.execute("""
+            SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve
+            FROM servers
+            WHERE is_active = 1
             ORDER BY id
         """)
         return [dict(row) for row in cursor.fetchall()]
