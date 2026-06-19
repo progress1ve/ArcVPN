@@ -598,25 +598,13 @@ async def create_yookassa_qr_payment(
     # Заголовок Basic Auth: base64(shop_id:secret_key)
     credentials = base64.b64encode(f"{shop_id}:{secret_key}".encode()).decode()
 
-    # Ключ идемпотентности — уникальный для этого ордера
-    idempotence_key = f"qr-{order_id}-{uuid.uuid4().hex[:8]}"
-
-    payload = {
+    # Общая часть payload (без способа подтверждения).
+    base_payload = {
         "amount": {
             "value": f"{amount_rub:.2f}",
             "currency": "RUB"
         },
         "capture": True,
-        # Нативный СБП: ЮKassa создаёт платёж по СБП и возвращает QR от НСПК
-        # (confirmation.type=qr → confirmation_data со ссылкой qr.nspk.ru).
-        # Комиссия СБП заметно ниже карточной. ВАЖНО: СБП должен быть включён
-        # в личном кабинете ЮKassa, иначе API вернёт ошибку.
-        "payment_method_data": {
-            "type": "sbp"
-        },
-        "confirmation": {
-            "type": "qr"
-        },
         "description": description,
         "receipt": {
             "customer": {
@@ -642,62 +630,88 @@ async def create_yookassa_qr_payment(
         }
     }
 
-    headers = {
-        "Authorization": f"Basic {credentials}",
-        "Idempotence-Key": idempotence_key,
-        "Content-Type": "application/json"
-    }
+    # Пробуем способы по порядку:
+    # 1) Нативный СБП (confirmation=qr → QR от НСПК, низкая комиссия). Требует
+    #    подключённого СБП в кабинете ЮKassa, иначе API вернёт "Payment method
+    #    is not available".
+    # 2) Откат: redirect на страницу ЮKassa (там и карта, и СБП) — работает всегда.
+    confirmation_variants = [
+        {"label": "sbp",
+         "payment_method_data": {"type": "sbp"},
+         "confirmation": {"type": "qr"}},
+        {"label": "redirect",
+         "confirmation": {"type": "redirect", "return_url": "https://t.me"}},
+    ]
 
+    data = None
+    last_error = "Неизвестная ошибка"
     async with aiohttp.ClientSession() as session:
-        async with session.post(
-            YOOKASSA_API_URL,
-            json=payload,
-            headers=headers
-        ) as response:
-            data = await response.json()
+        for variant in confirmation_variants:
+            payload = dict(base_payload)
+            if "payment_method_data" in variant:
+                payload["payment_method_data"] = variant["payment_method_data"]
+            payload["confirmation"] = variant["confirmation"]
 
-            if response.status not in (200, 201):
-                error_desc = data.get('description', 'Неизвестная ошибка')
-                logger.error(f"ЮКасса API ошибка {response.status}: {error_desc} | payload={payload}")
-                raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
-
-            confirmation = data.get('confirmation', {})
-            # Для type=qr ЮKassa возвращает confirmation_data (содержимое СБП-QR,
-            # обычно ссылка https://qr.nspk.ru/...). Это же значение работает и как
-            # кликабельная ссылка — на телефоне открывает выбор банка для оплаты.
-            qr_url = confirmation.get('confirmation_data', '') or confirmation.get('confirmation_url', '')
-
-            if not qr_url:
-                logger.error(f"ЮКасса API не вернул данные СБП-QR (confirmation): {data}")
-                raise RuntimeError("ЮКасса API не вернул данные для QR-кода")
-
-            # Генерируем QR-код из строки оплаты через локальную библиотеку qrcode
-            
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(qr_url)
-            qr.make(fit=True)
-            
-            img = qr.make_image(fill_color="black", back_color="white")
-            bio = io.BytesIO()
-            img.save(bio, format="PNG")
-            qr_image_data = bio.getvalue()
-
-            logger.info(
-                f"ЮКасса QR создан: payment_id={data['id']}, order_id={order_id}, "
-                f"amount={amount_rub} RUB"
-            )
-
-            return {
-                'yookassa_payment_id': data['id'],
-                'qr_image_data': qr_image_data,
-                'qr_url': qr_url,
-                'status': data.get('status', 'pending')
+            headers = {
+                "Authorization": f"Basic {credentials}",
+                # Разный ключ идемпотентности на каждую попытку, иначе ЮKassa
+                # вернёт закэшированный результат первой (упавшей) попытки.
+                "Idempotence-Key": f"qr-{order_id}-{uuid.uuid4().hex[:8]}",
+                "Content-Type": "application/json",
             }
+
+            async with session.post(YOOKASSA_API_URL, json=payload, headers=headers) as response:
+                resp_data = await response.json()
+
+            if response.status in (200, 201):
+                data = resp_data
+                if variant["label"] != "sbp":
+                    logger.warning("ЮKassa: СБП недоступен, использован откат '%s'", variant["label"])
+                break
+
+            last_error = resp_data.get('description', 'Неизвестная ошибка')
+            logger.warning("ЮKassa: вариант '%s' не сработал: %s", variant["label"], last_error)
+
+    if data is None:
+        logger.error("ЮKassa API: все варианты оплаты не сработали: %s", last_error)
+        raise RuntimeError(f"ЮКасса API ошибка: {last_error}")
+
+    confirmation = data.get('confirmation', {})
+    # type=qr → confirmation_data (СБП-QR, ссылка qr.nspk.ru);
+    # type=redirect → confirmation_url (страница ЮKassa). Оба годятся и как QR,
+    # и как кликабельная ссылка.
+    qr_url = confirmation.get('confirmation_data', '') or confirmation.get('confirmation_url', '')
+
+    if not qr_url:
+        logger.error(f"ЮКасса API не вернул данные для QR-кода (confirmation): {data}")
+        raise RuntimeError("ЮКасса API не вернул данные для QR-кода")
+
+    # Генерируем QR-код из строки оплаты через локальную библиотеку qrcode
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_url)
+    qr.make(fit=True)
+
+    img = qr.make_image(fill_color="black", back_color="white")
+    bio = io.BytesIO()
+    img.save(bio, format="PNG")
+    qr_image_data = bio.getvalue()
+
+    logger.info(
+        f"ЮКасса QR создан: payment_id={data['id']}, order_id={order_id}, "
+        f"amount={amount_rub} RUB"
+    )
+
+    return {
+        'yookassa_payment_id': data['id'],
+        'qr_image_data': qr_image_data,
+        'qr_url': qr_url,
+        'status': data.get('status', 'pending')
+    }
 
 
 async def check_yookassa_payment_status(yookassa_payment_id: str) -> str:
