@@ -49,6 +49,14 @@ RESERVE_PROXY_IP = getattr(config, "RESERVE_PROXY_IP", ["geoip:telegram"])
 # Имя, которое видит пользователь в VPN-клиенте, когда подписка истекла
 # (вместо обычного "ArcVPN - <тариф>"). Призыв к действию — продлить.
 RESERVE_DISPLAY_NAME = getattr(config, "RESERVE_DISPLAY_NAME", "⚠️ Оплатите VPN — подписка истекла")
+# Домены платёжных систем, которые тоже пускаем через резерв — чтобы при истёкшей
+# подписке можно было не только открыть Telegram, но и оплатить (страница ЮKassa
+# и т.п.). Всегда добавляются к резервному роутингу, можно расширить в config.py.
+RESERVE_PAYMENT_SITES = getattr(config, "RESERVE_PAYMENT_SITES", [
+    "yoomoney.ru",
+    "yookassa.ru",
+    "qr.nspk.ru",          # СБП QR (НСПК)
+])
 
 # Настройка логирования
 logging.basicConfig(
@@ -422,15 +430,20 @@ ROUTING_LINK = _build_routing_link()
 
 
 def _build_reserve_routing_profile() -> Dict[str, Any]:
-    """Happ routing-профиль для резервного доступа: через VPN идёт только Telegram."""
+    """
+    Happ routing-профиль для резервного доступа: через VPN идут только Telegram
+    и платёжные домены (чтобы можно было открыть бота и оплатить продление).
+    Всё остальное — напрямую.
+    """
+    proxy_sites = list(dict.fromkeys([*RESERVE_PROXY_SITES, *RESERVE_PAYMENT_SITES]))
     return {
-        "Name": "ArcVPN - Reserve (Telegram only)",
+        "Name": "ArcVPN - Reserve (Telegram + Pay)",
         "GlobalProxy": False,
         "RemoteDNSType": "System",
         "DomesticDNSType": "System",
         "DirectSites": [],
         "DirectIp": [],
-        "ProxySites": list(RESERVE_PROXY_SITES),
+        "ProxySites": proxy_sites,
         "ProxyIp": list(RESERVE_PROXY_IP),
         "BlockSites": [],
         "BlockIp": [],

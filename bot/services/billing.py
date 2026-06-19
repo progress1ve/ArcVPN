@@ -607,9 +607,15 @@ async def create_yookassa_qr_payment(
             "currency": "RUB"
         },
         "capture": True,
+        # Нативный СБП: ЮKassa создаёт платёж по СБП и возвращает QR от НСПК
+        # (confirmation.type=qr → confirmation_data со ссылкой qr.nspk.ru).
+        # Комиссия СБП заметно ниже карточной. ВАЖНО: СБП должен быть включён
+        # в личном кабинете ЮKassa, иначе API вернёт ошибку.
+        "payment_method_data": {
+            "type": "sbp"
+        },
         "confirmation": {
-            "type": "redirect",
-            "return_url": "https://t.me"
+            "type": "qr"
         },
         "description": description,
         "receipt": {
@@ -656,10 +662,13 @@ async def create_yookassa_qr_payment(
                 raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
 
             confirmation = data.get('confirmation', {})
-            qr_url = confirmation.get('confirmation_url', '')
-            
+            # Для type=qr ЮKassa возвращает confirmation_data (содержимое СБП-QR,
+            # обычно ссылка https://qr.nspk.ru/...). Это же значение работает и как
+            # кликабельная ссылка — на телефоне открывает выбор банка для оплаты.
+            qr_url = confirmation.get('confirmation_data', '') or confirmation.get('confirmation_url', '')
+
             if not qr_url:
-                logger.error(f"ЮКасса API не вернул confirmation_url: {data}")
+                logger.error(f"ЮКасса API не вернул данные СБП-QR (confirmation): {data}")
                 raise RuntimeError("ЮКасса API не вернул данные для QR-кода")
 
             # Генерируем QR-код из строки оплаты через локальную библиотеку qrcode

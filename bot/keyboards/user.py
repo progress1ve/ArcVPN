@@ -164,7 +164,7 @@ def buy_key_kb(
     # QR ЮКасса — переход к выбору тарифа
     if yookassa_qr_enabled:
         builder.row(
-            InlineKeyboardButton(text="📱 QR-оплата (Карта/СБП)", callback_data="pay_qr")
+            InlineKeyboardButton(text="📱 СБП (QR-код)", callback_data="pay_qr")
         )
 
     # Демо оплата (РФ) — переход к выбору тарифа
@@ -257,7 +257,7 @@ def payment_method_kb(
     if yookassa_qr_enabled:
         builder.row(
             InlineKeyboardButton(
-                text="📱 QR-оплата (Карта/СБП)", 
+                text="📱 СБП (QR-код)", 
                 callback_data=f"pay_qr_tariff:{tariff_id}:{order_id}"
             )
         )
@@ -832,14 +832,14 @@ def renew_payment_method_kb(
         if tariff_id:
             builder.row(
                 InlineKeyboardButton(
-                    text="📱 QR-оплата (Карта/СБП)",
+                    text="📱 СБП (QR-код)",
                     callback_data=f"renew_pay_qr:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}"
                 )
             )
         else:
             builder.row(
                 InlineKeyboardButton(
-                    text="📱 QR-оплата (Карта/СБП)",
+                    text="📱 СБП (QR-код)",
                     callback_data=f"renew_qr_tariff:{key_id}"
                 )
             )
@@ -1190,9 +1190,11 @@ def yookassa_qr_kb(order_id: str, back_callback: str = "buy_key", qr_url: str = 
     """
     builder = InlineKeyboardBuilder()
     
-    if qr_url:
+    # Кнопку-ссылку показываем только для валидного http(s)-URL (СБП-QR от НСПК —
+    # это ссылка qr.nspk.ru). Если confirmation_data не URL — остаётся только QR-картинка.
+    if qr_url and qr_url.startswith(("http://", "https://")):
         builder.row(
-            InlineKeyboardButton(text="💳 Оплатить", url=qr_url)
+            InlineKeyboardButton(text="🏦 Оплатить через СБП", url=qr_url)
         )
         
     builder.row(

@@ -309,7 +309,7 @@ async def pay_qr_handler(callback: CallbackQuery):
             save_yookassa_payment_id(order_id, payment_id)
             
             text = (
-                f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n"
+                f"📱 <b>СБП (QR-код)</b>\n\n"
                 f"📦 Тариф: <b>{escape_html(tariff['name'])}</b>\n"
                 f"💵 Сумма: <b>{price_rub} ₽</b>\n\n"
                 f"Отсканируйте QR-код камерой телефона или нажмите кнопку «Оплатить».\n\n"
@@ -353,7 +353,7 @@ async def pay_qr_handler(callback: CallbackQuery):
         
         await safe_edit_or_send(
             callback.message,
-            '📱 <b>QR-оплата (Карта/СБП)</b>\n\nВыберите тариф:\n\n<i>Оплата через ЮКассу — поддерживает банковские карты и СБП.</i>',
+            '📱 <b>СБП (QR-код)</b>\n\nВыберите тариф:\n\n<i>Оплата через Систему быстрых платежей — отсканируйте QR в приложении вашего банка.</i>',
             reply_markup=tariff_select_kb(rub_tariffs, order_id=existing_order_id, is_qr=True)
         )
         await callback.answer()
@@ -497,7 +497,7 @@ async def renew_qr_select_tariff(callback: CallbackQuery):
     if not rub_tariffs:
         await callback.answer('😔 Нет тарифов с ценой в рублях', show_alert=True)
         return
-    await safe_edit_or_send(callback.message, f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите тариф для продления:", reply_markup=renew_tariff_select_kb(rub_tariffs, key_id, order_id=order_id, is_qr=True))
+    await safe_edit_or_send(callback.message, f"📱 <b>СБП (QR-код)</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите тариф для продления:", reply_markup=renew_tariff_select_kb(rub_tariffs, key_id, order_id=order_id, is_qr=True))
     await callback.answer()
 
 @router.callback_query(F.data.startswith('renew_pay_qr:'))
