@@ -15,9 +15,12 @@ import json
 import logging
 from typing import Any, Dict, Optional
 
-from config import RESERVE_CLIENT_EMAIL
+import config
 from database.db_settings import get_setting, set_setting
 from database.requests import get_server_by_id
+
+# getattr с дефолтом: устаревший (невёрсионируемый) config.py не должен ломать импорт.
+RESERVE_CLIENT_EMAIL = getattr(config, "RESERVE_CLIENT_EMAIL", "reserve_shared_fallback")
 
 logger = logging.getLogger(__name__)
 

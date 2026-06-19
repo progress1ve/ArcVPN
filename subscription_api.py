@@ -26,22 +26,26 @@ from flask import Flask, Response, redirect, request
 from bot.services.panels.base import VPNAPIError
 from bot.services.panels.xui import XUIClient
 from bot.utils.key_generator import generate_link
-from config import (
-    SUBSCRIPTION_URL,
-    ENABLE_SPLIT_TUNNELING,
-    SPLIT_TUNNELING_DIRECT_IP,
-    SPLIT_TUNNELING_DIRECT_SITES,
-    SPLIT_TUNNELING_MODE,
-    SPLIT_TUNNELING_REMOTE_DNS_DOMAIN,
-    SPLIT_TUNNELING_REMOTE_DNS_IP,
-    RESERVE_ACCESS_ENABLED,
-    RESERVE_CLIENT_EMAIL,
-    RESERVE_PROXY_SITES,
-    RESERVE_PROXY_IP,
-)
+import config
 from database.connection import get_db
 from database.db_servers import get_server_by_id
 from bot.services.reserve import get_reserve_client_info
+from subscription_pages import render_import_page
+
+# Конфиг читаем через getattr с дефолтами: устаревший config.py (а он не
+# версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
+# какой-либо новой опции. Обязательным остаётся только SUBSCRIPTION_URL.
+SUBSCRIPTION_URL = config.SUBSCRIPTION_URL
+ENABLE_SPLIT_TUNNELING = getattr(config, "ENABLE_SPLIT_TUNNELING", True)
+SPLIT_TUNNELING_DIRECT_IP = getattr(config, "SPLIT_TUNNELING_DIRECT_IP", ["geoip:ru", "geoip:private"])
+SPLIT_TUNNELING_DIRECT_SITES = getattr(config, "SPLIT_TUNNELING_DIRECT_SITES", ["geosite:category-ru"])
+SPLIT_TUNNELING_MODE = getattr(config, "SPLIT_TUNNELING_MODE", "speed")
+SPLIT_TUNNELING_REMOTE_DNS_DOMAIN = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_DOMAIN", "https://cloudflare-dns.com/dns-query")
+SPLIT_TUNNELING_REMOTE_DNS_IP = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_IP", "1.1.1.1")
+RESERVE_ACCESS_ENABLED = getattr(config, "RESERVE_ACCESS_ENABLED", False)
+RESERVE_CLIENT_EMAIL = getattr(config, "RESERVE_CLIENT_EMAIL", "reserve_shared_fallback")
+RESERVE_PROXY_SITES = getattr(config, "RESERVE_PROXY_SITES", ["geosite:telegram"])
+RESERVE_PROXY_IP = getattr(config, "RESERVE_PROXY_IP", ["geoip:telegram"])
 
 # Настройка логирования
 logging.basicConfig(
@@ -63,10 +67,11 @@ XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
 RATE_LIMITER_MAX_KEYS = 10000
 VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
-PROFILE_TITLE = "ArcVPN"
+# Брендинг можно переопределить в config.py; по умолчанию — текущие значения ArcVPN.
+PROFILE_TITLE = getattr(config, "PROFILE_TITLE", "ArcVPN")
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
-SUPPORT_URL = "https://t.me/Turan11627"
-PROFILE_WEB_PAGE_URL = "https://t.me/arcvpn1"
+SUPPORT_URL = getattr(config, "SUPPORT_URL", "https://t.me/Turan11627")
+PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arcvpn1")
 
 LOCAL_AND_RESERVED_CIDRS = [
     "10.0.0.0/8",
@@ -358,6 +363,10 @@ def _detect_client_family(user_agent: str) -> str:
 
 
 def _extract_client_ip() -> str:
+    # ВНИМАНИЕ: доверяем X-Forwarded-For только потому, что сервис всегда стоит
+    # за доверенным обратным прокси (nginx: 2053 -> 127.0.0.1:8080). Если фронт
+    # изменится и сервис станет доступен напрямую — заголовок можно подделать,
+    # обойдя IP-rate-limit; тогда эту логику нужно пересмотреть.
     forwarded_for = request.headers.get("X-Forwarded-For", "")
     if forwarded_for:
         return forwarded_for.split(",")[0].strip()
@@ -498,7 +507,7 @@ def _build_plain_text_subscription(
 def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     parsed = urllib.parse.urlparse(link)
     params = urllib.parse.parse_qs(parsed.query)
-    subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or "arcc.mooo.com"
+    subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or ""
 
     payload = {
         "outbounds": [
@@ -749,38 +758,6 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     return links
 
 
-def get_user_active_keys(user_id: int) -> list[ActiveKeyRecord]:
-    """
-    Получает активные ключи пользователя из базы данных.
-    
-    Args:
-        user_id: Telegram ID пользователя
-        
-    Returns:
-        Список активных ключей пользователя
-    """
-    with get_db() as conn:
-        cursor = conn.execute("""
-            SELECT 
-                vk.id, vk.panel_email, vk.server_id,
-                vk.expires_at, vk.traffic_limit, vk.traffic_used,
-                u.telegram_id,
-                vk.sub_id,
-                COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
-            FROM vpn_keys vk
-            JOIN servers s ON vk.server_id = s.id
-            JOIN users u ON vk.user_id = u.id
-            LEFT JOIN tariffs t ON vk.tariff_id = t.id
-            WHERE u.telegram_id = ? 
-            AND vk.expires_at > datetime('now')
-            AND vk.panel_email IS NOT NULL
-            AND s.is_active = 1
-            ORDER BY vk.expires_at DESC
-        """, (user_id,))
-        keys = [_row_to_active_key(row) for row in cursor.fetchall()]
-        return [key for key in keys if key.has_available_traffic]
-
-
 def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
     """Находит активный ключ по subscription id."""
     with get_db() as conn:
@@ -874,42 +851,6 @@ def _build_reserve_response(sub_id: str, output_format: str, is_head: bool) -> O
     return _response_from_prepared(prepared)
 
 
-def generate_subscription(user_id: int, encode_base64: bool = True) -> str:
-    """
-    Генерирует subscription в формате base64 или plain text.
-    
-    Args:
-        user_id: Telegram ID пользователя
-        encode_base64: Кодировать ли результат в base64 (по умолчанию True)
-        
-    Returns:
-        Base64-encoded строка с ключами или plain text
-    """
-    keys = get_user_active_keys(user_id)
-    if not keys:
-        logger.info("Нет активных ключей для пользователя %s", user_id)
-        return ""
-
-    try:
-        links = ASYNC_EXECUTOR.run(_generate_links_for_keys(keys))
-    except Exception as exc:
-        logger.error("Ошибка генерации подписки пользователя %s: %s", user_id, exc)
-        return ""
-
-    if not links:
-        logger.warning("Не удалось сгенерировать ни одного ключа для пользователя %s", user_id)
-        return ""
-
-    keys_text = "\n".join(links)
-    if encode_base64:
-        encoded = base64.b64encode(keys_text.encode("utf-8")).decode("ascii")
-        logger.info("Сгенерирована подписка для пользователя %s: %s ключей (base64)", user_id, len(links))
-        return encoded
-
-    logger.info("Сгенерирована подписка для пользователя %s: %s ключей (plain text)", user_id, len(links))
-    return keys_text
-
-
 @app.route('/sub/<sub_id>', methods=['GET', 'HEAD'])
 def subscription(sub_id: str):
     """
@@ -999,17 +940,27 @@ def health():
     return Response("OK", mimetype='text/plain')
 
 
-@app.route('/logo.svg')
-def logo():
-    """Отдает SVG логотип."""
+def _load_logo_svg() -> Optional[str]:
+    """Читает SVG-логотип с диска один раз при старте (кэшируется в памяти)."""
     import os
     logo_path = os.path.join(os.path.dirname(__file__), 'arcLOGOsvg.svg')
     try:
         with open(logo_path, 'r', encoding='utf-8') as f:
-            svg_content = f.read()
-        return Response(svg_content, mimetype='image/svg+xml')
-    except:
+            return f.read()
+    except OSError as exc:
+        logger.warning("Не удалось прочитать логотип %s: %s", logo_path, exc)
+        return None
+
+
+LOGO_SVG = _load_logo_svg()
+
+
+@app.route('/logo.svg')
+def logo():
+    """Отдаёт SVG-логотип из памяти."""
+    if LOGO_SVG is None:
         return Response("", status=404)
+    return Response(LOGO_SVG, mimetype='image/svg+xml')
 
 
 @app.route('/import/<sub_id>')
@@ -1037,294 +988,14 @@ def import_to_happ(sub_id: str):
     # Правильный формат Happ deeplink: happ://add/{URL}
     happ_deeplink = f"happ://add/{subscription_url}"
     safe_happ_deeplink = html.escape(happ_deeplink, quote=True)
-    
+
     # HTML страница с новым дизайном на основе референса
-    html_page = f"""<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ArcVPN - Импорт подписки</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap" rel="stylesheet">
-    <style>
-        * {{
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }}
-        
-        body {{
-            font-family: 'Geist', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(180deg, #3d5a9e 0%, #516db3 50%, #7a8fc4 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            position: relative;
-            overflow: hidden;
-        }}
-        
-        /* Анимированные звезды на фоне */
-        .stars {{
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            overflow: hidden;
-        }}
-        
-        .star {{
-            position: absolute;
-            width: 2px;
-            height: 2px;
-            background: white;
-            border-radius: 50%;
-            animation: twinkle 3s infinite;
-        }}
-        
-        @keyframes twinkle {{
-            0%, 100% {{ opacity: 0.3; }}
-            50% {{ opacity: 1; }}
-        }}
-        
-        /* Генерируем звезды */
-        .star:nth-child(1) {{ top: 10%; left: 20%; animation-delay: 0s; }}
-        .star:nth-child(2) {{ top: 20%; left: 80%; animation-delay: 0.5s; }}
-        .star:nth-child(3) {{ top: 30%; left: 50%; animation-delay: 1s; }}
-        .star:nth-child(4) {{ top: 40%; left: 10%; animation-delay: 1.5s; }}
-        .star:nth-child(5) {{ top: 50%; left: 90%; animation-delay: 2s; }}
-        .star:nth-child(6) {{ top: 60%; left: 30%; animation-delay: 2.5s; }}
-        .star:nth-child(7) {{ top: 70%; left: 70%; animation-delay: 0.3s; }}
-        .star:nth-child(8) {{ top: 80%; left: 40%; animation-delay: 0.8s; }}
-        .star:nth-child(9) {{ top: 15%; left: 60%; animation-delay: 1.2s; }}
-        .star:nth-child(10) {{ top: 85%; left: 15%; animation-delay: 1.8s; }}
-        .star:nth-child(11) {{ top: 25%; left: 85%; animation-delay: 0.6s; }}
-        .star:nth-child(12) {{ top: 45%; left: 25%; animation-delay: 1.4s; }}
-        .star:nth-child(13) {{ top: 65%; left: 75%; animation-delay: 2.2s; }}
-        .star:nth-child(14) {{ top: 35%; left: 45%; animation-delay: 0.9s; }}
-        .star:nth-child(15) {{ top: 75%; left: 55%; animation-delay: 1.7s; }}
-        
-        /* Большие яркие звезды */
-        .star.bright {{
-            width: 3px;
-            height: 3px;
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-        }}
-        
-        .star:nth-child(3), .star:nth-child(7), .star:nth-child(12) {{
-            width: 3px;
-            height: 3px;
-            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
-        }}
-        
-        .container {{
-            position: relative;
-            z-index: 1;
-            text-align: center;
-            max-width: 480px;
-            width: 100%;
-        }}
-        
-        /* Логотип с свечением */
-        .logo {{
-            width: 360px;
-            height: 360px;
-            margin: 0 auto 60px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            filter: drop-shadow(0 0 50px rgba(255, 255, 255, 0.5));
-            animation: glow 3s ease-in-out infinite;
-        }}
-        
-        .logo img {{
-            width: 360px;
-            height: 360px;
-            object-fit: contain;
-        }}
-        
-        @keyframes glow {{
-            0%, 100% {{ filter: drop-shadow(0 0 50px rgba(255, 255, 255, 0.5)); }}
-            50% {{ filter: drop-shadow(0 0 70px rgba(255, 255, 255, 0.7)); }}
-        }}
-        
-        h1 {{
-            font-size: 96px;
-            font-weight: 400;
-            color: white;
-            margin-bottom: 70px;
-            letter-spacing: 3px;
-            font-family: 'Playfair Display', serif;
-        }}
-        
-        /* Кнопки */
-        .btn {{
-            display: block;
-            width: 100%;
-            max-width: 440px;
-            margin: 0 auto 20px;
-            padding: 20px 40px;
-            border-radius: 50px;
-            font-size: 18px;
-            font-weight: 500;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            border: none;
-            cursor: pointer;
-            font-family: 'Geist', sans-serif;
-        }}
-        
-        .btn-primary {{
-            background: white;
-            color: #516db3;
-            box-shadow: 0 4px 20px rgba(255, 255, 255, 0.3);
-        }}
-        
-        .btn-primary:hover {{
-            transform: translateY(-2px);
-            box-shadow: 0 6px 30px rgba(255, 255, 255, 0.4);
-        }}
-        
-        .btn-secondary {{
-            background: transparent;
-            color: white;
-            border: 2px solid rgba(255, 255, 255, 0.5);
-        }}
-        
-        .btn-secondary:hover {{
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(255, 255, 255, 0.8);
-        }}
-        
-        .divider-text {{
-            color: rgba(255, 255, 255, 0.7);
-            font-size: 16px;
-            margin: 30px 0 20px;
-        }}
-        
-        /* Уведомление об успешном копировании */
-        .toast {{
-            position: fixed;
-            top: 30px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-100px);
-            background: rgba(255, 255, 255, 0.95);
-            color: #516db3;
-            padding: 16px 32px;
-            border-radius: 50px;
-            font-size: 16px;
-            font-weight: 500;
-            opacity: 0;
-            transition: all 0.4s ease;
-            z-index: 1000;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-        }}
-        
-        .toast.show {{
-            transform: translateX(-50%) translateY(0);
-            opacity: 1;
-        }}
-        
-        @media (max-width: 640px) {{
-            .logo {{
-                width: 240px;
-                height: 240px;
-                margin-bottom: 40px;
-            }}
-            
-            .logo img {{
-                width: 240px;
-                height: 240px;
-            }}
-            
-            h1 {{
-                font-size: 64px;
-                margin-bottom: 50px;
-                letter-spacing: 2px;
-            }}
-            
-            .btn {{
-                padding: 18px 32px;
-                font-size: 16px;
-            }}
-        }}
-    </style>
-</head>
-<body>
-    <!-- Звезды на фоне -->
-    <div class="stars">
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-        <div class="star"></div>
-    </div>
-    
-    <div class="container">
-        <!-- Логотип SVG -->
-        <div class="logo">
-            <img src="/logo.svg" alt="ArcVPN Logo">
-        </div>
-        
-        <h1>ArcVPN</h1>
-        
-        <!-- Кнопка открытия в Happ -->
-        <a href="{safe_happ_deeplink}" class="btn btn-primary" rel="noopener noreferrer">Открыть в Happ</a>
-        
-        <p class="divider-text">Или скопируйте ссылку вручную</p>
-        
-        <!-- Кнопка копирования -->
-        <button onclick="copyUrl()" class="btn btn-secondary">Копировать вручную</button>
-        <a href="{safe_subscription_url}" class="btn btn-secondary" rel="noopener noreferrer">Открыть URL подписки</a>
-    </div>
-    
-    <!-- Уведомление -->
-    <div class="toast" id="toast">
-        ✓ Ссылка скопирована
-    </div>
-    
-    <script>
-        function copyUrl() {{
-            const url = {js_subscription_url};
-            const toast = document.getElementById('toast');
-            
-            navigator.clipboard.writeText(url).then(() => {{
-                showToast();
-            }}).catch(() => {{
-                // Fallback для старых браузеров
-                const textarea = document.createElement('textarea');
-                textarea.value = url;
-                textarea.style.position = 'fixed';
-                textarea.style.opacity = '0';
-                document.body.appendChild(textarea);
-                textarea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textarea);
-                showToast();
-            }});
-            
-            function showToast() {{
-                toast.classList.add('show');
-                setTimeout(() => {{
-                    toast.classList.remove('show');
-                }}, 2500);
-            }}
-        }}
-    </script>
-</body>
-</html>"""
+    html_page = render_import_page(
+        safe_happ_deeplink=safe_happ_deeplink,
+        safe_subscription_url=safe_subscription_url,
+        js_subscription_url=js_subscription_url,
+        profile_title=PROFILE_TITLE,
+    )
     response = Response(html_page, mimetype='text/html')
     response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -1337,4 +1008,8 @@ def import_to_happ(sub_id: str):
 if __name__ == '__main__':
     # Запуск сервера на внутреннем порту 8080
     # Nginx проксирует с порта 2053 на 8080
-    app.run(host='127.0.0.1', port=8080, debug=False)
+    #
+    # threaded=True — обрабатываем запросы параллельно (кэши и AsyncExecutor
+    # потокобезопасны). Для продакшена предпочтителен gunicorn с потоками,
+    # например: gunicorn -w 1 --threads 8 -b 127.0.0.1:8080 subscription_api:app
+    app.run(host='127.0.0.1', port=8080, debug=False, threaded=True)

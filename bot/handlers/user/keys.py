@@ -336,183 +336,97 @@ async def device_instructions_handler(callback: CallbackQuery):
         logger.error(f"Ошибка в device_instructions_handler: {e}", exc_info=True)
         await callback.answer("❌ Произошла ошибка", show_alert=True)
 
-@router.callback_query(F.data == 'instruction_apple')
-async def instruction_apple_handler(callback: CallbackQuery):
-    """Инструкция для Apple устройств."""
-    logger.info(f"instruction_apple_handler вызван для пользователя {callback.from_user.id}")
-    
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
-    from config import SUBSCRIPTION_URL
-    from database.requests import get_user_keys_for_display
-    
-    telegram_id = callback.from_user.id
-    
-    # Получаем первый активный ключ пользователя для subscription URL
-    keys = get_user_keys_for_display(telegram_id)
-    if not keys:
-        await callback.answer("❌ У вас нет активных ключей. Сначала купите подписку!", show_alert=True)
-        return
-    
-    # Берем первый ключ и получаем его sub_id
-    first_key = keys[0]
-    from database.requests import get_vpn_key_by_id
-    key_data = get_vpn_key_by_id(first_key['id'])
-    
-    if not key_data or not key_data.get('sub_id'):
-        await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
-        return
-    
-    text = (
-        "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Happ\n"
-        "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
-        "Подписка автоматически добавится в приложение\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
-        "В приложении Happ нажмите кнопку подключения ▶️\n\n"
-        "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
-        "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
-    )
-    
-    try:
-        # Создаём клавиатуру с кнопками
-        builder = InlineKeyboardBuilder()
-        
-        # Ссылка для автоматического импорта в Happ
-        import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
-        
-        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973"))
-        builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
-        
-        # Навигация
-        builder.row(
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
-            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-        )
-        
-        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-        await callback.answer()
-        masked_sub_id = f"{key_data['sub_id'][:4]}...{key_data['sub_id'][-4:]}"
-        logger.info(f"instruction_apple_handler успешно выполнен (sub_id={masked_sub_id})")
-    except Exception as e:
-        logger.error(f"Ошибка в instruction_apple_handler: {e}", exc_info=True)
-        await callback.answer("❌ Произошла ошибка", show_alert=True)
+# Конфигурация инструкций по устройствам: текст + ссылка на загрузку Happ.
+# Единый обработчик ниже устраняет дублирование трёх почти одинаковых хендлеров.
+_HAPP_FOOTER = (
+    "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
+    "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
+)
+INSTRUCTION_DEVICES = {
+    "instruction_apple": {
+        "download_url": "https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973",
+        "text": (
+            "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
+            "<b>Шаг 1:</b> Скачайте приложение Happ\n"
+            "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
+            "<b>Шаг 2:</b> Импортируйте подписку\n"
+            "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
+            "Подписка автоматически добавится в приложение\n\n"
+            "<b>Шаг 3:</b> Подключитесь\n"
+            "В приложении Happ нажмите кнопку подключения ▶️\n\n"
+            + _HAPP_FOOTER
+        ),
+    },
+    "instruction_android": {
+        "download_url": "https://play.google.com/store/apps/details?id=com.happproxy&hl=ru",
+        "text": (
+            "🤖 <b>Инструкция для Android</b>\n\n"
+            "<b>Шаг 1:</b> Скачайте приложение Happ\n"
+            "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
+            "<b>Шаг 2:</b> Импортируйте подписку\n"
+            "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
+            "Подписка автоматически добавится в приложение\n\n"
+            "<b>Шаг 3:</b> Подключитесь\n"
+            "В приложении Happ нажмите кнопку подключения ▶️\n\n"
+            + _HAPP_FOOTER
+        ),
+    },
+    "instruction_windows": {
+        "download_url": "https://github.com/Happ-proxy/happ-desktop/releases/tag/2.9.1",
+        "text": (
+            "🪟 <b>Инструкция для Windows</b>\n\n"
+            "<b>Шаг 1:</b> Скачайте приложение Happ\n"
+            "Нажмите кнопку ниже и скачайте версию для Windows\n\n"
+            "<b>Шаг 2:</b> Импортируйте подписку\n"
+            "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
+            "Подписка автоматически добавится в приложение\n\n"
+            "<b>Шаг 3:</b> Подключитесь\n"
+            "Нажмите кнопку подключения в приложении"
+        ),
+    },
+}
 
-@router.callback_query(F.data == 'instruction_android')
-async def instruction_android_handler(callback: CallbackQuery):
-    """Инструкция для Android устройств."""
-    logger.info(f"instruction_android_handler вызван для пользователя {callback.from_user.id}")
-    
-    from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from aiogram.types import InlineKeyboardButton
-    from config import SUBSCRIPTION_URL
-    from database.requests import get_user_keys_for_display
-    
-    telegram_id = callback.from_user.id
-    
-    # Получаем первый активный ключ пользователя для subscription URL
-    keys = get_user_keys_for_display(telegram_id)
-    if not keys:
-        await callback.answer("❌ У вас нет активных ключей. Сначала купите подписку!", show_alert=True)
-        return
-    
-    # Берем первый ключ и получаем его sub_id
-    first_key = keys[0]
-    from database.requests import get_vpn_key_by_id
-    key_data = get_vpn_key_by_id(first_key['id'])
-    
-    if not key_data or not key_data.get('sub_id'):
-        await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
-        return
-    
-    text = (
-        "🤖 <b>Инструкция для Android</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Happ\n"
-        "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
-        "Подписка автоматически добавится в приложение\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
-        "В приложении Happ нажмите кнопку подключения ▶️\n\n"
-        "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
-        "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
-    )
-    
-    try:
-        # Создаём клавиатуру с кнопками
-        builder = InlineKeyboardBuilder()
-        
-        # Ссылка для автоматического импорта в Happ
-        import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
-        
-        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://play.google.com/store/apps/details?id=com.happproxy&hl=ru"))
-        builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
-        
-        # Навигация
-        builder.row(
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
-            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-        )
-        
-        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-        await callback.answer()
-        masked_sub_id = f"{key_data['sub_id'][:4]}...{key_data['sub_id'][-4:]}"
-        logger.info(f"instruction_android_handler успешно выполнен (sub_id={masked_sub_id})")
-    except Exception as e:
-        logger.error(f"Ошибка в instruction_android_handler: {e}", exc_info=True)
-        await callback.answer("❌ Произошла ошибка", show_alert=True)
-
-@router.callback_query(F.data == 'instruction_windows')
-async def instruction_windows_handler(callback: CallbackQuery):
-    """Инструкция для Windows."""
+@router.callback_query(F.data.in_(INSTRUCTION_DEVICES.keys()))
+async def instruction_device_handler(callback: CallbackQuery):
+    """Инструкция по подключению для выбранного устройства (Apple/Android/Windows)."""
     from aiogram.utils.keyboard import InlineKeyboardBuilder
     from aiogram.types import InlineKeyboardButton
     from config import SUBSCRIPTION_URL
     from database.requests import get_user_keys_for_display, get_vpn_key_by_id
-    
+
+    device = callback.data
+    cfg = INSTRUCTION_DEVICES[device]
     telegram_id = callback.from_user.id
-    
+
     # Получаем первый активный ключ пользователя для subscription URL
     keys = get_user_keys_for_display(telegram_id)
     if not keys:
         await callback.answer("❌ У вас нет активных ключей. Сначала купите подписку!", show_alert=True)
         return
-    
-    # Берем первый ключ и получаем его sub_id
-    first_key = keys[0]
-    key_data = get_vpn_key_by_id(first_key['id'])
-    
+
+    key_data = get_vpn_key_by_id(keys[0]['id'])
     if not key_data or not key_data.get('sub_id'):
         await callback.answer("❌ Ошибка получения subscription ссылки", show_alert=True)
         return
-    
-    text = (
-        "🪟 <b>Инструкция для Windows</b>\n\n"
-        "<b>Шаг 1:</b> Скачайте приложение Happ\n"
-        "Нажмите кнопку ниже и скачайте версию для Windows\n\n"
-        "<b>Шаг 2:</b> Импортируйте подписку\n"
-        "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
-        "Подписка автоматически добавится в приложение\n\n"
-        "<b>Шаг 3:</b> Подключитесь\n"
-        "Нажмите кнопку подключения в приложении"
-    )
-    
-    # Ссылка для автоматического импорта в Happ
-    import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
-    
-    # Создаём клавиатуру с кнопками
-    builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url="https://github.com/Happ-proxy/happ-desktop/releases/tag/2.9.1"))
-    builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
-    builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
-        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-    )
-    
-    await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-    await callback.answer()
+
+    try:
+        import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
+
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url=cfg["download_url"]))
+        builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
+        builder.row(
+            InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        )
+
+        await safe_edit_or_send(callback.message, cfg["text"], reply_markup=builder.as_markup())
+        await callback.answer()
+        masked_sub_id = f"{key_data['sub_id'][:4]}...{key_data['sub_id'][-4:]}"
+        logger.info(f"{device} успешно выполнен (sub_id={masked_sub_id})")
+    except Exception as e:
+        logger.error(f"Ошибка в {device}: {e}", exc_info=True)
+        await callback.answer("❌ Произошла ошибка", show_alert=True)
 
 @router.callback_query(F.data == 'show_subscription')
 async def show_subscription_handler(callback: CallbackQuery):
