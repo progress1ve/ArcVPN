@@ -5,7 +5,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.filters import Command, CommandObject
 from aiogram.fsm.context import FSMContext
 from bot.utils.text import escape_html, safe_edit_or_send
-from config import ADMIN_IDS
+from config import ADMIN_IDS, DEFAULT_LIMIT_IP
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +138,7 @@ async def process_new_key_final(callback: CallbackQuery, state: FSMContext, serv
         _tariff_data = _get_tariff_for_limit(order['tariff_id'])
         limit_gb = (_tariff_data.get('traffic_limit_gb', 0) or 0) if _tariff_data else 0
         flow = await client.get_inbound_flow(inbound_id)
-        res = await client.add_client(inbound_id=inbound_id, email=panel_email, total_gb=limit_gb, expire_days=days, limit_ip=1, enable=True, tg_id=str(telegram_id), flow=flow)
+        res = await client.add_client(inbound_id=inbound_id, email=panel_email, total_gb=limit_gb, expire_days=days, limit_ip=DEFAULT_LIMIT_IP, enable=True, tg_id=str(telegram_id), flow=flow)
         client_uuid = res['uuid']
         update_vpn_key_config(key_id=key_id, server_id=server_id, panel_inbound_id=inbound_id, panel_email=panel_email, client_uuid=client_uuid)
         update_payment_key_id(order_id, key_id)

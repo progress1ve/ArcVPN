@@ -223,7 +223,7 @@ def get_revenue_stats() -> Dict[str, Any]:
             cursor = conn.execute("""
                 SELECT
                     COUNT(*) as count,
-                    COALESCE(SUM(CASE WHEN p.payment_type = 'yookassa' THEN t.price_rub ELSE 0 END), 0) as total_rub,
+                    COALESCE(SUM(CASE WHEN p.payment_type IN ('yookassa', 'yookassa_qr', 'cards') THEN t.price_rub ELSE 0 END), 0) as total_rub,
                     COALESCE(SUM(CASE WHEN p.payment_type = 'crypto' THEN p.amount_cents ELSE 0 END), 0) as total_cents,
                     COALESCE(SUM(CASE WHEN p.payment_type = 'stars' THEN p.amount_stars ELSE 0 END), 0) as total_stars
                 FROM payments p
@@ -470,52 +470,28 @@ def get_servers_stats() -> List[Dict[str, Any]]:
         - total_traffic_gb: общий трафик
     """
     with get_db() as conn:
-        # Получаем все серверы
-        cursor = conn.execute("""
-            SELECT id, name, host, is_active
-            FROM servers
-            ORDER BY name
-        """)
-        servers = cursor.fetchall()
-        
-        result = []
-        for server in servers:
-            # Количество клиентов на сервере
-            cursor = conn.execute("""
-                SELECT COUNT(*) as cnt
-                FROM vpn_keys
-                WHERE server_id = ?
-            """, (server['id'],))
-            clients_count = cursor.fetchone()['cnt']
-            
-            # Активных клиентов
-            cursor = conn.execute("""
-                SELECT COUNT(*) as cnt
-                FROM vpn_keys
-                WHERE server_id = ?
-                AND expires_at > datetime('now')
-            """, (server['id'],))
-            active_clients = cursor.fetchone()['cnt']
-            
-            # Общий трафик
-            cursor = conn.execute("""
-                SELECT COALESCE(SUM(traffic_used), 0) as total
-                FROM vpn_keys
-                WHERE server_id = ?
-            """, (server['id'],))
-            total_traffic = cursor.fetchone()['total']
-            
-            result.append({
-                'id': server['id'],
-                'name': server['name'],
-                'host': server['host'],
-                'is_active': server['is_active'],
-                'clients_count': clients_count,
-                'active_clients': active_clients,
-                'total_traffic_gb': total_traffic / (1024**3)
-            })
-        
-        return result
+        # Один запрос с LEFT JOIN + агрегацией вместо N+1 (3 запроса на сервер).
+        rows = conn.execute("""
+            SELECT
+                s.id, s.name, s.host, s.is_active,
+                COUNT(vk.id) AS clients_count,
+                COALESCE(SUM(CASE WHEN vk.expires_at > datetime('now') THEN 1 ELSE 0 END), 0) AS active_clients,
+                COALESCE(SUM(vk.traffic_used), 0) AS total_traffic
+            FROM servers s
+            LEFT JOIN vpn_keys vk ON vk.server_id = s.id
+            GROUP BY s.id, s.name, s.host, s.is_active
+            ORDER BY s.name
+        """).fetchall()
+
+        return [{
+            'id': r['id'],
+            'name': r['name'],
+            'host': r['host'],
+            'is_active': r['is_active'],
+            'clients_count': r['clients_count'],
+            'active_clients': r['active_clients'],
+            'total_traffic_gb': r['total_traffic'] / (1024**3),
+        } for r in rows]
 
 
 def get_conversion_stats() -> Dict[str, Any]:
@@ -529,44 +505,29 @@ def get_conversion_stats() -> Dict[str, Any]:
         - converted: пользователей которые были пробными и стали платными
         - conversion_rate: процент конверсии
     """
+    # Пробные ключи в этой схеме = vpn_keys.tariff_id IS NULL (см. trial.py);
+    # колонки tariffs.is_trial не существует — раньше эти запросы падали.
     with get_db() as conn:
-        # Пользователи с пробными ключами (истёкшими)
-        cursor = conn.execute("""
-            SELECT COUNT(DISTINCT u.id) as cnt
-            FROM users u
-            JOIN vpn_keys vk ON u.id = vk.user_id
-            JOIN tariffs t ON vk.tariff_id = t.id
-            WHERE t.is_trial = 1
-        """)
-        trial_users = cursor.fetchone()['cnt']
-        
+        # Пользователи, у которых есть/был пробный ключ
+        trial_users = conn.execute("""
+            SELECT COUNT(DISTINCT user_id) AS cnt
+            FROM vpn_keys WHERE tariff_id IS NULL
+        """).fetchone()['cnt']
+
         # Пользователи с платными ключами
-        cursor = conn.execute("""
-            SELECT COUNT(DISTINCT u.id) as cnt
-            FROM users u
-            JOIN vpn_keys vk ON u.id = vk.user_id
-            JOIN tariffs t ON vk.tariff_id = t.id
-            WHERE t.is_trial = 0 OR t.is_trial IS NULL
-        """)
-        paid_users = cursor.fetchone()['cnt']
-        
-        # Пользователи которые были пробными и стали платными
-        cursor = conn.execute("""
-            SELECT COUNT(DISTINCT u.id) as cnt
-            FROM users u
-            WHERE u.id IN (
-                SELECT user_id FROM vpn_keys vk
-                JOIN tariffs t ON vk.tariff_id = t.id
-                WHERE t.is_trial = 1
-            )
-            AND u.id IN (
-                SELECT user_id FROM vpn_keys vk
-                JOIN tariffs t ON vk.tariff_id = t.id
-                WHERE t.is_trial = 0 OR t.is_trial IS NULL
-            )
-        """)
-        converted = cursor.fetchone()['cnt']
-        
+        paid_users = conn.execute("""
+            SELECT COUNT(DISTINCT user_id) AS cnt
+            FROM vpn_keys WHERE tariff_id IS NOT NULL
+        """).fetchone()['cnt']
+
+        # Были пробными И стали платными
+        converted = conn.execute("""
+            SELECT COUNT(DISTINCT user_id) AS cnt
+            FROM vpn_keys
+            WHERE user_id IN (SELECT user_id FROM vpn_keys WHERE tariff_id IS NULL)
+              AND tariff_id IS NOT NULL
+        """).fetchone()['cnt']
+
         # Процент конверсии
         conversion_rate = (converted / trial_users * 100) if trial_users > 0 else 0
         

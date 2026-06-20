@@ -20,13 +20,22 @@ router = Router()
 @router.callback_query(F.data == 'buy_key')
 async def buy_key_handler(callback: CallbackQuery):
     """Показывает список тарифов для покупки."""
-    from database.requests import get_all_tariffs
+    from database.requests import get_all_tariffs, get_user_primary_key
     from bot.keyboards.user import tariff_select_kb
     from bot.keyboards.admin import home_only_kb
     from bot.utils.message_editor import get_message_data
-    
+
     telegram_id = callback.from_user.id
-    
+
+    # Модель «одна подписка»: если у пользователя уже есть ключ — не покупаем
+    # новый, а ведём на продление существующего.
+    primary = get_user_primary_key(telegram_id)
+    if primary:
+        from bot.utils.payment_flow_ui import show_tariff_selection_screen
+        await callback.answer('У вас уже есть подписка — оформляем продление.')
+        await show_tariff_selection_screen(callback.message, telegram_id, key_id=primary['id'])
+        return
+
     # Получаем список активных тарифов
     tariffs = get_all_tariffs(include_hidden=False)
     
@@ -64,11 +73,19 @@ async def buy_key_handler(callback: CallbackQuery):
 @router.callback_query(F.data.startswith('select_tariff:'))
 async def select_tariff_handler(callback: CallbackQuery):
     """Показывает способы оплаты для выбранного тарифа (единый экран)."""
-    from bot.utils.payment_flow_ui import show_payment_method_selection_screen
+    from bot.utils.payment_flow_ui import show_payment_method_selection_screen, show_tariff_selection_screen
     from bot.utils.message_editor import get_message_data
+    from database.requests import get_user_primary_key
 
     tariff_id = int(callback.data.split(':')[1])
     telegram_id = callback.from_user.id
+
+    # Гард модели «одна подписка»: если ключ уже есть — это должно быть продление.
+    primary = get_user_primary_key(telegram_id)
+    if primary:
+        await callback.answer('У вас уже есть подписка — оформляем продление.')
+        await show_tariff_selection_screen(callback.message, telegram_id, key_id=primary['id'])
+        return
 
     # Кастомный текст экрана оплаты грузим здесь и передаём как intro:
     # хелпер сам подтягивает только photo_file_id из payment_select_text.

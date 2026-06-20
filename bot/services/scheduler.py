@@ -27,7 +27,12 @@ from database.requests import (
     get_daily_payments_stats, get_new_users_count_today,
     get_setting, get_expiring_keys, get_expired_keys_today, is_notification_sent_today, log_notification_sent
 )
+from database.db_statistics import (
+    get_revenue_stats, get_new_users_stats, get_subscriptions_stats,
+    get_conversion_stats, get_servers_stats,
+)
 from bot.services.vpn_api import get_client_from_server_data, VPNAPIError, format_traffic
+from bot.services.notifications import send_to_user, notify_admins
 from bot.utils.git_utils import check_for_updates
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -45,92 +50,103 @@ BACKUP_DIR = os.path.join(PROJECT_ROOT, 'backup')
 BACKUP_RETENTION_DAYS = 7
 
 
+def _fmt_money(rev: dict) -> str:
+    """Форматирует доход за период из get_revenue_stats() в строку '… ₽ · $… · ⭐…'."""
+    parts = []
+    rub = rev.get('total_rub', 0) or 0
+    usd = rev.get('total_usd', 0) or 0
+    stars = rev.get('total_stars', 0) or 0
+    if rub:
+        parts.append(f"{rub:g} ₽".replace('.', ','))
+    if usd:
+        parts.append(f"${usd:g}".replace('.', ','))
+    if stars:
+        parts.append(f"⭐{stars}")
+    cnt = rev.get('count', 0) or 0
+    money = " · ".join(parts) if parts else "0"
+    return f"{money} ({cnt})"
+
+
 async def collect_daily_stats() -> str:
     """
-    Собирает суточную статистику для отчёта.
-    
+    Собирает богатый суточный отчёт для администраторов.
+
+    Использует агрегированные функции db_statistics (доход/новые/подписки/конверсия)
+    и быстрый get_servers_stats (один запрос). Данные по серверам берём из БД —
+    без медленных запросов к панелям (живой онлайн виден в админ-статистике).
+
     Returns:
-        Форматированный текст статистики
+        Готовый HTML-текст отчёта.
     """
-    # Статистика пользователей
-    users = get_users_stats()
-    new_users = get_new_users_count_today()
-    
-    # Статистика ключей
-    keys = get_keys_stats()
-    
-    # Статистика платежей
-    payments = get_daily_payments_stats()
-    
-    # Статистика серверов
-    servers = get_all_servers()
-    servers_info = []
-    
-    for server in servers:
-        if not server.get('is_active'):
-            servers_info.append(f"  🔴 <b>{server['name']}</b> — выключен")
-            continue
-            
-        try:
-            client = get_client_from_server_data(server)
-            stats = await client.get_stats()
-            
-            if stats.get('online'):
-                traffic = format_traffic(stats.get('total_traffic_bytes', 0))
-                cpu = stats.get('cpu_percent')
-                cpu_text = f", CPU: {cpu}%" if cpu else ""
-                online = stats.get('online_clients', 0)
-                servers_info.append(
-                    f"  🟢 <b>{server['name']}</b>: {online} онлайн, "
-                    f"трафик: {traffic}{cpu_text}"
-                )
-            else:
-                servers_info.append(f"  🔴 <b>{server['name']}</b> — недоступен")
-        except Exception as e:
-            logger.warning(f"Ошибка получения статистики сервера {server['name']}: {e}")
-            servers_info.append(f"  ⚠️ <b>{server['name']}</b> — ошибка подключения")
-    
-    servers_text = "\n".join(servers_info) if servers_info else "  Нет серверов"
-    
-    # Формируем текст отчёта
     today = datetime.now().strftime("%d.%m.%Y")
-    
-    # Платежи
-    payments_total = payments.get('paid_count', 0)
-    payments_cents = payments.get('paid_cents', 0)
-    payments_stars = payments.get('paid_stars', 0)
-    payments_rub = payments.get('paid_rub', 0)
-    payments_pending = payments.get('pending_count', 0)
-    
-    payments_text = []
-    if payments_cents > 0:
-        payments_val = payments_cents / 100
-        payments_str = f"{payments_val:g}".replace('.', ',')
-        payments_text.append(f"${payments_str}")
-    if payments_rub > 0:
-        rub_str = f"{payments_rub:g}".replace('.', ',')
-        payments_text.append(f"{rub_str} ₽")
-    if payments_stars > 0:
-        payments_text.append(f"⭐{payments_stars}")
-    payments_sum = " + ".join(payments_text) if payments_text else "0"
-    
-    report = f"""📊 <b>Суточная статистика за {today}</b>
+
+    # --- собираем метрики (каждый блок защищён, чтобы один сбой не уронил отчёт) ---
+    try:
+        rev = get_revenue_stats()
+    except Exception as e:
+        logger.warning(f"daily stats: revenue error: {e}")
+        rev = {}
+    try:
+        nu = get_new_users_stats()
+    except Exception as e:
+        logger.warning(f"daily stats: new users error: {e}")
+        nu = {}
+    try:
+        users = get_users_stats()
+    except Exception:
+        users = {}
+    try:
+        subs = get_subscriptions_stats()
+    except Exception as e:
+        logger.warning(f"daily stats: subs error: {e}")
+        subs = {}
+    try:
+        conv = get_conversion_stats()
+    except Exception as e:
+        logger.warning(f"daily stats: conversion error: {e}")
+        conv = {}
+    try:
+        servers = get_servers_stats()
+    except Exception as e:
+        logger.warning(f"daily stats: servers error: {e}")
+        servers = []
+
+    day_rev = rev.get('day', {}) if rev else {}
+    week_rev = rev.get('week', {}) if rev else {}
+    month_rev = rev.get('month', {}) if rev else {}
+
+    # --- серверы (из БД, быстро) ---
+    if servers:
+        srv_lines = []
+        for s in servers:
+            mark = "🟢" if s.get('is_active') else "🔴"
+            srv_lines.append(
+                f"  {mark} <b>{s['name']}</b>: {s.get('active_clients', 0)} акт. / "
+                f"{s.get('clients_count', 0)} всего · {s.get('total_traffic_gb', 0):.1f} ГБ"
+            )
+        servers_text = "\n".join(srv_lines)
+    else:
+        servers_text = "  Нет серверов"
+
+    report = f"""📊 <b>Суточная статистика — {today}</b>
+
+💰 <b>Доход (платежей):</b>
+  Сегодня: {_fmt_money(day_rev)}
+  За неделю: {_fmt_money(week_rev)}
+  За месяц: {_fmt_money(month_rev)}
 
 👥 <b>Пользователи:</b>
-  Всего: {users.get('total', 0)}
-  Активных: {users.get('active', 0)}
-  Новых за сутки: {new_users}
+  Всего: {users.get('total', nu.get('total', 0))}
+  Новых за сутки: {nu.get('day', 0)}
+  За неделю: {nu.get('week', 0)}
 
-🔑 <b>VPN-ключи:</b>
-  Всего: {keys.get('total', 0)}
-  Активных: {keys.get('active', 0)}
-  Истёкших: {keys.get('expired', 0)}
-  Создано за сутки: {keys.get('created_today', 0)}
+🔑 <b>Подписки:</b>
+  Активных: {subs.get('active', 0)}
+  Истёкших: {subs.get('expired', 0)}
+  Создано за сутки: {subs.get('day', 0)}
 
-💳 <b>Платежи за сутки:</b>
-  Успешных: {payments_total}
-  Ожидающих: {payments_pending}
-  Сумма: {payments_sum}
+📈 <b>Конверсия (триал → платно):</b>
+  Платящих: {conv.get('paid_users', 0)} · конверсия {conv.get('conversion_rate', 0):.0f}%
 
 🖥️ <b>Серверы:</b>
 {servers_text}
@@ -147,20 +163,8 @@ async def send_daily_stats(bot: Bot) -> None:
     """
     try:
         report = await collect_daily_stats()
-        
-        for admin_id in ADMIN_IDS:
-            try:
-                await bot.send_message(
-                    chat_id=admin_id,
-                    text=report,
-                    parse_mode="HTML"
-                )
-                logger.info(f"Статистика отправлена админу {admin_id}")
-            except Exception as e:
-                logger.warning(f"Не удалось отправить статистику админу {admin_id}: {e}")
-        
+        await notify_admins(bot, report)
         logger.info("✅ Суточная статистика отправлена")
-        
     except Exception as e:
         logger.error(f"Ошибка при отправке суточной статистики: {e}")
 
@@ -352,164 +356,99 @@ async def send_backup_archive(bot: Bot) -> None:
         logger.error(f"Ошибка при отправке бэкапа: {e}")
 
 
+def _pluralize_days(n: int) -> str:
+    """Возвращает правильную форму слова 'день' для числа n."""
+    if n % 10 == 1 and n % 100 != 11:
+        return f"{n} день"
+    if n % 10 in [2, 3, 4] and n % 100 not in [12, 13, 14]:
+        return f"{n} дня"
+    return f"{n} дней"
+
+
+def _expired_keyboard(vpn_key_id: int) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
+    builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+    return builder.as_markup()
+
+
+async def notify_expired_subscription(bot: Bot, vpn_key_id: int, telegram_id: int, keyname: str) -> bool:
+    """
+    Единое уведомление об истёкшей подписке (источник истины — планировщик трафика).
+
+    Дедупликация — через is_notification_sent_today/log_notification_sent (7 дней).
+    Вынесено в один хелпер, чтобы не дублировать логику в двух местах.
+    """
+    if not telegram_id or is_notification_sent_today(vpn_key_id):
+        return False
+    from bot.services.notifications import render_template
+    default_expired = (
+        '❌ <b>Ваша подписка %имяподписки% истекла!</b>\n\n'
+        'Срок действия вашей подписки закончился.\n\n'
+        'Продлите подписку, чтобы восстановить доступ к VPN!'
+    )
+    text, photo = render_template(
+        'expired_notification_text', default_expired,
+        {'%имяподписки%': keyname, '%имяключа%': keyname},
+    )
+    ok = await send_to_user(bot, telegram_id, text, reply_markup=_expired_keyboard(vpn_key_id), photo=photo)
+    if ok:
+        log_notification_sent(vpn_key_id)
+    return ok
+
+
 async def check_and_send_expiry_notifications(bot: Bot) -> None:
     """
-    Проверяет и отправляет уведомления об истекающих и истёкших подписках.
-    
-    Использует единый HTML-контракт. Динамические подстановки 
-    экранируются через escape_html().
+    Отправляет уведомления о СКОРО истекающих подписках (за N дней).
+
+    Уведомления об УЖЕ истёкших подписках шлёт планировщик трафика
+    (sync_traffic_stats → notify_expired_subscription), чтобы не дублировать.
     """
     logger.info("⏳ Запуск проверки истекающих подписок...")
     try:
-        from bot.utils.text import escape_html
-        from database.requests import get_expired_keys_today
+        from bot.services.notifications import render_template
         days = int(get_setting('notification_days', '3'))
-        from bot.utils.message_editor import get_message_data
-        
-        # Функция для склонения слова "день"
-        def pluralize_days(n):
-            """Возвращает правильную форму слова 'день' для числа n."""
-            if n % 10 == 1 and n % 100 != 11:
-                return f"{n} день"
-            elif n % 10 in [2, 3, 4] and n % 100 not in [12, 13, 14]:
-                return f"{n} дня"
-            else:
-                return f"{n} дней"
-        
-        # Дефолтный текст для предупреждения об истечении
+
         default_notification = (
             '⚠️ <b>Ваша подписка %имяподписки% скоро истекает!</b>\n\n'
             'Через %дней% закончится срок действия вашей подписки.\n\n'
             'Продлите подписку, чтобы сохранить доступ к VPN без перерыва!'
         )
-        
-        # Дефолтный текст для уведомления об истёкшей подписке
-        default_expired_notification = (
-            '❌ <b>Ваша подписка %имяподписки% истекла!</b>\n\n'
-            'Срок действия вашей подписки закончился.\n\n'
-            'Продлите подписку, чтобы восстановить доступ к VPN!'
-        )
-        
-        notification_data = get_message_data('notification_text', default_notification)
-        notification_text = notification_data.get('text', default_notification)
-        notification_photo = notification_data.get('photo_file_id')
-        
-        expired_notification_data = get_message_data('expired_notification_text', default_expired_notification)
-        expired_notification_text = expired_notification_data.get('text', default_expired_notification)
-        expired_notification_photo = expired_notification_data.get('photo_file_id')
-        
-        # Отправляем уведомления об истекающих подписках
+
+        builder = InlineKeyboardBuilder()
+        builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+        builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+        expiring_kb = builder.as_markup()
+
         expiring_keys = get_expiring_keys(days)
         sent_count = 0
-        
+
         for key_info in expiring_keys:
             vpn_key_id = key_info['vpn_key_id']
             user_telegram_id = key_info['user_telegram_id']
             days_left = key_info['days_left']
             keyname = key_info.get('custom_name', f"Подписка #{vpn_key_id}")
-            
-            # Проверяем, отправляли ли мы сегодня
+
             if is_notification_sent_today(vpn_key_id):
                 continue
-            
-            # Формируем текст с правильным склонением
-            days_text = pluralize_days(days_left)
-            
-            # Подстановка с экранированием динамических значений
-            text = notification_text.replace(
-                '%дней%', escape_html(days_text)
-            ).replace(
-                '%имяподписки%', escape_html(str(keyname))
-            ).replace(
-                '%имяключа%', escape_html(str(keyname))  # Для обратной совместимости
+
+            text, photo = render_template(
+                'notification_text', default_notification,
+                {
+                    '%дней%': _pluralize_days(days_left),
+                    '%имяподписки%': keyname,
+                    '%имяключа%': keyname,
+                },
             )
-            
-            # Клавиатура с кнопками "Мои подписки" и "На главную"
-            builder = InlineKeyboardBuilder()
-            builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
-            builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-            kb = builder.as_markup()
-            
-            try:
-                if notification_photo:
-                    await bot.send_photo(
-                        chat_id=user_telegram_id,
-                        photo=notification_photo,
-                        caption=text,
-                        reply_markup=kb,
-                        parse_mode="HTML"
-                    )
-                else:
-                    await bot.send_message(
-                        chat_id=user_telegram_id,
-                        text=text,
-                        reply_markup=kb,
-                        parse_mode="HTML"
-                    )
+            if await send_to_user(bot, user_telegram_id, text, reply_markup=expiring_kb, photo=photo):
                 log_notification_sent(vpn_key_id)
                 sent_count += 1
-            except Exception as e:
-                logger.warning(f"Не удалось отправить уведомление пользователю {user_telegram_id}: {e}")
-            
-            # Небольшая задержка между сообщениями
-            await asyncio.sleep(0.3)
-        
-        # Отправляем уведомления об истёкших подписках
-        expired_keys = get_expired_keys_today()
-        expired_sent_count = 0
-        
-        for key_info in expired_keys:
-            vpn_key_id = key_info['vpn_key_id']
-            user_telegram_id = key_info['user_telegram_id']
-            keyname = key_info.get('custom_name', f"Подписка #{vpn_key_id}")
-            
-            # Проверяем, отправляли ли мы сегодня
-            if is_notification_sent_today(vpn_key_id):
-                continue
-            
-            # Подстановка с экранированием динамических значений
-            text = expired_notification_text.replace(
-                '%имяподписки%', escape_html(str(keyname))
-            ).replace(
-                '%имяключа%', escape_html(str(keyname))  # Для обратной совместимости
-            )
-            
-            # Клавиатура с кнопками "Продлить" и "Мои подписки"
-            builder = InlineKeyboardBuilder()
-            builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
-            builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
-            builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-            kb = builder.as_markup()
-            
-            try:
-                if expired_notification_photo:
-                    await bot.send_photo(
-                        chat_id=user_telegram_id,
-                        photo=expired_notification_photo,
-                        caption=text,
-                        reply_markup=kb,
-                        parse_mode="HTML"
-                    )
-                else:
-                    await bot.send_message(
-                        chat_id=user_telegram_id,
-                        text=text,
-                        reply_markup=kb,
-                        parse_mode="HTML"
-                    )
-                log_notification_sent(vpn_key_id)
-                expired_sent_count += 1
-            except Exception as e:
-                logger.warning(f"Не удалось отправить уведомление об истечении пользователю {user_telegram_id}: {e}")
-            
-            # Небольшая задержка между сообщениями
-            await asyncio.sleep(0.3)
-        
-        if sent_count > 0 or expired_sent_count > 0:
-            logger.info(f"📬 Отправлено {sent_count} уведомлений об истечении и {expired_sent_count} уведомлений об истёкших подписках")
-        else:
-            logger.info("Нет подписок требующих уведомления")
-    
+            await asyncio.sleep(0.05)
+
+        logger.info(f"📬 Отправлено {sent_count} уведомлений об истечении" if sent_count
+                    else "Нет подписок требующих уведомления")
+
     except Exception as e:
         logger.error(f"Ошибка в check_and_send_expiry_notifications: {e}")
 
@@ -912,7 +851,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
                     used_on_server = s['up'] + s['down']
                     total_on_server = s['total']
                     traffic_limit = key.get('traffic_limit', 0) or 0
-                    
+
                     if traffic_limit > 0 and total_on_server > 0:
                         # Формула: сколько осталось на сервере → вычитаем из нашего лимита
                         remaining_on_server = max(0, total_on_server - used_on_server)
@@ -920,10 +859,26 @@ async def sync_traffic_stats(bot: Bot) -> None:
                     else:
                         # Безлимит или нет данных — прямой учёт
                         traffic_used = used_on_server
-                    
+
                     traffic_updates.append((traffic_used, key['id']))
                     key['_new_traffic_used'] = traffic_used
-        
+
+            # === Детект подключённых устройств (онлайн-IP по ключу) ===
+            try:
+                online_emails = await client.get_online_emails()
+                for key in server_keys:
+                    email = key.get('panel_email')
+                    if not email:
+                        continue
+                    if email in online_emails:
+                        ips = await client.get_client_ips(email)
+                        devices = len(ips) if ips else 1  # онлайн, но IP-лог пуст → минимум 1
+                    else:
+                        devices = 0
+                    key['_online_devices'] = devices
+            except Exception as e:
+                logger.debug(f"Не удалось получить онлайн-устройства сервера {server.get('name', server_id)}: {e}")
+
         except Exception as e:
             # Graceful degradation: не трогаем данные, продолжаем
             logger.warning(f"⚠️ Синхронизация трафика: сервер {server.get('name', server_id)} недоступен: {e}")
@@ -932,32 +887,58 @@ async def sync_traffic_stats(bot: Bot) -> None:
     # Массовое обновление трафика в БД
     if traffic_updates:
         bulk_update_traffic(traffic_updates)
-    
-    # Проверяем пороги уведомлений
+
+    # === Сохраняем число устройств + уведомление о первом подключении ===
+    from database.requests import (
+        update_key_online_devices, mark_key_connect_notified,
+    )
+    import config as _cfg
+    device_limit = getattr(_cfg, 'DEFAULT_LIMIT_IP', 2)
+    for key in keys:
+        if '_online_devices' not in key:
+            continue
+        devices = key['_online_devices']
+        if devices != (key.get('online_devices') or 0):
+            update_key_online_devices(key['id'], devices)
+        # Первое реальное подключение → одноразовое уведомление «подписка подключена».
+        if devices >= 1 and not key.get('connect_notified'):
+            telegram_id = key.get('telegram_id')
+            keyname = key.get('custom_name') or "Подписка"
+            if telegram_id:
+                from bot.utils.text import escape_html
+                text = (
+                    f"✅ <b>Подписка подключена!</b>\n\n"
+                    f"🔑 {escape_html(str(keyname))}\n"
+                    f"📱 Устройств подключено: <b>{devices}/{device_limit}</b>\n\n"
+                    f"Приятного пользования ArcVPN!"
+                )
+                await send_to_user(bot, telegram_id, text)
+            mark_key_connect_notified(key['id'])
+            key['connect_notified'] = 1
+
+    # Проверяем пороги уведомлений о трафике
     notification_text_template = get_setting(
         'traffic_notification_text',
         '⚠️ По ключу <b>{keyname}</b> осталось {percent}% трафика ({used} из {limit})'
     )
-    
+
     for key in keys:
         traffic_limit = key.get('traffic_limit', 0) or 0
         if traffic_limit == 0:
             continue  # Безлимит — пропускаем
-        
+
         # Используем обновлённое значение или из БД
         traffic_used = key.get('_new_traffic_used', key.get('traffic_used', 0) or 0)
         notified_pct = key.get('traffic_notified_pct', 100)
-        
+
         # Вычисляем оставшийся процент
         remaining_pct = max(0, (1 - traffic_used / traffic_limit) * 100)
-        
+
         # Проверяем пороги
         for threshold in TRAFFIC_THRESHOLDS:
             if remaining_pct <= threshold and notified_pct > threshold:
-                # Отправляем уведомление
                 telegram_id = key.get('telegram_id')
                 if telegram_id:
-                    # Формируем имя ключа
                     if key.get('custom_name'):
                         keyname = key['custom_name']
                     elif key.get('client_uuid'):
@@ -965,102 +946,41 @@ async def sync_traffic_stats(bot: Bot) -> None:
                         keyname = f"{uuid[:4]}...{uuid[-4:]}" if len(uuid) >= 8 else uuid
                     else:
                         keyname = f"Ключ #{key['id']}"
-                    
+
                     msg = notification_text_template.format(
                         keyname=keyname,
                         percent=threshold,
                         used=format_traffic(traffic_used),
                         limit=format_traffic(traffic_limit)
                     )
-                    
-                    try:
-                        await bot.send_message(
-                            chat_id=telegram_id,
-                            text=msg,
-                            parse_mode="HTML"
-                        )
-                    except Exception as e:
-                        logger.warning(f"Не удалось отправить уведомление о трафике пользователю {telegram_id}: {e}")
-                
+                    await send_to_user(bot, telegram_id, msg)
+
                 # Обновляем порог в БД
                 update_key_notified_pct(key['id'], threshold)
                 key['traffic_notified_pct'] = threshold
                 break  # Только одно уведомление за раз
     
-    # === НОВОЕ: Отключаем истёкшие ключи и отправляем уведомления ===
+    # === Отключаем истёкшие ключи на панели + единое уведомление об истечении ===
     try:
-        from bot.utils.text import escape_html
-        from bot.utils.message_editor import get_message_data
-        
         expired_keys = get_all_expired_keys()
         disabled_count = 0
         notified_count = 0
-        
-        # Дефолтный текст для уведомления об истёкшей подписке
-        default_expired_notification = (
-            '❌ <b>Ваша подписка %имяподписки% истекла!</b>\n\n'
-            'Срок действия вашей подписки закончился.\n\n'
-            'Продлите подписку, чтобы восстановить доступ к VPN!'
-        )
-        
-        expired_notification_data = get_message_data('expired_notification_text', default_expired_notification)
-        expired_notification_text = expired_notification_data.get('text', default_expired_notification)
-        expired_notification_photo = expired_notification_data.get('photo_file_id')
-        
+
         for key in expired_keys:
             # Отключаем ключ на панели
             if key.get('server_id') and key.get('panel_email'):
                 try:
-                    success = await disable_key_on_panel(key['id'])
-                    if success:
+                    if await disable_key_on_panel(key['id']):
                         disabled_count += 1
                 except Exception as e:
                     logger.error(f"Ошибка отключения ключа {key['id']}: {e}")
-            
-            # Отправляем уведомление пользователю (если ещё не отправляли сегодня)
-            vpn_key_id = key['id']
-            user_telegram_id = key.get('telegram_id')
-            keyname = key.get('custom_name', f"Подписка #{vpn_key_id}")
-            
-            if user_telegram_id and not is_notification_sent_today(vpn_key_id):
-                # Подстановка с экранированием динамических значений
-                text = expired_notification_text.replace(
-                    '%имяподписки%', escape_html(str(keyname))
-                ).replace(
-                    '%имяключа%', escape_html(str(keyname))  # Для обратной совместимости
-                )
-                
-                # Клавиатура с кнопками "Продлить", "Мои подписки" и "На главную"
-                builder = InlineKeyboardBuilder()
-                builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
-                builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
-                builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-                kb = builder.as_markup()
-                
-                try:
-                    if expired_notification_photo:
-                        await bot.send_photo(
-                            chat_id=user_telegram_id,
-                            photo=expired_notification_photo,
-                            caption=text,
-                            reply_markup=kb,
-                            parse_mode="HTML"
-                        )
-                    else:
-                        await bot.send_message(
-                            chat_id=user_telegram_id,
-                            text=text,
-                            reply_markup=kb,
-                            parse_mode="HTML"
-                        )
-                    log_notification_sent(vpn_key_id)
-                    notified_count += 1
-                except Exception as e:
-                    logger.warning(f"Не удалось отправить уведомление об истечении пользователю {user_telegram_id}: {e}")
-                
-                # Небольшая задержка между сообщениями
-                await asyncio.sleep(0.3)
-        
+
+            # Единое уведомление об истёкшей подписке (дедуп внутри хелпера)
+            keyname = key.get('custom_name') or f"Подписка #{key['id']}"
+            if await notify_expired_subscription(bot, key['id'], key.get('telegram_id'), keyname):
+                notified_count += 1
+                await asyncio.sleep(0.05)
+
         if disabled_count > 0:
             logger.info(f"🔴 Отключено истёкших ключей: {disabled_count}")
         if notified_count > 0:

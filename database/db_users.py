@@ -35,6 +35,7 @@ __all__ = [
     'get_user_referral_coefficient',
     'set_user_referral_coefficient',
     'update_user_name',
+    'set_user_active',
     'get_user',
     'get_user_by_id',
 ]
@@ -151,7 +152,7 @@ def mark_trial_used(user_id: int) -> None:
 def update_user_name(telegram_id: int, first_name: str) -> None:
     """
     Обновляет имя пользователя.
-    
+
     Args:
         telegram_id: Telegram ID пользователя
         first_name: Имя пользователя
@@ -160,6 +161,21 @@ def update_user_name(telegram_id: int, first_name: str) -> None:
         conn.execute(
             "UPDATE users SET first_name = ? WHERE telegram_id = ?",
             (first_name, telegram_id)
+        )
+
+
+def set_user_active(telegram_id: int, active: bool) -> None:
+    """
+    Помечает пользователя активным/неактивным.
+
+    Используется сервисом уведомлений: при блокировке бота пользователем
+    (TelegramForbiddenError) ставим is_active=0, чтобы не слать ему уведомления
+    и не учитывать в рассылках.
+    """
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE users SET is_active = ? WHERE telegram_id = ?",
+            (1 if active else 0, telegram_id)
         )
 
 def get_user(telegram_id: int) -> Optional[Dict[str, Any]]:

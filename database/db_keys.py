@@ -46,6 +46,9 @@ __all__ = [
     'update_key_custom_name',
     'add_days_to_first_active_key',
     'get_user_by_panel_email',
+    'get_user_primary_key',
+    'update_key_online_devices',
+    'mark_key_connect_notified',
 ]
 
 def get_user_vpn_keys(user_id: int) -> List[Dict[str, Any]]:
@@ -344,10 +347,11 @@ def get_all_active_keys_with_server() -> List[Dict[str, Any]]:
     """
     with get_db() as conn:
         cursor = conn.execute("""
-            SELECT 
+            SELECT
                 vk.id, vk.panel_email, vk.traffic_used, vk.traffic_limit,
                 vk.traffic_notified_pct, vk.custom_name, vk.client_uuid,
                 vk.panel_inbound_id, vk.tariff_id, vk.expires_at,
+                vk.connect_notified, vk.online_devices,
                 s.id as server_id, s.name as server_name,
                 u.telegram_id
             FROM vpn_keys vk
@@ -358,6 +362,46 @@ def get_all_active_keys_with_server() -> List[Dict[str, Any]]:
             AND s.is_active = 1
         """)
         return [dict(row) for row in cursor.fetchall()]
+
+
+def get_user_primary_key(telegram_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Возвращает «основную» подписку пользователя — ключ с самым поздним сроком
+    действия (для модели «одна подписка»: продлеваем именно его).
+
+    Returns:
+        dict с полями ключа (включая id) или None, если ключей нет вообще.
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT vk.id, vk.expires_at, vk.tariff_id, vk.custom_name,
+                   CASE WHEN vk.expires_at > datetime('now') THEN 1 ELSE 0 END as is_active
+            FROM vpn_keys vk
+            JOIN users u ON vk.user_id = u.id
+            WHERE u.telegram_id = ?
+            ORDER BY vk.expires_at DESC
+            LIMIT 1
+        """, (telegram_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def update_key_online_devices(key_id: int, devices: int) -> None:
+    """Сохраняет последнее известное число онлайн-устройств по ключу."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE vpn_keys SET online_devices = ? WHERE id = ?",
+            (int(devices), key_id),
+        )
+
+
+def mark_key_connect_notified(key_id: int) -> None:
+    """Помечает, что уведомление «подписка подключена» уже отправлено."""
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE vpn_keys SET connect_notified = 1 WHERE id = ?",
+            (key_id,),
+        )
 
 def get_all_keys_with_server() -> List[Dict[str, Any]]:
     """

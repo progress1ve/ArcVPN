@@ -5,7 +5,7 @@ from aiogram import Router, F, Bot
 from aiogram.types import Message, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton, ReplyKeyboardRemove, KeyboardButtonRequestUsers, UsersShared, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
-from config import ADMIN_IDS
+from config import ADMIN_IDS, DEFAULT_LIMIT_IP
 from database.requests import get_users_stats, get_all_users_paginated, get_user_by_telegram_id, toggle_user_ban, get_user_vpn_keys, get_user_payments_stats, get_vpn_key_by_id, extend_vpn_key, create_vpn_key_admin, get_active_servers, get_all_tariffs, get_user_balance, get_user_referral_coefficient, add_to_balance, deduct_from_balance, set_user_referral_coefficient
 from bot.utils.admin import is_admin
 from bot.utils.text import escape_html, safe_edit_or_send
@@ -634,7 +634,7 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
                     email=email,
                     total_gb=traffic_gb,
                     expire_days=days,
-                    limit_ip=1,
+                    limit_ip=DEFAULT_LIMIT_IP,
                     tg_id=str(user_telegram_id),
                     flow=flow
                 )

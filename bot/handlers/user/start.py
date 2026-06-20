@@ -166,10 +166,14 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
                 logger.info(f"User {user_id} привязан к рефереру {referrer['telegram_id']}")
     
     show_referral = is_referral_enabled()
-    
+    has_subscription, primary_key_id = _get_subscription_state(user_id)
+
     # Создаем клавиатуру с кнопкой пробного периода если нужно
-    kb = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
-    
+    kb = create_main_menu_kb(
+        is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
+        has_subscription=has_subscription, primary_key_id=primary_key_id,
+    )
+
     try:
         await safe_edit_or_send(message, text, reply_markup=kb, photo=welcome_photo, force_new=True)
     except TelegramForbiddenError:
@@ -178,42 +182,63 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         logger.error(f'Error sending start message to {user_id}: {e}')
 
 
-def create_main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral: bool = True) -> InlineKeyboardMarkup:
+def create_main_menu_kb(
+    is_admin: bool = False,
+    show_trial: bool = False,
+    show_referral: bool = True,
+    has_subscription: bool = False,
+    primary_key_id: int = None,
+) -> InlineKeyboardMarkup:
     """
-    Создает клавиатуру главного меню с опциональной кнопкой пробного периода.
-    
+    Создает клавиатуру главного меню.
+
+    Модель «одна подписка»: если у пользователя уже есть подписка (любой ключ,
+    активный или истёкший) — показываем «Продлить подписку» вместо «Купить»,
+    чтобы не плодить несколько подписок. «Купить» — только когда ключей нет.
+
     Args:
         is_admin: Показывать ли кнопку админ-панели
         show_trial: Показывать ли кнопку пробного периода
         show_referral: Показывать ли кнопку реферальной программы
+        has_subscription: Есть ли у пользователя хотя бы один ключ
+        primary_key_id: ID основной подписки (для кнопки продления)
     """
-    from database.requests import get_setting
-    
     builder = InlineKeyboardBuilder()
-    
+
     # Если доступен пробный период, показываем его первой кнопкой
     if show_trial:
-        # Получаем количество дней из настроек (правильное название настройки)
         from database.requests import get_trial_days
         trial_days = get_trial_days()
         builder.row(
             InlineKeyboardButton(text=f"🎁 Получить {trial_days} дней бесплатно", callback_data="trial_activate")
         )
-    
+
     # Основные кнопки
     builder.row(InlineKeyboardButton(text="📱 Мои подписки", callback_data="my_keys"))
-    builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key"))
-    
+    if has_subscription and primary_key_id:
+        builder.row(InlineKeyboardButton(text="📈 Продлить подписку", callback_data=f"key_renew:{primary_key_id}"))
+    else:
+        builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key"))
+
     if show_referral:
         builder.row(InlineKeyboardButton(text="🤝 Партнерская программа", callback_data="referral_system"))
-    
+
     builder.row(InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help"))
-    
+
     # Админ-панель (если админ)
     if is_admin:
         builder.row(InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin_panel"))
-    
+
     return builder.as_markup()
+
+
+def _get_subscription_state(telegram_id: int):
+    """Возвращает (has_subscription, primary_key_id) для модели «одна подписка»."""
+    from database.requests import get_user_primary_key
+    primary = get_user_primary_key(telegram_id)
+    if primary:
+        return True, primary['id']
+    return False, None
 
 @router.callback_query(F.data == 'start')
 async def callback_start(callback: CallbackQuery, state: FSMContext):
@@ -240,7 +265,11 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
     
     show_referral = is_referral_enabled()
-    kb = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+    has_subscription, primary_key_id = _get_subscription_state(user_id)
+    kb = create_main_menu_kb(
+        is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
+        has_subscription=has_subscription, primary_key_id=primary_key_id,
+    )
     await safe_edit_or_send(callback.message, text, reply_markup=kb, photo=welcome_photo)
     await callback.answer()
 

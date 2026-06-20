@@ -7,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramForbiddenError
-from config import ADMIN_IDS
+from config import ADMIN_IDS, DEFAULT_LIMIT_IP
 from database.requests import get_or_create_user, is_user_banned, get_all_servers, get_setting, is_referral_enabled, get_user_by_referral_code, set_user_referrer
 from bot.keyboards.user import main_menu_kb
 from bot.states.user_states import RenameKey, ReplaceKey
@@ -137,11 +137,14 @@ async def show_key_details(telegram_id: int, key_id: int, message, is_callback: 
     else:
         expires = '—'
     server = key.get('server_name') or 'Не выбран'
+    # Устройства (онлайн-IP), лимит из конфига. Данные обновляет планировщик каждые ~5 мин.
+    device_limit = getattr(__import__('config'), 'DEFAULT_LIMIT_IP', 2)
+    online_devices = key.get('online_devices', 0) or 0
     lines = []
     if prepend_text:
         lines.append(prepend_text)
         lines.append('')
-    lines.extend([f"🔑 <b>{escape_html(key['display_name'])}</b>\n", f'<b>Статус:</b> {status}', f'<b>Сервер:</b> {escape_html(server)}', f'<b>Протокол:</b> {escape_html(inbound_name)} ({escape_html(protocol)})', f'<b>Трафик:</b> {traffic_info}', f'<b>Действует до:</b> {expires}', ''])
+    lines.extend([f"🔑 <b>{escape_html(key['display_name'])}</b>\n", f'<b>Статус:</b> {status}', f'<b>Сервер:</b> {escape_html(server)}', f'<b>Протокол:</b> {escape_html(inbound_name)} ({escape_html(protocol)})', f'<b>Трафик:</b> {traffic_info}', f'<b>Устройства:</b> {online_devices}/{device_limit}', f'<b>Действует до:</b> {expires}', ''])
     payments = get_key_payments_history(key_id)
     if payments:
         lines.append('📜 <b>История операций:</b>')
@@ -611,7 +614,7 @@ async def key_replace_execute(callback: CallbackQuery, state: FSMContext):
         if days_left < 1:
             days_left = 1
         flow = await new_client.get_inbound_flow(new_inbound_id)
-        res = await new_client.add_client(inbound_id=new_inbound_id, email=new_email, total_gb=limit_gb, expire_days=days_left, limit_ip=1, enable=True, tg_id=str(telegram_id), flow=flow)
+        res = await new_client.add_client(inbound_id=new_inbound_id, email=new_email, total_gb=limit_gb, expire_days=days_left, limit_ip=DEFAULT_LIMIT_IP, enable=True, tg_id=str(telegram_id), flow=flow)
         new_uuid = res['uuid']
         update_vpn_key_connection(key_id=key_id, server_id=new_server_id, panel_inbound_id=new_inbound_id, panel_email=new_email, client_uuid=new_uuid)
         if traffic_limit > 0:

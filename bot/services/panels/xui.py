@@ -346,7 +346,7 @@ class XUIClient(BaseVPNClient):
     async def get_online_clients_count(self) -> int:
         """
         Получает количество пользователей онлайн.
-        
+
         Returns:
             Количество пользователей онлайн
         """
@@ -360,6 +360,64 @@ class XUIClient(BaseVPNClient):
         except Exception as e:
             logger.debug(f"Ошибка получения online пользователей: {e}")
         return 0
+
+    async def get_online_emails(self) -> set:
+        """
+        Возвращает множество email клиентов, которые сейчас онлайн.
+
+        Returns:
+            set[str] — email'ы онлайн-клиентов (пусто при ошибке/отсутствии данных)
+        """
+        try:
+            response = await self._request("POST", "/panel/api/inbounds/onlines", retry=False, log_error=False)
+            obj = response.get("obj") if response.get("success") else None
+            if obj:
+                return {str(e) for e in obj}
+        except VPNAPIError:
+            pass
+        except Exception as e:
+            logger.debug(f"Ошибка получения online email'ов: {e}")
+        return set()
+
+    async def get_client_ips(self, email: str) -> list:
+        """
+        Возвращает список IP-адресов, с которых клиент подключён (≈ устройства).
+
+        Зависит от логирования IP в 3X-UI (включается при limitIp). Если данных
+        нет — возвращает пустой список (best-effort, не бросает исключение).
+
+        Args:
+            email: Email клиента на панели
+
+        Returns:
+            list[str] — уникальные IP клиента
+        """
+        try:
+            response = await self._request(
+                "POST", f"/panel/api/inbounds/clientIps/{email}", retry=False, log_error=False
+            )
+            if not response.get("success"):
+                return []
+            obj = response.get("obj")
+            # 3X-UI отдаёт либо строку "No IP Record" / список, либо JSON-строку со списком.
+            if not obj or (isinstance(obj, str) and "no ip" in obj.lower()):
+                return []
+            if isinstance(obj, str):
+                import json as _json
+                try:
+                    parsed = _json.loads(obj)
+                    if isinstance(parsed, list):
+                        return [str(x) for x in parsed]
+                except (ValueError, TypeError):
+                    # Может прийти строка вида "ip1,ip2"
+                    return [p.strip() for p in obj.replace("\n", ",").split(",") if p.strip()]
+            if isinstance(obj, list):
+                return [str(x) for x in obj]
+        except VPNAPIError:
+            pass
+        except Exception as e:
+            logger.debug(f"Ошибка получения IP клиента {email}: {e}")
+        return []
 
     async def add_client(
         self,

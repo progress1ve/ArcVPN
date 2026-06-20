@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 22
+LATEST_VERSION = 23
 
 
 def get_current_version() -> int:
@@ -1411,6 +1411,24 @@ def migration_22(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v22 применена")
 
 
+def migration_23(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v23: Учёт подключённых устройств.
+
+    Изменения в vpn_keys:
+    - connect_notified INTEGER DEFAULT 0 — отправлено ли уведомление «подписка
+      подключена» (чтобы слать его один раз при первом реальном подключении);
+    - online_devices INTEGER DEFAULT 0 — последнее известное число онлайн-устройств
+      (по числу онлайн-IP с панели 3X-UI).
+    """
+    logger.info("Применение миграции v23 (Учёт устройств)...")
+
+    _add_column(conn, "vpn_keys", "connect_notified INTEGER DEFAULT 0")
+    _add_column(conn, "vpn_keys", "online_devices INTEGER DEFAULT 0")
+
+    logger.info("Миграция v23 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1434,6 +1452,7 @@ MIGRATIONS = {
     20: migration_20,
     21: migration_21,
     22: migration_22,
+    23: migration_23,
 }
 
 

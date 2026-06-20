@@ -7,7 +7,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramForbiddenError
-from config import ADMIN_IDS
+from config import ADMIN_IDS, DEFAULT_LIMIT_IP
 from database.requests import get_or_create_user, is_user_banned, get_all_servers, get_setting, is_referral_enabled, get_user_by_referral_code, set_user_referrer
 from bot.keyboards.user import main_menu_kb
 from bot.states.user_states import RenameKey, ReplaceKey
@@ -137,7 +137,7 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
                 email=email,
                 total_gb=trial_traffic_gb,
                 expire_days=trial_days,
-                limit_ip=1,
+                limit_ip=DEFAULT_LIMIT_IP,
                 tg_id=str(user_id),
                 flow=flow
             )

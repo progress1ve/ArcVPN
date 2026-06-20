@@ -16,6 +16,8 @@ import io
 import math
 from typing import Optional, Dict, Any, Tuple
 
+import config
+
 from database.requests import (
     find_order_by_order_id, complete_order, is_order_already_paid,
     get_vpn_key_by_id, extend_vpn_key, get_setting,
@@ -271,7 +273,7 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
                             email=panel_email,
                             total_gb=limit_gb,
                             expire_days=days,
-                            limit_ip=1,
+                            limit_ip=getattr(config, "DEFAULT_LIMIT_IP", 2),
                             enable=True,
                             tg_id=str(telegram_id),
                             flow=flow
