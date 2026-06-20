@@ -9,9 +9,10 @@
 
 Ключ считается «чистым непродлённым триалом» и удаляется ТОЛЬКО если ВСЕ условия:
   1. expires_at <= now            — подписка истекла;
-  2. tariff_id указывает на тариф с is_trial = 1
-     (при продлении update_key_tariff меняет tariff_id на платный → такой ключ
-      под фильтр НЕ попадёт);
+  2. tariff_id IS NULL            — пробные ключи создаются с tariff_id=None
+     (см. bot/handlers/user/trial.py). При ЛЮБОМ продлении _apply_renew_order →
+     update_key_tariff проставляет реальный платный tariff_id, поэтому такой ключ
+     под фильтр уже НЕ попадёт;
   3. по ключу НЕТ ни одного оплаченного НЕ-trial платежа
      (payments.vpn_key_id = key.id AND status='paid' AND payment_type != 'trial').
 
@@ -44,13 +45,11 @@ def find_unconverted_expired_trials(conn: sqlite3.Connection):
         SELECT
             vk.id, vk.user_id, vk.server_id, vk.panel_inbound_id,
             vk.client_uuid, vk.panel_email, vk.custom_name, vk.expires_at,
-            u.telegram_id,
-            t.name AS tariff_name
+            u.telegram_id
         FROM vpn_keys vk
-        JOIN tariffs t ON vk.tariff_id = t.id
-        JOIN users u   ON vk.user_id = u.id
+        JOIN users u ON vk.user_id = u.id
         WHERE vk.expires_at <= datetime('now')          -- 1) истёк
-          AND t.is_trial = 1                            -- 2) тариф всё ещё пробный
+          AND vk.tariff_id IS NULL                      -- 2) непродлённый триал (tariff_id=None)
           AND NOT EXISTS (                              -- 3) нет оплаченных не-trial платежей
               SELECT 1 FROM payments p
               WHERE p.vpn_key_id = vk.id
@@ -111,8 +110,8 @@ async def main():
         return
 
     for r in candidates:
-        print(f"  key#{r['id']:>5} | tg={r['telegram_id']} | тариф='{r['tariff_name']}' | "
-              f"имя='{r['custom_name'] or '—'}' | истёк {r['expires_at']}")
+        print(f"  key#{r['id']:>5} | tg={r['telegram_id']} | "
+              f"имя='{r['custom_name'] or 'Пробная подписка'}' | истёк {r['expires_at']}")
     print("-" * 70)
     print(f"Всего кандидатов: {len(candidates)}")
 
