@@ -12,6 +12,7 @@ import aiohttp
 import asyncio
 import logging
 import json
+import re
 import uuid
 import time
 from typing import Optional, Dict, Any, List
@@ -207,26 +208,77 @@ class XUIClient(BaseVPNClient):
         
         raise VPNAPIError("Превышено количество попыток")
 
+    async def _fetch_csrf_token(self, session: aiohttp.ClientSession) -> Optional[str]:
+        """
+        Получает CSRF-токен для логина (3x-ui v3.0.0+).
+
+        В v3 эндпоинт /login защищён CSRF: нужно сделать GET в рамках той же
+        сессии (кука сохраняется в cookie_jar) и передать токен заголовком
+        x-csrf-token. На старых версиях эндпоинта/мета-тега нет — возвращаем None
+        и логинимся как раньше (обратная совместимость).
+
+        Источники токена (по порядку): GET /csrf-token (plain или JSON),
+        затем <meta name="csrf-token" content="..."> на корневой странице панели.
+        """
+        # 1) Специальный эндпоинт v3
+        try:
+            async with session.get(f"{self.base_url}/csrf-token") as r:
+                if r.status == 200:
+                    body = (await r.text()).strip()
+                    if body:
+                        if body.startswith("{"):
+                            try:
+                                obj = json.loads(body)
+                                token = obj.get("token") or obj.get("obj") or obj.get("csrf") or ""
+                            except json.JSONDecodeError:
+                                token = ""
+                        else:
+                            token = body
+                        if token:
+                            return token
+        except Exception as e:
+            logger.debug(f"csrf-token endpoint недоступен: {e}")
+
+        # 2) Фолбэк: meta-тег на корневой странице панели
+        try:
+            async with session.get(f"{self.base_url}/") as r:
+                if r.status == 200:
+                    html = await r.text()
+                    m = re.search(r'name=["\']csrf-token["\']\s+content=["\']([^"\']+)["\']', html)
+                    if m:
+                        return m.group(1)
+        except Exception as e:
+            logger.debug(f"не удалось получить csrf-token из HTML: {e}")
+
+        return None
+
     async def login(self) -> bool:
         """
         Авторизация в панели 3X-UI.
-        
+
         Returns:
             True при успешной авторизации
-            
+
         Raises:
             VPNAPIError: При ошибке авторизации
         """
         logger.debug(f"Авторизация на {self.server['name']}...")
-        
+
         session = await self._ensure_session()
         url = f"{self.base_url}/login"
-        
+
+        # 3x-ui v3.0.0+ требует CSRF-токен для /login (иначе 403).
+        login_headers = {}
+        csrf_token = await self._fetch_csrf_token(session)
+        if csrf_token:
+            login_headers["x-csrf-token"] = csrf_token
+            logger.debug("CSRF-токен получен для логина")
+
         try:
             async with session.post(url, json={
                 "username": self.server["login"],
                 "password": self.server["password"]
-            }) as resp:
+            }, headers=login_headers) as resp:
                 text = await resp.text()
                 if resp.status == 200:
                     data = json.loads(text)
