@@ -381,7 +381,7 @@ class XUIClient(BaseVPNClient):
                 settings_str = inbound.get("settings", "{}")
                 try:
                     settings = _as_obj(settings_str)
-                    clients = settings.get("clients", [])
+                    clients = (settings.get("clients") or [])
                     total_clients += len(clients)
                     
                     for client in clients:
@@ -558,7 +558,7 @@ class XUIClient(BaseVPNClient):
                     method = settings.get('method', '')
                     
                     # Проверяем, не существует ли уже клиент с таким email
-                    clients_list = settings.get('clients', [])
+                    clients_list = (settings.get('clients') or [])
                     for existing_client in clients_list:
                         if existing_client.get('email') == email:
                             existing_client_uuid = existing_client.get('id') or existing_client.get('password')
@@ -764,7 +764,7 @@ class XUIClient(BaseVPNClient):
             if inbound.get('id') == inbound_id:
                 target_inbound = inbound
                 settings = _as_obj(inbound.get('settings', '{}'))
-                clients = settings.get('clients', [])
+                clients = (settings.get('clients') or [])
                 
                 for client in clients:
                     if client.get('id') == client_uuid:
@@ -818,7 +818,7 @@ class XUIClient(BaseVPNClient):
         for inbound in inbounds:
             settings_raw = inbound.get('settings', '{}')
             settings = json.loads(settings_raw) if isinstance(settings_raw, str) else settings_raw
-            clients = settings.get('clients', [])
+            clients = (settings.get('clients') or [])
             
             for client in clients:
                 if client.get('reset', 0) != 0:  # только если reset не 0
@@ -902,7 +902,7 @@ class XUIClient(BaseVPNClient):
         for inbound in inbounds:
             if inbound.get('id') == inbound_id:
                 settings = _as_obj(inbound.get('settings', '{}'))
-                clients = settings.get('clients', [])
+                clients = (settings.get('clients') or [])
                 
                 for client in clients:
                     if client.get('id') == client_uuid or client.get('password') == client_uuid:
@@ -978,7 +978,7 @@ class XUIClient(BaseVPNClient):
             if inbound.get('id') == inbound_id:
                 target_inbound = inbound
                 settings = _as_obj(inbound.get('settings', '{}'))
-                clients = settings.get('clients', [])
+                clients = (settings.get('clients') or [])
                 
                 for client in clients:
                     if client.get('id') == client_uuid or client.get('password') == client_uuid:
@@ -1106,7 +1106,7 @@ class XUIClient(BaseVPNClient):
             for inbound in inbounds:
                 settings_raw = inbound.get("settings", "{}")
                 settings = json.loads(settings_raw) if isinstance(settings_raw, str) else settings_raw
-                clients = settings.get("clients", [])
+                clients = (settings.get("clients") or [])
 
                 for client in clients:
                     email = client.get("email", "")
@@ -1297,7 +1297,7 @@ class XUIClient(BaseVPNClient):
         for inbound in inbounds:
             if inbound.get('id') == inbound_id:
                 settings = _as_obj(inbound.get('settings', '{}'))
-                clients = settings.get('clients', [])
+                clients = (settings.get('clients') or [])
                 
                 for client in clients:
                     if client.get('id') == client_uuid or client.get('password') == client_uuid:
