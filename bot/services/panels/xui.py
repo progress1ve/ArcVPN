@@ -25,6 +25,23 @@ XUI_HTTP_CONNECT_TIMEOUT_SECONDS = 3
 XUI_HTTP_SOCK_READ_TIMEOUT_SECONDS = 5
 
 
+def _as_obj(value):
+    """
+    Безопасно приводит поле панели (settings/streamSettings/...) к dict/list.
+
+    3X-UI v3.0.0 отдаёт эти поля уже распарсенными (dict/list), тогда как старые
+    версии отдавали их JSON-строкой. Помогает работать с обеими версиями.
+    """
+    if isinstance(value, (dict, list)):
+        return value
+    if isinstance(value, (str, bytes, bytearray)):
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, ValueError, TypeError):
+            return {}
+    return {} if value is None else value
+
+
 from .base import BaseVPNClient, VPNAPIError
 class XUIClient(BaseVPNClient):
     """
@@ -346,7 +363,7 @@ class XUIClient(BaseVPNClient):
                 # Парсим настройки клиентов
                 settings_str = inbound.get("settings", "{}")
                 try:
-                    settings = json.loads(settings_str)
+                    settings = _as_obj(settings_str)
                     clients = settings.get("clients", [])
                     total_clients += len(clients)
                     
@@ -518,7 +535,7 @@ class XUIClient(BaseVPNClient):
                     protocol = ib.get('protocol', '')
                     settings_raw = ib.get('settings', '{}')
                     if isinstance(settings_raw, str):
-                        settings = json.loads(settings_raw)
+                        settings = _as_obj(settings_raw)
                     else:
                         settings = settings_raw
                     method = settings.get('method', '')
@@ -638,7 +655,7 @@ class XUIClient(BaseVPNClient):
                     
                     stream_raw = inbound.get('streamSettings', '{}')
                     if isinstance(stream_raw, str):
-                        stream = json.loads(stream_raw)
+                        stream = _as_obj(stream_raw)
                     else:
                         stream = stream_raw
                     
@@ -729,7 +746,7 @@ class XUIClient(BaseVPNClient):
         for inbound in inbounds:
             if inbound.get('id') == inbound_id:
                 target_inbound = inbound
-                settings = json.loads(inbound.get('settings', '{}'))
+                settings = _as_obj(inbound.get('settings', '{}'))
                 clients = settings.get('clients', [])
                 
                 for client in clients:
@@ -746,7 +763,7 @@ class XUIClient(BaseVPNClient):
         target_client['totalGB'] = total_bytes
         
         # Формируем данные для обновления
-        settings = json.loads(target_inbound.get('settings', '{}'))
+        settings = _as_obj(target_inbound.get('settings', '{}'))
         update_data = {
             "id": inbound_id,
             "settings": json.dumps({
@@ -867,7 +884,7 @@ class XUIClient(BaseVPNClient):
         
         for inbound in inbounds:
             if inbound.get('id') == inbound_id:
-                settings = json.loads(inbound.get('settings', '{}'))
+                settings = _as_obj(inbound.get('settings', '{}'))
                 clients = settings.get('clients', [])
                 
                 for client in clients:
@@ -943,7 +960,7 @@ class XUIClient(BaseVPNClient):
         for inbound in inbounds:
             if inbound.get('id') == inbound_id:
                 target_inbound = inbound
-                settings = json.loads(inbound.get('settings', '{}'))
+                settings = _as_obj(inbound.get('settings', '{}'))
                 clients = settings.get('clients', [])
                 
                 for client in clients:
@@ -993,7 +1010,7 @@ class XUIClient(BaseVPNClient):
         }
         
         # Удаляем пустые поля (важно для разных протоколов, где id или password могут отсутствовать)
-        clients_array = json.loads(update_data["settings"])["clients"][0]
+        clients_array = _as_obj(update_data["settings"])["clients"][0]
         clients_array = {k: v for k, v in clients_array.items() if v != ''}
         update_data["settings"] = json.dumps({"clients": [clients_array]})
         
@@ -1262,7 +1279,7 @@ class XUIClient(BaseVPNClient):
         
         for inbound in inbounds:
             if inbound.get('id') == inbound_id:
-                settings = json.loads(inbound.get('settings', '{}'))
+                settings = _as_obj(inbound.get('settings', '{}'))
                 clients = settings.get('clients', [])
                 
                 for client in clients:

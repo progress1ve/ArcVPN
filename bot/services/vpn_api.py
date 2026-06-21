@@ -102,6 +102,11 @@ async def test_server_connection(server_data: Dict[str, Any]) -> Dict[str, Any]:
         return {'success': True, 'message': 'Подключение успешно!', 'stats': stats}
     except VPNAPIError as e:
         return {'success': False, 'message': f'Ошибка: {e}', 'stats': None}
+    except Exception as e:
+        # Любая иная ошибка (например, неожиданный формат ответа панели) не должна
+        # «подвешивать» проверку подключения — возвращаем понятный результат.
+        logger.error(f'Неожиданная ошибка при проверке подключения: {e}')
+        return {'success': False, 'message': f'Ошибка проверки: {e}', 'stats': None}
     finally:
         await client.close()
 
