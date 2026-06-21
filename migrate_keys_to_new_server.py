@@ -36,9 +36,19 @@ logger = logging.getLogger("migrate_keys")
 DB_PATH = "database/vpn_bot.db"
 
 
-def fetch_keys(conn: sqlite3.Connection, old_server_id: int, active_only: bool):
+def fetch_keys(conn: sqlite3.Connection, old_server, active_only: bool):
+    """
+    old_server: int (конкретный server_id) ИЛИ None — для осиротевших ключей
+    (server_id IS NULL, например после удаления старого сервера).
+    """
     conn.row_factory = sqlite3.Row
     where_active = "AND vk.expires_at > datetime('now')" if active_only else ""
+    if old_server is None:
+        server_cond = "vk.server_id IS NULL"
+        params = ()
+    else:
+        server_cond = "vk.server_id = ?"
+        params = (old_server,)
     return conn.execute(f"""
         SELECT vk.id, vk.user_id, vk.panel_email, vk.client_uuid, vk.panel_inbound_id,
                vk.expires_at, vk.traffic_limit, vk.traffic_used, vk.sub_id,
@@ -46,21 +56,28 @@ def fetch_keys(conn: sqlite3.Connection, old_server_id: int, active_only: bool):
                CASE WHEN vk.expires_at > datetime('now') THEN 1 ELSE 0 END AS is_active
         FROM vpn_keys vk
         JOIN users u ON vk.user_id = u.id
-        WHERE vk.server_id = ? AND vk.panel_email IS NOT NULL {where_active}
+        WHERE {server_cond} AND vk.panel_email IS NOT NULL {where_active}
         ORDER BY vk.id
-    """, (old_server_id,)).fetchall()
+    """, params).fetchall()
 
 
 async def migrate():
     parser = argparse.ArgumentParser(description="Перенос ключей на новый сервер")
-    parser.add_argument("--old-server", type=int, required=True, help="ID старого сервера в БД")
+    parser.add_argument("--old-server", required=True,
+                        help="ID старого сервера ИЛИ 'null' для осиротевших ключей (server_id IS NULL)")
     parser.add_argument("--new-server", type=int, required=True, help="ID нового сервера в БД")
     parser.add_argument("--apply", action="store_true", help="Реально переносить (иначе dry-run)")
     parser.add_argument("--active-only", action="store_true", help="Только активные ключи")
     parser.add_argument("--db", default=DB_PATH)
     args = parser.parse_args()
 
-    if args.old_server == args.new_server:
+    # old_server: None для режима server_id IS NULL, иначе int
+    if str(args.old_server).lower() in ("null", "none", "0"):
+        old_server = None
+    else:
+        old_server = int(args.old_server)
+
+    if old_server == args.new_server:
         print("❌ old-server и new-server не должны совпадать")
         return
 
@@ -77,10 +94,11 @@ async def migrate():
     device_limit = getattr(config, "DEFAULT_LIMIT_IP", 2)
 
     conn = sqlite3.connect(args.db)
-    keys = fetch_keys(conn, args.old_server, args.active_only)
+    keys = fetch_keys(conn, old_server, args.active_only)
 
+    old_label = "NULL (осиротевшие)" if old_server is None else old_server
     print("=" * 70)
-    print(f"Перенос ключей: сервер {args.old_server} → {args.new_server} "
+    print(f"Перенос ключей: сервер {old_label} → {args.new_server} "
           f"({new_server['name']})")
     print("=" * 70)
     if not keys:
