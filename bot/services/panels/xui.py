@@ -72,7 +72,8 @@ class XUIClient(BaseVPNClient):
         
         self.session: Optional[aiohttp.ClientSession] = None
         self.is_authenticated = False
-        
+        self._csrf_token: Optional[str] = None  # 3x-ui v3.0.0+ CSRF-токен сессии
+
         logger.debug(f"Инициализирован XUIClient для {server['name']}: {self.base_url}")
     
     async def _ensure_session(self) -> aiohttp.ClientSession:
@@ -109,6 +110,7 @@ class XUIClient(BaseVPNClient):
                 logger.debug(f"Ошибка при закрытии сессии: {e}")
         self.session = None
         self.is_authenticated = False
+        self._csrf_token = None
         logger.debug(f"Сессия сброшена для {self.server['name']}")
     
     async def _request(
@@ -154,10 +156,15 @@ class XUIClient(BaseVPNClient):
                 # Если нужна авторизация и мы не авторизованы (и это не запрос логина)
                 if not self.is_authenticated and endpoint != "/login":
                     await self.login()
-                
+
+                # v3.0.0: изменяющие запросы тоже требуют CSRF-токен сессии.
+                req_headers = dict(headers)
+                if self._csrf_token and endpoint != "/login":
+                    req_headers["x-csrf-token"] = self._csrf_token
+
                 logger.debug(f"API запрос: {method} {url}")
-                
-                async with session.request(method, url, json=data, headers=headers) as response:
+
+                async with session.request(method, url, json=data, headers=req_headers) as response:
                     text = await response.text()
                     
                     # Обработка статусов
@@ -206,7 +213,15 @@ class XUIClient(BaseVPNClient):
                         await self._reset_session()
                         if attempt < attempts - 1:
                             continue
-                    
+                    elif response.status == 403:
+                        # v3.0.0: вероятно протух/не принят CSRF-токен — сбрасываем
+                        # сессию (это обнулит токен) и повторяем: при следующем
+                        # запросе произойдёт login() с получением свежего токена.
+                        logger.warning(f"HTTP 403 для {url}, обновляем CSRF/сессию. Попытка {attempt+1}/{attempts}")
+                        await self._reset_session()
+                        if attempt < attempts - 1:
+                            continue
+
                     raise VPNAPIError(f"HTTP {response.status}: {text[:100]}")
                     
             except aiohttp.ClientError as e:
@@ -252,6 +267,7 @@ class XUIClient(BaseVPNClient):
                         else:
                             token = body
                         if token:
+                            self._csrf_token = token
                             return token
         except Exception as e:
             logger.debug(f"csrf-token endpoint недоступен: {e}")
@@ -263,7 +279,8 @@ class XUIClient(BaseVPNClient):
                     html = await r.text()
                     m = re.search(r'name=["\']csrf-token["\']\s+content=["\']([^"\']+)["\']', html)
                     if m:
-                        return m.group(1)
+                        self._csrf_token = m.group(1)
+                        return self._csrf_token
         except Exception as e:
             logger.debug(f"не удалось получить csrf-token из HTML: {e}")
 
