@@ -251,7 +251,15 @@ class XUIClient(BaseVPNClient):
 
         Источники токена (по порядку): GET /csrf-token (plain или JSON),
         затем <meta name="csrf-token" content="..."> на корневой странице панели.
+
+        ВАЖНО: на v2.x эндпоинта /csrf-token нет, и панель может отдать SPA-HTML
+        со статусом 200. Поэтому принимаем значение, ТОЛЬКО если оно похоже на
+        токен (короткое, без HTML/пробелов/переносов) — иначе токен остаётся None
+        и запросы идут без x-csrf-token, как на старых версиях.
         """
+        def _valid(t):
+            return bool(t) and len(t) <= 256 and re.fullmatch(r"[A-Za-z0-9_\-+/=.]+", t) is not None
+
         # 1) Специальный эндпоинт v3
         try:
             async with session.get(f"{self.base_url}/csrf-token") as r:
@@ -266,7 +274,7 @@ class XUIClient(BaseVPNClient):
                                 token = ""
                         else:
                             token = body
-                        if token:
+                        if _valid(token):
                             self._csrf_token = token
                             return token
         except Exception as e:
@@ -278,7 +286,7 @@ class XUIClient(BaseVPNClient):
                 if r.status == 200:
                     html = await r.text()
                     m = re.search(r'name=["\']csrf-token["\']\s+content=["\']([^"\']+)["\']', html)
-                    if m:
+                    if m and _valid(m.group(1)):
                         self._csrf_token = m.group(1)
                         return self._csrf_token
         except Exception as e:
