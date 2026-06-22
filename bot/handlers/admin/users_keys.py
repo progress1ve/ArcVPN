@@ -602,43 +602,27 @@ async def confirm_add_key(callback: CallbackQuery, state: FSMContext, bot: Bot):
             email = generate_unique_email(user)
             
             client = get_client_from_server_data(server)
-            
-            # Получаем первый доступный inbound
-            inbounds = await client.get_inbounds()
-            if not inbounds:
-                logger.warning(f"Нет inbound на сервере {server['name']}")
-                failed_servers.append(f"{server['name']} (нет inbound)")
-                continue
-            
-            # Используем первый inbound
-            inbound = inbounds[0]
-            inbound_id = inbound.get('id')
-            
-            flow = await client.get_inbound_flow(inbound_id)
-            
-            # Для тестовых ключей передаем expire_minutes вместо expire_days
+
+            # Создаём клиента во ВСЕХ inbound сервера (одна подписка = все протоколы).
             if is_test_key:
-                result = await client.add_client(
-                    inbound_id=inbound_id,
+                result = await client.provision_client_all_inbounds(
                     email=email,
                     total_gb=traffic_gb,
-                    expire_days=1,  # Минимальное значение, будет проигнорировано
+                    expire_days=1,  # Игнорируется при заданном expire_minutes
                     expire_minutes=expire_minutes,
                     limit_ip=1,
                     tg_id=str(user_telegram_id),
-                    flow=flow
                 )
             else:
-                result = await client.add_client(
-                    inbound_id=inbound_id,
+                result = await client.provision_client_all_inbounds(
                     email=email,
                     total_gb=traffic_gb,
                     expire_days=days,
                     limit_ip=DEFAULT_LIMIT_IP,
                     tg_id=str(user_telegram_id),
-                    flow=flow
                 )
-            
+
+            inbound_id = result['primary_inbound_id']
             client_uuid = result['uuid']
             
             # Конвертируем ГБ в байты для БД

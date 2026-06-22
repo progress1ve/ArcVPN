@@ -29,8 +29,10 @@ def generate_link(config: Dict[str, Any]) -> str:
         'vmess': generate_vmess_link,
         'trojan': generate_trojan_link,
         'shadowsocks': generate_shadowsocks_link,
+        'hysteria2': generate_hysteria2_link,
+        'hysteria': generate_hysteria2_link,
     }
-    
+
     gen = generators.get(protocol, generate_vless_link)
     return gen(config)
 
@@ -490,6 +492,44 @@ def generate_shadowsocks_json(config: Dict[str, Any]) -> str:
     }
     
     return _wrap_outbound(outbound)
+
+
+# ============================================================================
+# HYSTERIA2
+# ============================================================================
+
+def generate_hysteria2_link(config: Dict[str, Any]) -> str:
+    """
+    Генерирует ссылку hysteria2:// из конфигурации.
+
+    Формат (per-user 3X-UI): hysteria2://<password>@host:port?sni=..&insecure=0
+      [&obfs=salamander&obfs-password=..]#<remark>
+    Аутентификация — по password клиента. Параметры TLS/obfs берутся из inbound.
+    """
+    password = config.get('password', config.get('uuid', ''))
+    host = config['host']
+    port = config['port']
+    name = urllib.parse.quote(_get_remark(config), safe='')
+
+    params = {}
+    sni = config.get('sni', '')
+    if sni:
+        params['sni'] = sni
+    # insecure всегда указываем явно (0/1) — клиенты ожидают этот флаг
+    params['insecure'] = str(config.get('insecure', 0))
+
+    obfs = config.get('obfs', '')
+    if obfs:
+        params['obfs'] = obfs
+        obfs_pw = config.get('obfs_password', '')
+        if obfs_pw:
+            params['obfs-password'] = obfs_pw
+
+    query = "&".join(f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items() if v != '')
+    pwd = urllib.parse.quote(str(password), safe='')
+    link = f"hysteria2://{pwd}@{host}:{port}?{query}#{name}"
+    logger.info(f"Generated Hysteria2 link: sni={params.get('sni')}, insecure={params.get('insecure')}, obfs={params.get('obfs')}")
+    return link
 
 
 # ============================================================================

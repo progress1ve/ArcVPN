@@ -553,6 +553,198 @@ class XUIClient(BaseVPNClient):
             logger.debug(f"Ошибка получения IP клиента {email}: {e}")
         return []
 
+    # Протоколы, для которых мы умеем строить клиента и ссылку подписки.
+    SUPPORTED_PROTOCOLS = ("vless", "vmess", "trojan", "shadowsocks", "hysteria2", "hysteria")
+
+    @staticmethod
+    def _build_client_entry(
+        protocol: str,
+        secret: str,
+        email: str,
+        sub_id: str,
+        total_bytes: int,
+        expiry_ms: int,
+        limit_ip: int,
+        enable: bool,
+        tg_id: str,
+        flow: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Собирает запись клиента (settings.clients[]) под конкретный протокол inbound.
+
+        Один и тот же `secret` (uuid-строка) используется как id (VLESS/VMess) или
+        как password (Trojan/Shadowsocks/Hysteria2) — это позволяет хранить один
+        client_uuid в БД и при этом зеркалировать клиента во все inbound сервера.
+        """
+        entry = {
+            "email": email,
+            "limitIp": limit_ip,
+            "totalGB": total_bytes,
+            "expiryTime": expiry_ms,
+            "enable": enable,
+            "tgId": tg_id,
+            "subId": sub_id,
+            "reset": 0,
+        }
+        if protocol == "trojan":
+            entry["password"] = secret
+            entry["flow"] = flow
+        elif protocol == "shadowsocks":
+            # Shadowsocks — клиент наследует method из inbound
+            entry["password"] = secret
+            entry["method"] = ""
+        elif protocol in ("hysteria2", "hysteria"):
+            # Hysteria2 — аутентификация по password
+            entry["password"] = secret
+        else:
+            # VLESS / VMess — используют id (UUID)
+            entry["id"] = secret
+            entry["flow"] = flow
+        return entry
+
+    @staticmethod
+    def _compute_flow_from_inbound(inbound: Dict[str, Any]) -> str:
+        """
+        Возвращает flow для inbound (без дополнительного запроса к панели).
+        Flow = 'xtls-rprx-vision' только для VLESS + TCP + (Reality | TLS).
+        """
+        if inbound.get("protocol", "") != "vless":
+            return ""
+        stream = _as_obj(inbound.get("streamSettings", "{}"))
+        network = stream.get("network", "tcp")
+        security = stream.get("security", "none")
+        if network == "tcp" and security in ("reality", "tls"):
+            return "xtls-rprx-vision"
+        return ""
+
+    async def provision_client_all_inbounds(
+        self,
+        email: str,
+        total_gb: int = 0,
+        expire_days: int = 30,
+        limit_ip: int = 1,
+        enable: bool = True,
+        tg_id: str = "",
+        expire_minutes: Optional[int] = None,
+        secret: Optional[str] = None,
+        sub_id: Optional[str] = None,
+        only_missing: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Создаёт (зеркалирует) клиента во ВСЕХ поддерживаемых inbound сервера под
+        одним секретом/subId/email. Так одна подписка отдаёт по конфигу на каждый
+        inbound (VLESS, Hysteria2, ...), а в БД хранится один client_uuid.
+
+        Args:
+            email: уникальный идентификатор клиента на панели
+            total_gb: лимит трафика в ГБ (0 = безлимит)
+            expire_days: срок в днях (игнорируется, если задан expire_minutes)
+            limit_ip: лимит устройств
+            enable: включён ли клиент
+            tg_id: Telegram ID
+            expire_minutes: срок в минутах (для тестовых ключей)
+            secret: переиспользовать существующий секрет (uuid/password). По
+                умолчанию генерируется новый.
+            sub_id: переиспользовать существующий subId. По умолчанию новый.
+            only_missing: добавлять только в те inbound, где клиента с таким email
+                ещё нет (для бэкфилла — не трогаем рабочие inbound).
+
+        Returns:
+            {uuid, email, sub_id, primary_inbound_id, inbound_ids: [...]}
+
+        Raises:
+            VPNAPIError: если не удалось создать клиента ни в одном inbound
+        """
+        if expire_minutes is None and expire_days <= 0:
+            raise ValueError("Срок действия ключа должен быть больше 0 дней")
+
+        secret = secret or str(uuid.uuid4())
+        sub_id = sub_id or uuid.uuid4().hex
+
+        if expire_minutes is not None:
+            expiry_ms = int((time.time() + expire_minutes * 60) * 1000)
+        elif expire_days > 0:
+            expiry_ms = int((time.time() + expire_days * 86400) * 1000)
+        else:
+            expiry_ms = 0
+
+        total_bytes = total_gb * 1024 * 1024 * 1024 if total_gb > 0 else 0
+
+        inbounds = await self.get_inbounds()
+        if not inbounds:
+            raise VPNAPIError("На сервере нет ни одного inbound")
+
+        primary_inbound_id: Optional[int] = None
+        provisioned: List[int] = []
+
+        for inbound in inbounds:
+            ib_id = inbound.get("id")
+            protocol = inbound.get("protocol", "")
+            if protocol not in self.SUPPORTED_PROTOCOLS:
+                logger.debug("Пропускаем inbound %s: протокол %s не поддерживается", ib_id, protocol)
+                continue
+
+            settings = _as_obj(inbound.get("settings", "{}"))
+            existing_clients = settings.get("clients") or []
+            existing_id = None
+            for c in existing_clients:
+                if c.get("email") == email:
+                    existing_id = c.get("id") or c.get("password")
+                    break
+
+            if existing_id and only_missing:
+                # Бэкфилл: клиент уже есть в этом inbound — не трогаем.
+                provisioned.append(ib_id)
+                if protocol == "vless" and primary_inbound_id is None:
+                    primary_inbound_id = ib_id
+                continue
+
+            if existing_id:
+                try:
+                    await self.delete_client(ib_id, existing_id)
+                except Exception as e:
+                    logger.error("Не удалось удалить существующего клиента %s в inbound %s: %s", email, ib_id, e)
+
+            ib_flow = self._compute_flow_from_inbound(inbound)
+            entry = self._build_client_entry(
+                protocol=protocol,
+                secret=secret,
+                email=email,
+                sub_id=sub_id,
+                total_bytes=total_bytes,
+                expiry_ms=expiry_ms,
+                limit_ip=limit_ip,
+                enable=enable,
+                tg_id=tg_id,
+                flow=ib_flow,
+            )
+            client_data = {"id": ib_id, "settings": json.dumps({"clients": [entry]})}
+            try:
+                resp = await self._request("POST", "/panel/api/inbounds/addClient", data=client_data)
+                if not resp.get("success", True):
+                    logger.error("Ошибка создания клиента %s в inbound %s: %s", email, ib_id, resp.get("msg"))
+                    continue
+                provisioned.append(ib_id)
+                if protocol == "vless" and primary_inbound_id is None:
+                    primary_inbound_id = ib_id
+                logger.info("Клиент %s создан в inbound %s (%s)", email, ib_id, protocol)
+            except Exception as e:
+                logger.error("Не удалось создать клиента %s в inbound %s: %s", email, ib_id, e)
+
+        if not provisioned:
+            raise VPNAPIError(f"Не удалось создать клиента {email} ни в одном inbound")
+
+        if primary_inbound_id is None:
+            primary_inbound_id = provisioned[0]
+
+        return {
+            "uuid": secret,
+            "email": email,
+            "sub_id": sub_id,
+            "primary_inbound_id": primary_inbound_id,
+            "inbound_ids": provisioned,
+        }
+
     async def add_client(
         self,
         inbound_id: int,
@@ -652,32 +844,20 @@ class XUIClient(BaseVPNClient):
         # Лимит трафика (байты)
         total_bytes = total_gb * 1024 * 1024 * 1024 if total_gb > 0 else 0
         
-        # Базовая структура клиента
-        client_entry = {
-            "email": email,
-            "limitIp": limit_ip,
-            "totalGB": total_bytes,
-            "expiryTime": expire_time,
-            "enable": enable,
-            "tgId": tg_id,
-            "subId": uuid.uuid4().hex,
-            "reset": 0,
-        }
-        
-        # Протокол-зависимые поля
-        if protocol == 'trojan':
-            # Trojan использует password вместо id
-            client_entry["password"] = client_uuid
-            client_entry["flow"] = flow
-        elif protocol == 'shadowsocks':
-            # Shadowsocks — клиенты наследуют password/method из inbound
-            client_entry["password"] = client_uuid
-            client_entry["method"] = ""
-        else:
-            # VLESS / VMess — используют id (UUID)
-            client_entry["id"] = client_uuid
-            client_entry["flow"] = flow
-        
+        # Базовая структура клиента (единый билдер для всех протоколов)
+        client_entry = self._build_client_entry(
+            protocol=protocol,
+            secret=client_uuid,
+            email=email,
+            sub_id=uuid.uuid4().hex,
+            total_bytes=total_bytes,
+            expiry_ms=expire_time,
+            limit_ip=limit_ip,
+            enable=enable,
+            tg_id=tg_id,
+            flow=flow,
+        )
+
         # Структура для 3X-UI
         client_data = {
             "id": inbound_id,
@@ -933,66 +1113,69 @@ class XUIClient(BaseVPNClient):
         но expiryTime и totalGB ВСЕГДА берутся из параметров (из нашей БД).
         
         Args:
-            inbound_id: ID inbound-подключения
-            client_uuid: UUID клиента
+            inbound_id: ID inbound-подключения (хинт; обновляем во ВСЕХ inbound,
+                где живёт клиент)
+            client_uuid: UUID/секрет клиента
             email: Email/идентификатор клиента
             expiry_time_ms: Срок действия в миллисекундах (из нашей БД, 0 = бессрочный)
             total_gb_bytes: Лимит трафика в байтах (из нашей БД, 0 = безлимит)
             enable: Включён ли ключ (True = включён, False = отключён)
-            
+
         Returns:
-            True при успешном обновлении
+            True при успешном обновлении хотя бы в одном inbound
         """
-        # Читаем текущие данные клиента с панели — только для протокольных полей
-        inbounds = await self.get_inbounds()
-        target_client = None
-        
-        for inbound in inbounds:
-            if inbound.get('id') == inbound_id:
-                settings = _as_obj(inbound.get('settings', '{}'))
-                clients = (settings.get('clients') or [])
-                
-                for client in clients:
-                    if client.get('id') == client_uuid or client.get('password') == client_uuid:
-                        target_client = client
-                        break
-                break
-        
-        if not target_client:
-            raise VPNAPIError(f"Клиент {email} не найден в inbound {inbound_id}")
-        
-        # Формируем данные: expiryTime и totalGB из ПАРАМЕТРОВ (нашей БД),
-        # остальное — из текущих данных клиента на панели
-        updated_client = {
-            "id": target_client.get('id', ''),
-            "password": target_client.get('password', ''),
-            "flow": target_client.get('flow', ''),
-            "email": target_client.get('email', email),
-            "limitIp": target_client.get('limitIp', 1),
-            "totalGB": total_gb_bytes,          # ← Из нашей БД!
-            "expiryTime": expiry_time_ms,        # ← Из нашей БД!
-            "enable": enable,                    # ← Из параметра!
-            "tgId": target_client.get('tgId', ''),
-            "subId": target_client.get('subId', ''),
-            "reset": 0  # Не используем auto-reset панели
-        }
-        
-        # Удаляем пустые строковые поля (для разных протоколов)
-        updated_client = {k: v for k, v in updated_client.items() if v != ''}
-        
-        update_data = {
-            "id": inbound_id,
-            "settings": json.dumps({"clients": [updated_client]})
-        }
-        
         import urllib.parse
-        encoded_uuid = urllib.parse.quote(client_uuid, safe='')
-        await self._request("POST", f"/panel/api/inbounds/updateClient/{encoded_uuid}", data=update_data)
-        
+
+        # Клиент зеркалируется во все inbound сервера под одним секретом/email,
+        # поэтому обновляем его в КАЖДОМ inbound, где он найден.
+        inbounds = await self.get_inbounds()
+        updated_any = False
+
+        for inbound in inbounds:
+            ib_id = inbound.get('id')
+            settings = _as_obj(inbound.get('settings', '{}'))
+            target_client = None
+            for client in (settings.get('clients') or []):
+                if (client.get('id') == client_uuid
+                        or client.get('password') == client_uuid
+                        or client.get('email') == email):
+                    target_client = client
+                    break
+            if not target_client:
+                continue
+
+            # expiryTime и totalGB из ПАРАМЕТРОВ (нашей БД), остальное — с панели
+            updated_client = {
+                "id": target_client.get('id', ''),
+                "password": target_client.get('password', ''),
+                "flow": target_client.get('flow', ''),
+                "email": target_client.get('email', email),
+                "limitIp": target_client.get('limitIp', 1),
+                "totalGB": total_gb_bytes,
+                "expiryTime": expiry_time_ms,
+                "enable": enable,
+                "tgId": target_client.get('tgId', ''),
+                "subId": target_client.get('subId', ''),
+                "reset": 0,
+            }
+            updated_client = {k: v for k, v in updated_client.items() if v != ''}
+
+            update_data = {"id": ib_id, "settings": json.dumps({"clients": [updated_client]})}
+            client_id = target_client.get('id') or target_client.get('password') or client_uuid
+            encoded_id = urllib.parse.quote(client_id, safe='')
+            try:
+                await self._request("POST", f"/panel/api/inbounds/updateClient/{encoded_id}", data=update_data)
+                updated_any = True
+            except Exception as e:
+                logger.error(f"Ошибка обновления клиента {email} в inbound {ib_id}: {e}")
+
+        if not updated_any:
+            raise VPNAPIError(f"Клиент {email} не найден ни в одном inbound")
+
         from datetime import datetime
         expiry_str = datetime.fromtimestamp(expiry_time_ms / 1000).strftime('%Y-%m-%d %H:%M') if expiry_time_ms > 0 else '∞'
         limit_str = f"{total_gb_bytes / 1024**3:.1f} ГБ" if total_gb_bytes > 0 else '∞'
-        logger.info(f"Обновлён клиент {email}: expiry={expiry_str}, limit={limit_str}")
+        logger.info(f"Обновлён клиент {email} во всех inbound: expiry={expiry_str}, limit={limit_str}")
         return True
 
     async def extend_client_expiry(
@@ -1016,73 +1199,65 @@ class XUIClient(BaseVPNClient):
             True при успешном обновлении
         """
         import time
-        
-        # Получаем текущие данные клиента
-        inbounds = await self.get_inbounds()
-        target_inbound = None
-        target_client = None
-        
-        for inbound in inbounds:
-            if inbound.get('id') == inbound_id:
-                target_inbound = inbound
-                settings = _as_obj(inbound.get('settings', '{}'))
-                clients = (settings.get('clients') or [])
-                
-                for client in clients:
-                    if client.get('id') == client_uuid or client.get('password') == client_uuid:
-                        target_client = client
-                        break
-                break
-                
-        if not target_inbound or not target_client:
-            raise VPNAPIError(f"Клиент {email} не найден в inbound {inbound_id}")
-            
-        current_time_ms = int(time.time() * 1000)
-        current_expiry = target_client.get('expiryTime', 0)
-        
-        # Расчет нового времени истечения
-        extension_ms = days * 86400 * 1000
-        if current_expiry == 0:
-            # Бесконечный ключ остается бесконечным
-            new_expiry = 0
-        elif current_expiry < current_time_ms:
-            # Если ключ уже истек, прибавляем к текущему моменту
-            new_expiry = current_time_ms + extension_ms
-        else:
-            # Если еще активен, прибавляем к текущему сроку окончания
-            new_expiry = current_expiry + extension_ms
-            
-        target_client['expiryTime'] = new_expiry
-        
-        # Формируем данные для обновления
-        update_data = {
-            "id": inbound_id,
-            "settings": json.dumps({
-                "clients": [{
-                    "id": target_client.get('id', ''),
-                    "password": target_client.get('password', ''),
-                    "flow": target_client.get('flow', ''),
-                    "email": target_client.get('email', ''),
-                    "limitIp": target_client.get('limitIp', 1),
-                    "totalGB": target_client.get('totalGB', 0),
-                    "expiryTime": new_expiry,
-                    "enable": target_client.get('enable', True),
-                    "tgId": target_client.get('tgId', ''),
-                    "subId": target_client.get('subId', ''),
-                    "reset": target_client.get('reset', 0)
-                }]
-            })
-        }
-        
-        # Удаляем пустые поля (важно для разных протоколов, где id или password могут отсутствовать)
-        clients_array = _as_obj(update_data["settings"])["clients"][0]
-        clients_array = {k: v for k, v in clients_array.items() if v != ''}
-        update_data["settings"] = json.dumps({"clients": [clients_array]})
-        
         import urllib.parse
-        encoded_uuid = urllib.parse.quote(client_uuid, safe='')
-        await self._request("POST", f"/panel/api/inbounds/updateClient/{encoded_uuid}", data=update_data)
-        logger.info(f"Продлен ключ клиента {email} на {days} дней. Новый expiry: {new_expiry}")
+
+        # Продлеваем во ВСЕХ inbound, где живёт клиент.
+        inbounds = await self.get_inbounds()
+        current_time_ms = int(time.time() * 1000)
+        extension_ms = days * 86400 * 1000
+        updated_any = False
+        last_expiry = 0
+
+        for inbound in inbounds:
+            ib_id = inbound.get('id')
+            settings = _as_obj(inbound.get('settings', '{}'))
+            target_client = None
+            for client in (settings.get('clients') or []):
+                if (client.get('id') == client_uuid
+                        or client.get('password') == client_uuid
+                        or client.get('email') == email):
+                    target_client = client
+                    break
+            if not target_client:
+                continue
+
+            current_expiry = target_client.get('expiryTime', 0)
+            if current_expiry == 0:
+                new_expiry = 0  # бессрочный остаётся бессрочным
+            elif current_expiry < current_time_ms:
+                new_expiry = current_time_ms + extension_ms
+            else:
+                new_expiry = current_expiry + extension_ms
+            last_expiry = new_expiry
+
+            updated_client = {
+                "id": target_client.get('id', ''),
+                "password": target_client.get('password', ''),
+                "flow": target_client.get('flow', ''),
+                "email": target_client.get('email', ''),
+                "limitIp": target_client.get('limitIp', 1),
+                "totalGB": target_client.get('totalGB', 0),
+                "expiryTime": new_expiry,
+                "enable": target_client.get('enable', True),
+                "tgId": target_client.get('tgId', ''),
+                "subId": target_client.get('subId', ''),
+                "reset": target_client.get('reset', 0),
+            }
+            updated_client = {k: v for k, v in updated_client.items() if v != ''}
+            update_data = {"id": ib_id, "settings": json.dumps({"clients": [updated_client]})}
+
+            client_id = target_client.get('id') or target_client.get('password') or client_uuid
+            encoded_id = urllib.parse.quote(client_id, safe='')
+            try:
+                await self._request("POST", f"/panel/api/inbounds/updateClient/{encoded_id}", data=update_data)
+                updated_any = True
+            except Exception as e:
+                logger.error(f"Ошибка продления {email} в inbound {ib_id}: {e}")
+
+        if not updated_any:
+            raise VPNAPIError(f"Клиент {email} не найден ни в одном inbound")
+
+        logger.info(f"Продлен ключ клиента {email} на {days} дней. Новый expiry: {last_expiry}")
         return True
 
     def _build_client_config(
@@ -1130,6 +1305,17 @@ class XUIClient(BaseVPNClient):
             result["server_password"] = settings.get("password", "")
         elif protocol == 'vmess':
             result["security_method"] = target_client.get("security", "auto")
+        elif protocol in ('hysteria2', 'hysteria'):
+            # Hysteria2: аутентификация по password; TLS/obfs — параметры inbound
+            result["protocol"] = "hysteria2"
+            result["password"] = target_client.get("password", target_client.get("id", ""))
+            tls = stream_settings.get("tlsSettings", {}) or {}
+            result["sni"] = tls.get("serverName", "") or self.server["host"]
+            result["insecure"] = 1 if tls.get("allowInsecure") else 0
+            obfs = settings.get("obfs")
+            if isinstance(obfs, dict) and obfs.get("type"):
+                result["obfs"] = obfs.get("type")
+                result["obfs_password"] = obfs.get("password", "")
 
         return result
 
@@ -1150,10 +1336,13 @@ class XUIClient(BaseVPNClient):
         configs: Dict[str, Dict[str, Any]] = {}
 
         try:
-            inbounds = await self.get_inbounds()
+            # VLESS-inbound идут первыми, чтобы одиночный конфиг (key_sender/QR)
+            # отдавал основную VLESS-ссылку.
+            inbounds = self._sort_inbounds_vless_first(await self.get_inbounds())
             for inbound in inbounds:
-                settings_raw = inbound.get("settings", "{}")
-                settings = json.loads(settings_raw) if isinstance(settings_raw, str) else settings_raw
+                if inbound.get("protocol") not in self.SUPPORTED_PROTOCOLS:
+                    continue
+                settings = _as_obj(inbound.get("settings", "{}"))
                 clients = (settings.get("clients") or [])
 
                 for client in clients:
@@ -1169,13 +1358,51 @@ class XUIClient(BaseVPNClient):
 
         return configs
 
+    @staticmethod
+    def _sort_inbounds_vless_first(inbounds: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Сортирует inbound так, чтобы VLESS шли первыми (стабильный порядок)."""
+        return sorted(inbounds, key=lambda ib: (ib.get("protocol") != "vless", ib.get("id", 0)))
+
+    async def get_all_client_configs(self, emails: List[str]) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Возвращает конфиги для КАЖДОГО inbound, где найден клиент (по email).
+
+        В отличие от get_client_configs (один конфиг на email), используется
+        подпиской: одна подписка отдаёт по ссылке на каждый inbound сервера.
+
+        Returns:
+            {email: [config, ...]} — порядок: VLESS первым, затем остальные.
+        """
+        email_set = {email for email in emails if email}
+        if not email_set:
+            return {}
+
+        configs: Dict[str, List[Dict[str, Any]]] = {email: [] for email in email_set}
+
+        try:
+            inbounds = self._sort_inbounds_vless_first(await self.get_inbounds())
+            for inbound in inbounds:
+                if inbound.get("protocol") not in self.SUPPORTED_PROTOCOLS:
+                    continue
+                settings = _as_obj(inbound.get("settings", "{}"))
+                for client in (settings.get("clients") or []):
+                    email = client.get("email", "")
+                    if email not in email_set:
+                        continue
+                    configs[email].append(self._build_client_config(inbound, settings, client))
+        except Exception as e:
+            logger.error(f"Error getting all client configs: {e}")
+
+        # Убираем email без единого конфига
+        return {email: cfgs for email, cfgs in configs.items() if cfgs}
+
     async def get_client_config(self, email: str) -> Optional[Dict[str, Any]]:
         """
-        Получает полную конфигурацию клиента для подключения.
-        
+        Получает полную конфигурацию клиента для подключения (первичный inbound).
+
         Args:
             email: Email/идентификатор клиента
-            
+
         Returns:
             Словарь с настройками подключения или None
         """
@@ -1302,22 +1529,37 @@ class XUIClient(BaseVPNClient):
         Сбрасывает счётчики трафика (up/down) клиента на панели.
         
         Endpoint: POST /panel/api/inbounds/{inbound_id}/resetClientTraffic/{email}
-        
+
+        Сбрасываем счётчики во ВСЕХ inbound, где есть клиент с этим email.
+
         Args:
-            inbound_id: ID inbound-подключения
+            inbound_id: ID inbound-подключения (хинт; не ограничивает)
             email: Email/идентификатор клиента
-            
+
         Returns:
-            True при успешном сбросе
+            True если сброшено хотя бы в одном inbound
         """
         import urllib.parse
         encoded_email = urllib.parse.quote(email, safe='')
-        result = await self._request(
-            "POST",
-            f"/panel/api/inbounds/{inbound_id}/resetClientTraffic/{encoded_email}"
-        )
-        logger.info(f"Сброшен трафик клиента {email} (inbound {inbound_id})")
-        return True
+
+        inbounds = await self.get_inbounds()
+        done = 0
+        for inbound in inbounds:
+            settings = _as_obj(inbound.get('settings', '{}'))
+            if not any(c.get('email') == email for c in (settings.get('clients') or [])):
+                continue
+            ib_id = inbound.get('id')
+            try:
+                await self._request(
+                    "POST",
+                    f"/panel/api/inbounds/{ib_id}/resetClientTraffic/{encoded_email}"
+                )
+                done += 1
+            except Exception as e:
+                logger.error(f"Ошибка сброса трафика {email} в inbound {ib_id}: {e}")
+
+        logger.info(f"Сброшен трафик клиента {email} в {done} inbound(ах)")
+        return done > 0
 
     async def update_client_limit(
         self,
@@ -1327,67 +1569,64 @@ class XUIClient(BaseVPNClient):
         total_gb_bytes: int
     ) -> bool:
         """
-        Обновляет лимит трафика (totalGB) клиента на панели.
-        
+        Обновляет лимит трафика (totalGB) клиента во ВСЕХ inbound, где он есть.
+
         Args:
-            inbound_id: ID inbound-подключения
-            client_uuid: UUID клиента
+            inbound_id: ID inbound-подключения (хинт; не ограничивает)
+            client_uuid: UUID/секрет клиента
             email: Email/идентификатор клиента
             total_gb_bytes: Новый лимит в байтах
-            
+
         Returns:
-            True при успешном обновлении
+            True если обновлено хотя бы в одном inbound
         """
-        # Получаем текущие данные клиента
-        inbounds = await self.get_inbounds()
-        target_client = None
-        
-        for inbound in inbounds:
-            if inbound.get('id') == inbound_id:
-                settings = _as_obj(inbound.get('settings', '{}'))
-                clients = (settings.get('clients') or [])
-                
-                for client in clients:
-                    if client.get('id') == client_uuid or client.get('password') == client_uuid:
-                        target_client = client
-                        break
-                break
-        
-        if not target_client:
-            raise VPNAPIError(f"Клиент {email} не найден в inbound {inbound_id}")
-        
-        # Обновляем totalGB
-        target_client['totalGB'] = total_gb_bytes
-        
-        # Формируем данные для обновления
-        updated_client = {
-            "id": target_client.get('id', ''),
-            "password": target_client.get('password', ''),
-            "flow": target_client.get('flow', ''),
-            "email": target_client.get('email', ''),
-            "limitIp": target_client.get('limitIp', 1),
-            "totalGB": total_gb_bytes,
-            "expiryTime": target_client.get('expiryTime', 0),
-            "enable": target_client.get('enable', True),
-            "tgId": target_client.get('tgId', ''),
-            "subId": target_client.get('subId', ''),
-            "reset": target_client.get('reset', 0)
-        }
-        
-        # Удаляем пустые строковые поля (важно для разных протоколов)
-        updated_client = {k: v for k, v in updated_client.items() if v != ''}
-        
-        update_data = {
-            "id": inbound_id,
-            "settings": json.dumps({"clients": [updated_client]})
-        }
-        
         import urllib.parse
-        encoded_uuid = urllib.parse.quote(client_uuid, safe='')
-        await self._request("POST", f"/panel/api/inbounds/updateClient/{encoded_uuid}", data=update_data)
-        
+
+        inbounds = await self.get_inbounds()
+        updated_any = False
+
+        for inbound in inbounds:
+            ib_id = inbound.get('id')
+            settings = _as_obj(inbound.get('settings', '{}'))
+            target_client = None
+            for client in (settings.get('clients') or []):
+                if (client.get('id') == client_uuid
+                        or client.get('password') == client_uuid
+                        or client.get('email') == email):
+                    target_client = client
+                    break
+            if not target_client:
+                continue
+
+            updated_client = {
+                "id": target_client.get('id', ''),
+                "password": target_client.get('password', ''),
+                "flow": target_client.get('flow', ''),
+                "email": target_client.get('email', ''),
+                "limitIp": target_client.get('limitIp', 1),
+                "totalGB": total_gb_bytes,
+                "expiryTime": target_client.get('expiryTime', 0),
+                "enable": target_client.get('enable', True),
+                "tgId": target_client.get('tgId', ''),
+                "subId": target_client.get('subId', ''),
+                "reset": target_client.get('reset', 0),
+            }
+            updated_client = {k: v for k, v in updated_client.items() if v != ''}
+            update_data = {"id": ib_id, "settings": json.dumps({"clients": [updated_client]})}
+
+            client_id = target_client.get('id') or target_client.get('password') or client_uuid
+            encoded_id = urllib.parse.quote(client_id, safe='')
+            try:
+                await self._request("POST", f"/panel/api/inbounds/updateClient/{encoded_id}", data=update_data)
+                updated_any = True
+            except Exception as e:
+                logger.error(f"Ошибка обновления лимита {email} в inbound {ib_id}: {e}")
+
+        if not updated_any:
+            raise VPNAPIError(f"Клиент {email} не найден ни в одном inbound")
+
         limit_gb = total_gb_bytes / (1024**3)
-        logger.info(f"Обновлён лимит клиента {email}: {limit_gb:.1f} ГБ")
+        logger.info(f"Обновлён лимит клиента {email} во всех inbound: {limit_gb:.1f} ГБ")
         return True
 
     async def close(self):

@@ -117,31 +117,17 @@ async def activate_trial_subscription(callback: CallbackQuery, state: FSMContext
             email = generate_unique_email(user)
             
             client = get_client_from_server_data(server)
-            
-            # Получаем первый доступный inbound
-            inbounds = await client.get_inbounds()
-            if not inbounds:
-                logger.warning(f"Нет inbound на сервере {server['name']}")
-                failed_servers.append(f"{server['name']} (нет inbound)")
-                continue
-            
-            # Используем первый inbound
-            inbound = inbounds[0]
-            inbound_id = inbound.get('id')
-            
-            flow = await client.get_inbound_flow(inbound_id)
-            
-            # Создаём клиента на панели
-            result = await client.add_client(
-                inbound_id=inbound_id,
+
+            # Создаём клиента во ВСЕХ inbound сервера (одна подписка = все протоколы).
+            result = await client.provision_client_all_inbounds(
                 email=email,
                 total_gb=trial_traffic_gb,
                 expire_days=trial_days,
                 limit_ip=DEFAULT_LIMIT_IP,
                 tg_id=str(user_id),
-                flow=flow
             )
-            
+
+            inbound_id = result['primary_inbound_id']
             client_uuid = result['uuid']
             
             # Создаем ключ в БД с привязкой к серверу

@@ -118,7 +118,7 @@ async def migrate():
         conn.close()
         return
 
-    # Готовим клиент новой панели + inbound.
+    # Готовим клиент новой панели.
     try:
         client = await get_client(args.new_server)
         inbounds = await client.get_inbounds()
@@ -132,8 +132,6 @@ async def migrate():
         conn.close()
         await close_all_clients()
         return
-    new_inbound_id = inbounds[0]["id"]
-    flow = await client.get_inbound_flow(new_inbound_id)
 
     migrated = 0
     failed = []
@@ -153,17 +151,18 @@ async def migrate():
 
             total_gb = int((k["traffic_limit"] or 0) / (1024 ** 3))
 
-            res = await client.add_client(
-                inbound_id=new_inbound_id,
+            # Создаём клиента во ВСЕХ inbound нового сервера (одна подписка = все
+            # протоколы). primary_inbound_id пишем в БД.
+            res = await client.provision_client_all_inbounds(
                 email=email,
                 total_gb=total_gb,
                 expire_days=days_left,
                 limit_ip=device_limit,
                 enable=True,
                 tg_id=str(k["telegram_id"]),
-                flow=flow,
             )
             new_uuid = res["uuid"]
+            new_inbound_id = res["primary_inbound_id"]
 
             # Перепривязываем ключ в БД (sub_id НЕ меняется!).
             update_vpn_key_connection(key_id, args.new_server, new_inbound_id, email, new_uuid)

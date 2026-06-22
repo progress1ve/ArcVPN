@@ -686,14 +686,15 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
             if not unresolved_emails:
                 return
 
-            if hasattr(client, "get_client_configs"):
+            if hasattr(client, "get_all_client_configs"):
+                # {email: [config, ...]} — по конфигу на каждый inbound сервера
                 configs = await asyncio.wait_for(
-                    client.get_client_configs(sorted(unresolved_emails)),
+                    client.get_all_client_configs(sorted(unresolved_emails)),
                     timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
                 )
             else:
                 logger.warning(
-                    "XUIClient на сервере %s без get_client_configs(); используем совместимый fallback",
+                    "XUIClient на сервере %s без get_all_client_configs(); используем совместимый fallback",
                     server.name,
                 )
 
@@ -706,13 +707,15 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
                     timeout=XUI_CONFIG_FETCH_TIMEOUT_SECONDS,
                 )
                 configs = {
-                    email: config
+                    email: [config]
                     for email, config in results
                     if config is not None
                 }
 
-            for email, config in configs.items():
-                CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), config)
+            # В кэше — список конфигов на (server_id, email).
+            for email, cfg_list in configs.items():
+                if cfg_list:
+                    CLIENT_CONFIG_CACHE.set(_client_config_cache_key(server_id, email), cfg_list)
     except asyncio.TimeoutError:
         logger.warning(
             "XUI сервер %s не ответил за %s сек, продолжаем с остальными",
@@ -755,9 +758,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     links: list[str] = []
     for key in ordered_keys:
         cache_key = _client_config_cache_key(key.server_id, key.panel_email)
-        config = CLIENT_CONFIG_CACHE.get(cache_key)
+        configs = CLIENT_CONFIG_CACHE.get(cache_key)
         server = servers_by_id.get(key.server_id)
-        if not config or not server:
+        if not configs or not server:
             logger.warning(
                 "Пропущен ключ %s: не удалось получить конфиг для %s",
                 key.id,
@@ -765,16 +768,19 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             )
             continue
 
-        link_payload = dict(config)
-        # Резервный (аварийный) ключ показываем как призыв к действию, без
-        # "ArcVPN - ... (сервер)", чтобы пользователь сразу понял: нужно продлить.
-        if key.id == -1:
-            display_name = key.tariff_name
-        else:
-            display_name = f"ArcVPN - {key.tariff_name} ({server.name})"
-        link_payload["server_name"] = display_name
-        link_payload["remark"] = display_name
-        links.append(generate_link(link_payload))
+        # В кэше — список конфигов (по одному на inbound сервера). Генерируем
+        # отдельную ссылку на каждый inbound; имя берём из remark inbound.
+        for config in configs:
+            link_payload = dict(config)
+            if key.id == -1:
+                # Резервный (аварийный) ключ — призыв к действию вместо имени inbound.
+                display_name = key.tariff_name
+            else:
+                # Имя конфига = remark inbound (например "🇩🇪 Германия", "Hysteria2").
+                display_name = config.get("inbound_name") or f"ArcVPN - {key.tariff_name} ({server.name})"
+            link_payload["server_name"] = display_name
+            link_payload["remark"] = display_name
+            links.append(generate_link(link_payload))
 
     return links
 

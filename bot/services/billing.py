@@ -255,29 +255,22 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
                     try:
                         logger.info("[%s/%s] 🔄 Настройка на сервере %s (ID: %s)", idx + 1, len(servers), server_name, server_id)
                         client = await get_client(server_id)
-                        inbounds = await client.get_inbounds()
-                        if not inbounds:
-                            logger.warning("⚠️  На сервере %s нет доступных протоколов, пропускаем", server_name)
-                            continue
-
-                        inbound = inbounds[0]
-                        inbound_id = inbound['id']
                         base = f"user_{username}" if username else f"user_{telegram_id}"
                         suffix = uuid.uuid4().hex[:8]
                         panel_email = f'{base}_{suffix}'
-                        flow = await client.get_inbound_flow(inbound_id)
                         limit_gb = (tariff.get('traffic_limit_gb', 0) or 0)
 
-                        res = await client.add_client(
-                            inbound_id=inbound_id,
+                        # Создаём клиента во ВСЕХ inbound сервера (одна подписка =
+                        # все протоколы). primary_inbound_id пишем в БД.
+                        res = await client.provision_client_all_inbounds(
                             email=panel_email,
                             total_gb=limit_gb,
                             expire_days=days,
                             limit_ip=getattr(config, "DEFAULT_LIMIT_IP", 2),
                             enable=True,
                             tg_id=str(telegram_id),
-                            flow=flow
                         )
+                        inbound_id = res['primary_inbound_id']
                         client_uuid = res['uuid']
 
                         if idx == 0:
