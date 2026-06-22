@@ -190,6 +190,12 @@ class XUIClient(BaseVPNClient):
                     
                     # Обработка статусов
                     if response.status == 200:
+
+                        # Некоторые версии 2.x-ui возвращают пустой ответ при успешном POST
+                        if not text.strip():
+                            logger.info("Панель вернула пустой 200, считаем успешным ответом")
+                            return {"success": True}
+                        
                         try:
                             result = json.loads(text)
                             if result.get("success"):
