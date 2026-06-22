@@ -69,7 +69,10 @@ class XUIClient(BaseVPNClient):
         path = f"/{path}" if path else ""
         
         self.base_url = f"{self.protocol}://{self.host}:{self.port}{path}"
-        
+        # Origin (без пути) — нужен для прохождения Fetch-Metadata/Origin проверок
+        # на write-эндпоинтах в свежих 3x-ui (иначе POST отбивается пустым 200).
+        self.origin = f"{self.protocol}://{self.host}:{self.port}"
+
         self.session: Optional[aiohttp.ClientSession] = None
         self.is_authenticated = False
         self._csrf_token: Optional[str] = None  # 3x-ui v3.0.0+ CSRF-токен сессии
@@ -138,16 +141,27 @@ class XUIClient(BaseVPNClient):
         """
         # URL = https://ip:port/secret_path/panel/...
         url = f"{self.base_url}{endpoint}"
-        
-        # Стандартные заголовки для AJAX запросов 3X-UI
+
+        # Заголовки как у браузерного фронта панели. Свежие 3x-ui проверяют
+        # Fetch-Metadata/Origin на write-эндпоинтах: без Sec-Fetch-Site/Origin
+        # POST молча отбивается пустым 200 (запрос не доходит до обработчика).
         headers = {
-            "Accept": "application/json",
-            "X-Requested-With": "XMLHttpRequest"
+            "Accept": "application/json, text/plain, */*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": self.origin,
+            "Referer": f"{self.base_url}/panel/inbounds",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+            ),
         }
-        
+
         attempts = RETRY_CONFIG["max_attempts"] if retry else 1
         delays = RETRY_CONFIG["delays"]
-        
+
         for attempt in range(attempts):
             try:
                 # Получаем актуальную сессию (важно, так как она может быть пересоздана в _reset_session)
@@ -164,7 +178,14 @@ class XUIClient(BaseVPNClient):
 
                 logger.debug(f"API запрос: {method} {url}")
 
-                async with session.request(method, url, json=data, headers=req_headers) as response:
+                # Тело POST шлём как form-urlencoded (как фронт панели), а не JSON:
+                # часть write-эндпоинтов 3x-ui биндит именно форму (ShouldBind).
+                if method.upper() == "POST" and isinstance(data, dict):
+                    req_kwargs = {"data": data}
+                else:
+                    req_kwargs = {"json": data} if data is not None else {}
+
+                async with session.request(method, url, headers=req_headers, **req_kwargs) as response:
                     text = await response.text()
                     
                     # Обработка статусов
@@ -309,8 +330,21 @@ class XUIClient(BaseVPNClient):
         session = await self._ensure_session()
         url = f"{self.base_url}/login"
 
-        # 3x-ui v3.0.0+ требует CSRF-токен для /login (иначе 403).
-        login_headers = {}
+        # Браузерные заголовки + CSRF (для v3). Логин работает и без них, но шлём
+        # их единообразно, чтобы пройти возможные Origin/Fetch-Metadata проверки.
+        login_headers = {
+            "Accept": "application/json, text/plain, */*",
+            "X-Requested-With": "XMLHttpRequest",
+            "Origin": self.origin,
+            "Referer": f"{self.base_url}/",
+            "Sec-Fetch-Dest": "empty",
+            "Sec-Fetch-Mode": "cors",
+            "Sec-Fetch-Site": "same-origin",
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+            ),
+        }
         csrf_token = await self._fetch_csrf_token(session)
         if csrf_token:
             login_headers["x-csrf-token"] = csrf_token
