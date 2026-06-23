@@ -528,6 +528,22 @@ class XUIClient(BaseVPNClient):
         await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
         return True
 
+    async def _v3_attach(self, email: str, inbound_ids: List[int]) -> None:
+        """
+        Привязывает клиента к указанным inbound (v3: POST clients/{email}/attach).
+
+        В v3 `clients/update` меняет только поля клиента и НЕ меняет привязку к
+        inbound — для добавления в новый inbound нужен отдельный attach. Тело —
+        JSON {inboundIds:[...]}.
+        """
+        if not inbound_ids:
+            return
+        import urllib.parse
+        enc = urllib.parse.quote(email, safe='')
+        await self._v3_post_client(
+            f"/panel/api/clients/{enc}/attach", {"inboundIds": list(inbound_ids)}
+        )
+
     async def _v3_email_for_secret(self, secret: str) -> Optional[str]:
         """Находит email клиента по секрету (id/password) через inbounds/list."""
         try:
@@ -579,7 +595,9 @@ class XUIClient(BaseVPNClient):
         if existing:
             secret = existing.get("uuid") or existing.get("password") or secret
             sub_id = existing.get("subId") or sub_id
-            target_ids = sorted(set(supported_ids) | set(existing.get("inboundIds") or []))
+            current_ids = set(existing.get("inboundIds") or [])
+            target_ids = sorted(current_ids | set(supported_ids))
+            # update меняет только поля; привязку к НОВЫМ inbound делает attach.
             body = self._v3_client_body(
                 email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
                 expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
@@ -588,8 +606,11 @@ class XUIClient(BaseVPNClient):
             import urllib.parse
             enc = urllib.parse.quote(email, safe='')
             await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+            missing = [i for i in supported_ids if i not in current_ids]
+            if missing:
+                await self._v3_attach(email, missing)
             provisioned = target_ids
-            logger.info("Клиент %s обновлён в v3 (inboundIds=%s)", email, target_ids)
+            logger.info("Клиент %s обновлён в v3 (inboundIds=%s, доклеено=%s)", email, target_ids, missing)
         else:
             body = self._v3_client_body(
                 email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
@@ -1024,7 +1045,8 @@ class XUIClient(BaseVPNClient):
             if existing:
                 secret = existing.get("uuid") or existing.get("password") or str(uuid.uuid4())
                 sub_id = existing.get("subId") or uuid.uuid4().hex
-                ids = sorted(set(existing.get("inboundIds") or []) | {inbound_id})
+                current_ids = set(existing.get("inboundIds") or [])
+                ids = sorted(current_ids | {inbound_id})
                 body = self._v3_client_body(
                     email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
                     expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
@@ -1032,6 +1054,8 @@ class XUIClient(BaseVPNClient):
                 )
                 enc = urllib.parse.quote(email, safe='')
                 await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+                if inbound_id not in current_ids:
+                    await self._v3_attach(email, [inbound_id])
             else:
                 secret = str(uuid.uuid4())
                 sub_id = uuid.uuid4().hex
