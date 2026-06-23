@@ -785,6 +785,21 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     return links
 
 
+def _select_links(links: list[str], output_format: str) -> str:
+    """
+    Склеивает ссылки для тела подписки.
+
+    plain/base64 (Happ/Hiddify) — все inbound одной подписки (VLESS, Hysteria2, …),
+    каждая ссылка отдельной строкой. json (clash/sing-box/v2ray) поддерживает один
+    outbound — берём первую (VLESS идёт первым по сортировке).
+    """
+    if not links:
+        return ""
+    if output_format == "json":
+        return links[0]
+    return "\n".join(links)
+
+
 def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
     """Находит активный ключ по subscription id."""
     with get_db() as conn:
@@ -866,7 +881,7 @@ def _build_reserve_response(sub_id: str, output_format: str, is_head: bool) -> O
         return _response_from_prepared(prepared)
 
     links = ASYNC_EXECUTOR.run(_generate_links_for_keys([reserve_key]))
-    link = links[0] if links else ""
+    link = _select_links(links, output_format)
     if not link:
         logger.warning("Резервный конфиг недоступен для %s (нет ссылки)", _mask_token(sub_id))
         return None
@@ -942,7 +957,7 @@ def subscription(sub_id: str):
             return _response_from_prepared(prepared)
 
         links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
-        link = links[0] if links else ""
+        link = _select_links(links, output_format)
         if not link:
             logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
             return _subscription_temporarily_unavailable()
