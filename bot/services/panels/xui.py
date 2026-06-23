@@ -528,6 +528,61 @@ class XUIClient(BaseVPNClient):
         await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
         return True
 
+    async def _v3_list_clients(self) -> List[Dict[str, Any]]:
+        """Возвращает всех клиентов панели v3 (GET /panel/api/clients/list)."""
+        try:
+            r = await self._request("GET", "/panel/api/clients/list", retry=False, log_error=False)
+            obj = r.get("obj") if isinstance(r, dict) else None
+            return obj if isinstance(obj, list) else []
+        except VPNAPIError:
+            return []
+
+    def _v3_client_as_settings_entry(self, c: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Приводит клиента из clients/list (поля v3: uuid/password/subId/flow/...) к
+        форме записи settings.clients, которую понимает _build_client_config
+        (ожидает id=uuid для VLESS/VMess, password для остальных).
+        """
+        return {
+            "id": c.get("uuid", ""),
+            "password": c.get("password", ""),
+            "email": c.get("email", ""),
+            "subId": c.get("subId", ""),
+            "flow": c.get("flow", ""),
+            "security": c.get("security", "auto"),
+        }
+
+    async def _v3_configs_by_inbound(
+        self, emails: set, multi: bool
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        Собирает конфиги для v3 через clients/list + inboundIds.
+
+        multi=True  → по конфигу на КАЖДЫЙ привязанный inbound (для подписки).
+        multi=False → один конфig (VLESS-приоритет) на email.
+        Возвращает {email: [config, ...]}.
+        """
+        inbounds = self._sort_inbounds_vless_first(await self.get_inbounds())
+        ib_by_id = {ib.get("id"): ib for ib in inbounds}
+        out: Dict[str, List[Dict[str, Any]]] = {e: [] for e in emails}
+
+        for c in await self._v3_list_clients():
+            email = c.get("email", "")
+            if email not in emails:
+                continue
+            entry = self._v3_client_as_settings_entry(c)
+            # inboundIds в порядке VLESS-first (как отсортированы inbounds)
+            ordered_ids = [ib.get("id") for ib in inbounds if ib.get("id") in set(c.get("inboundIds") or [])]
+            for ib_id in ordered_ids:
+                inbound = ib_by_id.get(ib_id)
+                if not inbound or inbound.get("protocol") not in self.SUPPORTED_PROTOCOLS:
+                    continue
+                settings = _as_obj(inbound.get("settings", "{}"))
+                out[email].append(self._build_client_config(inbound, settings, entry))
+                if not multi:
+                    break
+        return {e: cfgs for e, cfgs in out.items() if cfgs}
+
     async def _v3_attach(self, email: str, inbound_ids: List[int]) -> None:
         """
         Привязывает клиента к указанным inbound (v3: POST clients/{email}/attach).
@@ -1666,6 +1721,16 @@ class XUIClient(BaseVPNClient):
 
         configs: Dict[str, Dict[str, Any]] = {}
 
+        # v3: клиенты централизованы (clients/list + inboundIds), settings.clients
+        # у inbound может быть пуст — читаем по v3-пути.
+        if await self._ensure_api_version() == "v3":
+            try:
+                by_email = await self._v3_configs_by_inbound(email_set, multi=False)
+                return {e: cfgs[0] for e, cfgs in by_email.items() if cfgs}
+            except Exception as e:
+                logger.error(f"[v3] Error getting client configs: {e}")
+                return {}
+
         try:
             # VLESS-inbound идут первыми, чтобы одиночный конфиг (key_sender/QR)
             # отдавал основную VLESS-ссылку.
@@ -1709,6 +1774,14 @@ class XUIClient(BaseVPNClient):
             return {}
 
         configs: Dict[str, List[Dict[str, Any]]] = {email: [] for email in email_set}
+
+        # v3: один конфиг на каждый привязанный inbound через clients/list+inboundIds.
+        if await self._ensure_api_version() == "v3":
+            try:
+                return await self._v3_configs_by_inbound(email_set, multi=True)
+            except Exception as e:
+                logger.error(f"[v3] Error getting all client configs: {e}")
+                return {}
 
         try:
             inbounds = self._sort_inbounds_vless_first(await self.get_inbounds())
