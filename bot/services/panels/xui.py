@@ -76,6 +76,10 @@ class XUIClient(BaseVPNClient):
         self.session: Optional[aiohttp.ClientSession] = None
         self.is_authenticated = False
         self._csrf_token: Optional[str] = None  # 3x-ui v3.0.0+ CSRF-токен сессии
+        # Версия client-API панели: "v2" (эндпоинты /panel/api/inbounds/*Client)
+        # или "v3" (/panel/api/clients/*). Определяется лениво в _ensure_api_version
+        # и кэшируется на время жизни клиента (внутри сессии не меняется).
+        self._api_version: Optional[str] = None
 
         logger.debug(f"Инициализирован XUIClient для {server['name']}: {self.base_url}")
     
@@ -117,12 +121,13 @@ class XUIClient(BaseVPNClient):
         logger.debug(f"Сессия сброшена для {self.server['name']}")
     
     async def _request(
-        self, 
-        method: str, 
-        endpoint: str, 
+        self,
+        method: str,
+        endpoint: str,
         data: Optional[Dict] = None,
         retry: bool = True,
-        log_error: bool = True
+        log_error: bool = True,
+        json_body: bool = False
     ) -> Dict[str, Any]:
         """
         Выполняет HTTP-запрос к API.
@@ -178,9 +183,11 @@ class XUIClient(BaseVPNClient):
 
                 logger.debug(f"API запрос: {method} {url}")
 
-                # Тело POST шлём как form-urlencoded (как фронт панели), а не JSON:
-                # часть write-эндпоинтов 3x-ui биндит именно форму (ShouldBind).
-                if method.upper() == "POST" and isinstance(data, dict):
+                # v2-write-эндпоинты (/panel/api/inbounds/*) биндят форму (ShouldBind),
+                # поэтому тело шлём form-urlencoded. v3-эндпоинты (/panel/api/clients/*)
+                # ждут JSON (фронт шлёт с Content-Type: application/json) — для них
+                # вызывающий код передаёт json_body=True.
+                if method.upper() == "POST" and isinstance(data, dict) and not json_body:
                     req_kwargs = {"data": data}
                 else:
                     req_kwargs = {"json": data} if data is not None else {}
@@ -390,7 +397,217 @@ class XUIClient(BaseVPNClient):
         """
         result = await self._request("GET", "/panel/api/inbounds/list")
         return result.get("obj", [])
-    
+
+    # ========================================================================
+    # Версия client-API (v2 inbounds/*Client  vs  v3 clients/*) и v3-хелперы
+    # ========================================================================
+
+    async def _ensure_api_version(self) -> str:
+        """
+        Определяет и кэширует версию client-API панели ("v2" | "v3").
+
+        v3.0.0 перенёс операции с клиентами на /panel/api/clients/* и добавил
+        GET /panel/api/inbounds/list/slim (в v2 его нет → 404). По нему и детектим.
+        Можно форсировать через config.XUI_FORCE_API_VERSION ("v2"|"v3").
+        Read-путь (inbounds/list + settings.clients) одинаков в обеих версиях,
+        поэтому версия нужна только для write-операций.
+        """
+        if self._api_version:
+            return self._api_version
+
+        forced = None
+        try:
+            import config
+            forced = getattr(config, "XUI_FORCE_API_VERSION", None)
+        except Exception:
+            forced = None
+        if forced in ("v2", "v3"):
+            self._api_version = forced
+            return forced
+
+        try:
+            r = await self._request("GET", "/panel/api/inbounds/list/slim", retry=False, log_error=False)
+            self._api_version = "v3" if isinstance(r, dict) and r.get("success") else "v2"
+        except VPNAPIError as e:
+            # Кэшируем v2 только при явном 404 (эндпоинта нет → старая панель).
+            # При неоднозначной ошибке (сеть/логин) НЕ кэшируем — переопределим
+            # на следующем вызове, чтобы не залипнуть в неверной версии.
+            msg = str(e).lower()
+            if "404" in msg or "не найден" in msg:
+                self._api_version = "v2"
+            else:
+                logger.warning("Не удалось определить версию API панели (%s); временно считаем v2", e)
+                return "v2"
+        logger.info("API панели %s определён как %s", self.server.get("name", "?"), self._api_version)
+        return self._api_version
+
+    @staticmethod
+    def _to_int_tgid(tg_id) -> int:
+        """tgId в v3 — целое >= 0; пустое/нечисловое → 0."""
+        s = str(tg_id or "").strip()
+        return int(s) if s.isdigit() else 0
+
+    async def _v3_get_client(self, email: str) -> Optional[Dict[str, Any]]:
+        """Читает объединённого клиента v3 (GET /panel/api/clients/get/{email})."""
+        import urllib.parse
+        enc = urllib.parse.quote(email, safe='')
+        try:
+            r = await self._request("GET", f"/panel/api/clients/get/{enc}", retry=False, log_error=False)
+            obj = r.get("obj") if isinstance(r, dict) else None
+            return obj if isinstance(obj, dict) else None
+        except VPNAPIError:
+            return None
+
+    def _v3_client_body(
+        self,
+        *,
+        email: str,
+        secret: str,
+        sub_id: str,
+        total_bytes: int,
+        expiry_ms: int,
+        limit_ip: int,
+        enable: bool,
+        tg_id,
+        inbound_ids: List[int],
+        flow: str = "",
+    ) -> Dict[str, Any]:
+        """
+        Собирает тело клиента для v3 (clients/add|update). Один клиент привязан к
+        нескольким inbound через inboundIds. Секрет кладём и в uuid (для VLESS), и
+        в password (для Hysteria2/Trojan) — так одна запись обслуживает все inbound
+        под единым секретом (как зеркалирование в v2).
+        """
+        return {
+            "email": email,
+            "uuid": secret,
+            "password": secret,
+            "flow": flow or "",
+            "limitIp": limit_ip,
+            "totalGB": total_bytes,
+            "expiryTime": expiry_ms,
+            "enable": enable,
+            "tgId": self._to_int_tgid(tg_id),
+            "subId": sub_id,
+            "comment": "",
+            "reset": 0,
+            "inboundIds": list(inbound_ids),
+        }
+
+    async def _v3_post_client(self, endpoint: str, body: Dict[str, Any]) -> Dict[str, Any]:
+        """POST на v3 client-эндпоинт с JSON-телом."""
+        return await self._request("POST", endpoint, data=body, json_body=True)
+
+    async def _v3_update_fields(self, email: str, **changes) -> bool:
+        """
+        Обновляет клиента v3: читает текущего, применяет changes, шлёт
+        POST /panel/api/clients/update/{email} полным объектом (иначе панель
+        затрёт незаданные поля — в т.ч. inboundIds).
+        """
+        import urllib.parse
+        cur = await self._v3_get_client(email)
+        if not cur:
+            raise VPNAPIError(f"Клиент {email} не найден на панели (v3)")
+        body = {
+            "email": cur.get("email", email),
+            "uuid": cur.get("uuid", ""),
+            "password": cur.get("password", ""),
+            "flow": cur.get("flow", ""),
+            "limitIp": cur.get("limitIp", 0),
+            "totalGB": cur.get("totalGB", 0),
+            "expiryTime": cur.get("expiryTime", 0),
+            "enable": cur.get("enable", True),
+            "tgId": self._to_int_tgid(cur.get("tgId", 0)),
+            "subId": cur.get("subId", ""),
+            "comment": cur.get("comment", ""),
+            "reset": cur.get("reset", 0),
+            "inboundIds": cur.get("inboundIds") or [],
+        }
+        body.update(changes)
+        enc = urllib.parse.quote(email, safe='')
+        await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+        return True
+
+    async def _v3_email_for_secret(self, secret: str) -> Optional[str]:
+        """Находит email клиента по секрету (id/password) через inbounds/list."""
+        try:
+            for ib in await self.get_inbounds():
+                settings = _as_obj(ib.get("settings", "{}"))
+                for c in (settings.get("clients") or []):
+                    if c.get("id") == secret or c.get("password") == secret:
+                        return c.get("email")
+        except Exception as e:
+            logger.debug("Не удалось сопоставить секрет с email (v3): %s", e)
+        return None
+
+    async def _v3_provision_all(
+        self,
+        *,
+        email: str,
+        secret: str,
+        sub_id: str,
+        total_bytes: int,
+        expiry_ms: int,
+        limit_ip: int,
+        enable: bool,
+        tg_id,
+    ) -> Dict[str, Any]:
+        """
+        v3-провижининг: один клиент во ВСЕ поддерживаемые inbound одним вызовом
+        (нативный inboundIds). Если клиент с таким email уже есть — upsert через
+        update (сохраняем его uuid/subId, доклеиваем недостающие inbound).
+        """
+        inbounds = await self.get_inbounds()
+        if not inbounds:
+            raise VPNAPIError("На сервере нет ни одного inbound")
+        supported = [ib for ib in inbounds if ib.get("protocol") in self.SUPPORTED_PROTOCOLS]
+        if not supported:
+            raise VPNAPIError("На сервере нет поддерживаемых inbound")
+        supported_ids = [ib["id"] for ib in supported]
+
+        flow = ""
+        primary_inbound_id: Optional[int] = None
+        for ib in supported:
+            if ib.get("protocol") == "vless":
+                flow = self._compute_flow_from_inbound(ib)
+                primary_inbound_id = ib["id"]
+                break
+        if primary_inbound_id is None:
+            primary_inbound_id = supported_ids[0]
+
+        existing = await self._v3_get_client(email)
+        if existing:
+            secret = existing.get("uuid") or existing.get("password") or secret
+            sub_id = existing.get("subId") or sub_id
+            target_ids = sorted(set(supported_ids) | set(existing.get("inboundIds") or []))
+            body = self._v3_client_body(
+                email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
+                expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
+                inbound_ids=target_ids, flow=flow,
+            )
+            import urllib.parse
+            enc = urllib.parse.quote(email, safe='')
+            await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+            provisioned = target_ids
+            logger.info("Клиент %s обновлён в v3 (inboundIds=%s)", email, target_ids)
+        else:
+            body = self._v3_client_body(
+                email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
+                expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
+                inbound_ids=supported_ids, flow=flow,
+            )
+            await self._v3_post_client("/panel/api/clients/add", body)
+            provisioned = supported_ids
+            logger.info("Клиент %s создан в v3 (inboundIds=%s)", email, supported_ids)
+
+        return {
+            "uuid": secret,
+            "email": email,
+            "sub_id": sub_id,
+            "primary_inbound_id": primary_inbound_id,
+            "inbound_ids": provisioned,
+        }
+
     async def get_server_status(self) -> Dict[str, Any]:
         """
         Получает статус сервера (CPU, память, uptime).
@@ -485,8 +702,9 @@ class XUIClient(BaseVPNClient):
             Количество пользователей онлайн
         """
         try:
-            # Запрос к /panel/api/inbounds/onlines
-            response = await self._request("POST", "/panel/api/inbounds/onlines", retry=False, log_error=False)
+            # v3 перенёс онлайны в /panel/api/clients/onlines (в v2 — inbounds/onlines)
+            ep = "/panel/api/clients/onlines" if await self._ensure_api_version() == "v3" else "/panel/api/inbounds/onlines"
+            response = await self._request("POST", ep, retry=False, log_error=False)
             if response.get("success") and response.get("obj"):
                 return len(response["obj"])
         except VPNAPIError:
@@ -503,7 +721,8 @@ class XUIClient(BaseVPNClient):
             set[str] — email'ы онлайн-клиентов (пусто при ошибке/отсутствии данных)
         """
         try:
-            response = await self._request("POST", "/panel/api/inbounds/onlines", retry=False, log_error=False)
+            ep = "/panel/api/clients/onlines" if await self._ensure_api_version() == "v3" else "/panel/api/inbounds/onlines"
+            response = await self._request("POST", ep, retry=False, log_error=False)
             obj = response.get("obj") if response.get("success") else None
             if obj:
                 return {str(e) for e in obj}
@@ -527,9 +746,12 @@ class XUIClient(BaseVPNClient):
             list[str] — уникальные IP клиента
         """
         try:
-            response = await self._request(
-                "POST", f"/panel/api/inbounds/clientIps/{email}", retry=False, log_error=False
-            )
+            import urllib.parse as _up
+            if await self._ensure_api_version() == "v3":
+                ip_ep = f"/panel/api/clients/ips/{_up.quote(email, safe='')}"
+            else:
+                ip_ep = f"/panel/api/inbounds/clientIps/{email}"
+            response = await self._request("POST", ip_ep, retry=False, log_error=False)
             if not response.get("success"):
                 return []
             obj = response.get("obj")
@@ -670,6 +892,13 @@ class XUIClient(BaseVPNClient):
 
         total_bytes = total_gb * 1024 * 1024 * 1024 if total_gb > 0 else 0
 
+        # v3: один клиент во все inbound нативно (inboundIds), без ручного цикла.
+        if await self._ensure_api_version() == "v3":
+            return await self._v3_provision_all(
+                email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
+                expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
+            )
+
         inbounds = await self.get_inbounds()
         if not inbounds:
             raise VPNAPIError("На сервере нет ни одного inbound")
@@ -779,6 +1008,46 @@ class XUIClient(BaseVPNClient):
         """
         if expire_minutes is None and expire_days <= 0:
             raise ValueError("Срок действия ключа должен быть больше 0 дней")
+
+        # v3: clients/add (или upsert через update, если клиент уже есть),
+        # привязка к указанному inbound; uuid/password = единый секрет.
+        if await self._ensure_api_version() == "v3":
+            if expire_minutes is not None:
+                expiry_ms = int((time.time() + expire_minutes * 60) * 1000)
+            elif expire_days > 0:
+                expiry_ms = int((time.time() + expire_days * 86400) * 1000)
+            else:
+                expiry_ms = 0
+            total_bytes = total_gb * 1024 * 1024 * 1024 if total_gb > 0 else 0
+            import urllib.parse
+            existing = await self._v3_get_client(email)
+            if existing:
+                secret = existing.get("uuid") or existing.get("password") or str(uuid.uuid4())
+                sub_id = existing.get("subId") or uuid.uuid4().hex
+                ids = sorted(set(existing.get("inboundIds") or []) | {inbound_id})
+                body = self._v3_client_body(
+                    email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
+                    expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
+                    inbound_ids=ids, flow=flow,
+                )
+                enc = urllib.parse.quote(email, safe='')
+                await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+            else:
+                secret = str(uuid.uuid4())
+                sub_id = uuid.uuid4().hex
+                body = self._v3_client_body(
+                    email=email, secret=secret, sub_id=sub_id, total_bytes=total_bytes,
+                    expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
+                    inbound_ids=[inbound_id], flow=flow,
+                )
+                await self._v3_post_client("/panel/api/clients/add", body)
+            return {
+                "uuid": secret,
+                "email": email,
+                "inbound_id": inbound_id,
+                "expire_time": expiry_ms,
+                "total_gb": total_gb,
+            }
 
         # Определяем протокол inbound для правильной структуры клиента
         protocol = ""
@@ -959,6 +1228,16 @@ class XUIClient(BaseVPNClient):
             True при успешном удалении
         """
         import urllib.parse
+        # v3: клиент удаляется целиком по email (из всех своих inbound).
+        if await self._ensure_api_version() == "v3":
+            email = await self._v3_email_for_secret(client_uuid)
+            if not email:
+                logger.info("delete_client v3: клиент с секретом не найден, считаем уже удалённым")
+                return True
+            enc = urllib.parse.quote(email, safe='')
+            await self._request("POST", f"/panel/api/clients/del/{enc}")
+            return True
+
         encoded_uuid = urllib.parse.quote(client_uuid, safe='')
         await self._request("POST", f"/panel/api/inbounds/{inbound_id}/delClient/{encoded_uuid}")
         return True
@@ -1126,6 +1405,16 @@ class XUIClient(BaseVPNClient):
         """
         import urllib.parse
 
+        # v3: один клиент с inboundIds — обновляем одним вызовом по email.
+        if await self._ensure_api_version() == "v3":
+            await self._v3_update_fields(
+                email, expiryTime=expiry_time_ms, totalGB=total_gb_bytes, enable=enable
+            )
+            from datetime import datetime
+            expiry_str = datetime.fromtimestamp(expiry_time_ms / 1000).strftime('%Y-%m-%d %H:%M') if expiry_time_ms > 0 else '∞'
+            logger.info(f"[v3] Обновлён клиент {email}: expiry={expiry_str}, enable={enable}")
+            return True
+
         # Клиент зеркалируется во все inbound сервера под одним секретом/email,
         # поэтому обновляем его в КАЖДОМ inbound, где он найден.
         inbounds = await self.get_inbounds()
@@ -1200,6 +1489,24 @@ class XUIClient(BaseVPNClient):
         """
         import time
         import urllib.parse
+
+        # v3: читаем текущий срок клиента и продлеваем одним вызовом по email.
+        if await self._ensure_api_version() == "v3":
+            cur = await self._v3_get_client(email)
+            if not cur:
+                raise VPNAPIError(f"Клиент {email} не найден на панели (v3)")
+            current_expiry = cur.get("expiryTime", 0) or 0
+            now_ms = int(time.time() * 1000)
+            ext_ms = days * 86400 * 1000
+            if current_expiry == 0:
+                new_expiry = 0  # бессрочный остаётся бессрочным
+            elif current_expiry < now_ms:
+                new_expiry = now_ms + ext_ms
+            else:
+                new_expiry = current_expiry + ext_ms
+            await self._v3_update_fields(email, expiryTime=new_expiry)
+            logger.info(f"[v3] Продлён ключ клиента {email} на {days} дней. Новый expiry: {new_expiry}")
+            return True
 
         # Продлеваем во ВСЕХ inbound, где живёт клиент.
         inbounds = await self.get_inbounds()
@@ -1542,6 +1849,16 @@ class XUIClient(BaseVPNClient):
         import urllib.parse
         encoded_email = urllib.parse.quote(email, safe='')
 
+        # v3: сброс трафика клиента одним вызовом по email.
+        if await self._ensure_api_version() == "v3":
+            try:
+                await self._request("POST", f"/panel/api/clients/resetTraffic/{encoded_email}")
+                logger.info(f"[v3] Сброшен трафик клиента {email}")
+                return True
+            except Exception as e:
+                logger.error(f"[v3] Ошибка сброса трафика {email}: {e}")
+                return False
+
         inbounds = await self.get_inbounds()
         done = 0
         for inbound in inbounds:
@@ -1581,6 +1898,12 @@ class XUIClient(BaseVPNClient):
             True если обновлено хотя бы в одном inbound
         """
         import urllib.parse
+
+        # v3: обновляем лимит одним вызовом по email.
+        if await self._ensure_api_version() == "v3":
+            await self._v3_update_fields(email, totalGB=total_gb_bytes)
+            logger.info(f"[v3] Обновлён лимит клиента {email}: {total_gb_bytes / (1024**3):.1f} ГБ")
+            return True
 
         inbounds = await self.get_inbounds()
         updated_any = False

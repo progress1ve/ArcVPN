@@ -301,7 +301,9 @@ async def disable_key_on_panel(key_id: int) -> bool:
             if inbound['id'] == inbound_id:
                 target_inbound = inbound
                 import json
-                settings = json.loads(inbound.get('settings', '{}'))
+                # v3 отдаёт settings уже как dict, v2 — JSON-строкой.
+                settings_raw = inbound.get('settings', '{}')
+                settings = settings_raw if isinstance(settings_raw, dict) else json.loads(settings_raw or '{}')
                 for cl in settings.get('clients', []):
                     if cl.get('email') == email:
                         target_client = cl

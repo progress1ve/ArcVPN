@@ -1,110 +1,89 @@
-# План переезда `xui.py` на 3x-ui v3.0.0
+# Переезд на 3x-ui v3 — выполнено (адаптер v2/v3 в xui.py)
 
-> Документ-план (без реализации). Цель — портировать `bot/services/panels/xui.py`
-> под API 3x-ui **v3.0.0**, сохранив обратную совместимость с **v2.9.x** на время
-> переезда. Текущий прод стоит на v2.9.4; код уже работает с ним.
+> Обновлено 2026-06-23 по факту реального апгрейда прод-ноды на v3.
 
-## 0. Контекст и почему это нужно
+## 0. Что оказалось на самом деле
 
-Сейчас `xui.py` написан под v2.x API (`/panel/api/inbounds/*`). В v3.0.0 client-API
-переехал и получил **нативную мульти-inbound** модель (`InboundIds`), что напрямую
-упрощает нашу фичу «одна подписка = все inbound» (см. `MIGRATION_AND_SCALING.md` и
-реализованный зеркалирующий провижининг в `provision_client_all_inbounds`). После
-переезда зеркалирование вручную станет не нужно — клиент создаётся сразу в списке
-inbound одним вызовом.
+В v3.x 3x-ui **перенёс операции с клиентами** с `/panel/api/inbounds/*Client`
+на новые `/panel/api/clients/*` (подтверждено `strings` по бинарнику панели —
+фронт зовёт `clients/add|update|del|...`). Старые write-пути отдают **404**, из-за
+чего после апгрейда сломались покупки/продления/бэкфилл. Read-путь
+(`inbounds/list`, клиенты внутри `settings.clients`) в v3 **не изменился**.
 
-## 1. Ключевые отличия v2.9.x → v3.0.0
+Решение: в `bot/services/panels/xui.py` добавлен **детект версии + ветка v3**,
+с сохранением v2 как фолбэка (мультисервер: ноды могут быть на разных версиях).
 
-| Область | v2.9.x (сейчас) | v3.0.0 |
+## 1. Карта эндпоинтов v2 → v3
+
+| Операция | v2 | v3 |
 |---|---|---|
-| CSRF | Только на `/login` (уже реализовано: `_fetch_csrf_token`) | CSRF-токен **на всех** изменяющих запросах (`x-csrf-token`) |
-| `settings`/`streamSettings` | JSON-строка | Уже **dict** (распарсено). У нас закрыто `_as_obj()` |
-| Создание клиента | `POST /panel/api/inbounds/addClient` (тело: `{id, settings:"{clients:[...]}"}`) | `POST /panel/api/clients/*` с `ClientCreatePayload` и **`InboundIds: [..]`** (множественное) |
-| Обновление клиента | `POST /panel/api/inbounds/updateClient/{id}` | client-эндпоинты `/panel/api/clients/*` |
-| Удаление | `POST /panel/api/inbounds/{ib}/delClient/{id}` | client-эндпоинт |
-| Список inbound | `GET /panel/api/inbounds/list` | вероятно тот же (проверить) |
-| onlines / clientIps | `POST /panel/api/inbounds/onlines`, `.../clientIps/{email}` | проверить путь |
+| создать | `POST inbounds/addClient` (form) | `POST clients/add` (**JSON**) |
+| обновить | `POST inbounds/updateClient/{id}` (form) | `POST clients/update/{email}` (**JSON**) |
+| удалить | `POST inbounds/{ib}/delClient/{id}` | `POST clients/del/{email}` |
+| сброс трафика | `POST inbounds/{ib}/resetClientTraffic/{email}` | `POST clients/resetTraffic/{email}` |
+| онлайны | `POST inbounds/onlines` | `POST clients/onlines` |
+| IP клиента | `POST inbounds/clientIps/{email}` | `POST clients/ips/{email}` |
+| читать клиента | (из inbounds/list) | `GET clients/get/{email}` |
+| список inbound (+клиенты) | `GET inbounds/list` | без изменений |
+| детект версии | — | `GET inbounds/list/slim` (в v2 → 404) |
 
-> ⚠️ Точные схемы `ClientCreatePayload` и пути `/panel/api/clients/*` **нужно
-> сверить с исходниками** установленной версии (`web/controller`, `web/service`)
-> или Swagger панели перед реализацией — таблица выше составлена по обсуждению и
-> подлежит верификации.
+Модель клиента v3 — единая запись с `inboundIds: [..]` и **двумя секретами**
+(`uuid` для VLESS, `password` для Hysteria2/Trojan). Мы кладём один секрет в оба
+поля → одна запись обслуживает все inbound (как зеркалирование в v2, но нативно
+одним вызовом). `tgId` в v3 — целое.
 
-## 2. Стратегия совместимости (v2 и v3 одновременно)
+## 2. Что в коде (xui.py)
 
-Не делать «большой разрыв». Поддержать обе версии в одном клиенте:
+- `_ensure_api_version()` — лениво детектит "v2"/"v3" (кэш на жизнь клиента),
+  override через `config.XUI_FORCE_API_VERSION`.
+- `_request(..., json_body=True)` — JSON-тело для v3 (form для v2).
+- Хелперы: `_v3_get_client`, `_v3_client_body`, `_v3_update_fields`,
+  `_v3_email_for_secret`, `_v3_provision_all`.
+- Ветки v3 в: `provision_client_all_inbounds` (один `clients/add` с inboundIds),
+  `add_client`, `update_client_full`, `update_client_limit`,
+  `extend_client_expiry`, `delete_client`, `reset_client_traffic`,
+  `get_online_emails`, `get_online_clients_count`, `get_client_ips`.
+- `vpn_api.disable_key_on_panel` — терпит dict-`settings` (v3).
+- Сигнатуры публичных методов не изменились → остальной код не трогаем.
 
-1. **Детект версии** при `login()` / первом запросе:
-   - `GET /panel/api/server/status` или специальный `version`-эндпоинт; либо
-     эвристика: пробный вызов нового client-эндпоинта → при 404 считаем v2.
-   - Кэшировать `self._api_version` ("v2"|"v3") на время сессии.
-2. **Тонкий слой эндпоинтов**: вынести пути и форму тела в методы-адаптеры,
-   например `self._ep_add_client(...)`, `self._ep_update_client(...)`,
-   `self._ep_del_client(...)`, которые внутри ветвятся по `self._api_version`.
-   Бизнес-логика (`provision_client_all_inbounds`, `update_client_full`, ...) их
-   вызывает, не зная про версию.
-3. **CSRF**: текущий `_request` уже добавляет `x-csrf-token`, если токен получен.
-   Для v3 убедиться, что токен получается на каждой сессии и обновляется при 403
-   (ветка 403 в `_request` уже есть).
+## 3. Деплой и поэтапная проверка (root@ArcVPN)
 
-## 3. Маппинг методов `xui.py` (что трогаем)
+1. `cd /root/ArcVPN && git pull`
+2. Бэкап: `cp database/vpn_bot.db ~/vpn_bot.db.bak.$(date +%F)`
+3. `systemctl restart arcvpn-bot arcvpn-subscription`
+4. **Дымовой тест ОДНОГО ключа** перед массовым бэкфиллом:
+   ```bash
+   python3 - <<'PY'
+   import asyncio
+   from bot.services.vpn_api import get_client, push_key_to_panel, close_all_clients
+   async def m():
+       c = await get_client(10)                  # id сервера
+       print("version:", await c._ensure_api_version())
+       await close_all_clients()
+   asyncio.run(m())
+   PY
+   ```
+   Затем продлить/обновить один тестовый ключ из бота и убедиться, что 404 ушли.
+5. **Бэкфилл** существующих клиентов в Hysteria2 (после успешного п.4):
+   ```bash
+   python3 backfill_all_inbounds.py --server 10            # dry-run
+   python3 backfill_all_inbounds.py --server 10 --apply
+   ```
+6. Проверить подписку: `curl -s '<SUBSCRIPTION_URL>/sub/<sub_id>?format=plain'`
+   → должны прийти и `vless://`, и `hysteria2://`.
 
-| Метод | Действие при переезде |
-|---|---|
-| `login` / `_fetch_csrf_token` | Оставить; проверить, что токен принимается на write-эндпоинтах v3 |
-| `get_inbounds` | Сверить путь; `_as_obj` уже снимает разницу dict/str |
-| `provision_client_all_inbounds` | **Главный выигрыш**: для v3 — один вызов `addClient` с `InboundIds=[все поддерживаемые]`. Для v2 — текущий цикл по inbound. Спрятать в `_ep_add_client` |
-| `add_client` | Перевести на `_ep_add_client` (один inbound = `InboundIds:[id]`) |
-| `update_client_full` / `update_client_limit` / `extend_client_expiry` | Перевести на `_ep_update_client`; в v3 обновление по client-id может затрагивать все его inbound нативно (проверить) — тогда фан-аут не нужен |
-| `delete_client` | Перевести на `_ep_del_client` |
-| `reset_client_traffic` | Сверить путь reset в v3 |
-| `get_all_client_configs` / `_build_client_config` | Логика та же (читаем inbounds + clients). Проверить, что `clients`/`settings` структура совпадает |
-| `get_online_emails` / `get_client_ips` / `get_online_clients_count` | Сверить пути onlines/clientIps |
-| `get_database_backup` | Сверить эндпоинт getDb |
+## 4. Откат
 
-## 4. Влияние на остальной код
+- Код совместим с обеими версиями. Если что-то идёт не так на v3 — `git revert`
+  коммита адаптера вернёт чистый v2-код; саму панель откатывать не обязательно
+  (но тогда write-операции снова 404 на v3 — несовместимо). Правильный откат —
+  откат панели на v2.9.x из бэкапа x-ui.db.
+- Точечный форс версии: `XUI_FORCE_API_VERSION = "v3"` (или `"v2"`) в `config.py`.
 
-- `bot/services/vpn_api.py` (`push_key_to_panel`, `disable_key_on_panel`,
-  `restore_key_traffic_limit`, `extend_key_on_server`) — **без изменений**: они
-  ходят через методы `XUIClient`, версия скрыта внутри.
-- `subscription_api.py` — без изменений (использует `get_all_client_configs`).
-- Создатели ключей (`billing.py`, `trial.py`, `users_keys.py`, миграционные
-  скрипты) — без изменений (используют `provision_client_all_inbounds`).
-- Генератор ссылок `key_generator.py` — без изменений.
+## 5. Контрольный список
 
-## 5. Порядок работ
-
-1. Поднять тестовый стенд 3x-ui v3.0.0 (отдельный VPS/порт), создать VLESS +
-   Hysteria2 inbound.
-2. Снять с исходников/Swagger точные пути и схемы `/panel/api/clients/*`,
-   `ClientCreatePayload`, формат `InboundIds`, reset/onlines/clientIps.
-3. Реализовать детект версии + адаптеры `_ep_*` (ветвление v2/v3).
-4. Прогнать сценарии (раздел 6) на тестовом стенде, затем на копии прод-данных.
-5. Выкатить; первое время держать v2-ветку как фолбэк, пока все ноды не на v3.
-
-## 6. Тест-план (на тестовом стенде v3)
-
-1. `login` + получение CSRF; повторный запрос после 403 (протух токен) восстанавливается.
-2. `provision_client_all_inbounds` → клиент создан сразу во всех inbound одним вызовом (`InboundIds`), один uuid/email.
-3. Подписка `/sub/<sub_id>?format=plain` отдаёт VLESS + Hysteria2 строки, имена из remark.
-4. Продление (`push_key_to_panel`) меняет срок во всех inbound; отключение истёкшего — во всех.
-5. `delete_client` удаляет клиента из всех inbound.
-6. `get_online_emails`/`get_client_ips` — детект устройств работает.
-7. Бэкап БД панели скачивается.
-8. Регресс на ноде, оставшейся на v2.9.x: всё то же самое через v2-ветку адаптеров.
-
-## 7. Откат
-
-- Версия определяется per-session; если v3-ветка падает — временно форсировать
-  v2-пути через env/конфиг-флаг (`XUI_FORCE_API_VERSION`), не откатывая код.
-- Полный откат — `git revert` коммита переезда; методы `XUIClient` и их сигнатуры
-  не меняются, поэтому остальной код не затрагивается.
-
-## 8. Риски
-
-- Точные схемы v3 не подтверждены документально — обязательна сверка с исходниками
-  до реализации (раздел 1 помечен ⚠️).
-- В v3 обновление/удаление может быть «по client-id глобально», а не по inbound —
-  если так, наш ручной фан-аут (`update_client_full`) для v3 надо отключить, иначе
-  лишние запросы. Решается внутри адаптеров.
-- Hysteria2 в v3 может иметь иную форму клиента — проверить на стенде.
+- [ ] `git pull` + restart bot/subscription.
+- [ ] `_ensure_api_version()` → "v3".
+- [ ] Продление/покупка тестового ключа без 404.
+- [ ] Backfill применён.
+- [ ] Подписка отдаёт VLESS + Hysteria2.
