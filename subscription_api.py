@@ -12,23 +12,39 @@ import concurrent.futures
 import html
 import json
 import logging
+import os
 import re
 import threading
 import time
 import urllib.parse
+import urllib.request
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
 
-from flask import Flask, Response, redirect, request
+from flask import Flask, Response, jsonify, redirect, request, send_from_directory
 
 from bot.services.panels.base import VPNAPIError
 from bot.services.panels.xui import XUIClient
 from bot.utils.key_generator import generate_link
+from bot.utils.telegram_webapp import get_telegram_id
 import config
 from database.connection import get_db
 from database.db_servers import get_server_by_id
+from database.requests import (
+    get_user_keys_for_display,
+    get_user_internal_id,
+    ensure_user_referral_code,
+    get_user_balance,
+    get_referral_stats,
+    get_referral_friends,
+    get_referral_earned_days,
+    is_referral_enabled,
+    get_referral_reward_type,
+    get_all_tariffs,
+    get_setting,
+)
 from bot.services.reserve import get_reserve_client_info
 from subscription_pages import render_import_page
 
@@ -83,6 +99,15 @@ PROFILE_TITLE = getattr(config, "PROFILE_TITLE", "ArcVPN")
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
 SUPPORT_URL = getattr(config, "SUPPORT_URL", "https://t.me/Turan11627")
 PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arcvpn1")
+
+# --- Telegram Mini App ---------------------------------------------------------
+# Собранный Svelte+Vite фронтенд лежит в webapp_dist/ (коммитится в репо, чтобы
+# деплой на сервер был обычным git pull — Node на сервере не нужен).
+WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp_dist")
+BOT_TOKEN = getattr(config, "BOT_TOKEN", "")
+# Возраст initData, после которого считаем её протухшей (сек). Mini App
+# переоткрывают часто, сутки — безопасный дефолт.
+WEBAPP_INITDATA_MAX_AGE = getattr(config, "WEBAPP_INITDATA_MAX_AGE", 24 * 60 * 60)
 
 LOCAL_AND_RESERVED_CIDRS = [
     "10.0.0.0/8",
@@ -1045,6 +1070,218 @@ def import_to_happ(sub_id: str):
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "DENY"
     return response
+
+
+# --- Telegram Mini App: API + раздача SPA --------------------------------------
+
+# Username бота нужен для реферальной ссылки (t.me/<bot>?start=ref_...). В initData
+# его нет, поэтому резолвим один раз через getMe и кэшируем. config.BOT_USERNAME
+# (если задан) имеет приоритет — на случай оффлайна/проблем с сетью при старте.
+_BOT_USERNAME_CACHE: Optional[str] = None
+_BOT_USERNAME_LOCK = threading.Lock()
+
+
+def _get_bot_username() -> str:
+    global _BOT_USERNAME_CACHE
+    configured = getattr(config, "BOT_USERNAME", "") or ""
+    if configured:
+        return configured.lstrip("@")
+    if _BOT_USERNAME_CACHE is not None:
+        return _BOT_USERNAME_CACHE
+    with _BOT_USERNAME_LOCK:
+        if _BOT_USERNAME_CACHE is not None:
+            return _BOT_USERNAME_CACHE
+        username = ""
+        if BOT_TOKEN:
+            try:
+                url = f"https://api.telegram.org/bot{BOT_TOKEN}/getMe"
+                with urllib.request.urlopen(url, timeout=5) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                username = (data.get("result") or {}).get("username", "") or ""
+            except Exception as exc:
+                logger.warning("Не удалось получить username бота через getMe: %s", exc)
+        _BOT_USERNAME_CACHE = username
+        return username
+
+
+def _webapp_telegram_id() -> Optional[int]:
+    """
+    Достаёт и валидирует telegram_id из initData запроса Mini App.
+
+    initData ждём в заголовке X-Telegram-Init-Data (фронт ставит его на каждый
+    запрос). Подпись проверяется HMAC по токену бота — клиенту доверять нельзя.
+    """
+    if not BOT_TOKEN:
+        return None
+    init_data = request.headers.get("X-Telegram-Init-Data", "")
+    if not init_data:
+        return None
+    return get_telegram_id(init_data, BOT_TOKEN, WEBAPP_INITDATA_MAX_AGE)
+
+
+def _api_no_store(response: Response) -> Response:
+    response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def _api_error(message: str, status: int) -> Response:
+    response = jsonify({"ok": False, "error": message})
+    response.status_code = status
+    return _api_no_store(response)
+
+
+def _import_url_for(sub_id: Optional[str]) -> Optional[str]:
+    if not sub_id:
+        return None
+    return f"{SUBSCRIPTION_URL}/import/{sub_id}"
+
+
+def _public_links() -> Dict[str, str]:
+    """Ссылки сервиса для Mini App (канал, поддержка, бот)."""
+    support = get_setting("support_channel_link", "") or SUPPORT_URL
+    channel = get_setting("news_channel_link", "") or ""
+    username = _get_bot_username()
+    return {
+        "support_url": support,
+        "channel_url": channel,
+        "bot_url": f"https://t.me/{username}" if username else "",
+        "bot_username": username,
+    }
+
+
+@app.route('/api/status')
+def api_status():
+    """Статус подписок пользователя для Mini App."""
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+
+    keys = []
+    for key in get_user_keys_for_display(telegram_id):
+        sub_id = key.get("sub_id")
+        expires_dt = _parse_db_datetime(key.get("expires_at"))
+        keys.append({
+            "id": key.get("id"),
+            "display_name": key.get("display_name"),
+            "server_name": key.get("server_name"),
+            "is_active": bool(key.get("is_active")),
+            "is_trial": key.get("tariff_id") is None,
+            "expires_at": key.get("expires_at"),
+            "expires_at_unix": int(expires_dt.timestamp()) if expires_dt else 0,
+            "traffic_used": int(key.get("traffic_used") or 0),
+            "traffic_limit": int(key.get("traffic_limit") or 0),
+            "online_devices": int(key.get("online_devices") or 0),
+            "has_sub": bool(sub_id),
+            "import_url": _import_url_for(sub_id),
+            "sub_url": f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain" if sub_id else None,
+        })
+
+    response = jsonify({
+        "ok": True,
+        "telegram_id": telegram_id,
+        "keys": keys,
+        "links": _public_links(),
+    })
+    return _api_no_store(response)
+
+
+@app.route('/api/tariffs')
+def api_tariffs():
+    """Список тарифов для покупки (покупка идёт в боте)."""
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+
+    tariffs = []
+    for t in get_all_tariffs():
+        price_rub = t.get("price_rub")
+        if price_rub in (None, 0):
+            price_rub = round(int(t.get("price_cents") or 0) / 100)
+        tariffs.append({
+            "id": t.get("id"),
+            "name": t.get("name"),
+            "duration_days": int(t.get("duration_days") or 0),
+            "price_rub": int(price_rub or 0),
+            "price_stars": int(t.get("price_stars") or 0),
+            "traffic_limit_gb": int(t.get("traffic_limit_gb") or 0),
+        })
+
+    response = jsonify({"ok": True, "tariffs": tariffs})
+    return _api_no_store(response)
+
+
+@app.route('/api/referral')
+def api_referral():
+    """Данные реферальной программы для Mini App."""
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+
+    if not is_referral_enabled():
+        return _api_no_store(jsonify({"ok": True, "enabled": False}))
+
+    user_id = get_user_internal_id(telegram_id)
+    if not user_id:
+        return _api_error("user_not_found", 404)
+
+    code = ensure_user_referral_code(user_id)
+    username = _get_bot_username()
+    link = f"https://t.me/{username}?start=ref_{code}" if username else ""
+
+    stats = get_referral_stats(user_id) or []
+    total_invited = sum(int(s.get("count") or 0) for s in stats)
+
+    friends_raw = get_referral_friends(user_id)
+    # telegram_id друзей наружу не отдаём — только отображаемые поля.
+    friends = [
+        {
+            "name": (f.get("first_name") or f.get("username") or "Без имени"),
+            "username": f.get("username"),
+            "created_at": f.get("created_at"),
+            "has_paid": bool(f.get("has_paid")),
+        }
+        for f in friends_raw
+    ]
+    paid_invited = sum(1 for f in friends if f["has_paid"])
+
+    response = jsonify({
+        "ok": True,
+        "enabled": True,
+        "code": code,
+        "link": link,
+        "balance_cents": int(get_user_balance(user_id) or 0),
+        "reward_type": get_referral_reward_type(),
+        "earned_days": int(get_referral_earned_days(user_id) or 0),
+        "trial_bonus_days": int(get_setting('referral_trial_bonus_days', '3') or 3),
+        "purchase_bonus_days": int(get_setting('referral_purchase_bonus_days', '5') or 5),
+        "total_invited": total_invited,
+        "paid_invited": paid_invited,
+        "friends": friends,
+    })
+    return _api_no_store(response)
+
+
+@app.route('/app')
+@app.route('/app/')
+@app.route('/app/<path:path>')
+def webapp(path: str = ""):
+    """
+    Раздаёт собранный Svelte SPA из webapp_dist/.
+
+    Любой неизвестный путь возвращает index.html — клиентский роутинг разрулит
+    его сам. send_from_directory защищает от path traversal.
+    """
+    if path:
+        candidate = os.path.join(WEBAPP_DIST_DIR, path)
+        if os.path.isfile(candidate):
+            return send_from_directory(WEBAPP_DIST_DIR, path)
+    index_path = os.path.join(WEBAPP_DIST_DIR, "index.html")
+    if not os.path.isfile(index_path):
+        return Response("Mini App не собран (webapp_dist отсутствует)", status=404,
+                        mimetype="text/plain")
+    return send_from_directory(WEBAPP_DIST_DIR, "index.html")
 
 
 if __name__ == '__main__':

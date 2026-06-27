@@ -1,0 +1,206 @@
+/* ArcVPN Mini App — глобальные токены и база.
+   Айдентика: «приборная рубка». Тёмная панель приборов, тонкие рамки,
+   моноширинные показания (дни/трафик/ID), один сигнальный цвет = «на связи».
+   Никаких градиентных кнопок, случайных свечений и декоративных «звёздочек». */
+
+:root {
+  /* Тёмная тема — по умолчанию. Почти-чёрная холодная база (как референс),
+     карточки чуть светлее фона — низкий контраст, премиальный вид. */
+  --bg: #07090f;
+  --bg-2: #0a0d15;
+  --surface: #10131e;
+  --surface-2: #161b29;
+  --surface-3: #1e2535;
+  --border: #1d2435;
+  --border-strong: #2b3650;
+  --hairline: #151b29;
+
+  --text: #e9edfa;
+  --muted: #94a1c0;
+  --faint: #5e6c8e;
+
+  /* Бренд — голубой индиго (как перивинкл-баннер), действия и навигация */
+  --brand: #6d82ff;
+  --brand-press: #5a6ff0;
+  --brand-ink: #ffffff;
+  --brand-soft: rgba(109, 130, 255, 0.15);
+  --brand-line: rgba(109, 130, 255, 0.36);
+
+  /* Сигнал — живой статус «на связи» (зелёный LED прибора) */
+  --signal: #34d39b;
+  --signal-soft: rgba(52, 211, 155, 0.13);
+  --signal-line: rgba(52, 211, 155, 0.34);
+
+  --amber: #e8a44d;
+  --amber-soft: rgba(232, 164, 77, 0.13);
+  --red: #ec6a6a;
+
+  --radius-lg: 28px;
+  --radius: 20px;
+  --radius-sm: 14px;
+  --radius-pill: 999px;
+  --tap: rgba(124, 130, 245, 0.12);
+
+  /* Внутренний верхний блик панели — объём без свечения */
+  --panel-top: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-float: 0 10px 30px -12px rgba(0, 0, 0, 0.7);
+
+  /* Liquid glass — полупрозрачное стекло с верхним бликом */
+  --glass-bg: rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  --glass-blur: blur(18px) saturate(130%);
+
+  --font-display: 'Manrope', system-ui, sans-serif;
+  --font-body:
+    'Manrope', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --maxw: 460px;
+  --pad: 16px;
+  --tabbar-h: 64px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+[data-theme='light'] {
+  --bg: #eceef4;
+  --bg-2: #e4e7f0;
+  --surface: #ffffff;
+  --surface-2: #f4f5fb;
+  --surface-3: #eaecf5;
+  --border: #e0e3ee;
+  --border-strong: #d2d6e6;
+  --hairline: #eceef6;
+
+  --text: #121726;
+  --muted: #5f6a81;
+  --faint: #98a0b4;
+
+  --brand: #4f63ee;
+  --brand-press: #3f53dd;
+  --brand-ink: #ffffff;
+  --brand-soft: rgba(79, 99, 238, 0.1);
+  --brand-line: rgba(79, 99, 238, 0.28);
+
+  --signal: #18a877;
+  --signal-soft: rgba(24, 168, 119, 0.12);
+  --signal-line: rgba(24, 168, 119, 0.3);
+
+  --amber: #c9842f;
+  --amber-soft: rgba(201, 132, 47, 0.12);
+  --red: #cf4f4f;
+
+  --tap: rgba(90, 96, 224, 0.09);
+  --panel-top: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --shadow-float: 0 12px 30px -14px rgba(40, 50, 90, 0.35);
+
+  --glass-bg: rgba(255, 255, 255, 0.55);
+  --glass-border: rgba(255, 255, 255, 0.8);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --glass-blur: blur(18px) saturate(130%);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 16px;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+#app {
+  width: 100%;
+  max-width: var(--maxw);
+  margin: 0 auto;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Моноширинные показания приборов — табличные цифры */
+.mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: 'tnum' 1;
+  letter-spacing: -0.02em;
+}
+
+.display {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+/* Эйбрау-метка прибора: служебная подпись, моно, разрядка */
+.eyebrow {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+  font-weight: 500;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+/* Базовая панель — liquid glass */
+.panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--glass-hi);
+}
+
+.skeleton {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  animation: pulse 1.3s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

@@ -13,10 +13,12 @@ from database.requests import (
     get_referral_conditions_text,
     get_referral_levels,
     get_referral_stats,
+    get_referral_earned_days,
     get_user_internal_id,
     get_user_balance,
     ensure_user_referral_code,
     get_active_referral_levels,
+    get_setting,
 )
 from bot.keyboards.user import referral_menu_kb
 from bot.utils.text import safe_edit_or_send, escape_html
@@ -67,42 +69,47 @@ async def show_referral_system(callback: CallbackQuery):
     referral_link = f"https://t.me/{bot_username}?start=ref_{referral_code}"
     
     stats = get_referral_stats(user_internal_id)
-    balance = get_user_balance(user_internal_id)
-    
+    earned_days = get_referral_earned_days(user_internal_id)
+
     # Подсчитываем общее количество приглашенных
     total_invited = sum(s['count'] for s in stats) if stats else 0
-    
+
+    # Размеры бонусов (настройки)
+    try:
+        trial_bonus = int(get_setting('referral_trial_bonus_days', '3'))
+    except (TypeError, ValueError):
+        trial_bonus = 3
+    try:
+        purchase_bonus = int(get_setting('referral_purchase_bonus_days', '5'))
+    except (TypeError, ValueError):
+        purchase_bonus = 5
+
     # Весь текст в HTML с blockquote
     text_lines = [
         "🤝 <b>Партнёрская программа</b>",
         "",
-        "<b>Зарабатывай вместе с нами!</b>",
-        "<blockquote>Приглашай друзей по своей уникальной ссылке и получай 50₽ с каждого пополнения.</blockquote>",
+        "<b>Приглашай друзей — получай дни подписки!</b>",
+        "<blockquote>"
+        f"🎁 <b>+{trial_bonus} дня</b> — когда друг запустит бота по твоей ссылке\n"
+        f"🚀 <b>+{purchase_bonus} дней</b> тебе И <b>+{purchase_bonus} дней</b> другу — за его первую покупку"
+        "</blockquote>",
         "",
         "📊 <b>Ваша статистика:</b>",
         f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
-        f"Баланс: {escape_html(format_price_compact(balance))}</blockquote>",
+        f"Заработано дней: {escape_html(str(earned_days))}</blockquote>",
         "",
         "🔗 <b>Ваша ссылка:</b>",
         f"<code>{escape_html(referral_link)}</code>",
     ]
-    
+
     text = "\n".join(text_lines)
-    
+
     # Создаем клавиатуру с кнопками
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
     from aiogram.utils.keyboard import InlineKeyboardBuilder
-    
+
     builder = InlineKeyboardBuilder()
-    
-    # Кнопка "Пополнить баланс"
-    builder.row(
-        InlineKeyboardButton(
-            text="💰 Пополнить баланс",
-            callback_data="topup_balance"
-        )
-    )
-    
+
     # Кнопка "Пригласить друзей" с share
     builder.row(
         InlineKeyboardButton(
@@ -110,7 +117,7 @@ async def show_referral_system(callback: CallbackQuery):
             url=f"https://t.me/share/url?url={referral_link}&text=Присоединяйся к ArcVPN!"
         )
     )
-    
+
     # Кнопка "Личный кабинет" (возврат на главную)
     builder.row(
         InlineKeyboardButton(text="🏠На главную", callback_data="start")

@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 23
+LATEST_VERSION = 24
 
 
 def get_current_version() -> int:
@@ -120,7 +120,7 @@ def migration_1(conn: sqlite3.Connection) -> None:
             "4\\. Подключайтесь и наслаждайтесь\\! 🚀"
         )),
         ('news_channel_link', 'https://t.me/ArcVPN'),
-        ('support_channel_link', 'https://t.me/ArcVPN_support'),
+        ('support_channel_link', 'https://t.me/Turan11627'),
     ]
     for key, value in default_settings:
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
@@ -1429,6 +1429,38 @@ def migration_23(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v23 применена")
 
 
+def migration_24(conn: sqlite3.Connection) -> None:
+    """
+    Миграция v24: Реферальная модель «3 + 5» в днях подписки.
+
+    Раньше реферал получал фиксированные 50₽ на баланс за оплату приглашённого.
+    Новая модель — бонусные ДНИ подписки:
+    - +3 дня рефереру, когда приглашённый друг впервые запускает бота (авто-триал);
+    - +5 дней рефереру И +5 дней самому другу при первой покупке друга.
+    Каждый бонус начисляется один раз на друга (флаги идемпотентности).
+
+    Изменения referral_stats:
+    - bonus_trial_granted INTEGER DEFAULT 0 — выдан ли бонус за запуск друга;
+    - bonus_purchase_granted INTEGER DEFAULT 0 — выдан ли бонус за первую покупку.
+    Накопленные дни складываем в существующую колонку total_reward_days.
+    """
+    logger.info("Применение миграции v24 (Реферальные бонус-дни 3+5)...")
+
+    _add_column(conn, "referral_stats", "bonus_trial_granted INTEGER DEFAULT 0")
+    _add_column(conn, "referral_stats", "bonus_purchase_granted INTEGER DEFAULT 0")
+
+    # Настройки размера бонусов (дни) — редактируемы из админки при желании.
+    referral_bonus_settings = [
+        ('referral_trial_bonus_days', '3'),
+        ('referral_purchase_bonus_days', '5'),
+        ('referral_reward_type', 'days'),
+    ]
+    for key, value in referral_bonus_settings:
+        conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)", (key, value))
+
+    logger.info("Миграция v24 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1453,6 +1485,7 @@ MIGRATIONS = {
     21: migration_21,
     22: migration_22,
     23: migration_23,
+    24: migration_24,
 }
 
 

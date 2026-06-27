@@ -97,10 +97,11 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     
     is_admin = user_id in ADMIN_IDS
     
-    # Проверяем доступность пробного периода
+    # Пробный период теперь выдаётся АВТОМАТИЧЕСКИ при первом /start (см. ниже),
+    # поэтому кнопки/оффера «получить триал» в меню больше нет.
     from database.requests import is_trial_enabled, has_used_trial
-    show_trial = is_trial_enabled() and not has_used_trial(user_id)
-    
+    show_trial = False
+
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
     args = command.args
     if args and args.startswith('bill'):
@@ -158,13 +159,51 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
                 logger.exception(f'Ошибка обработки платежа: {e}')
                 await safe_edit_or_send(message, '❌ Произошла ошибка при обработке платежа.', force_new=True)
         return
+    # Глубокая ссылка из Mini App: ?start=buy_<tariff_id> — сразу открываем
+    # оплату выбранного тарифа (или продление, если подписка уже есть).
+    if args and args.startswith('buy_'):
+        tariff_part = args[4:]
+        if tariff_part.isdigit():
+            tariff_id = int(tariff_part)
+            from database.requests import get_tariff_by_id, get_user_primary_key
+            if get_tariff_by_id(tariff_id):
+                from bot.utils.payment_flow_ui import (
+                    show_payment_method_selection_screen,
+                    show_tariff_selection_screen,
+                )
+                from bot.utils.message_editor import get_message_data
+                primary = get_user_primary_key(user_id)
+                if primary:
+                    # Модель «одна подписка» — ведём на продление существующей.
+                    await show_tariff_selection_screen(message, user_id, key_id=primary['id'])
+                else:
+                    intro = (get_message_data('payment_select_text', '').get('text', '') or '').strip() or None
+                    await show_payment_method_selection_screen(message, user_id, tariff_id, intro_text=intro)
+                return
+        # Неизвестный/битый id — не падаем, просто показываем главное меню ниже.
+        logger.warning(f"Mini App buy deeplink с неизвестным тарифом: {args!r}")
+
     if is_new and args and args.startswith('ref_'):
         ref_code = args[4:]
         referrer = get_user_by_referral_code(ref_code)
         if referrer and referrer['id'] != user['id']:
             if set_user_referrer(user['id'], referrer['id']):
                 logger.info(f"User {user_id} привязан к рефереру {referrer['telegram_id']}")
-    
+
+    # Обязательный авто-триал: новый пользователь сразу получает пробную подписку
+    # (без кнопки). Делаем ПОСЛЕ привязки реферера — чтобы начислить рефереру +N дней.
+    if is_new:
+        try:
+            if is_trial_enabled() and not has_used_trial(user_id):
+                from bot.handlers.user.trial import provision_trial_for_user
+                trial_result = await provision_trial_for_user(user)
+                if trial_result:
+                    logger.info(f"Авто-триал выдан пользователю {user_id}")
+                else:
+                    logger.warning(f"Авто-триал не создан для {user_id} (серверы недоступны?)")
+        except Exception as e:
+            logger.error(f"Ошибка авто-триала при /start для {user_id}: {e}")
+
     show_referral = is_referral_enabled()
     has_subscription, primary_key_id = _get_subscription_state(user_id)
 
@@ -203,27 +242,45 @@ def create_main_menu_kb(
         has_subscription: Есть ли у пользователя хотя бы один ключ
         primary_key_id: ID основной подписки (для кнопки продления)
     """
+    # ВАЖНО про «акцентный цвет» кнопок:
+    # Bot API НЕ поддерживает окраску inline-кнопок (поля цвета у
+    # InlineKeyboardButton нет — есть только text/url/callback_data/web_app/...).
+    # Премиальная/акцентная окраска существует лишь у MainButton внутри Mini App.
+    # Поэтому «акцентные» кнопки тут выделяем визуально (эмодзи + отдельный
+    # ряд на всю ширину), а сам акцентный вид сделаем уже в Web App.
     builder = InlineKeyboardBuilder()
 
-    # Если доступен пробный период, показываем его первой кнопкой
-    if show_trial:
-        from database.requests import get_trial_days
-        trial_days = get_trial_days()
-        builder.row(
-            InlineKeyboardButton(text=f"🎁 Получить {trial_days} дней бесплатно", callback_data="trial_activate")
-        )
+    # Пробный период выдаётся автоматически при первом /start — отдельной кнопки нет.
 
-    # Основные кнопки
-    builder.row(InlineKeyboardButton(text="📱 Мои подписки", callback_data="my_keys"))
+    # Ряд 1: «Подключиться» — на всю ширину (акцентная). Открывает Mini App.
+    # web_app-кнопке нужен HTTPS-URL; берём из SUBSCRIPTION_URL + /app.
+    from aiogram.types import WebAppInfo
+    from config import SUBSCRIPTION_URL
+    webapp_url = f"{SUBSCRIPTION_URL.rstrip('/')}/app"
+    builder.row(InlineKeyboardButton(text="🚀 Подключиться", web_app=WebAppInfo(url=webapp_url)))
+
+    # Ряд 2: «Подписка» (= Мои подписки) + «Пригласить»
+    row2 = [InlineKeyboardButton(text="💳 Подписка", callback_data="my_keys")]
+    if show_referral:
+        row2.append(InlineKeyboardButton(text="👥 Пригласить", callback_data="referral_system"))
+    builder.row(*row2)
+
+    # Ряд 3: «О сервисе» + «Поддержка»
+    from database.requests import get_setting as _get_setting
+    support_link = _get_setting('support_channel_link', 'https://t.me/ArcVPN_support')
+    if not support_link or not support_link.startswith(('http://', 'https://')):
+        support_link = 'https://t.me/ArcVPN_support'
+    builder.row(
+        InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help"),
+        InlineKeyboardButton(text="💬 Поддержка", url=support_link),
+    )
+
+    # Ряд 4: «Продлить подписку» — на всю ширину (акцентная).
+    # Если подписки ещё нет — продлевать нечего, показываем «Купить».
     if has_subscription and primary_key_id:
-        builder.row(InlineKeyboardButton(text="📈 Продлить подписку", callback_data=f"key_renew:{primary_key_id}"))
+        builder.row(InlineKeyboardButton(text="⚡ Продлить подписку", callback_data=f"key_renew:{primary_key_id}"))
     else:
         builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key"))
-
-    if show_referral:
-        builder.row(InlineKeyboardButton(text="🤝 Партнерская программа", callback_data="referral_system"))
-
-    builder.row(InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help"))
 
     # Админ-панель (если админ)
     if is_admin:
@@ -258,12 +315,11 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
     
     is_admin = user_id in ADMIN_IDS
     
-    # Проверяем доступность пробного периода
-    from database.requests import is_trial_enabled, has_used_trial
-    show_trial = is_trial_enabled() and not has_used_trial(user_id)
-    
+    # Триал автоматический — кнопки/оффера в меню нет.
+    show_trial = False
+
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
-    
+
     show_referral = is_referral_enabled()
     has_subscription, primary_key_id = _get_subscription_state(user_id)
     kb = create_main_menu_kb(

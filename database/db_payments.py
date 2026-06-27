@@ -36,7 +36,10 @@ __all__ = [
     'get_active_referral_levels',
     'update_referral_level',
     'get_referral_stats',
+    'get_referral_friends',
     'update_referral_stat',
+    'grant_referral_bonus_once',
+    'get_referral_earned_days',
     'is_referral_enabled',
     'get_referral_reward_type',
     'get_referral_conditions_text',
@@ -853,8 +856,44 @@ def get_referral_stats(user_id: int) -> List[Dict[str, Any]]:
             
         return result
 
+def get_referral_friends(user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
+    """
+    Список приглашённых напрямую друзей (уровень 1) с признаком оплаты.
+
+    В отличие от get_referral_stats (агрегаты по уровням), возвращает
+    поимённый список для отображения в Mini App.
+
+    Args:
+        user_id: Внутренний ID пользователя (реферера)
+        limit: Максимум записей (защита от тяжёлого ответа)
+
+    Returns:
+        Список [{telegram_id, username, first_name, created_at, has_paid}, ...]
+        отсортированный от новых к старым.
+    """
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT
+                u.telegram_id,
+                u.username,
+                u.first_name,
+                u.created_at,
+                CASE WHEN EXISTS(
+                    SELECT 1 FROM payments p
+                    WHERE p.user_id = u.id
+                      AND p.status = 'paid'
+                      AND p.payment_type != 'trial'
+                ) THEN 1 ELSE 0 END AS has_paid
+            FROM users u
+            WHERE u.referred_by = ?
+            ORDER BY u.created_at DESC
+            LIMIT ?
+        """, (user_id, limit))
+        return [dict(row) for row in cursor.fetchall()]
+
+
 def update_referral_stat(
-    referrer_id: int, 
+    referrer_id: int,
     referral_id: int, 
     level: int, 
     reward_cents: int, 
@@ -883,6 +922,72 @@ def update_referral_stat(
                 total_reward_days = total_reward_days + excluded.total_reward_days
         """, (referrer_id, referral_id, level, reward_cents, reward_days))
         return True
+
+
+# Какие колонки-флаги соответствуют типу бонуса (идемпотентность «раз на друга»)
+_BONUS_FLAG_COLUMN = {
+    'trial': 'bonus_trial_granted',
+    'purchase': 'bonus_purchase_granted',
+}
+
+
+def grant_referral_bonus_once(referrer_id: int, referral_id: int, kind: str, days: int) -> bool:
+    """
+    Атомарно начисляет реферальный бонус ОДИН раз для пары (реферер, друг).
+
+    Используется новой моделью «3 + 5»: kind='trial' (+3 за запуск друга),
+    kind='purchase' (+5 за первую покупку друга). Повторный вызов с тем же
+    kind для той же пары вернёт False и ничего не начислит.
+
+    Дни накапливаются в referral_stats.total_reward_days (для статистики);
+    фактическое продление ключа реферера делает вызывающий код (billing).
+
+    Args:
+        referrer_id: внутренний ID реферера (кому бонус)
+        referral_id: внутренний ID приглашённого друга
+        kind: 'trial' | 'purchase'
+        days: сколько дней начислить (для статистики)
+
+    Returns:
+        True — бонус начислен впервые; False — уже был начислен (или kind неизвестен).
+    """
+    flag = _BONUS_FLAG_COLUMN.get(kind)
+    if not flag:
+        logger.warning("grant_referral_bonus_once: неизвестный kind=%r", kind)
+        return False
+
+    with get_db() as conn:
+        # Гарантируем наличие строки статистики (level=1) — без инкремента счётчиков.
+        conn.execute("""
+            INSERT OR IGNORE INTO referral_stats
+                (referrer_id, referral_id, level, total_payments_count, total_reward_cents, total_reward_days)
+            VALUES (?, ?, 1, 0, 0, 0)
+        """, (referrer_id, referral_id))
+
+        # Ставим флаг и копим дни ТОЛЬКО если бонус ещё не выдан — атомарно.
+        cursor = conn.execute(f"""
+            UPDATE referral_stats
+            SET {flag} = 1,
+                total_reward_days = total_reward_days + ?
+            WHERE referrer_id = ? AND referral_id = ? AND level = 1 AND {flag} = 0
+        """, (days, referrer_id, referral_id))
+        granted = cursor.rowcount > 0
+
+    if granted:
+        logger.info("Реф-бонус %s: +%s дн. рефереру %s за друга %s", kind, days, referrer_id, referral_id)
+    return granted
+
+
+def get_referral_earned_days(user_id: int) -> int:
+    """Сколько всего реферальных бонус-дней заработал пользователь (для UI)."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "SELECT COALESCE(SUM(total_reward_days), 0) AS d FROM referral_stats WHERE referrer_id = ?",
+            (user_id,),
+        )
+        row = cursor.fetchone()
+        return int(row['d']) if row else 0
+
 
 def is_referral_enabled() -> bool:
     """Включена ли реферальная система."""

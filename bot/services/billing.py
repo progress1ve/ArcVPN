@@ -749,132 +749,181 @@ def convert_to_rub_cents(amount_raw: int, payment_type: str, usd_rub_rate: int) 
         return amount_raw
 
 
+def _days_word(n: int) -> str:
+    """Русское склонение слова «день» для уведомлений."""
+    n = abs(int(n)) % 100
+    d = n % 10
+    if 10 < n < 20 or d == 0 or d >= 5:
+        return 'дней'
+    return 'день' if d == 1 else 'дня'
+
+
+async def grant_bonus_days(user_internal_id: int, days: int) -> bool:
+    """
+    Продлевает основную подписку пользователя на N бонус-дней и пушит на панель.
+
+    Используется реферальной моделью «3 + 5». После обязательного авто-триала
+    у пользователя всегда есть ключ, поэтому почти всегда есть что продлевать.
+
+    Returns:
+        True — дни применены к ключу; False — ключа нет / ошибка.
+    """
+    if days <= 0:
+        return False
+    from database.requests import get_user_by_id, get_user_primary_key
+    from bot.services.vpn_api import push_key_to_panel
+
+    user = get_user_by_id(user_internal_id)
+    if not user:
+        return False
+    primary = get_user_primary_key(user['telegram_id'])
+    if not primary:
+        logger.info("grant_bonus_days: у пользователя %s нет ключа — %s дн. не применены", user_internal_id, days)
+        return False
+
+    if not extend_vpn_key(primary['id'], days):
+        return False
+    try:
+        await push_key_to_panel(primary['id'])
+    except Exception as e:
+        logger.error("grant_bonus_days: ключ %s не запушен на панель: %s", primary['id'], e)
+    logger.info("Бонус +%s дн. применён к ключу %s (user %s)", days, primary['id'], user_internal_id)
+    return True
+
+
 async def process_referral_reward(
     payer_id: int,
-    period_days: int,
-    amount_raw: int,
-    payment_type: str
+    period_days: int = 0,
+    amount_raw: int = 0,
+    payment_type: str = ""
 ) -> None:
     """
-    Обработка реферального вознаграждения при оплате.
-    Вызывается ПОСЛЕ успешной обработки платежа.
-    
-    Начисляет фиксированные 50₽ (5000 копеек) на баланс реферера
-    за каждую покупку приглашенного пользователя.
-    
+    Реф-бонус за ПЕРВУЮ покупку приглашённого друга (модель «3 + 5»).
+
+    Начисляет +N дней рефереру И +N дней самому другу, ОДИН раз на друга
+    (идемпотентно через grant_referral_bonus_once). Размер — настройка
+    referral_purchase_bonus_days (по умолчанию 5). Старое начисление 50₽ на
+    баланс убрано.
+
     Args:
-        payer_id: Внутренний ID пользователя, который оплатил
-        period_days: Сколько дней купил реферал (не используется)
-        amount_raw: СЫРАЯ сумма (не используется)
-        payment_type: Тип платежа (не используется)
-    
-    Note:
-        При оплате балансом реферальные вознаграждения НЕ начисляются,
-        поэтому эта функция не вызывается для платежей балансом.
+        payer_id: внутренний ID друга, совершившего покупку.
+        остальные параметры оставлены для обратной совместимости вызовов.
     """
-    logger.info(f"process_referral_reward вызвана: payer_id={payer_id}, payment_type={payment_type}")
-    
     if not is_referral_enabled():
-        logger.warning(f"Реферальная система отключена, вознаграждение не начислено для payer_id={payer_id}")
         return
-    
-    # Получаем прямого реферера (уровень 1)
+
+    from database.requests import get_user_referrer, grant_referral_bonus_once, get_setting
+
     referrer_id = get_user_referrer(payer_id)
-    logger.info(f"Реферер для payer_id={payer_id}: referrer_id={referrer_id}")
-    
     if not referrer_id:
-        logger.info(f"У пользователя {payer_id} нет реферера, вознаграждение не начислено")
         return
-    
-    # Фиксированное вознаграждение: 50₽ = 5000 копеек
-    FIXED_REWARD_CENTS = 5000
-    
-    from bot.services.user_locks import user_locks
-    
-    # Начисляем фиксированную сумму на баланс реферера
-    async with user_locks[referrer_id]:
-        add_to_balance(referrer_id, FIXED_REWARD_CENTS)
-    
-    # Обновляем статистику
-    update_referral_stat(
-        referrer_id, payer_id, 1,  # level=1 (только прямые рефералы)
-        FIXED_REWARD_CENTS, 0  # reward_cents=5000, reward_days=0
-    )
-    
-    logger.info(f"Начислено {FIXED_REWARD_CENTS} коп реферу {referrer_id} за покупку реферала {payer_id}")
-    
-    # Отправляем уведомление рефереру
-    await send_referral_reward_notification(referrer_id, payer_id, FIXED_REWARD_CENTS)
+
+    try:
+        bonus_days = int(get_setting('referral_purchase_bonus_days', '5'))
+    except (TypeError, ValueError):
+        bonus_days = 5
+    if bonus_days <= 0:
+        return
+
+    # Один раз на друга: дальше идём только при первом срабатывании.
+    if not grant_referral_bonus_once(referrer_id, payer_id, 'purchase', bonus_days):
+        logger.info("Реф-бонус за покупку уже выдавался: реферер %s, друг %s", referrer_id, payer_id)
+        return
+
+    await grant_bonus_days(referrer_id, bonus_days)   # рефереру +N
+    await grant_bonus_days(payer_id, bonus_days)       # другу +N
+    await _notify_referral_bonus(referrer_id, payer_id, bonus_days, kind='purchase')
 
 
-async def send_referral_reward_notification(referrer_id: int, payer_id: int, reward_cents: int) -> None:
+async def process_referral_trial_reward(referee_internal_id: int) -> None:
     """
-    Отправляет уведомление рефереру о начислении бонуса.
-    
-    Args:
-        referrer_id: Внутренний ID реферера
-        payer_id: Внутренний ID того, кто оплатил
-        reward_cents: Сумма вознаграждения в копейках
+    Реф-бонус за ЗАПУСК приглашённого друга (его авто-триал): +N дней рефереру.
+
+    Один раз на друга. Размер — настройка referral_trial_bonus_days (по умолч. 3).
     """
-    logger.info(f"send_referral_reward_notification: referrer_id={referrer_id}, payer_id={payer_id}, reward={reward_cents}")
-    
+    if not is_referral_enabled():
+        return
+
+    from database.requests import get_user_referrer, grant_referral_bonus_once, get_setting
+
+    referrer_id = get_user_referrer(referee_internal_id)
+    if not referrer_id:
+        return
+
+    try:
+        bonus_days = int(get_setting('referral_trial_bonus_days', '3'))
+    except (TypeError, ValueError):
+        bonus_days = 3
+    if bonus_days <= 0:
+        return
+
+    if not grant_referral_bonus_once(referrer_id, referee_internal_id, 'trial', bonus_days):
+        return
+
+    await grant_bonus_days(referrer_id, bonus_days)
+    await _notify_referral_bonus(referrer_id, referee_internal_id, bonus_days, kind='trial')
+
+
+async def _notify_referral_bonus(referrer_id: int, friend_id: int, days: int, kind: str) -> None:
+    """
+    Уведомляет о начислении реферальных бонус-дней.
+
+    kind='trial'    — рефереру: друг запустил бота (+N дней рефереру).
+    kind='purchase' — рефереру: друг купил подписку (+N), и самому другу (+N).
+    """
     try:
         from aiogram import Bot
         from config import BOT_TOKEN
         from aiogram.types import InlineKeyboardButton
         from aiogram.utils.keyboard import InlineKeyboardBuilder
-        
-        # Получаем данные реферера и плательщика
+
         referrer = get_user_by_id(referrer_id)
-        payer = get_user_by_id(payer_id)
-        
-        logger.info(f"Данные реферера: {referrer}")
-        logger.info(f"Данные плательщика: {payer}")
-        
+        friend = get_user_by_id(friend_id)
         if not referrer:
-            logger.warning(f"Реферер {referrer_id} не найден для отправки уведомления")
             return
-        
-        referrer_telegram_id = referrer['telegram_id']
-        payer_username = payer.get('username', 'пользователь') if payer else 'пользователь'
-        
-        # Форматируем сумму
-        reward_rub = reward_cents / 100
-        reward_str = f"{reward_rub:.0f} ₽" if reward_rub >= 10 else f"{reward_rub:.2f} ₽"
-        
-        # Получаем текущий баланс
-        current_balance = get_user_balance(referrer_id)
-        balance_rub = current_balance / 100
-        balance_str = f"{balance_rub:.0f} ₽" if balance_rub >= 10 else f"{balance_rub:.2f} ₽"
-        
-        # Формируем текст уведомления
-        text = (
-            f"🎉 <b>Реферальное вознаграждение!</b>\n\n"
-            f"Ваш реферал @{payer_username} оплатил подписку.\n\n"
-            f"💰 <b>Начислено:</b> {reward_str}\n"
-            f"💎 <b>Ваш баланс:</b> {balance_str}\n\n"
-            f"Используйте баланс для оплаты подписок!"
-        )
-        
-        # Создаем клавиатуру
+
+        friend_name = f"@{friend['username']}" if (friend and friend.get('username')) else "ваш друг"
+        word = _days_word(days)
+
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="💎 Мой баланс", callback_data="referral_system"))
+        builder.row(InlineKeyboardButton(text="👥 Партнёрская программа", callback_data="referral_system"))
         builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-        
-        # Отправляем уведомление
+
+        if kind == 'trial':
+            ref_text = (
+                f"🎁 <b>+{days} {word} подписки!</b>\n\n"
+                f"По вашей ссылке пришёл новый друг ({friend_name}) и активировал VPN.\n"
+                f"Мы продлили вашу подписку на {days} {word}. Приглашайте ещё!"
+            )
+        else:
+            ref_text = (
+                f"🎉 <b>+{days} {word} подписки!</b>\n\n"
+                f"Ваш друг {friend_name} оформил подписку.\n"
+                f"Продлили вашу подписку на {days} {word} — спасибо, что приглашаете!"
+            )
+
         bot = Bot(token=BOT_TOKEN)
-        await bot.send_message(
-            chat_id=referrer_telegram_id,
-            text=text,
-            reply_markup=builder.as_markup(),
-            parse_mode="HTML"
-        )
-        await bot.session.close()
-        
-        logger.info(f"Отправлено уведомление о реферальном бонусе рефереру {referrer_telegram_id}")
-        
+        try:
+            await bot.send_message(
+                chat_id=referrer['telegram_id'], text=ref_text,
+                reply_markup=builder.as_markup(), parse_mode="HTML",
+            )
+            # Друга благодарим за покупку по приглашению (только на purchase).
+            if kind == 'purchase' and friend:
+                await bot.send_message(
+                    chat_id=friend['telegram_id'],
+                    text=(
+                        f"🎁 <b>+{days} {word} в подарок!</b>\n\n"
+                        f"Вы оформили подписку по приглашению — добавили {days} {word} к вашему сроку."
+                    ),
+                    parse_mode="HTML",
+                )
+        finally:
+            await bot.session.close()
+
+        logger.info("Уведомление о реф-бонусе (%s, +%s дн.) отправлено рефереру %s", kind, days, referrer['telegram_id'])
     except Exception as e:
-        logger.error(f"Ошибка отправки уведомления о реферальном бонусе: {e}")
+        logger.error("Ошибка уведомления о реф-бонусе: %s", e)
 
 
 def calculate_balance_discount(user_id: int, tariff_price_cents: int) -> tuple[int, int]:

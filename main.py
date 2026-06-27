@@ -63,6 +63,19 @@ async def on_startup(bot: Bot):
     bot.my_username = bot_info.username
     logger.info(f"✅ Бот запущен: @{bot_info.username}")
 
+    # Кнопка-меню чата открывает Mini App (Svelte SPA на subscription-сервисе).
+    # URL берём из config (SUBSCRIPTION_URL), путь /app раздаётся Flask-сервисом.
+    try:
+        from aiogram.types import MenuButtonWebApp, WebAppInfo
+        from config import SUBSCRIPTION_URL
+        webapp_url = f"{SUBSCRIPTION_URL.rstrip('/')}/app"
+        await bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(text="Открыть", web_app=WebAppInfo(url=webapp_url))
+        )
+        logger.info(f"✅ Кнопка Mini App установлена: {webapp_url}")
+    except Exception as exc:
+        logger.warning(f"⚠️ Не удалось установить кнопку Mini App: {exc}")
+
 
 async def on_shutdown(bot: Bot):
     """Действия при остановке бота."""
