@@ -151,7 +151,7 @@
   <ul class="feats">
     {#each FEATURES as f}
       <li class="feat">
-        <span class="feat-ico"><Icon name={f.icon} size={17} /></span>
+        <span class="feat-ico"><Icon name={f.icon} size={16} /></span>
         <span class="feat-title">{f.title}</span>
         <span class="feat-val muted">{f.val}</span>
       </li>
@@ -163,7 +163,7 @@
   .view {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 12px;
   }
 
   /* Hero-карточка: тёмная база + голубой ореол в нижнем-правом углу */
@@ -171,7 +171,7 @@
     position: relative;
     overflow: hidden;
     border-radius: var(--radius-lg);
-    border: 1px solid var(--glass-border);
+    border: 1px solid var(--border-strong);
     background:
       radial-gradient(
         100% 155% at 100% 100%,
@@ -181,8 +181,8 @@
         transparent 70%
       ),
       var(--surface);
-    box-shadow: var(--glass-hi), var(--shadow-float);
-    padding: 18px 18px 18px;
+    box-shadow: var(--shadow-float);
+    padding: 15px 16px;
   }
   /* Светлая тема: мягче ореол и видимая граница карточки на белом */
   :global([data-theme='light']) .hero {
@@ -217,7 +217,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
   .hero-label {
     font-size: 13px;
@@ -250,7 +250,7 @@
     gap: 9px;
   }
   .v-num {
-    font-size: 52px;
+    font-size: 44px;
     font-weight: 800;
     line-height: 1;
     color: var(--text);
@@ -278,14 +278,14 @@
     display: flex;
     align-items: stretch;
     gap: 10px;
-    margin-top: 18px;
+    margin-top: 13px;
   }
   .act {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    height: 50px;
+    height: 46px;
     border-radius: var(--radius-pill);
     font-family: var(--font-display);
     font-size: 14.5px;
@@ -314,7 +314,7 @@
   }
   .act.circle {
     flex: none;
-    width: 50px;
+    width: 46px;
     color: var(--text);
     border: 1px solid var(--border-strong);
     background: color-mix(in srgb, var(--bg) 22%, transparent);
@@ -334,8 +334,8 @@
     min-width: 0;
   }
   .sc-ico {
-    width: 54px;
-    height: 54px;
+    width: 48px;
+    height: 48px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -384,7 +384,7 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
     box-shadow: var(--panel-top);
-    padding: 18px 10px 15px;
+    padding: 14px 8px 12px;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -439,8 +439,8 @@
   .feat {
     display: flex;
     align-items: center;
-    gap: 13px;
-    padding: 12px 4px;
+    gap: 12px;
+    padding: 9px 4px;
     border-top: 1px solid var(--hairline);
   }
   .feat:first-child {
@@ -448,8 +448,8 @@
   }
   .feat-ico {
     flex: none;
-    width: 44px;
-    height: 44px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
     display: grid;
     place-items: center;
@@ -460,7 +460,7 @@
   .feat-title {
     flex: 1;
     min-width: 0;
-    font-size: 14.5px;
+    font-size: 14px;
     font-weight: 600;
   }
   .feat-val {

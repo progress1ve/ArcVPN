@@ -27,7 +27,9 @@
   $: subKey =
     keys.find((k) => k.is_active && k.has_sub) || keys.find((k) => k.has_sub) || null
   $: subUrl = subKey?.sub_url || ''
-  $: happUrl = subUrl ? `happ://add/${subUrl}` : ''
+  // Импорт открываем через https-страницу /import (она сама отдаёт happ:// по
+  // User-Agent). Прямой happ:// в Telegram WebView блокируется.
+  $: importUrl = subKey?.import_url || ''
 
   function toGuide() {
     stage = 'guide'
@@ -104,7 +106,7 @@
           <span class="muted small">Кнопка откроет Happ и добавит профиль. Не сработало — скопируйте ссылку.</span>
         </div>
       </div>
-      <Button href={happUrl}><Icon name="connect" size={18} /> Открыть в Happ</Button>
+      <Button on:click={() => openExternal(importUrl)}><Icon name="connect" size={18} /> Открыть в Happ</Button>
       <Button variant="subtle" on:click={() => copyText(subUrl, 'Ссылка подписки скопирована')}>
         <Icon name="copy" size={17} /> Скопировать подписку
       </Button>

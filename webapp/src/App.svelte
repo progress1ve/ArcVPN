@@ -92,7 +92,7 @@
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: calc(var(--safe-top) + 14px) var(--pad) 12px;
+    padding: calc(var(--safe-top) + 10px) var(--pad) 8px;
     animation: drop-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
   .logo {
@@ -132,7 +132,7 @@
   /* Анимация загрузки: .screen монтируется один раз → проигрывается на старте.
      Переходы между секциями делает in:fly на .view-anim (на каждой смене tab). */
   .screen {
-    padding: 4px var(--pad) calc(var(--tabbar-h) + var(--safe-bottom) + 28px);
+    padding: 4px var(--pad) calc(var(--tabbar-h) + var(--safe-bottom) + 14px);
     animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.05s both;
   }
   .view-anim {
