@@ -35,13 +35,11 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     # Получаем имя пользователя
     first_name = escape_html(user.get('first_name', 'Пользователь'))
     user_id = user.get('telegram_id', 0)
-    balance = user.get('personal_balance', 0) / 100  # Конвертируем копейки в рубли
-    
+
     # Формируем блок с информацией пользователя (всегда добавляется в конец)
     user_info_block = (
         f"Привет, {first_name}!\n\n"
-        f"<blockquote>— Ваш ID: {user_id}\n"
-        f"— Ваш баланс: {balance:.2f} ₽</blockquote>\n\n"
+        f"<blockquote>— Ваш ID: {user_id}</blockquote>\n\n"
         f"Новостной канал — @arcvpn1\n"
         f"Поддержка — @Turan11627"
     )

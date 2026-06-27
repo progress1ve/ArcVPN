@@ -208,11 +208,8 @@ async def show_payment_method_selection_screen(
                     price_cents=tariff['price_cents']
                 )
 
+    # Баланс выведен из обращения (рефералка теперь начисляет дни, не баланс).
     show_balance_button = False
-    if is_referral_enabled() and get_referral_reward_type() == 'balance' and user_id:
-        balance_cents = get_user_balance(user_id)
-        if balance_cents > 0:
-            show_balance_button = True
 
     discount_rub = (prepared_order or {}).get('discount_rub', 0) or 0
     payment_text = _format_payment_context_text(

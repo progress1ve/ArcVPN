@@ -192,12 +192,8 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
                 if item_id:
                     crypto_url = build_crypto_payment_url(item_id=item_id, invoice_id=order_id, tariff_external_id=None, price_cents=None)
                     
+    # Баланс выведен из обращения (рефералка теперь начисляет дни, не баланс).
     show_balance_button = False
-    if is_referral_enabled() and get_referral_reward_type() == 'balance':
-        if user_id:
-            balance_cents = get_user_balance(user_id)
-            if balance_cents > 0:
-                show_balance_button = True
 
     await safe_edit_or_send(
         callback.message,

@@ -81,11 +81,7 @@ def referral_main_kb(enabled: bool, reward_type: str, levels: List[Dict[str, Any
     builder = InlineKeyboardBuilder()
     toggle_text = '🟢 Выключить' if enabled else '⚪ Включить'
     builder.row(InlineKeyboardButton(text=toggle_text, callback_data='admin_referral_toggle'))
-    if reward_type == 'days':
-        type_text = '📅 Режим: Дни к ключу'
-    else:
-        type_text = '💰 Режим: На баланс'
-    builder.row(InlineKeyboardButton(text=type_text, callback_data='admin_referral_toggle_type'))
+    # Переключатель «дни/баланс» убран: рефералка всегда начисляет дни.
     for level in levels:
         level_num = level['level_number']
         percent = level['percent']

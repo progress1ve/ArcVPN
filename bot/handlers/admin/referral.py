@@ -47,19 +47,14 @@ async def show_referral_menu(callback: CallbackQuery, state: FSMContext):
     from bot.utils.message_editor import get_message_data
     conditions_data = get_message_data('referral_conditions_text', '')
     conditions_text = conditions_data.get('text', '')
-    
+
     status_emoji = "🟢" if enabled else "⚪"
     status_text = "включена" if enabled else "выключена"
-    
-    if reward_type == 'days':
-        type_text = "📅 Дни к ключу"
-    else:
-        type_text = "💰 На баланс"
-    
+
     text = (
         f"🔗 <b>Реферальная система</b>\n\n"
         f"{status_emoji} Статус: <b>{status_text}</b>\n"
-        f"📊 Режим начисления: <b>{type_text}</b>\n\n"
+        f"📊 Начисление: <b>дни к подписке</b> (+3 за запуск, +5 за покупку)\n\n"
         f"<b>Уровни:</b>\n"
     )
     
@@ -105,25 +100,6 @@ async def referral_toggle(callback: CallbackQuery, state: FSMContext):
     
     status = "включена ✅" if new_value == '1' else "выключена"
     await callback.answer(f"Реферальная система {status}")
-    
-    await show_referral_menu(callback, state)
-
-
-@router.callback_query(F.data == "admin_referral_toggle_type")
-async def referral_toggle_type(callback: CallbackQuery, state: FSMContext):
-    """Переключение режима начисления."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer("⛔ Доступ запрещён", show_alert=True)
-        return
-    
-    current = get_referral_reward_type()
-    new_value = 'balance' if current == 'days' else 'days'
-    update_referral_setting('referral_reward_type', new_value)
-    
-    if new_value == 'days':
-        await callback.answer("Режим: Дни к ключу")
-    else:
-        await callback.answer("Режим: На баланс")
     
     await show_referral_menu(callback, state)
 

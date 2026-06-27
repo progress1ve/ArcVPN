@@ -15,7 +15,6 @@ from database.requests import (
     get_referral_stats,
     get_referral_earned_days,
     get_user_internal_id,
-    get_user_balance,
     ensure_user_referral_code,
     get_active_referral_levels,
     get_setting,
@@ -41,12 +40,6 @@ DEFAULT_CONDITIONS_DAYS = (
     "Приглашённые пользователи регистрируются по вашей ссылке. "
     "Когда они оплачивают подписку, вы получаете процент от купленных дней. "
     "Дни автоматически добавляются к вашему первому активному ключу."
-)
-
-DEFAULT_CONDITIONS_BALANCE = (
-    "Приглашённые пользователи регистрируются по вашей ссылке. "
-    "Когда они оплачивают подписку, вы получаете процент от суммы оплаты на свой баланс. "
-    "Накопленными средствами можно оплачивать новые ключи или продлевать существующие."
 )
 
 
