@@ -240,12 +240,10 @@ def create_main_menu_kb(
         has_subscription: Есть ли у пользователя хотя бы один ключ
         primary_key_id: ID основной подписки (для кнопки продления)
     """
-    # ВАЖНО про «акцентный цвет» кнопок:
-    # Bot API НЕ поддерживает окраску inline-кнопок (поля цвета у
-    # InlineKeyboardButton нет — есть только text/url/callback_data/web_app/...).
-    # Премиальная/акцентная окраска существует лишь у MainButton внутри Mini App.
-    # Поэтому «акцентные» кнопки тут выделяем визуально (эмодзи + отдельный
-    # ряд на всю ширину), а сам акцентный вид сделаем уже в Web App.
+    # Акцентный цвет кнопок: Bot API 9.4 (фев 2026) добавил поле `style` у
+    # InlineKeyboardButton с пресетом 'primary' — Telegram красит кнопку в
+    # акцентный цвет темы пользователя. aiogram 3.13.1 поля не знает, но его
+    # модели с extra='allow' прокидывают `style` в API как есть.
     builder = InlineKeyboardBuilder()
 
     # Пробный период выдаётся автоматически при первом /start — отдельной кнопки нет.
@@ -255,7 +253,7 @@ def create_main_menu_kb(
     from aiogram.types import WebAppInfo
     from config import SUBSCRIPTION_URL
     webapp_url = f"{SUBSCRIPTION_URL.rstrip('/')}/app"
-    builder.row(InlineKeyboardButton(text="🚀 Подключиться", web_app=WebAppInfo(url=webapp_url)))
+    builder.row(InlineKeyboardButton(text="🚀 Подключиться", web_app=WebAppInfo(url=webapp_url), style="primary"))
 
     # Ряд 2: «Подписка» (= Мои подписки) + «Пригласить»
     row2 = [InlineKeyboardButton(text="💳 Подписка", callback_data="my_keys")]
@@ -276,9 +274,9 @@ def create_main_menu_kb(
     # Ряд 4: «Продлить подписку» — на всю ширину (акцентная).
     # Если подписки ещё нет — продлевать нечего, показываем «Купить».
     if has_subscription and primary_key_id:
-        builder.row(InlineKeyboardButton(text="⚡ Продлить подписку", callback_data=f"key_renew:{primary_key_id}"))
+        builder.row(InlineKeyboardButton(text="⚡ Продлить подписку", callback_data=f"key_renew:{primary_key_id}", style="primary"))
     else:
-        builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key"))
+        builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key", style="primary"))
 
     # Админ-панель (если админ)
     if is_admin:
