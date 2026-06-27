@@ -240,11 +240,11 @@ def get_revenue_stats() -> Dict[str, Any]:
                 'total_stars': row['total_stars']
             }
 
-        # Всего за всё время
+        # Всего за всё время (тот же набор типов оплаты, что и в периодах выше)
         cursor = conn.execute("""
             SELECT
                 COUNT(*) as count,
-                COALESCE(SUM(CASE WHEN p.payment_type = 'yookassa' THEN t.price_rub ELSE 0 END), 0) as total_rub,
+                COALESCE(SUM(CASE WHEN p.payment_type IN ('yookassa', 'yookassa_qr', 'cards') THEN t.price_rub ELSE 0 END), 0) as total_rub,
                 COALESCE(SUM(CASE WHEN p.payment_type = 'crypto' THEN p.amount_cents ELSE 0 END), 0) as total_cents,
                 COALESCE(SUM(CASE WHEN p.payment_type = 'stars' THEN p.amount_stars ELSE 0 END), 0) as total_stars
             FROM payments p
@@ -346,10 +346,10 @@ def get_payers_stats(page: int = 1, per_page: int = 10) -> Dict[str, Any]:
     with get_db() as conn:
         # Общая статистика
         cursor = conn.execute("""
-            SELECT 
+            SELECT
                 COUNT(DISTINCT p.user_id) as total_payers,
                 COUNT(*) as total_payments,
-                COALESCE(SUM(CASE WHEN p.payment_type = 'yookassa' THEN t.price_rub ELSE 0 END), 0) as total_rub,
+                COALESCE(SUM(CASE WHEN p.payment_type IN ('yookassa', 'yookassa_qr', 'cards') THEN t.price_rub ELSE 0 END), 0) as total_rub,
                 COALESCE(SUM(CASE WHEN p.payment_type = 'crypto' THEN p.amount_cents ELSE 0 END), 0) as total_cents,
                 COALESCE(SUM(CASE WHEN p.payment_type = 'stars' THEN p.amount_stars ELSE 0 END), 0) as total_stars
             FROM payments p
@@ -367,7 +367,7 @@ def get_payers_stats(page: int = 1, per_page: int = 10) -> Dict[str, Any]:
                 u.telegram_id,
                 u.username,
                 COUNT(*) as payment_count,
-                COALESCE(SUM(CASE WHEN p.payment_type = 'yookassa' THEN t.price_rub ELSE 0 END), 0) as total_rub,
+                COALESCE(SUM(CASE WHEN p.payment_type IN ('yookassa', 'yookassa_qr', 'cards') THEN t.price_rub ELSE 0 END), 0) as total_rub,
                 COALESCE(SUM(CASE WHEN p.payment_type = 'crypto' THEN p.amount_cents ELSE 0 END), 0) as total_cents,
                 COALESCE(SUM(CASE WHEN p.payment_type = 'stars' THEN p.amount_stars ELSE 0 END), 0) as total_stars,
                 MAX(p.paid_at) as last_payment

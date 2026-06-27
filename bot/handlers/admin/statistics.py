@@ -1,16 +1,20 @@
 """
 Роутер статистики для админ-панели.
+
+Один экран-сводка со всеми ключевыми метриками (пользователи, подписки, доход,
+онлайн, конверсия, трафик) + drill-down списки там, где это реально списки
+(топ плательщиков, топ по трафику, последние платежи, серверы, кто онлайн).
 """
 import logging
+from datetime import datetime
+
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardButton
 
 from database.db_statistics import (
     get_new_users_stats,
     get_subscriptions_stats,
-    get_active_connections_stats,
     get_revenue_stats,
     get_traffic_stats,
     get_payers_stats,
@@ -28,361 +32,235 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
+# ============================================================================
+# ФОРМАТИРОВАНИЕ
+# ============================================================================
+
+def _fmt_money(period: dict) -> str:
+    """Сумма за период в виде «1500₽ + $4.20 + ⭐300» (только ненулевые части)."""
+    parts = []
+    if period.get('total_rub', 0) > 0:
+        parts.append(f"{period['total_rub']:.0f}₽")
+    if period.get('total_usd', 0) > 0:
+        parts.append(f"${period['total_usd']:.2f}")
+    if period.get('total_stars', 0) > 0:
+        parts.append(f"⭐{period['total_stars']}")
+    return " + ".join(parts) if parts else "—"
+
+
+def _user_label(row: dict) -> str:
+    """@username или ID: 12345."""
+    if row.get('username'):
+        return f"@{escape_html(row['username'])}"
+    return f"ID: {row['telegram_id']}"
+
+
+def build_dashboard_text() -> str:
+    """Собирает текст сводки из всех источников статистики."""
+    users = get_new_users_stats()
+    subs = get_subscriptions_stats()
+    rev = get_revenue_stats()
+    conv = get_conversion_stats()
+    online = get_online_users()
+    traffic = get_traffic_stats(page=1, per_page=1)
+
+    now = datetime.now().strftime('%d.%m %H:%M')
+
+    lines = [
+        "📊 <b>Статистика ArcVPN</b>",
+        f"<i>на {now}</i>",
+        "",
+        "👥 <b>Пользователи</b>",
+        f"Всего: <b>{users['total']}</b>",
+        f"+{users['day']} сутки · +{users['week']} нед · +{users['month']} мес",
+        "",
+        "🔑 <b>Подписки</b>",
+        f"Активных: <b>{subs['active']}</b> · истекло: {subs['expired']}",
+        f"Куплено: {subs['day']} / {subs['week']} / {subs['month']} (сутки/нед/мес)",
+        "",
+        "💰 <b>Доход</b>",
+        f"Сутки: <b>{_fmt_money(rev['day'])}</b> · {rev['day']['count']} плат.",
+        f"Неделя: <b>{_fmt_money(rev['week'])}</b> · {rev['week']['count']} плат.",
+        f"Месяц: <b>{_fmt_money(rev['month'])}</b> · {rev['month']['count']} плат.",
+        f"Всего: <b>{_fmt_money(rev['total'])}</b> · {rev['total']['count']} плат.",
+        "",
+        f"🟢 Активных подписок: <b>{online['count']}</b>",
+        f"🔄 Конверсия trial→платный: <b>{conv['conversion_rate']:.0f}%</b> "
+        f"({conv['converted']}/{conv['trial_users']})",
+        f"📈 Трафик: <b>{traffic['total_used_gb']:.1f} ГБ</b> всего · "
+        f"~{traffic['avg_per_user_gb']:.1f} ГБ/чел",
+    ]
+    return "\n".join(lines)
+
+
+# ============================================================================
+# КЛАВИАТУРЫ
+# ============================================================================
+
 def statistics_menu_kb():
-    """Клавиатура меню статистики."""
+    """Сводка: drill-down списки + обновление."""
     builder = InlineKeyboardBuilder()
     builder.row(
-        InlineKeyboardButton(text='👥 Пользователи', callback_data='admin_stats_users'),
-        InlineKeyboardButton(text='🔑 Подписки', callback_data='admin_stats_subscriptions')
+        InlineKeyboardButton(text='💳 Топ плательщиков', callback_data='admin_stats_payers'),
+        InlineKeyboardButton(text='📈 Топ по трафику', callback_data='admin_stats_traffic'),
     )
     builder.row(
-        InlineKeyboardButton(text='📊 Активность', callback_data='admin_stats_activity'),
-        InlineKeyboardButton(text='💰 Доходы', callback_data='admin_stats_revenue')
+        InlineKeyboardButton(text='📋 Последние платежи', callback_data='admin_stats_recent_payments'),
+        InlineKeyboardButton(text='🖥️ Серверы', callback_data='admin_stats_servers'),
     )
     builder.row(
-        InlineKeyboardButton(text='📈 Трафик', callback_data='admin_stats_traffic'),
-        InlineKeyboardButton(text='💳 Плательщики', callback_data='admin_stats_payers')
-    )
-    builder.row(
-        InlineKeyboardButton(text='🟢 Онлайн', callback_data='admin_stats_online'),
-        InlineKeyboardButton(text='🖥️ Серверы', callback_data='admin_stats_servers')
-    )
-    builder.row(
-        InlineKeyboardButton(text='🔄 Конверсия', callback_data='admin_stats_conversion'),
-        InlineKeyboardButton(text='📋 Платежи', callback_data='admin_stats_recent_payments')
-    )
-    builder.row(
-        InlineKeyboardButton(text='🔄 Обновить', callback_data='admin_statistics')
+        InlineKeyboardButton(text='🟢 Кто онлайн', callback_data='admin_stats_online'),
+        InlineKeyboardButton(text='🔄 Обновить', callback_data='admin_statistics'),
     )
     builder.row(back_button('admin_panel'), home_button())
     return builder.as_markup()
 
 
 def stats_detail_kb():
-    """Клавиатура для детальной статистики."""  
+    """Клавиатура для drill-down экрана (назад к сводке)."""
     builder = InlineKeyboardBuilder()
     builder.row(back_button('admin_statistics'), home_button())
     return builder.as_markup()
 
 
+# ============================================================================
+# СВОДКА
+# ============================================================================
+
 @router.callback_query(F.data == 'admin_statistics')
 async def show_statistics_menu(callback: CallbackQuery):
-    """Показывает главное меню статистики."""
+    """Показывает сводку со всеми ключевыми метриками на одном экране."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
 
-    text = (
-        "📊 <b>Статистика</b>\n\n"
-        "Выберите раздел для просмотра детальной статистики:\n\n"
-        "👥 <b>Пользователи</b> — новые регистрации\n"
-        "🔑 <b>Подписки</b> — покупки и активность\n"
-        "📊 <b>Активность</b> — использование VPN\n"
-        "💰 <b>Доходы</b> — финансовая статистика\n"
-        "📈 <b>Трафик</b> — использование трафика\n"
-        "💳 <b>Плательщики</b> — кто сколько оплатил\n"
-        "🟢 <b>Онлайн</b> — активные пользователи сейчас\n"
-        "🖥️ <b>Серверы</b> — статистика по серверам\n"
-        "🔄 <b>Конверсия</b> — пробные → платные\n"
-        "📋 <b>Платежи</b> — последние платежи"
-    )
+    try:
+        text = build_dashboard_text()
+    except Exception as e:
+        logger.error(f"Ошибка сборки сводки статистики: {e}")
+        await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
+        return
 
-    await safe_edit_or_send(
-        callback.message,
-        text,
-        reply_markup=statistics_menu_kb()
-    )
+    await safe_edit_or_send(callback.message, text, reply_markup=statistics_menu_kb())
     await callback.answer()
 
 
-@router.callback_query(F.data == 'admin_stats_users')
-async def show_users_statistics(callback: CallbackQuery):
-    """Показывает статистику по пользователям."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer('⛔ Доступ запрещён', show_alert=True)
-        return
-
-    try:
-        stats = get_new_users_stats()
-
-        text = (
-            "👥 <b>Статистика пользователей</b>\n\n"
-            f"📅 <b>За последние 24 часа:</b> {stats['day']}\n"
-            f"📅 <b>За последние 7 дней:</b> {stats['week']}\n"
-            f"📅 <b>За последние 30 дней:</b> {stats['month']}\n"
-            f"📅 <b>За последний год:</b> {stats['year']}\n\n"
-            f"👤 <b>Всего пользователей:</b> {stats['total']}"
-        )
-
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
-        await callback.answer()
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении статистики пользователей: {e}")
-        await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
-
-
-@router.callback_query(F.data == 'admin_stats_subscriptions')
-async def show_subscriptions_statistics(callback: CallbackQuery):
-    """Показывает статистику по подпискам."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer('⛔ Доступ запрещён', show_alert=True)
-        return
-
-    try:
-        stats = get_subscriptions_stats()
-
-        text = (
-            "🔑 <b>Статистика подписок</b>\n\n"
-            "<b>Куплено подписок:</b>\n"
-            f"📅 За последние 24 часа: {stats['day']}\n"
-            f"📅 За последние 7 дней: {stats['week']}\n"
-            f"📅 За последние 30 дней: {stats['month']}\n"
-            f"📅 За последний год: {stats['year']}\n\n"
-            f"📊 <b>Всего подписок:</b> {stats['total']}\n"
-            f"🟢 <b>Активных:</b> {stats['active']}\n"
-            f"🔴 <b>Истёкших:</b> {stats['expired']}"
-        )
-
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
-        await callback.answer()
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении статистики подписок: {e}")
-        await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
-
-
-@router.callback_query(F.data == 'admin_stats_activity')
-async def show_activity_statistics(callback: CallbackQuery):
-    """Показывает статистику активности (использования VPN)."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer('⛔ Доступ запрещён', show_alert=True)
-        return
-
-    try:
-        stats = get_active_connections_stats()
-
-        text = (
-            "📊 <b>Статистика активности</b>\n\n"
-            "<b>Пользователи, использующие VPN:</b>\n"
-            f"📅 За последние 24 часа: {stats['day']}\n"
-            f"📅 За последние 7 дней: {stats['week']}\n"
-            f"📅 За последние 30 дней: {stats['month']}\n\n"
-            f"👤 <b>Всего пользователей с трафиком:</b> {stats['total_with_traffic']}\n\n"
-            "<i>💡 Активность определяется по наличию трафика и обновлению данных</i>"
-        )
-
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
-        await callback.answer()
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении статистики активности: {e}")
-        await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
-
-
-@router.callback_query(F.data == 'admin_stats_revenue')
-async def show_revenue_statistics(callback: CallbackQuery):
-    """Показывает статистику доходов."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer('⛔ Доступ запрещён', show_alert=True)
-        return
-
-    try:
-        stats = get_revenue_stats()
-
-        def format_revenue(period_stats):
-            """Форматирует доходы за период."""
-            lines = []
-            if period_stats['total_rub'] > 0:
-                lines.append(f"💳 {period_stats['total_rub']:.2f} ₽")
-            if period_stats['total_usd'] > 0:
-                lines.append(f"💵 ${period_stats['total_usd']:.2f}")
-            if period_stats['total_stars'] > 0:
-                lines.append(f"⭐ {period_stats['total_stars']}")
-            if not lines:
-                return "0"
-            return " + ".join(lines)
-
-        text = (
-            "💰 <b>Статистика доходов</b>\n\n"
-            f"<b>За последние 24 часа:</b>\n"
-            f"  Платежей: {stats['day']['count']}\n"
-            f"  Сумма: {format_revenue(stats['day'])}\n\n"
-            f"<b>За последние 7 дней:</b>\n"
-            f"  Платежей: {stats['week']['count']}\n"
-            f"  Сумма: {format_revenue(stats['week'])}\n\n"
-            f"<b>За последние 30 дней:</b>\n"
-            f"  Платежей: {stats['month']['count']}\n"
-            f"  Сумма: {format_revenue(stats['month'])}\n\n"
-            f"<b>За последний год:</b>\n"
-            f"  Платежей: {stats['year']['count']}\n"
-            f"  Сумма: {format_revenue(stats['year'])}\n\n"
-            f"<b>Всего за всё время:</b>\n"
-            f"  Платежей: {stats['total']['count']}\n"
-            f"  Сумма: {format_revenue(stats['total'])}"
-        )
-
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
-        await callback.answer()
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении статистики доходов: {e}")
-        await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
-
+# ============================================================================
+# DRILL-DOWN: ТОП ПО ТРАФИКУ
+# ============================================================================
 
 @router.callback_query(F.data.startswith('admin_stats_traffic'))
 async def show_traffic_statistics(callback: CallbackQuery):
-    """Показывает статистику использования трафика с пагинацией."""
+    """Топ пользователей по трафику с пагинацией."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
 
     try:
-        # Парсим номер страницы из callback_data
         parts = callback.data.split(':')
         page = int(parts[1]) if len(parts) > 1 else 1
 
         stats = get_traffic_stats(page=page, per_page=10)
 
         text = (
-            "📈 <b>Статистика трафика</b>\n\n"
-            f"📊 <b>Всего использовано:</b> {stats['total_used_gb']:.2f} ГБ\n"
-            f"👤 <b>Средний трафик на пользователя:</b> {stats['avg_per_user_gb']:.2f} ГБ\n"
-            f"👥 <b>Всего пользователей с трафиком:</b> {stats['total_users']}\n\n"
+            "📈 <b>Трафик</b>\n\n"
+            f"Всего: <b>{stats['total_used_gb']:.1f} ГБ</b> · "
+            f"~{stats['avg_per_user_gb']:.1f} ГБ/чел · "
+            f"{stats['total_users']} чел.\n\n"
         )
 
         if stats['top_users']:
-            text += f"<b>🏆 Топ пользователей по трафику (стр. {stats['current_page']}/{stats['total_pages']}):</b>\n"
+            text += f"<b>🏆 Топ (стр. {stats['current_page']}/{stats['total_pages']})</b>\n"
             start_num = (stats['current_page'] - 1) * 10 + 1
             for i, user in enumerate(stats['top_users'], start_num):
-                username = f"@{user['username']}" if user['username'] else f"ID: {user['telegram_id']}"
-                text += f"{i}. {escape_html(username)} — {user['traffic_gb']:.2f} ГБ\n"
+                text += f"{i}. {_user_label(user)} — {user['traffic_gb']:.2f} ГБ\n"
         else:
             text += "<i>Нет данных о трафике</i>"
 
-        # Создаём клавиатуру с пагинацией
         builder = InlineKeyboardBuilder()
-
-        # Кнопки навигации
-        nav_buttons = []
+        nav = []
         if stats['current_page'] > 1:
-            nav_buttons.append(InlineKeyboardButton(
-                text='◀️ Назад',
-                callback_data=f'admin_stats_traffic:{stats["current_page"] - 1}'
-            ))
+            nav.append(InlineKeyboardButton(text='◀️', callback_data=f'admin_stats_traffic:{stats["current_page"] - 1}'))
         if stats['current_page'] < stats['total_pages']:
-            nav_buttons.append(InlineKeyboardButton(
-                text='Вперёд ▶️',
-                callback_data=f'admin_stats_traffic:{stats["current_page"] + 1}'
-            ))
-
-        if nav_buttons:
-            builder.row(*nav_buttons)
-
-        # Кнопки возврата
+            nav.append(InlineKeyboardButton(text='▶️', callback_data=f'admin_stats_traffic:{stats["current_page"] + 1}'))
+        if nav:
+            builder.row(*nav)
         builder.row(back_button('admin_statistics'), home_button())
 
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=builder.as_markup()
-        )
+        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
         await callback.answer()
 
     except Exception as e:
-        logger.error(f"Ошибка при получении статистики трафика: {e}")
+        logger.error(f"Ошибка статистики трафика: {e}")
         await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
 
 
+# ============================================================================
+# DRILL-DOWN: ТОП ПЛАТЕЛЬЩИКОВ
+# ============================================================================
+
 @router.callback_query(F.data.startswith('admin_stats_payers'))
 async def show_payers_statistics(callback: CallbackQuery):
-    """Показывает статистику плательщиков с пагинацией."""
+    """Топ плательщиков с пагинацией."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
 
     try:
-        # Парсим номер страницы
         parts = callback.data.split(':')
         page = int(parts[1]) if len(parts) > 1 else 1
 
         stats = get_payers_stats(page=page, per_page=10)
 
+        total_money = _fmt_money({
+            'total_rub': stats['total_rub'],
+            'total_usd': stats['total_usd'],
+            'total_stars': stats['total_stars'],
+        })
+
         text = (
-            "💳 <b>Статистика плательщиков</b>\n\n"
-            f"👥 <b>Всего плательщиков:</b> {stats['total_payers']}\n"
-            f"📋 <b>Всего платежей:</b> {stats['total_payments']}\n"
-            f"💰 <b>Общая сумма:</b>\n"
+            "💳 <b>Плательщики</b>\n\n"
+            f"Всего: <b>{stats['total_payers']}</b> чел. · "
+            f"{stats['total_payments']} плат.\n"
+            f"Сумма: <b>{total_money}</b>\n\n"
         )
-        
-        if stats['total_rub'] > 0:
-            text += f"   💳 {stats['total_rub']:.2f} ₽\n"
-        if stats['total_usd'] > 0:
-            text += f"   💵 ${stats['total_usd']:.2f}\n"
-        if stats['total_stars'] > 0:
-            text += f"   ⭐ {stats['total_stars']}\n"
-        
-        text += f"\n<b>🏆 Топ плательщиков (стр. {stats['current_page']}/{stats['total_pages']}):</b>\n"
-        
-        start_num = (stats['current_page'] - 1) * 10 + 1
-        for i, payer in enumerate(stats['payers'], start_num):
-            username = f"@{payer['username']}" if payer['username'] else f"ID: {payer['telegram_id']}"
-            text += f"{i}. {escape_html(username)} — {payer['payment_count']} плат."
-            if payer['total_rub'] > 0:
-                text += f" ({payer['total_rub']:.0f}₽)"
-            text += "\n"
 
-        # Клавиатура с пагинацией
+        if stats['payers']:
+            text += f"<b>🏆 Топ (стр. {stats['current_page']}/{stats['total_pages']})</b>\n"
+            start_num = (stats['current_page'] - 1) * 10 + 1
+            for i, payer in enumerate(stats['payers'], start_num):
+                text += f"{i}. {_user_label(payer)} — {payer['payment_count']} плат."
+                if payer['total_rub'] > 0:
+                    text += f" · {payer['total_rub']:.0f}₽"
+                text += "\n"
+        else:
+            text += "<i>Платежей пока нет</i>"
+
         builder = InlineKeyboardBuilder()
-
-        nav_buttons = []
+        nav = []
         if stats['current_page'] > 1:
-            nav_buttons.append(InlineKeyboardButton(
-                text='◀️ Назад',
-                callback_data=f'admin_stats_payers:{stats["current_page"] - 1}'
-            ))
+            nav.append(InlineKeyboardButton(text='◀️', callback_data=f'admin_stats_payers:{stats["current_page"] - 1}'))
         if stats['current_page'] < stats['total_pages']:
-            nav_buttons.append(InlineKeyboardButton(
-                text='Вперёд ▶️',
-                callback_data=f'admin_stats_payers:{stats["current_page"] + 1}'
-            ))
-
-        if nav_buttons:
-            builder.row(*nav_buttons)
-
+            nav.append(InlineKeyboardButton(text='▶️', callback_data=f'admin_stats_payers:{stats["current_page"] + 1}'))
+        if nav:
+            builder.row(*nav)
         builder.row(back_button('admin_statistics'), home_button())
 
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=builder.as_markup()
-        )
+        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
         await callback.answer()
 
     except Exception as e:
-        logger.error(f"Ошибка при получении статистики плательщиков: {e}")
+        logger.error(f"Ошибка статистики плательщиков: {e}")
         await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
 
 
+# ============================================================================
+# DRILL-DOWN: КТО ОНЛАЙН
+# ============================================================================
+
 @router.callback_query(F.data == 'admin_stats_online')
 async def show_online_statistics(callback: CallbackQuery):
-    """Показывает пользователей онлайн."""
+    """Список пользователей с активными подписками."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
@@ -390,37 +268,31 @@ async def show_online_statistics(callback: CallbackQuery):
     try:
         stats = get_online_users()
 
-        text = (
-            "🟢 <b>Пользователи онлайн</b>\n\n"
-            f"👥 <b>Всего активных подписок:</b> {stats['count']}\n\n"
-        )
+        text = f"🟢 <b>Активные подписки: {stats['count']}</b>\n\n"
 
         if stats['users']:
-            text += "<b>Список активных пользователей:</b>\n\n"
-            for user in stats['users'][:30]:  # Показываем первых 30
-                username = f"@{user['username']}" if user['username'] else f"ID: {user['telegram_id']}"
-                text += f"• {escape_html(username)}\n"
-            
-            if len(stats['users']) > 30:
-                text += f"\n<i>... и ещё {len(stats['users']) - 30} пользователей</i>"
+            for user in stats['users'][:40]:
+                text += f"• {_user_label(user)}\n"
+            if len(stats['users']) > 40:
+                text += f"\n<i>… и ещё {len(stats['users']) - 40}</i>"
         else:
-            text += "<i>Нет активных пользователей</i>"
+            text += "<i>Нет активных подписок</i>"
 
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
+        await safe_edit_or_send(callback.message, text, reply_markup=stats_detail_kb())
         await callback.answer()
 
     except Exception as e:
-        logger.error(f"Ошибка при получении статистики онлайн: {e}")
+        logger.error(f"Ошибка статистики онлайн: {e}")
         await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
 
 
+# ============================================================================
+# DRILL-DOWN: СЕРВЕРЫ
+# ============================================================================
+
 @router.callback_query(F.data == 'admin_stats_servers')
 async def show_servers_statistics(callback: CallbackQuery):
-    """Показывает статистику по серверам."""
+    """Статистика по серверам."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
@@ -428,78 +300,44 @@ async def show_servers_statistics(callback: CallbackQuery):
     try:
         servers = get_servers_stats()
 
-        text = "🖥️ <b>Статистика по серверам</b>\n\n"
+        text = "🖥️ <b>Серверы</b>\n\n"
+        total_clients = total_active = 0
+        total_traffic = 0.0
 
-        total_clients = 0
-        total_active = 0
-        total_traffic = 0
+        if not servers:
+            text += "<i>Серверов пока нет</i>"
+        else:
+            for s in servers:
+                status = "🟢" if s['is_active'] else "🔴"
+                text += (
+                    f"{status} <b>{escape_html(s['name'])}</b> — "
+                    f"{s['active_clients']}/{s['clients_count']} активны · "
+                    f"{s['total_traffic_gb']:.1f} ГБ\n"
+                )
+                total_clients += s['clients_count']
+                total_active += s['active_clients']
+                total_traffic += s['total_traffic_gb']
 
-        for server in servers:
-            status = "🟢" if server['is_active'] else "🔴"
             text += (
-                f"{status} <b>{escape_html(server['name'])}</b>\n"
-                f"   👥 Клиентов: {server['clients_count']}\n"
-                f"   🟢 Активных: {server['active_clients']}\n"
-                f"   📈 Трафик: {server['total_traffic_gb']:.2f} ГБ\n\n"
+                f"\n<b>Итого:</b> {total_active}/{total_clients} активны · "
+                f"{total_traffic:.1f} ГБ"
             )
-            total_clients += server['clients_count']
-            total_active += server['active_clients']
-            total_traffic += server['total_traffic_gb']
 
-        text += (
-            f"<b>📊 Итого:</b>\n"
-            f"   👥 Всего клиентов: {total_clients}\n"
-            f"   🟢 Активных: {total_active}\n"
-            f"   📈 Общий трафик: {total_traffic:.2f} ГБ"
-        )
-
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
+        await safe_edit_or_send(callback.message, text, reply_markup=stats_detail_kb())
         await callback.answer()
 
     except Exception as e:
-        logger.error(f"Ошибка при получении статистики серверов: {e}")
+        logger.error(f"Ошибка статистики серверов: {e}")
         await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
 
 
-@router.callback_query(F.data == 'admin_stats_conversion')
-async def show_conversion_statistics(callback: CallbackQuery):
-    """Показывает статистику конверсии."""
-    if not is_admin(callback.from_user.id):
-        await callback.answer('⛔ Доступ запрещён', show_alert=True)
-        return
-
-    try:
-        stats = get_conversion_stats()
-
-        text = (
-            "🔄 <b>Статистика конверсии</b>\n\n"
-            f"🎯 <b>Пробные → Платные</b>\n\n"
-            f"👥 Пользователей с пробным периодом: {stats['trial_users']}\n"
-            f"👥 Пользователей с платными подписками: {stats['paid_users']}\n"
-            f"✅ Конвертировались (пробный → платный): {stats['converted']}\n\n"
-            f"📊 <b>Конверсия:</b> {stats['conversion_rate']:.1f}%\n\n"
-            "<i>💡 Конверсия показывает процент пользователей, которые после пробного периода оформили платную подписку</i>"
-        )
-
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
-        await callback.answer()
-
-    except Exception as e:
-        logger.error(f"Ошибка при получении статистики конверсии: {e}")
-        await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
-
+# ============================================================================
+# DRILL-DOWN: ПОСЛЕДНИЕ ПЛАТЕЖИ
+# ============================================================================
 
 @router.callback_query(F.data == 'admin_stats_recent_payments')
 async def show_recent_payments(callback: CallbackQuery):
-    """Показывает последние платежи."""
+    """Последние платежи."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
@@ -511,38 +349,28 @@ async def show_recent_payments(callback: CallbackQuery):
 
         if payments:
             for p in payments:
-                username = f"@{p['username']}" if p['username'] else f"ID: {p['telegram_id']}"
-                
-                # Форматируем сумму
                 amount = ""
                 if p['price_rub']:
-                    amount = f"{p['price_rub']}₽"
+                    amount = f"{p['price_rub']:.0f}₽"
                 elif p['amount_cents']:
-                    amount = f"${p['amount_cents']/100:.2f}"
+                    amount = f"${p['amount_cents'] / 100:.2f}"
                 elif p['amount_stars']:
                     amount = f"⭐{p['amount_stars']}"
-                
-                # Тип платежа
-                payment_type = {
-                    'yookassa': '💳',
-                    'yookassa_qr': '📱',
-                    'crypto': '🪙',
-                    'stars': '⭐',
-                    'trial': '🎁'
-                }.get(p['payment_type'], '💰')
-                
-                text += f"{payment_type} {escape_html(username)} — {amount}\n"
-                text += f"   {p['tariff_name'] or 'N/A'} • {p['paid_at'][:16]}\n\n"
-        else:
-            text += "<i>Нет платежей</i>"
 
-        await safe_edit_or_send(
-            callback.message,
-            text,
-            reply_markup=stats_detail_kb()
-        )
+                icon = {
+                    'yookassa': '💳', 'yookassa_qr': '📱', 'cards': '💳',
+                    'crypto': '🪙', 'stars': '⭐', 'trial': '🎁',
+                }.get(p['payment_type'], '💰')
+
+                when = (p['paid_at'] or '')[:16].replace('T', ' ')
+                text += f"{icon} {_user_label(p)} — {amount or '—'}\n"
+                text += f"   {escape_html(p['tariff_name'] or 'Подписка')} · {when}\n"
+        else:
+            text += "<i>Платежей пока нет</i>"
+
+        await safe_edit_or_send(callback.message, text, reply_markup=stats_detail_kb())
         await callback.answer()
 
     except Exception as e:
-        logger.error(f"Ошибка при получении последних платежей: {e}")
+        logger.error(f"Ошибка последних платежей: {e}")
         await callback.answer("❌ Ошибка при получении статистики", show_alert=True)
