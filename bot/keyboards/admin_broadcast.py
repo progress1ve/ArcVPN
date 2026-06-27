@@ -31,6 +31,7 @@ def broadcast_main_kb(has_message: bool, current_filter: str, broadcast_in_progr
         builder.row(InlineKeyboardButton(text='⏳ Рассылка в процессе...', callback_data='broadcast_in_progress'))
     else:
         builder.row(InlineKeyboardButton(text=f'🚀 Начать рассылку ({user_count} чел.)', callback_data='broadcast_start'))
+    builder.row(InlineKeyboardButton(text='🎁 Подарить дни по фильтру', callback_data='broadcast_gift_days'))
     builder.row(InlineKeyboardButton(text='─────────────────', callback_data='noop'))
     builder.row(InlineKeyboardButton(text='⏰ Настройки автоуведомлений', callback_data='broadcast_notifications'))
     builder.row(back_button('admin_panel'), home_button())
@@ -39,8 +40,24 @@ def broadcast_main_kb(has_message: bool, current_filter: str, broadcast_in_progr
 def broadcast_templates_kb() -> InlineKeyboardMarkup:
     """Клавиатура выбора шаблона сообщения."""
     builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='🛠 Извинения после тех. работ', callback_data='template_maintenance'))
     builder.row(InlineKeyboardButton(text='🎁 Для пользователей без подписки', callback_data='template_no_subscription'))
     builder.row(back_button('admin_broadcast'), home_button())
+    return builder.as_markup()
+
+
+def broadcast_gift_confirm_kb(user_count: int) -> InlineKeyboardMarkup:
+    """Клавиатура подтверждения подарка дней."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text=f'✅ Да, начислить ({user_count} чел.)', callback_data='broadcast_gift_confirm'))
+    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_broadcast'))
+    return builder.as_markup()
+
+
+def broadcast_gift_back_kb() -> InlineKeyboardMarkup:
+    """Клавиатура отмены ввода дней подарка."""
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_broadcast'))
     return builder.as_markup()
 
 def broadcast_template_promocode_kb(promocodes: List[Dict[str, Any]], template_type: str) -> InlineKeyboardMarkup:

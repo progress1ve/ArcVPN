@@ -74,6 +74,7 @@ class AdminStates(StatesGroup):
     broadcast_menu = State()         # Главный экран рассылки
     broadcast_waiting_message = State()      # Ожидание сообщения для рассылки
     broadcast_waiting_notify_days = State()  # Ожидание числа дней для уведомления
+    broadcast_waiting_gift_days = State()    # Ожидание числа дней для подарка по фильтру
     
     # ========== Раздел «Пользователи» ==========
     users_menu = State()             # Главный экран раздела

@@ -26,7 +26,8 @@ from bot.keyboards.admin import (
     broadcast_notifications_kb, broadcast_back_kb,
     broadcast_notify_back_kb, home_only_kb,
     BROADCAST_FILTERS, broadcast_templates_kb,
-    broadcast_template_promocode_kb
+    broadcast_template_promocode_kb,
+    broadcast_gift_confirm_kb, broadcast_gift_back_kb,
 )
 
 logger = logging.getLogger(__name__)
@@ -73,6 +74,15 @@ def is_broadcast_in_progress() -> bool:
 def set_broadcast_in_progress(value: bool) -> None:
     """Устанавливает флаг рассылки."""
     set_setting('broadcast_in_progress', '1' if value else '0')
+
+
+def _days_word(n: int) -> str:
+    """Русское склонение слова «день» (1 день / 2 дня / 5 дней)."""
+    n = abs(int(n))
+    d = n % 10
+    if 10 < n % 100 < 20 or d == 0 or d >= 5:
+        return 'дней'
+    return 'день' if d == 1 else 'дня'
 
 
 # ============================================================================
@@ -498,8 +508,10 @@ async def broadcast_template_select(callback: CallbackQuery):
         return
     
     template_type = callback.data.split("_", 1)[1]
-    
-    if template_type == "no_subscription" or template_type == "subscription":
+
+    if template_type == "maintenance":
+        await apply_maintenance_template(callback)
+    elif template_type == "no_subscription" or template_type == "subscription":
         await show_template_promocode_selection(callback, "no_subscription")
     elif template_type.startswith("promo:"):
         # Формат: template_promo:template_type:promocode_id
@@ -640,6 +652,211 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
     await safe_edit_or_send(callback.message, 
         text_menu,
         reply_markup=broadcast_main_kb(has_message, current_filter, in_progress, user_count)
+    )
+
+
+async def apply_maintenance_template(callback: CallbackQuery):
+    """Применяет шаблон извинений после длительных технических работ."""
+    text = (
+        "🛠 <b>Мы снова на связи!</b>\n\n"
+        "Приносим извинения за длительный перерыв в работе сервиса — "
+        "мы проводили технические работы и устраняли неполадки.\n\n"
+        "Сейчас всё работает стабильно: подключайтесь и пользуйтесь VPN как обычно. "
+        "Если останутся вопросы — мы всегда на связи в поддержке.\n\n"
+        "Спасибо, что остаётесь с нами! 💙"
+    )
+    save_broadcast_message(text, None)
+    # Извинения логичнее слать тем, кого затронул простой — с активными ключами.
+    set_setting('broadcast_filter', 'active')
+    await callback.answer("✅ Шаблон применён!")
+
+    msg_data = get_broadcast_message()
+    has_message = msg_data is not None and msg_data.get('text')
+    current_filter = get_setting('broadcast_filter', 'all')
+    in_progress = is_broadcast_in_progress()
+    user_count = count_users_for_broadcast(current_filter)
+
+    text_menu = (
+        "📢 <b>Рассылка</b>\n\n"
+        "✅ Шаблон «Извинения» применён.\n"
+        "💡 Текст можно отредактировать, а через «🎁 Подарить дни» — начислить "
+        "компенсацию (число дней допишется в конец сообщения).\n\n"
+        "1️⃣ Отредактируйте сообщение (если нужно)\n"
+        "2️⃣ Выберите фильтр получателей\n"
+        "3️⃣ Начните рассылку или подарите дни"
+    )
+    await safe_edit_or_send(callback.message,
+        text_menu,
+        reply_markup=broadcast_main_kb(has_message, current_filter, in_progress, user_count)
+    )
+
+
+# ============================================================================
+# ПОДАРОК ДНЕЙ ПО ФИЛЬТРУ
+# ============================================================================
+
+@router.callback_query(F.data == "broadcast_gift_days")
+async def broadcast_gift_days_start(callback: CallbackQuery, state: FSMContext):
+    """Запрашивает количество дней для начисления по фильтру."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    if is_broadcast_in_progress():
+        await callback.answer("⏳ Дождитесь завершения текущей рассылки", show_alert=True)
+        return
+
+    await state.set_state(AdminStates.broadcast_waiting_gift_days)
+
+    current_filter = get_setting('broadcast_filter', 'all')
+    filter_name = BROADCAST_FILTERS.get(current_filter, 'Все')
+
+    text = (
+        "🎁 <b>Подарить дни подписки</b>\n\n"
+        f"Дни добавятся к основной подписке пользователей по фильтру:\n"
+        f"<b>{filter_name}</b>\n\n"
+        "⚠️ Дни получат только те, у кого уже есть ключ — остальным продлевать нечего.\n"
+        "📨 Каждому уйдёт уведомление (ваше сообщение рассылки + строка о подарке, "
+        "либо стандартный текст, если сообщение не задано).\n\n"
+        "Введите количество дней (1–365):"
+    )
+    await safe_edit_or_send(callback.message, text, reply_markup=broadcast_gift_back_kb())
+    await callback.answer()
+
+
+@router.message(AdminStates.broadcast_waiting_gift_days)
+async def broadcast_gift_days_input(message: Message, state: FSMContext):
+    """Принимает число дней и показывает подтверждение."""
+    if not is_admin(message.from_user.id):
+        return
+
+    raw = (message.text or '').strip()
+    if not raw.isdigit():
+        await safe_edit_or_send(message, "❌ Введите число от 1 до 365:", reply_markup=broadcast_gift_back_kb())
+        return
+
+    days = int(raw)
+    if not 1 <= days <= 365:
+        await safe_edit_or_send(message, "❌ Число должно быть от 1 до 365:", reply_markup=broadcast_gift_back_kb())
+        return
+
+    await state.update_data(gift_days=days)
+    await state.set_state(AdminStates.broadcast_menu)
+
+    current_filter = get_setting('broadcast_filter', 'all')
+    filter_name = BROADCAST_FILTERS.get(current_filter, 'Все')
+    user_count = count_users_for_broadcast(current_filter)
+    msg_data = get_broadcast_message()
+    has_msg = bool(msg_data and msg_data.get('text'))
+    note = (
+        "К каждому будет добавлено ваше текущее сообщение рассылки + строка о подарке."
+        if has_msg else
+        "Будет отправлено стандартное уведомление о подарке."
+    )
+
+    text = (
+        "🎁 <b>Подтверждение подарка</b>\n\n"
+        f"<b>Начислим:</b> +{days} {_days_word(days)}\n"
+        f"<b>Фильтр:</b> {filter_name}\n"
+        f"<b>По фильтру:</b> {user_count} чел.\n\n"
+        f"ℹ️ {note}\n"
+        "Дни добавятся только пользователям с ключом — остальные пропускаются.\n\n"
+        "Начислить?"
+    )
+    await safe_edit_or_send(message, text, reply_markup=broadcast_gift_confirm_kb(user_count), force_new=True)
+
+
+@router.callback_query(F.data == "broadcast_gift_confirm")
+async def broadcast_gift_confirm(callback: CallbackQuery, bot: Bot, state: FSMContext):
+    """Начисляет дни по фильтру и рассылает уведомления."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+
+    data = await state.get_data()
+    days = int(data.get('gift_days', 0) or 0)
+    if days <= 0:
+        await callback.answer("❌ Сначала укажите количество дней", show_alert=True)
+        return
+
+    if is_broadcast_in_progress():
+        await callback.answer("⏳ Дождитесь завершения текущей рассылки", show_alert=True)
+        return
+
+    current_filter = get_setting('broadcast_filter', 'all')
+    user_ids = get_users_for_broadcast(current_filter)
+    if not user_ids:
+        await callback.answer("❌ Нет получателей!", show_alert=True)
+        return
+
+    from database.requests import get_user_primary_key, extend_vpn_key
+    from bot.services.vpn_api import push_key_to_panel
+
+    set_broadcast_in_progress(True)
+    msg_data = get_broadcast_message()
+    base_text = (msg_data.get('text') if msg_data else '') or ''
+    photo_file_id = msg_data.get('photo_file_id') if msg_data else None
+    word = _days_word(days)
+    gift_line = f"🎁 Вам начислено <b>{days} {word}</b> подписки в подарок."
+
+    total = len(user_ids)
+    granted = 0
+    skipped = 0
+    blocked = 0
+
+    await safe_edit_or_send(callback.message,
+        f"🎁 <b>Начисление запущено</b>\n\nОбработано: 0/{total}")
+    await callback.answer()
+
+    for i, uid in enumerate(user_ids):
+        try:
+            primary = get_user_primary_key(uid)
+            if not primary:
+                skipped += 1
+            elif extend_vpn_key(primary['id'], days):
+                try:
+                    await push_key_to_panel(primary['id'])
+                except Exception as e:
+                    logger.error(f"Подарок: ключ {primary['id']} не запушен на панель: {e}")
+                granted += 1
+                notify = (base_text + "\n\n" + gift_line) if base_text else (
+                    "🎁 <b>Подарок от ArcVPN</b>\n\n" + gift_line + "\n\nСпасибо, что вы с нами! 💙"
+                )
+                try:
+                    if photo_file_id:
+                        await bot.send_photo(uid, photo_file_id, caption=notify, parse_mode="HTML")
+                    else:
+                        await bot.send_message(uid, notify, parse_mode="HTML")
+                except TelegramForbiddenError:
+                    blocked += 1
+                except Exception as e:
+                    logger.warning(f"Подарок: уведомление {uid} не доставлено: {e}")
+            else:
+                skipped += 1
+        except Exception as e:
+            logger.error(f"Подарок: ошибка для {uid}: {e}")
+            skipped += 1
+
+        if (i + 1) % 10 == 0 or (i + 1) == total:
+            try:
+                await safe_edit_or_send(callback.message,
+                    f"🎁 <b>Начисление...</b>\n\n"
+                    f"Обработано: {i + 1}/{total}\n"
+                    f"✅ Начислено: {granted}\n"
+                    f"⏭ Без ключа: {skipped}")
+            except TelegramBadRequest:
+                pass
+        await asyncio.sleep(0.3)
+
+    set_broadcast_in_progress(False)
+    await state.update_data(gift_days=None)
+
+    await safe_edit_or_send(callback.message,
+        f"✅ <b>Готово!</b>\n\n"
+        f"🎁 Начислено по +{days} {word}: <b>{granted}</b> чел.\n"
+        f"⏭ Пропущено (нет ключа): {skipped}\n"
+        f"🚫 Заблокировали бота: {blocked}",
+        reply_markup=home_only_kb()
     )
 
 
