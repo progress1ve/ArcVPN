@@ -890,10 +890,20 @@ async def sync_traffic_stats(bot: Bot) -> None:
 
     # === Сохраняем число устройств + уведомление о первом подключении ===
     from database.requests import (
-        update_key_online_devices, mark_key_connect_notified,
+        update_key_online_devices, mark_key_connect_notified, mark_keys_online,
     )
     import config as _cfg
     device_limit = getattr(_cfg, 'DEFAULT_LIMIT_IP', 2)
+
+    # Штампуем last_online_at для всех ключей, которые сейчас онлайн (для
+    # статистики активности «кто онлайн / сколько включали VPN за период»).
+    online_key_ids = [
+        key['id'] for key in keys
+        if (key.get('_online_devices') or 0) >= 1
+    ]
+    if online_key_ids:
+        mark_keys_online(online_key_ids)
+
     for key in keys:
         if '_online_devices' not in key:
             continue

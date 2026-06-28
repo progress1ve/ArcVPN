@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 24
+LATEST_VERSION = 25
 
 
 def get_current_version() -> int:
@@ -1461,6 +1461,21 @@ def migration_24(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v24 применена")
 
 
+def migration_25(conn: sqlite3.Connection) -> None:
+    """
+    Трекинг реальной активности VPN: когда ключ последний раз был онлайн.
+
+    Планировщик каждые 5 минут опрашивает панель (`get_online_emails`) и
+    штампует `last_online_at = CURRENT_TIMESTAMP` для онлайн-ключей. На этом
+    строится статистика «кто сейчас онлайн» и «сколько человек включали VPN
+    за 3 дня / неделю / месяц». Данные копятся с момента деплоя.
+    """
+    logger.info("Применение миграции v25 (трекинг онлайна last_online_at)...")
+    _add_column(conn, "vpn_keys", "last_online_at DATETIME")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_vpn_keys_last_online ON vpn_keys(last_online_at)")
+    logger.info("Миграция v25 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1486,6 +1501,7 @@ MIGRATIONS = {
     22: migration_22,
     23: migration_23,
     24: migration_24,
+    25: migration_25,
 }
 
 

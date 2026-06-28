@@ -49,6 +49,7 @@ __all__ = [
     'get_user_primary_key',
     'update_key_online_devices',
     'mark_key_connect_notified',
+    'mark_keys_online',
 ]
 
 def get_user_vpn_keys(user_id: int) -> List[Dict[str, Any]]:
@@ -401,6 +402,23 @@ def mark_key_connect_notified(key_id: int) -> None:
         conn.execute(
             "UPDATE vpn_keys SET connect_notified = 1 WHERE id = ?",
             (key_id,),
+        )
+
+
+def mark_keys_online(key_ids: List[int]) -> None:
+    """
+    Штампует last_online_at = сейчас для ключей, которые сейчас онлайн.
+
+    Вызывается планировщиком после опроса панели. На основе last_online_at
+    строится статистика активности (кто онлайн / сколько включали VPN за период).
+    """
+    if not key_ids:
+        return
+    placeholders = ",".join("?" for _ in key_ids)
+    with get_db() as conn:
+        conn.execute(
+            f"UPDATE vpn_keys SET last_online_at = CURRENT_TIMESTAMP WHERE id IN ({placeholders})",
+            tuple(key_ids),
         )
 
 def get_all_keys_with_server() -> List[Dict[str, Any]]:

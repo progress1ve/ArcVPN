@@ -18,10 +18,11 @@ from database.db_statistics import (
     get_revenue_stats,
     get_traffic_stats,
     get_payers_stats,
-    get_online_users,
     get_servers_stats,
     get_conversion_stats,
     get_recent_payments,
+    get_usage_activity_stats,
+    get_recently_online_users,
 )
 from bot.utils.admin import is_admin
 from bot.utils.text import safe_edit_or_send, escape_html
@@ -61,7 +62,7 @@ def build_dashboard_text() -> str:
     subs = get_subscriptions_stats()
     rev = get_revenue_stats()
     conv = get_conversion_stats()
-    online = get_online_users()
+    usage = get_usage_activity_stats()
     traffic = get_traffic_stats(page=1, per_page=1)
 
     now = datetime.now().strftime('%d.%m %H:%M')
@@ -69,6 +70,10 @@ def build_dashboard_text() -> str:
     lines = [
         "📊 <b>Статистика ArcVPN</b>",
         f"<i>на {now}</i>",
+        "",
+        "📡 <b>Включали VPN</b>",
+        f"Сейчас онлайн: <b>{usage['online_now']}</b>",
+        f"{usage['d3']} за 3 дня · {usage['week']} нед · {usage['month']} мес",
         "",
         "👥 <b>Пользователи</b>",
         f"Всего: <b>{users['total']}</b>",
@@ -78,13 +83,12 @@ def build_dashboard_text() -> str:
         f"Активных: <b>{subs['active']}</b> · истекло: {subs['expired']}",
         f"Куплено: {subs['day']} / {subs['week']} / {subs['month']} (сутки/нед/мес)",
         "",
-        "💰 <b>Доход</b>",
+        "💰 <b>Доход</b> <i>(без триалов)</i>",
         f"Сутки: <b>{_fmt_money(rev['day'])}</b> · {rev['day']['count']} плат.",
         f"Неделя: <b>{_fmt_money(rev['week'])}</b> · {rev['week']['count']} плат.",
         f"Месяц: <b>{_fmt_money(rev['month'])}</b> · {rev['month']['count']} плат.",
         f"Всего: <b>{_fmt_money(rev['total'])}</b> · {rev['total']['count']} плат.",
         "",
-        f"🟢 Активных подписок: <b>{online['count']}</b>",
         f"🔄 Конверсия trial→платный: <b>{conv['conversion_rate']:.0f}%</b> "
         f"({conv['converted']}/{conv['trial_users']})",
         f"📈 Трафик: <b>{traffic['total_used_gb']:.1f} ГБ</b> всего · "
@@ -260,23 +264,28 @@ async def show_payers_statistics(callback: CallbackQuery):
 
 @router.callback_query(F.data == 'admin_stats_online')
 async def show_online_statistics(callback: CallbackQuery):
-    """Список пользователей с активными подписками."""
+    """Конкретные пользователи, реально включившие VPN (по данным панели)."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
 
     try:
-        stats = get_online_users()
+        stats = get_recently_online_users(minutes=10, limit=60)
 
-        text = f"🟢 <b>Активные подписки: {stats['count']}</b>\n\n"
+        text = f"🟢 <b>Сейчас онлайн: {stats['count']}</b>\n"
+        text += "<i>включили VPN за последние ~10 минут</i>\n\n"
 
         if stats['users']:
-            for user in stats['users'][:40]:
+            for user in stats['users']:
                 text += f"• {_user_label(user)}\n"
-            if len(stats['users']) > 40:
-                text += f"\n<i>… и ещё {len(stats['users']) - 40}</i>"
+            if stats['count'] > len(stats['users']):
+                text += f"\n<i>… и ещё {stats['count'] - len(stats['users'])}</i>"
         else:
-            text += "<i>Нет активных подписок</i>"
+            text += (
+                "<i>Сейчас никого нет онлайн.</i>\n\n"
+                "💡 Данные копятся с момента включения трекинга — "
+                "если только что обновились, подождите несколько циклов синхронизации (5 мин)."
+            )
 
         await safe_edit_or_send(callback.message, text, reply_markup=stats_detail_kb())
         await callback.answer()

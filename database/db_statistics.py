@@ -20,6 +20,8 @@ __all__ = [
     'get_servers_stats',
     'get_conversion_stats',
     'get_recent_payments',
+    'get_usage_activity_stats',
+    'get_recently_online_users',
 ]
 
 
@@ -229,6 +231,7 @@ def get_revenue_stats() -> Dict[str, Any]:
                 FROM payments p
                 LEFT JOIN tariffs t ON p.tariff_id = t.id
                 WHERE p.status = 'paid'
+                AND p.payment_type != 'trial'
                 AND p.paid_at >= ?
             """, (period_start.isoformat(),))
 
@@ -250,6 +253,7 @@ def get_revenue_stats() -> Dict[str, Any]:
             FROM payments p
             LEFT JOIN tariffs t ON p.tariff_id = t.id
             WHERE p.status = 'paid'
+            AND p.payment_type != 'trial'
         """)
 
         row = cursor.fetchone()
@@ -355,6 +359,7 @@ def get_payers_stats(page: int = 1, per_page: int = 10) -> Dict[str, Any]:
             FROM payments p
             LEFT JOIN tariffs t ON p.tariff_id = t.id
             WHERE p.status = 'paid'
+            AND p.payment_type != 'trial'
         """)
         stats = cursor.fetchone()
         
@@ -375,6 +380,7 @@ def get_payers_stats(page: int = 1, per_page: int = 10) -> Dict[str, Any]:
             JOIN users u ON p.user_id = u.id
             LEFT JOIN tariffs t ON p.tariff_id = t.id
             WHERE p.status = 'paid'
+            AND p.payment_type != 'trial'
             GROUP BY p.user_id
             ORDER BY total_rub DESC, total_cents DESC
             LIMIT ? OFFSET ?
@@ -539,19 +545,78 @@ def get_conversion_stats() -> Dict[str, Any]:
         }
 
 
+def get_usage_activity_stats() -> Dict[str, int]:
+    """
+    Сколько РАЗНЫХ пользователей реально включали VPN за период.
+
+    Источник — vpn_keys.last_online_at (штампуется планировщиком по данным
+    панели об онлайне). Времена в UTC (CURRENT_TIMESTAMP), сравниваем с
+    datetime('now') — тоже UTC, поэтому без рассинхрона.
+
+    Returns:
+        online_now — за последние 10 минут (2 цикла синхронизации);
+        d3 / week / month — за 3 дня / 7 дней / 30 дней.
+    """
+    with get_db() as conn:
+        def cnt(interval: str) -> int:
+            return conn.execute(
+                "SELECT COUNT(DISTINCT user_id) AS c FROM vpn_keys "
+                "WHERE last_online_at >= datetime('now', ?)",
+                (interval,),
+            ).fetchone()['c']
+
+        return {
+            'online_now': cnt('-10 minutes'),
+            'd3': cnt('-3 days'),
+            'week': cnt('-7 days'),
+            'month': cnt('-30 days'),
+        }
+
+
+def get_recently_online_users(minutes: int = 10, limit: int = 60) -> Dict[str, Any]:
+    """
+    Список конкретных пользователей, которые сейчас (≈ последние N минут) онлайн.
+
+    Returns:
+        count — всего онлайн; users — [{telegram_id, username, last_online}].
+    """
+    interval = f'-{int(minutes)} minutes'
+    with get_db() as conn:
+        total = conn.execute(
+            "SELECT COUNT(DISTINCT user_id) AS c FROM vpn_keys "
+            "WHERE last_online_at >= datetime('now', ?)",
+            (interval,),
+        ).fetchone()['c']
+
+        rows = conn.execute("""
+            SELECT u.telegram_id, u.username, MAX(vk.last_online_at) AS last_online
+            FROM vpn_keys vk
+            JOIN users u ON vk.user_id = u.id
+            WHERE vk.last_online_at >= datetime('now', ?)
+            GROUP BY u.id
+            ORDER BY last_online DESC
+            LIMIT ?
+        """, (interval, limit)).fetchall()
+
+        return {
+            'count': total,
+            'users': [dict(r) for r in rows],
+        }
+
+
 def get_recent_payments(limit: int = 20) -> List[Dict[str, Any]]:
     """
-    Получает последние платежи.
-    
+    Получает последние РЕАЛЬНЫЕ платежи (без пробных подписок).
+
     Args:
         limit: количество платежей
-    
+
     Returns:
-        Список последних платежей
+        Список последних платежей (payment_type != 'trial')
     """
     with get_db() as conn:
         cursor = conn.execute("""
-            SELECT 
+            SELECT
                 p.id,
                 p.order_id,
                 p.payment_type,
@@ -566,6 +631,7 @@ def get_recent_payments(limit: int = 20) -> List[Dict[str, Any]]:
             JOIN users u ON p.user_id = u.id
             LEFT JOIN tariffs t ON p.tariff_id = t.id
             WHERE p.status = 'paid'
+              AND p.payment_type != 'trial'
             ORDER BY p.paid_at DESC
             LIMIT ?
         """, (limit,))
