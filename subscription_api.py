@@ -74,6 +74,18 @@ RESERVE_PAYMENT_SITES = getattr(config, "RESERVE_PAYMENT_SITES", [
     "qr.nspk.ru",          # СБП QR (НСПК)
 ])
 
+# Hysteria2 (UDP/QUIC) — отдельный демон на сервере, НЕ inbound панели Xray
+# (Xray-core не умеет hysteria2). Ссылку добавляем в подписку вручную, а демон
+# авторизует клиента через HTTP-эндпоинт /hy2auth (пароль = uuid клиента).
+# Значения задаются в config.py на сервере, где демон поднят.
+HYSTERIA2_ENABLED = getattr(config, "HYSTERIA2_ENABLED", False)
+HYSTERIA2_SERVER_IDS = set(getattr(config, "HYSTERIA2_SERVER_IDS", []))
+HYSTERIA2_HOST = getattr(config, "HYSTERIA2_HOST", "")
+HYSTERIA2_PORT = int(getattr(config, "HYSTERIA2_PORT", 443))
+HYSTERIA2_SNI = getattr(config, "HYSTERIA2_SNI", "")
+HYSTERIA2_OBFS_PASSWORD = getattr(config, "HYSTERIA2_OBFS_PASSWORD", "")
+HYSTERIA2_NAME = getattr(config, "HYSTERIA2_NAME", "⚡ Hysteria2 (моб.)")
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -755,6 +767,18 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
         await client.close()
 
 
+def _build_hysteria2_link(password: str, name: str) -> str:
+    """Собирает hysteria2:// ссылку для standalone-демона (не inbound панели)."""
+    query: Dict[str, str] = {"sni": HYSTERIA2_SNI or HYSTERIA2_HOST}
+    if HYSTERIA2_OBFS_PASSWORD:
+        query["obfs"] = "salamander"
+        query["obfs-password"] = HYSTERIA2_OBFS_PASSWORD
+    qs = urllib.parse.urlencode(query)
+    frag = urllib.parse.quote(name, safe="")
+    auth = urllib.parse.quote(password, safe="")
+    return f"hysteria2://{auth}@{HYSTERIA2_HOST}:{HYSTERIA2_PORT}?{qs}#{frag}"
+
+
 async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]:
     ordered_keys = [key for key in keys if key.has_available_traffic]
     if not ordered_keys:
@@ -807,6 +831,15 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             link_payload["remark"] = display_name
             links.append(generate_link(link_payload))
 
+        # Hysteria2 (UDP) — отдельный демон, не inbound панели. Добавляем ссылку
+        # вручную для серверов, где он поднят. Пароль = uuid клиента (тот же
+        # секрет, что у VLESS); демон валидирует его через /hy2auth. Реальный
+        # (не резервный) ключ.
+        if HYSTERIA2_ENABLED and key.id != -1 and key.server_id in HYSTERIA2_SERVER_IDS:
+            hy2_uuid = configs[0].get("uuid") if configs else None
+            if hy2_uuid:
+                links.append(_build_hysteria2_link(hy2_uuid, HYSTERIA2_NAME))
+
     return links
 
 
@@ -823,6 +856,37 @@ def _select_links(links: list[str], output_format: str) -> str:
     if output_format == "json":
         return links[0]
     return "\n".join(links)
+
+
+@app.route('/hy2auth', methods=['POST'])
+def hysteria2_auth():
+    """HTTP-аутентификация Hysteria2-демона (auth.type: http).
+
+    Демон шлёт JSON {addr, auth, tx}; auth = пароль клиента = его client_uuid.
+    Отвечаем {ok, id}: ok=True если есть активный (не истёкший, с трафиком) ключ
+    с таким uuid. id (panel_email) демон использует для учёта трафика/сессий.
+    """
+    data = request.get_json(silent=True) or {}
+    auth = str(data.get("auth") or "").strip()
+    if not auth or not HYSTERIA2_ENABLED:
+        return jsonify({"ok": False}), 200
+    try:
+        with get_db() as conn:
+            row = conn.execute(
+                "SELECT panel_email, traffic_limit, traffic_used "
+                "FROM vpn_keys WHERE client_uuid = ? "
+                "AND expires_at > datetime('now') LIMIT 1",
+                (auth,),
+            ).fetchone()
+    except Exception:
+        logger.exception("hy2auth: ошибка БД")
+        return jsonify({"ok": False}), 200
+    if not row:
+        return jsonify({"ok": False}), 200
+    panel_email, traffic_limit, traffic_used = row[0], row[1] or 0, row[2] or 0
+    if traffic_limit > 0 and traffic_used >= traffic_limit:
+        return jsonify({"ok": False}), 200
+    return jsonify({"ok": True, "id": panel_email}), 200
 
 
 def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
