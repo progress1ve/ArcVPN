@@ -323,7 +323,7 @@ def migration_3(conn: sqlite3.Connection) -> None:
 
     # Настройки пробной подписки
     trial_settings = [
-        ('trial_enabled', '0'),          # Выключено по умолчанию
+        ('trial_enabled', '1'),          # Включено по умолчанию
         ('trial_tariff_id', ''),          # Тариф не задан
         ('trial_page_text', trial_page_text_default),  # Текст по умолчанию
     ]

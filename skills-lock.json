@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "mobile-app-ui-design": {
+      "source": "ceorkm/mobile-app-ui-design",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "b55732a1e5fbd0d00eb205d52af2bc72cfb9dbd13f8a7fd38d25acdc96f7ac5e"
+    },
+    "swiftui-skills": {
+      "source": "ameyalambat128/swiftui-skills",
+      "sourceType": "github",
+      "skillPath": "src/skill/SKILL.md",
+      "computedHash": "e33aacc5000c3805bb84579f342c31a15e25f74b173f5f904f518412967758dc"
+    }
+  }
+}

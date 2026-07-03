@@ -163,7 +163,7 @@ def get_yookassa_credentials() -> tuple[str, str]:
 
 def is_trial_enabled() -> bool:
     """Включена ли функция пробной подписки."""
-    return get_setting('trial_enabled', '0') == '1'
+    return get_setting('trial_enabled', '1') == '1'
 
 def get_trial_tariff_id() -> Optional[int]:
     """
