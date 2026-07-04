@@ -554,15 +554,13 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     params = urllib.parse.parse_qs(parsed.query)
     subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or ""
 
-    security = params.get("security", [""])[0] or "reality"
-    network = params.get("type", ["tcp"])[0]
     flow = params.get("flow", [""])[0] or ""
     sni = (params.get("sni", [""])[0] or parsed.hostname or "")
-    fp = params.get("fp", ["firefox"])[0]
     pbk = (params.get("pbk", [""])[0] or "")
     sid = (params.get("sid", [""])[0] or "")
-    path = params.get("path", ["/"])[0]
-    mode = params.get("mode", ["auto"])[0]
+    fp = params.get("fp", ["firefox"])[0]
+    spx = params.get("spx", ["/"])[0]
+    network = params.get("type", ["tcp"])[0]
     http_user = "happ-http"
     http_pass = hashlib.sha256(f"happ-http-{key.id}".encode()).hexdigest()[:16]
 
@@ -573,33 +571,22 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
 
     stream_settings: Dict[str, Any] = {
         "network": network,
-        "security": security,
-    }
-
-    if security == "reality":
-        stream_settings["realitySettings"] = {
-            "allowInsecure": False,
+        "security": "reality",
+        "realitySettings": {
             "fingerprint": fp,
             "publicKey": pbk,
             "serverName": sni,
             "shortId": sid,
-            "show": False,
-            "spiderX": "",
-        }
-    elif security == "tls":
-        stream_settings["tlsSettings"] = {
-            "alpn": ["h2", "http/1.1"],
-            "fingerprint": fp,
-            "serverName": sni,
-        }
-
+            "spiderX": spx,
+        },
+    }
     if network == "tcp":
         stream_settings["tcpSettings"] = {}
     elif network == "xhttp":
         stream_settings["xhttpSettings"] = {
             "host": "",
-            "mode": mode,
-            "path": path,
+            "mode": params.get("mode", ["auto"])[0],
+            "path": params.get("path", ["/"])[0],
             "scMaxConcurrentPosts": 10,
             "scMaxEachPostBytes": 1000000,
             "scMinPostsIntervalMs": 30,
@@ -607,24 +594,26 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
 
     payload = {
         "dns": {
-            "hosts": {
-                "cloudflare-dns.com": "1.1.1.1",
-                "dns.google": "8.8.8.8",
-            },
-            "queryStrategy": "UseIP",
+            "hosts": {"dns.google": "8.8.8.8"},
+            "queryStrategy": "IPIfNonMatch",
             "servers": [
-                "1.1.1.1",
                 {
-                    "address": "1.1.1.1",
-                    "domains": [],
-                    "port": 53,
+                    "address": "https://dns.google/dns-query",
+                    "skipFallback": False,
                 },
                 {
-                    "address": "8.8.8.8",
-                    "domains": direct_domains,
+                    "address": "77.88.8.8",
+                    "domains": [
+                        "geosite:category-ru",
+                        "regexp:\\.ru$",
+                        "regexp:\\.su$",
+                        "regexp:xn--p1ai$",
+                    ],
                     "port": 53,
+                    "skipFallback": True,
                 },
             ],
+            "tag": "dns_out",
         },
         "inbounds": [
             {
@@ -656,30 +645,13 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                 },
                 "tag": "http",
             },
-            {
-                "listen": "127.0.0.1",
-                "port": 11111,
-                "protocol": "dokodemo-door",
-                "settings": {
-                    "address": "127.0.0.1",
-                },
-                "tag": "metrics_in",
-            },
         ],
         "log": {
             "loglevel": "warning",
         },
-        "metrics": {
-            "tag": "metrics_out",
-        },
+        "meta": None,
         "outbounds": [
             {
-                "mux": {
-                    "concurrency": -1,
-                    "enabled": False,
-                    "xudpConcurrency": 8,
-                    "xudpProxyUDP443": "",
-                },
                 "protocol": "vless",
                 "settings": {
                     "vnext": [
@@ -691,12 +663,10 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                                     "encryption": "none",
                                     "flow": flow,
                                     "id": parsed.username,
-                                    "level": 8,
-                                    "security": "auto",
-                                },
+                                }
                             ],
                         }
-                    ],
+                    ]
                 },
                 "streamSettings": stream_settings,
                 "tag": "proxy",
@@ -710,11 +680,6 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
             },
             {
                 "protocol": "blackhole",
-                "settings": {
-                    "response": {
-                        "type": "http",
-                    },
-                },
                 "tag": "block",
             },
         ],
@@ -740,37 +705,34 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
         },
         "remarks": key.tariff_name,
         "routing": {
+            "domainMatcher": "hybrid",
             "domainStrategy": "IPIfNonMatch",
             "rules": [
                 {
-                    "inboundTag": ["metrics_in"],
-                    "outboundTag": "metrics_out",
+                    "ip": ["geoip:private"],
+                    "outboundTag": "direct",
+                    "type": "field",
+                },
+                {
+                    "domain": ["geosite:private"],
+                    "outboundTag": "direct",
+                    "type": "field",
+                },
+                {
+                    "ip": ["77.88.8.8"],
+                    "outboundTag": "direct",
+                    "port": 53,
+                    "type": "field",
                 },
                 {
                     "domain": direct_domains,
                     "outboundTag": "direct",
-                },
-                {
-                    "ip": [
-                        "geoip:ru",
-                        "geoip:private",
-                        *LOCAL_AND_RESERVED_CIDRS,
-                    ],
-                    "outboundTag": "direct",
-                },
-                {
-                    "ip": ["8.8.8.8"],
-                    "outboundTag": "direct",
-                    "port": 53,
-                },
-                {
-                    "ip": ["1.1.1.1"],
-                    "outboundTag": "proxy",
-                    "port": 53,
+                    "type": "field",
                 },
                 {
                     "network": "tcp,udp",
                     "outboundTag": "proxy",
+                    "type": "field",
                 },
             ],
         },
@@ -997,14 +959,12 @@ def _select_links(links: list[str], output_format: str) -> str:
     Склеивает ссылки для тела подписки.
 
     plain/base64 (Happ/Hiddify) — все inbound одной подписки (VLESS, …),
-    каждая ссылка отдельной строкой. json — предпочитаем xhttp (мобильная),
-    если есть, иначе первую.
+    каждая ссылка отдельной строкой. json — берём первую (TCP Reality).
     """
     if not links:
         return ""
     if output_format == "json":
-        xhttp = [l for l in links if "type=xhttp" in l]
-        return xhttp[0] if xhttp else links[0]
+        return links[0]
     return "\n".join(links)
 
 
