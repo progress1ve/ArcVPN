@@ -554,15 +554,6 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     params = urllib.parse.parse_qs(parsed.query)
     subscription_host = urllib.parse.urlparse(SUBSCRIPTION_URL).hostname or ""
 
-    # Сайты, заблокированные РКН (белые списки) — должны идти через proxy
-    # даже если у них .ru/.su домен. Правило ставится ДО общего direct.
-    BLOCKED_RU_SITES = [
-        "habr.com", "4pda.to", "4pda.ru", "2ip.io", "2ip.ru",
-        "kemono.su", "jut.su", "kara.su",
-        "theins.ru", "tvrain.ru", "echo.msk.ru", "the-village.ru",
-        "snob.ru", "novayagazeta.ru", "moscowtimes.ru",
-    ]
-
     security = params.get("security", [""])[0] or "reality"
     network = params.get("type", ["tcp"])[0]
     flow = params.get("flow", [""])[0] or ""
@@ -570,10 +561,15 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     fp = params.get("fp", ["firefox"])[0]
     pbk = (params.get("pbk", [""])[0] or "")
     sid = (params.get("sid", [""])[0] or "")
-    spx = params.get("spx", ["/"])[0]
     path = params.get("path", ["/"])[0]
+    mode = params.get("mode", ["auto"])[0]
     http_user = "happ-http"
     http_pass = hashlib.sha256(f"happ-http-{key.id}".encode()).hexdigest()[:16]
+
+    direct_domains = list(dict.fromkeys([
+        "geosite:category-ru",
+        *SPLIT_TUNNELING_DIRECT_SITES,
+    ]))
 
     stream_settings: Dict[str, Any] = {
         "network": network,
@@ -582,11 +578,13 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
 
     if security == "reality":
         stream_settings["realitySettings"] = {
+            "allowInsecure": False,
             "fingerprint": fp,
             "publicKey": pbk,
             "serverName": sni,
             "shortId": sid,
-            "spiderX": spx,
+            "show": False,
+            "spiderX": "",
         }
     elif security == "tls":
         stream_settings["tlsSettings"] = {
@@ -599,68 +597,38 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
         stream_settings["tcpSettings"] = {}
     elif network == "xhttp":
         stream_settings["xhttpSettings"] = {
-            "extra": {
-                "noGRPCHeader": True,
-                "path": path,
-                "scMaxEachPostBytes": 1000000,
-                "scMinPostsIntervalMs": 30,
-                "seqKey": "csrftoken",
-                "seqPlacement": "cookie",
-                "sessionIDKey": "session_id",
-                "sessionIDPlacement": "cookie",
-                "sessionKey": "session_id",
-                "sessionPlacement": "cookie",
-                "uplinkChunkSize": 0,
-                "uplinkDataPlacement": "body",
-                "uplinkHTTPMethod": "GET",
-                "xPaddingBytes": "100-1000",
-                "xPaddingHeader": "X-CSRFToken",
-                "xPaddingKey": "_t",
-                "xPaddingMethod": "tokenish",
-                "xPaddingObfsMode": True,
-                "xPaddingPlacement": "queryInHeader",
-                "xmux": {
-                    "cMaxReuseTimes": 0,
-                    "hKeepAlivePeriod": 0,
-                    "hMaxRequestTimes": "600-900",
-                    "hMaxReusableSecs": "1800-3000",
-                    "maxConcurrency": "16-32",
-                    "maxConnections": 0,
-                },
-            },
-            "host": sni,
-            "mode": "packet-up",
+            "host": "",
+            "mode": mode,
             "path": path,
+            "scMaxConcurrentPosts": 10,
+            "scMaxEachPostBytes": 1000000,
+            "scMinPostsIntervalMs": 30,
         }
-
-    direct_domains = list(dict.fromkeys([
-        "geosite:category-ru",
-        *SPLIT_TUNNELING_DIRECT_SITES,
-    ]))
 
     payload = {
         "dns": {
-            "queryStrategy": "IPIfNonMatch",
+            "hosts": {
+                "cloudflare-dns.com": "1.1.1.1",
+                "dns.google": "8.8.8.8",
+            },
+            "queryStrategy": "UseIP",
             "servers": [
+                "1.1.1.1",
                 {
-                    "address": "77.88.8.8",
-                    "domains": [
-                        "geosite:category-ru",
-                        "regexp:\\.ru$",
-                        "regexp:\\.su$",
-                        "regexp:xn--p1ai$",
-                    ],
-                    "skipFallback": True,
+                    "address": "1.1.1.1",
+                    "domains": [],
+                    "port": 53,
                 },
                 {
-                    "address": "94.140.14.14",
-                    "skipFallback": False,
+                    "address": "8.8.8.8",
+                    "domains": direct_domains,
+                    "port": 53,
                 },
             ],
-            "tag": "dns_out",
         },
         "inbounds": [
             {
+                "listen": "127.0.0.1",
                 "port": 10808,
                 "protocol": "socks",
                 "settings": {
@@ -675,20 +643,43 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                 "tag": "socks",
             },
             {
+                "listen": "127.0.0.1",
                 "port": 10809,
                 "protocol": "http",
                 "settings": {
                     "accounts": [{"user": http_user, "pass": http_pass}],
                     "userLevel": 8,
                 },
+                "sniffing": {
+                    "destOverride": ["http", "tls", "quic"],
+                    "enabled": True,
+                },
                 "tag": "http",
+            },
+            {
+                "listen": "127.0.0.1",
+                "port": 11111,
+                "protocol": "dokodemo-door",
+                "settings": {
+                    "address": "127.0.0.1",
+                },
+                "tag": "metrics_in",
             },
         ],
         "log": {
             "loglevel": "warning",
         },
+        "metrics": {
+            "tag": "metrics_out",
+        },
         "outbounds": [
             {
+                "mux": {
+                    "concurrency": -1,
+                    "enabled": False,
+                    "xudpConcurrency": 8,
+                    "xudpProxyUDP443": "",
+                },
                 "protocol": "vless",
                 "settings": {
                     "vnext": [
@@ -700,74 +691,90 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                                     "encryption": "none",
                                     "flow": flow,
                                     "id": parsed.username,
-                                }
+                                    "level": 8,
+                                    "security": "auto",
+                                },
                             ],
                         }
-                    ]
+                    ],
                 },
                 "streamSettings": stream_settings,
                 "tag": "proxy",
             },
             {
                 "protocol": "freedom",
+                "settings": {
+                    "domainStrategy": "UseIP",
+                },
                 "tag": "direct",
             },
             {
                 "protocol": "blackhole",
+                "settings": {
+                    "response": {
+                        "type": "http",
+                    },
+                },
                 "tag": "block",
             },
         ],
         "policy": {
+            "levels": {
+                "0": {
+                    "statsUserDownlink": True,
+                    "statsUserUplink": True,
+                },
+                "8": {
+                    "connIdle": 300,
+                    "downlinkOnly": 1,
+                    "handshake": 4,
+                    "uplinkOnly": 1,
+                },
+            },
             "system": {
+                "statsInboundDownlink": True,
+                "statsInboundUplink": True,
                 "statsOutboundDownlink": True,
                 "statsOutboundUplink": True,
             },
         },
         "remarks": key.tariff_name,
         "routing": {
-            "domainMatcher": "hybrid",
             "domainStrategy": "IPIfNonMatch",
             "rules": [
                 {
-                    "ip": ["geoip:private"],
-                    "outboundTag": "direct",
-                    "type": "field",
-                },
-                {
-                    "domain": ["geosite:private"],
-                    "outboundTag": "direct",
-                    "type": "field",
-                },
-                {
-                    "domain": [subscription_host],
-                    "outboundTag": "direct",
-                    "type": "field",
-                },
-                {
-                    "domain": BLOCKED_RU_SITES,
-                    "outboundTag": "proxy",
-                    "type": "field",
+                    "inboundTag": ["metrics_in"],
+                    "outboundTag": "metrics_out",
                 },
                 {
                     "domain": direct_domains,
                     "outboundTag": "direct",
-                    "type": "field",
                 },
                 {
-                    "ip": ["77.88.8.8"],
+                    "ip": [
+                        "geoip:ru",
+                        "geoip:private",
+                        *LOCAL_AND_RESERVED_CIDRS,
+                    ],
+                    "outboundTag": "direct",
+                },
+                {
+                    "ip": ["8.8.8.8"],
                     "outboundTag": "direct",
                     "port": 53,
-                    "type": "field",
+                },
+                {
+                    "ip": ["1.1.1.1"],
+                    "outboundTag": "proxy",
+                    "port": 53,
                 },
                 {
                     "network": "tcp,udp",
                     "outboundTag": "proxy",
-                    "type": "field",
                 },
             ],
         },
         "stats": {},
-        "meta": None,
     }
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
