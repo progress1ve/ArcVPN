@@ -951,6 +951,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             link_payload["remark"] = display_name
             links.append(generate_link(link_payload))
 
+    # Сортировка: XHTTP (Основной) первым, затем TCP (Запасной/YouTube)
+    links.sort(key=lambda l: 0 if "type=xhttp" in l else 1)
     return links
 
 
