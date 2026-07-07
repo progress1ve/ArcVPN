@@ -76,6 +76,12 @@ RESERVE_PAYMENT_SITES = getattr(config, "RESERVE_PAYMENT_SITES", [
     "qr.nspk.ru",          # СБП QR (НСПК)
 ])
 
+# CDN-обход белых списков: inbound на порту CDN_PORT отдаётся через CDN_DOMAIN
+# (Yandex Cloud CDN, IP в белом списке). Клиент коннектится к домену:443+TLS,
+# CDN форвардит на origin (наш сервер). В link подменяем host/port/security.
+CDN_DOMAIN = getattr(config, "CDN_DOMAIN", "")
+CDN_PORTS = set(getattr(config, "CDN_PORTS", []))
+
 
 
 # Настройка логирования
@@ -949,6 +955,21 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 display_name = config.get("inbound_name") or f"ArcVPN - {key.tariff_name} ({server.name})"
             link_payload["server_name"] = display_name
             link_payload["remark"] = display_name
+
+            # CDN-обход: подменяем адрес/порт/TLS чтобы клиент шёл через CDN-домен,
+            # а не напрямую на сервер. Origin (наш сервер) видит только CDN.
+            if CDN_DOMAIN and config.get("port") in CDN_PORTS:
+                link_payload["host"] = CDN_DOMAIN
+                link_payload["port"] = 443
+                ss = dict(config.get("stream_settings") or {})
+                ss["security"] = "tls"
+                ss["tlsSettings"] = {
+                    "serverName": CDN_DOMAIN,
+                    "fingerprint": "firefox",
+                    "alpn": ["http/1.1"],
+                }
+                link_payload["stream_settings"] = ss
+
             links.append(generate_link(link_payload))
 
     # Сортировка: XHTTP (Основной) первым, затем TCP (Запасной/YouTube)
