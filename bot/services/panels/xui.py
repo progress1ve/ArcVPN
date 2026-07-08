@@ -477,6 +477,10 @@ class XUIClient(BaseVPNClient):
         нескольким inbound через inboundIds. Секрет кладём и в uuid (для VLESS), и
         в password (для Hysteria2/Trojan) — так одна запись обслуживает все inbound
         под единым секретом (как зеркалирование в v2).
+
+        Возвращает тело клиента (без inboundIds) — вызывающий код заворачивает в
+        {"client": ..., "inboundIds": ...} для clients/add, либо шлёт как есть
+        для clients/update/{email}.
         """
         return {
             "email": email,
@@ -491,7 +495,6 @@ class XUIClient(BaseVPNClient):
             "subId": sub_id,
             "comment": "",
             "reset": 0,
-            "inboundIds": list(inbound_ids),
         }
 
     async def _v3_post_client(self, endpoint: str, body: Dict[str, Any]) -> Dict[str, Any]:
@@ -525,7 +528,7 @@ class XUIClient(BaseVPNClient):
         }
         body.update(changes)
         enc = urllib.parse.quote(email, safe='')
-        await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+        await self._v3_post_client(f"/panel/api/clients/update/{enc}", {"client": body})
         return True
 
     async def _v3_list_clients(self) -> List[Dict[str, Any]]:
@@ -660,7 +663,7 @@ class XUIClient(BaseVPNClient):
             )
             import urllib.parse
             enc = urllib.parse.quote(email, safe='')
-            await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+            await self._v3_post_client(f"/panel/api/clients/update/{enc}", {"client": body})
             missing = [i for i in supported_ids if i not in current_ids]
             if missing:
                 await self._v3_attach(email, missing)
@@ -672,7 +675,7 @@ class XUIClient(BaseVPNClient):
                 expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
                 inbound_ids=supported_ids, flow=flow,
             )
-            await self._v3_post_client("/panel/api/clients/add", body)
+            await self._v3_post_client("/panel/api/clients/add", {"client": body, "inboundIds": supported_ids})
             provisioned = supported_ids
             logger.info("Клиент %s создан в v3 (inboundIds=%s)", email, supported_ids)
 
@@ -1108,7 +1111,7 @@ class XUIClient(BaseVPNClient):
                     inbound_ids=ids, flow=flow,
                 )
                 enc = urllib.parse.quote(email, safe='')
-                await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
+                await self._v3_post_client(f"/panel/api/clients/update/{enc}", {"client": body})
                 if inbound_id not in current_ids:
                     await self._v3_attach(email, [inbound_id])
             else:
@@ -1119,7 +1122,7 @@ class XUIClient(BaseVPNClient):
                     expiry_ms=expiry_ms, limit_ip=limit_ip, enable=enable, tg_id=tg_id,
                     inbound_ids=[inbound_id], flow=flow,
                 )
-                await self._v3_post_client("/panel/api/clients/add", body)
+                await self._v3_post_client("/panel/api/clients/add", {"client": body, "inboundIds": [inbound_id]})
             return {
                 "uuid": secret,
                 "email": email,
