@@ -1006,8 +1006,14 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
             links.append(generate_link(link_payload))
 
-    # Сортировка: XHTTP (Основной) первым, затем TCP (Запасной/YouTube)
-    links.sort(key=lambda l: 0 if "type=xhttp" in l else 1)
+    # Сортировка: XHTTP (Основной) -> Reality TCP (Запасной) -> CDN (БС)
+    def _link_sort_key(l: str) -> int:
+        if "type=xhttp" in l and "cdn.arccnet" not in l and ":12631" in l:
+            return 0  # Основной — XHTTP порт 12631
+        if ":443?" in l and "@2.26.84.210" in l and "type=tcp" in l:
+            return 1  # Запасной — Reality TCP порт 443
+        return 2      # Всё остальное (CDN БС) — последним
+    links.sort(key=_link_sort_key)
     return links
 
 
