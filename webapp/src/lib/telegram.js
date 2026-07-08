@@ -41,11 +41,13 @@ export function openExternal(url) {
   }
 }
 
-// Ссылка внутрь Telegram (t.me/...) — открывает бот/канал и сворачивает Mini App
+// Ссылка внутрь Telegram (t.me/...) — открывает бот/канал и закрывает Mini App
 export function openTelegram(url) {
   if (!url) return
   if (tg?.openTelegramLink) {
     tg.openTelegramLink(url)
+    // Закрываем WebApp — пользователь видит бота в чате
+    tg.close()
   } else {
     window.open(url, '_blank')
   }
