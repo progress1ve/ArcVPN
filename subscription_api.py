@@ -84,7 +84,8 @@ CDN_DOMAIN = getattr(config, "CDN_DOMAIN", "")
 CDN_PORTS = set(getattr(config, "CDN_PORTS", []))
 # Лимит трафика на CDN-инкапсуляцию (ГБ, 0 = безлимит). 
 # Если превышен — CDN-ссылка пропадает из подписки.
-CDN_TRAFFIC_LIMIT_GB = getattr(config, "CDN_TRAFFIC_LIMIT_GB", 0)
+# Берётся из settings БД, с fallback на config.py.
+CDN_TRAFFIC_LIMIT_GB = int(get_setting("cdn_traffic_limit_gb", "0") or "0")
 
 
 

@@ -29,6 +29,8 @@ __all__ = [
     'get_trial_traffic_gb',
     'set_trial_traffic_gb',
     'is_demo_payment_enabled',
+    'get_cdn_traffic_limit_gb',
+    'set_cdn_traffic_limit_gb',
 ]
 
 def get_setting(key: str, default: Optional[str] = None) -> Optional[str]:
@@ -223,3 +225,12 @@ def set_trial_traffic_gb(gb: int) -> bool:
 def is_demo_payment_enabled() -> bool:
     """Включена ли демонстрационная оплата РФ картой."""
     return get_setting('demo_payment_enabled', '0') == '1'
+
+def get_cdn_traffic_limit_gb() -> int:
+    """Возвращает лимит трафика для CDN-обхода БС в ГБ (0 = безлимит)."""
+    val = get_setting('cdn_traffic_limit_gb', '10')
+    return int(val) if val and val.isdigit() else 10
+
+def set_cdn_traffic_limit_gb(gb: int) -> bool:
+    """Устанавливает лимит трафика для CDN-обхода БС в ГБ."""
+    return set_setting('cdn_traffic_limit_gb', str(gb)) is not None

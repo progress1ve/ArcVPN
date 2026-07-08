@@ -22,7 +22,9 @@ from database.requests import (
     is_yookassa_qr_enabled,
     get_crypto_integration_mode,
     set_crypto_integration_mode,
-    is_demo_payment_enabled
+    is_demo_payment_enabled,
+    get_cdn_traffic_limit_gb,
+    set_cdn_traffic_limit_gb,
 )
 from bot.states.admin_states import (
     AdminStates,
@@ -1148,5 +1150,48 @@ async def qr_setup_secret_key_handler(message: Message, state: FSMContext):
 
     fake = FakeCallback(menu_message, message.from_user)
     await show_qr_management_menu(fake, state)
+
+
+# ============================================================================
+# CDN-лимит
+# ============================================================================
+
+@router.callback_query(F.data == "admin_cdn_limit")
+async def admin_cdn_limit_start(callback: CallbackQuery, state: FSMContext):
+    if not is_admin(callback.from_user.id):
+        return
+    from bot.keyboards.admin import back_button, home_button
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    current = get_cdn_traffic_limit_gb()
+    limit_text = f"{current} ГБ" if current > 0 else "Безлимит"
+    builder = InlineKeyboardBuilder()
+    builder.row(back_button("admin_payments"))
+    builder.row(home_button())
+    await safe_edit_or_send(callback.message,
+        f"🌐 CDN-лимит: <b>{limit_text}</b>\n\nВведите новый лимит в ГБ (0=безлимит):",
+        reply_markup=builder.as_markup())
+    await state.set_state(AdminStates.cdn_traffic_limit)
+    await callback.answer()
+
+
+@router.message(StateFilter(AdminStates.cdn_traffic_limit))
+async def admin_cdn_limit_process(message: Message, state: FSMContext):
+    if not is_admin(message.from_user.id):
+        return
+    from bot.keyboards.admin import back_button
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    try:
+        limit_gb = int(message.text.strip())
+        if limit_gb < 0 or limit_gb > 1000:
+            raise ValueError
+        set_cdn_traffic_limit_gb(limit_gb)
+        limit_text = f"{limit_gb} ГБ" if limit_gb > 0 else "Безлимит"
+        logger.info(f"CDN-лимит изменён на {limit_text}")
+        builder = InlineKeyboardBuilder()
+        builder.row(back_button("admin_payments"))
+        await message.answer(f"✅ CDN-лимит: <b>{limit_text}</b>", reply_markup=builder.as_markup())
+        await state.clear()
+    except ValueError:
+        await message.answer("❌ Введите число от 0 до 1000.")
 
 

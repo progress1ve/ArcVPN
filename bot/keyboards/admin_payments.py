@@ -32,6 +32,7 @@ def payments_menu_kb(stars_enabled: bool, crypto_enabled: bool, cards_enabled: b
     builder.row(InlineKeyboardButton(text='Группы тарифов', callback_data='admin_groups'))
     builder.row(InlineKeyboardButton(text='Тарифы', callback_data='admin_tariffs'))
     builder.row(InlineKeyboardButton(text='🎁 Пробная подписка', callback_data='admin_trial'))
+    builder.row(InlineKeyboardButton(text='🌐 CDN-лимит (БС)', callback_data='admin_cdn_limit'))
     builder.row(InlineKeyboardButton(text='🎟️ Промокоды', callback_data='admin_promocodes'))
     builder.row(back_button('admin_panel'), home_button())
     return builder.as_markup()
