@@ -2,6 +2,7 @@ import logging
 import uuid
 import asyncio
 from datetime import datetime
+from typing import Any, Dict, Optional
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command, CommandObject, StateFilter
@@ -18,13 +19,14 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
-def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=False) -> tuple:
+def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=False, primary_key: Optional[Dict[str, Any]] = None) -> tuple:
     """Формирует приветственный текст с информацией о пользователе.
     
     Args:
         user: Словарь с данными пользователя
         is_admin: Является ли пользователь администратором
         show_trial_offer: Показывать ли предложение пробного периода
+        primary_key: Основной ключ (для отображения трафика)
     
     Returns:
         Кортеж (text, photo_file_id) — текст и опциональное фото
@@ -36,10 +38,30 @@ def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=Fa
     first_name = escape_html(user.get('first_name', 'Пользователь'))
     user_id = user.get('telegram_id', 0)
 
+    # Формируем блок трафика
+    traffic_line = ""
+    if primary_key:
+        used = int(primary_key.get('traffic_used') or 0)
+        limit = int(primary_key.get('traffic_limit') or 0)
+        if limit > 0:
+            def _fmt_b(b):
+                if b <= 0:
+                    return "0 ГБ"
+                gb = b / (1024**3)
+                if gb >= 1024:
+                    return f"{gb/1024:.1f} ТБ"
+                if gb >= 10:
+                    return f"{round(gb)} ГБ"
+                if gb >= 1:
+                    return f"{gb:.1f} ГБ"
+                mb = b / (1024**2)
+                return f"{max(1, round(mb))} МБ"
+            traffic_line = f"\n— Трафик: {_fmt_b(used)} / {_fmt_b(limit)}"
+
     # Формируем блок с информацией пользователя (всегда добавляется в конец)
     user_info_block = (
         f"Привет, {first_name}!\n\n"
-        f"<blockquote>— Ваш ID: {user_id}</blockquote>\n\n"
+        f"<blockquote>— Ваш ID: {user_id}{traffic_line}</blockquote>\n\n"
         f"Новостной канал — @arcvpn1\n"
         f"Поддержка — @Turan11627"
     )
@@ -97,10 +119,11 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     
     # Пробный период теперь выдаётся АВТОМАТИЧЕСКИ при первом /start (см. ниже),
     # поэтому кнопки/оффера «получить триал» в меню больше нет.
-    from database.requests import is_trial_enabled, has_used_trial
+    from database.requests import is_trial_enabled, has_used_trial, get_user_primary_key
     show_trial = False
 
-    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
+    primary_key = get_user_primary_key(user_id)
+    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=primary_key)
     args = command.args
     if args and args.startswith('bill'):
         from bot.services.billing import process_crypto_payment
@@ -314,7 +337,9 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
     # Триал автоматический — кнопки/оффера в меню нет.
     show_trial = False
 
-    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
+    from database.requests import get_user_primary_key
+    primary_key = get_user_primary_key(user_id)
+    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=primary_key)
 
     show_referral = is_referral_enabled()
     has_subscription, primary_key_id = _get_subscription_state(user_id)
@@ -418,7 +443,9 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
         
         # Получаем правильное приветственное сообщение
-        (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial)
+        from database.requests import get_user_primary_key
+        pk = get_user_primary_key(user_id)
+        (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=pk)
         
         # Удаляем старое сообщение
         try:

@@ -2,7 +2,7 @@
   import { status, tariffs, loadStatus, loadTariffs } from '../lib/data.js'
   import { openTelegram } from '../lib/telegram.js'
   import { theme, toggleTheme } from '../lib/theme.js'
-  import { daysLeft, daysWord, leftVerb, formatDate, formatRub } from '../lib/format.js'
+  import { daysLeft, daysWord, leftVerb, formatDate, formatRub, formatBytes } from '../lib/format.js'
   import Icon from '../components/Icon.svelte'
 
   export let goConnect = () => {}
@@ -65,7 +65,7 @@
       {#if primary && primary.is_active}
         <div class="hero-top">
           <span class="hero-label">Подписка активна</span>
-          <span class="chip"><Icon name="pin" size={13} /> {primary.server_name || 'ArcVPN'}</span>
+          <span class="chip"><Icon name="pin" size={13} /> {formatBytes(primary.traffic_used)} / {formatBytes(primary.traffic_limit)}</span>
         </div>
 
         <div class="value-row">
