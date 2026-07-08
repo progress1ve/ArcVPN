@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import secrets
+import sqlite3
 import threading
 import time
 import urllib.parse
@@ -81,6 +82,9 @@ RESERVE_PAYMENT_SITES = getattr(config, "RESERVE_PAYMENT_SITES", [
 # CDN форвардит на origin (наш сервер). В link подменяем host/port/security.
 CDN_DOMAIN = getattr(config, "CDN_DOMAIN", "")
 CDN_PORTS = set(getattr(config, "CDN_PORTS", []))
+# Лимит трафика на CDN-инкапсуляцию (ГБ, 0 = безлимит). 
+# Если превышен — CDN-ссылка пропадает из подписки.
+CDN_TRAFFIC_LIMIT_GB = getattr(config, "CDN_TRAFFIC_LIMIT_GB", 0)
 
 
 
@@ -962,6 +966,10 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             # методом OPTIONS (uplinkHTTPMethod), nginx на origin переписывает
             # OPTIONS->POST. alpn=h2 обязателен — CDN отвечает по HTTP/2.
             if CDN_DOMAIN and config.get("port") in CDN_PORTS:
+                # Проверка лимита CDN-трафика
+                if _cdn_traffic_exceeded(key.panel_email):
+                    logger.info("CDN-трафик превышен для %s — исключаем CDN-ссылку", _mask_email(key.panel_email))
+                    continue
                 link_payload["host"] = CDN_DOMAIN
                 link_payload["port"] = 443
                 ss = dict(config.get("stream_settings") or {})
@@ -1000,6 +1008,26 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     # Сортировка: XHTTP (Основной) первым, затем TCP (Запасной/YouTube)
     links.sort(key=lambda l: 0 if "type=xhttp" in l else 1)
     return links
+
+
+def _cdn_traffic_exceeded(email: str) -> bool:
+    """Проверяет не превышен ли лимит CDN-трафика для клиента."""
+    if CDN_TRAFFIC_LIMIT_GB <= 0 or not CDN_DOMAIN:
+        return False
+    limit_bytes = CDN_TRAFFIC_LIMIT_GB * 1024 ** 3
+    try:
+        conn = sqlite3.connect("/etc/x-ui/x-ui.db", timeout=5)
+        row = conn.execute(
+            "SELECT COALESCE(SUM(up + down), 0) FROM client_traffics "
+            "WHERE email = ? AND inbound_id = (SELECT id FROM inbounds WHERE port IN ({}))"
+            .format(",".join(str(p) for p in CDN_PORTS)),
+            (email,)
+        ).fetchone()
+        conn.close()
+        total = row[0] if row else 0
+        return total > limit_bytes
+    except Exception:
+        return False
 
 
 def _select_links(links: list[str], output_format: str) -> str:
