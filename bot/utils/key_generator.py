@@ -242,7 +242,16 @@ def generate_vless_link(config: Dict[str, Any]) -> str:
     flow = config.get('flow', '')
     if flow:
         params['flow'] = flow
-    
+
+    # XHTTP extra: поля xhttpSettings без выделенных query-ключей
+    # (uplinkHTTPMethod, xPadding*, scMax* и т.д.) — упаковываются в один
+    # URL-encoded JSON под ключом extra. Понимают Happ/v2rayN/v2rayNG.
+    # Используется только для CDN-обхода (OPTIONS-трюк); для остальных inbound
+    # xhttp_extra не задан и параметр не добавляется.
+    xhttp_extra = config.get('xhttp_extra')
+    if xhttp_extra:
+        params['extra'] = json.dumps(xhttp_extra, ensure_ascii=False, separators=(',', ':'))
+
     # safe='' чтобы / кодировался как %2F (как у панели)
     query = "&".join([f"{k}={urllib.parse.quote(str(v), safe='')}" for k, v in params.items() if v])
     link = f"vless://{uuid}@{host}:{port}?{query}#{name}"

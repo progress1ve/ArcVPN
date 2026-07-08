@@ -958,6 +958,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
             # CDN-обход: подменяем адрес/порт/TLS чтобы клиент шёл через CDN-домен,
             # а не напрямую на сервер. Origin (наш сервер) видит только CDN.
+            # Yandex CDN режет POST, но пропускает OPTIONS: клиент шлёт XHTTP-аплинк
+            # методом OPTIONS (uplinkHTTPMethod), nginx на origin переписывает
+            # OPTIONS->POST. alpn=h2 обязателен — CDN отвечает по HTTP/2.
             if CDN_DOMAIN and config.get("port") in CDN_PORTS:
                 link_payload["host"] = CDN_DOMAIN
                 link_payload["port"] = 443
@@ -965,10 +968,32 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 ss["security"] = "tls"
                 ss["tlsSettings"] = {
                     "serverName": CDN_DOMAIN,
-                    "fingerprint": "firefox",
-                    "alpn": ["http/1.1"],
+                    "alpn": ["h2", "http/1.1"],
                 }
+                # Гарантируем host/mode в xhttpSettings (клиент шлёт Host=CDN,
+                # packet-up — единственный режим, совместимый с OPTIONS-трюком).
+                xs = dict(ss.get("xhttpSettings") or {})
+                xs["host"] = CDN_DOMAIN
+                xs["mode"] = "packet-up"
+                ss["xhttpSettings"] = xs
                 link_payload["stream_settings"] = ss
+
+                # extra-поля XHTTP (uplinkHTTPMethod + padding-обфускация).
+                # padding-поля берём из inbound (панель), чтобы клиент и сервер
+                # совпадали; uplinkHTTPMethod и sc* добавляем для OPTIONS-трюка.
+                extra: Dict[str, Any] = {
+                    "uplinkHTTPMethod": "OPTIONS",
+                    "scMaxEachPostBytes": 1000000,
+                    "scMinPostsIntervalMs": 30,
+                    "scMaxBufferedPosts": 30,
+                }
+                for pad_key in (
+                    "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
+                    "xPaddingMethod", "xPaddingPlacement",
+                ):
+                    if pad_key in xs:
+                        extra[pad_key] = xs[pad_key]
+                link_payload["xhttp_extra"] = extra
 
             links.append(generate_link(link_payload))
 
