@@ -1004,6 +1004,27 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         extra[pad_key] = xs[pad_key]
                 link_payload["xhttp_extra"] = extra
 
+            # XHTTP (не CDN): тоже добавляем extra с padding из inbound,
+            # чтобы клиент и сервер совпадали.
+            elif config.get("stream_settings", {}).get("network") == "xhttp":
+                xs = config.get("stream_settings", {}).get("xhttpSettings") or {}
+                extra: Dict[str, Any] = {
+                    "scMaxEachPostBytes": 1000000,
+                    "scMinPostsIntervalMs": 30,
+                    "scMaxBufferedPosts": 30,
+                }
+                for pad_key in (
+                    "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
+                    "xPaddingMethod", "xPaddingPlacement",
+                ):
+                    if pad_key in xs:
+                        extra[pad_key] = xs[pad_key]
+                if any(k in extra for k in (
+                    "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
+                    "xPaddingMethod", "xPaddingPlacement",
+                )):
+                    link_payload["xhttp_extra"] = extra
+
             links.append(generate_link(link_payload))
 
     # Сортировка: XHTTP (Основной) -> Reality TCP (Запасной) -> CDN (БС)
