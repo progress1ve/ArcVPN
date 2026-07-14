@@ -87,6 +87,10 @@ CDN_PORTS = set(getattr(config, "CDN_PORTS", []))
 # Берётся из settings БД, с fallback на config.py.
 CDN_TRAFFIC_LIMIT_GB = int(get_setting("cdn_traffic_limit_gb", "0") or "0")
 
+# SNI-роутинг nginx stream: xray слушает на внутреннем порту (4430),
+# но клиенты коннектятся к 443 (nginx stream прозрачно проксирует в xray).
+# В VLESS-ссылке указываем публичный порт (443), а не внутренний.
+PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {4430: 443})
 
 
 # Настройка логирования
@@ -1025,6 +1029,10 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 )):
                     link_payload["xhttp_extra"] = extra
 
+            _orig_port = link_payload.get("port")
+            if _orig_port in PORT_OVERRIDES:
+                link_payload["port"] = PORT_OVERRIDES[_orig_port]
+
             links.append(generate_link(link_payload))
 
     # Сортировка: XHTTP (Основной) -> Reality TCP (Запасной) -> CDN (БС)
@@ -1246,6 +1254,12 @@ def subscription(sub_id: str):
     except Exception:
         logger.exception("Ошибка генерации подписки для %s", masked_sub_id)
         return _subscription_temporarily_unavailable()
+
+
+@app.route('/<sub_id>', methods=['GET', 'HEAD'])
+def subscription_clean(sub_id: str):
+    """Clean subscription route — без /sub/ префикса (как у конкурентов)."""
+    return subscription(sub_id)
 
 
 @app.route('/health')
