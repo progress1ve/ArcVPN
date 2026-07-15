@@ -92,6 +92,20 @@ CDN_TRAFFIC_LIMIT_GB = int(get_setting("cdn_traffic_limit_gb", "0") or "0")
 # В VLESS-ссылке указываем публичный порт (443), а не внутренний.
 PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {4430: 443})
 
+# Скрытые порты inbound — не попадают в подписку ( внутренние, за nginx stream/proxy).
+HIDDEN_INBOUND_PORTS = set(getattr(config, "HIDDEN_INBOUND_PORTS", set()))
+
+# Hysteria2 (UDP/QUIC) — отдельный демон на сервере, НЕ inbound панели Xray.
+# Ссылку добавляем в подписку вручную; демон авторизует клиента через /hy2auth
+# (пароль = client_uuid из БД).
+HYSTERIA2_ENABLED = getattr(config, "HYSTERIA2_ENABLED", False)
+HYSTERIA2_SERVER_IDS = set(getattr(config, "HYSTERIA2_SERVER_IDS", []))
+HYSTERIA2_HOST = getattr(config, "HYSTERIA2_HOST", "")
+HYSTERIA2_PORT = int(getattr(config, "HYSTERIA2_PORT", 443))
+HYSTERIA2_SNI = getattr(config, "HYSTERIA2_SNI", "")
+HYSTERIA2_OBFS_PASSWORD = getattr(config, "HYSTERIA2_OBFS_PASSWORD", "")
+HYSTERIA2_NAME = getattr(config, "HYSTERIA2_NAME", "⚡ Hysteria2")
+
 
 # Настройка логирования
 logging.basicConfig(
@@ -912,6 +926,18 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
         logger.error("Ошибка загрузки конфигов с сервера %s: %s", server.name, exc)
     finally:
         await client.close()
+
+
+def _build_hysteria2_link(password: str, name: str) -> str:
+    """Собирает hysteria2:// ссылку для standalone-демона (не inbound панели)."""
+    query: Dict[str, str] = {"sni": HYSTERIA2_SNI or HYSTERIA2_HOST}
+    if HYSTERIA2_OBFS_PASSWORD:
+        query["obfs"] = "salamander"
+        query["obfs-password"] = HYSTERIA2_OBFS_PASSWORD
+    qs = urllib.parse.urlencode(query)
+    frag = urllib.parse.quote(name, safe="")
+    auth = urllib.parse.quote(password, safe="")
+    return f"hysteria2://{auth}@{HYSTERIA2_HOST}:{HYSTERIA2_PORT}?{qs}#{frag}"
 
 
 async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]:

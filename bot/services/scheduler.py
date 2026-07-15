@@ -970,6 +970,46 @@ async def sync_traffic_stats(bot: Bot) -> None:
                 key['traffic_notified_pct'] = threshold
                 break  # Только одно уведомление за раз
     
+    # === Восстановление: x-ui 3.3.1 не обновляет client_traffics.enable через API ===
+    # при продлении. Проверяем прямым SQL-запросом к x-ui.db и включаем обратно.
+    try:
+        import sqlite3 as _sqlite3
+        from datetime import timezone
+        XUI_DB = getattr(_cfg, 'XUI_DB_PATH', '/etc/x-ui/x-ui.db')
+        _xui_conn = _sqlite3.connect(XUI_DB)
+        _restored = 0
+        for key in keys:
+            email = key.get('panel_email')
+            if not email:
+                continue
+            expires_at = key.get('expires_at')
+            if not expires_at:
+                continue
+            dt = datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            exp_ms = int(dt.timestamp() * 1000)
+            row = _xui_conn.execute(
+                "SELECT enable FROM client_traffics WHERE email=?", (email,)
+            ).fetchone()
+            if row and row[0] == 0:
+                _xui_conn.execute(
+                    "UPDATE client_traffics SET enable=1, expiry_time=? WHERE email=?",
+                    (exp_ms, email)
+                )
+                _xui_conn.execute(
+                    "UPDATE clients SET enable=1, expiry_time=? WHERE email=?",
+                    (exp_ms, email)
+                )
+                _restored += 1
+                logger.warning(f"Восстановлен клиент {email}: enable 0->1")
+        if _restored:
+            _xui_conn.commit()
+            logger.info(f"Синхронизация enable: восстановлено {_restored} клиентов в x-ui.db")
+        _xui_conn.close()
+    except Exception as e:
+        logger.debug(f"x-ui.db enable sync: {e}")
+
     # === Отключаем истёкшие ключи на панели + единое уведомление об истечении ===
     try:
         expired_keys = get_all_expired_keys()
