@@ -87,24 +87,9 @@ CDN_PORTS = set(getattr(config, "CDN_PORTS", []))
 # Берётся из settings БД, с fallback на config.py.
 CDN_TRAFFIC_LIMIT_GB = int(get_setting("cdn_traffic_limit_gb", "0") or "0")
 
-# SNI-роутинг nginx stream: xray слушает на внутреннем порту (4430),
-# но клиенты коннектятся к 443 (nginx stream прозрачно проксирует в xray).
-# В VLESS-ссылке указываем публичный порт (443), а не внутренний.
-PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {4430: 443})
-
-# Скрытые порты inbound — не попадают в подписку ( внутренние, за nginx stream/proxy).
-HIDDEN_INBOUND_PORTS = set(getattr(config, "HIDDEN_INBOUND_PORTS", set()))
-
-# Hysteria2 (UDP/QUIC) — отдельный демон на сервере, НЕ inbound панели Xray.
-# Ссылку добавляем в подписку вручную; демон авторизует клиента через /hy2auth
-# (пароль = client_uuid из БД).
-HYSTERIA2_ENABLED = getattr(config, "HYSTERIA2_ENABLED", False)
-HYSTERIA2_SERVER_IDS = set(getattr(config, "HYSTERIA2_SERVER_IDS", []))
-HYSTERIA2_HOST = getattr(config, "HYSTERIA2_HOST", "")
-HYSTERIA2_PORT = int(getattr(config, "HYSTERIA2_PORT", 443))
-HYSTERIA2_SNI = getattr(config, "HYSTERIA2_SNI", "")
-HYSTERIA2_OBFS_PASSWORD = getattr(config, "HYSTERIA2_OBFS_PASSWORD", "")
-HYSTERIA2_NAME = getattr(config, "HYSTERIA2_NAME", "⚡ Hysteria2")
+# Публичный порт, который клиенты видят в VLESS-ссылке, может отличаться от
+# реального порта xray на сервере (например, nginx stream проксирует 443→xray).
+PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {})
 
 
 # Настройка логирования
@@ -928,18 +913,6 @@ async def _fetch_missing_configs_for_server(server_id: int, emails: set[str]) ->
         await client.close()
 
 
-def _build_hysteria2_link(password: str, name: str) -> str:
-    """Собирает hysteria2:// ссылку для standalone-демона (не inbound панели)."""
-    query: Dict[str, str] = {"sni": HYSTERIA2_SNI or HYSTERIA2_HOST}
-    if HYSTERIA2_OBFS_PASSWORD:
-        query["obfs"] = "salamander"
-        query["obfs-password"] = HYSTERIA2_OBFS_PASSWORD
-    qs = urllib.parse.urlencode(query)
-    frag = urllib.parse.quote(name, safe="")
-    auth = urllib.parse.quote(password, safe="")
-    return f"hysteria2://{auth}@{HYSTERIA2_HOST}:{HYSTERIA2_PORT}?{qs}#{frag}"
-
-
 async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]:
     ordered_keys = [key for key in keys if key.has_available_traffic]
     if not ordered_keys:
@@ -1061,13 +1034,11 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
             links.append(generate_link(link_payload))
 
-    # Сортировка: XHTTP (Основной) -> Reality TCP (Запасной) -> CDN (БС)
+    # Сортировка: XHTTP (Основной) -> CDN (БС)
     def _link_sort_key(l: str) -> int:
         if "type=xhttp" in l and "cdn.arccnet" not in l and ":12631" in l:
             return 0  # Основной — XHTTP порт 12631
-        if ":443?" in l and "@2.26.84.210" in l and "type=tcp" in l:
-            return 1  # Запасной — Reality TCP порт 443
-        return 2      # Всё остальное (CDN БС) — последним
+        return 2      # CDN (БС) — последний
     links.sort(key=_link_sort_key)
     return links
 
