@@ -91,6 +91,23 @@ CDN_TRAFFIC_LIMIT_GB = int(get_setting("cdn_traffic_limit_gb", "0") or "0")
 # реального порта xray на сервере (например, nginx stream проксирует 443→xray).
 PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {})
 
+# Информационные строки в подписке — отображаются как комментарии в VPN-клиенте.
+# Каждая строка — отдельный #-комментарий. Переопределяется в config.py.
+SUBSCRIPTION_INFO_LINES = getattr(config, "SUBSCRIPTION_INFO_LINES", [
+    "#",
+    "#\U0001f3e0 РФ-сервисы РАБОТАЮТ с VPN",
+    "#\u26a1 \u2014 скорость",
+    "#\u2b50 \u2014 надёжность",
+    "#\U0001f6e1\ufe0f LTE \u2014 белые списки",
+    "#",
+])
+
+# Переопределение имён inbound для серверов, где remark нельзя менять
+# через панель мастера (ноды 3x-ui синхронизируют remark обратно).
+# Ключ: "host" или "host:port" → display_name.
+# Пустой = всегда берём remark из панели (рекомендуется).
+INBOUND_DISPLAY_OVERRIDES = getattr(config, "INBOUND_DISPLAY_OVERRIDES", {})
+
 
 # Настройка логирования
 logging.basicConfig(
@@ -113,7 +130,7 @@ ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
 RATE_LIMITER_MAX_KEYS = 10000
 VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 # Брендинг можно переопределить в config.py; по умолчанию — текущие значения ArcVPN.
-PROFILE_TITLE = getattr(config, "PROFILE_TITLE", "ArcVPN")
+PROFILE_TITLE = getattr(config, "PROFILE_TITLE", "ArcVPN \u2728")
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
 SUPPORT_URL = getattr(config, "SUPPORT_URL", "https://t.me/Turan11627")
 PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arcvpn1")
@@ -557,6 +574,9 @@ def _build_plain_text_subscription(
         f"#support-url: {SUPPORT_URL}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
     ]
+    # Информационный блок (как у конкурентов — подсказки для пользователей)
+    if SUBSCRIPTION_INFO_LINES:
+        lines.extend(SUBSCRIPTION_INFO_LINES)
     if routing_link:
         lines.append(routing_link)
     lines.append(link)
@@ -959,8 +979,19 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 # Резервный (аварийный) ключ — призыв к действию вместо имени inbound.
                 display_name = key.tariff_name
             else:
-                # Имя конфига = remark inbound (например "🇩🇪 Германия", "Hysteria2").
-                display_name = config.get("inbound_name") or f"ArcVPN - {key.tariff_name} ({server.name})"
+                # Имя конфига = remark из панели 3x-ui. Для нод, чьи remark
+                # синхронизируются с мастера, можно задать override в config.py
+                # через INBOUND_DISPLAY_OVERRIDES = {"host": "имя"} или {"host:port": "имя"}.
+                host = config.get("host", "")
+                port = config.get("port", "")
+                override = (
+                    INBOUND_DISPLAY_OVERRIDES.get(f"{host}:{port}")
+                    or INBOUND_DISPLAY_OVERRIDES.get(host)
+                )
+                if override:
+                    display_name = override
+                else:
+                    display_name = config.get("inbound_name") or f"ArcVPN - {key.tariff_name} ({server.name})"
             link_payload["server_name"] = display_name
             link_payload["remark"] = display_name
 
@@ -995,9 +1026,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 # совпадали; uplinkHTTPMethod и sc* добавляем для OPTIONS-трюка.
                 extra: Dict[str, Any] = {
                     "uplinkHTTPMethod": "OPTIONS",
-                    "scMaxEachPostBytes": 1000000,
-                    "scMinPostsIntervalMs": 30,
-                    "scMaxBufferedPosts": 30,
+                    "scMaxEachPostBytes": 5000000,
+                    "scMinPostsIntervalMs": 10,
+                    "scMaxBufferedPosts": 50,
                 }
                 for pad_key in (
                     "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
@@ -1012,9 +1043,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             elif config.get("stream_settings", {}).get("network") == "xhttp":
                 xs = config.get("stream_settings", {}).get("xhttpSettings") or {}
                 extra: Dict[str, Any] = {
-                    "scMaxEachPostBytes": 1000000,
-                    "scMinPostsIntervalMs": 30,
-                    "scMaxBufferedPosts": 30,
+                    "scMaxEachPostBytes": 5000000,
+                    "scMinPostsIntervalMs": 10,
+                    "scMaxBufferedPosts": 50,
                 }
                 for pad_key in (
                     "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
@@ -1034,12 +1065,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
             links.append(generate_link(link_payload))
 
-    # Сортировка: XHTTP (Основной) -> CDN (БС)
-    def _link_sort_key(l: str) -> int:
-        if "type=xhttp" in l and "cdn.arccnet" not in l and ":12631" in l:
-            return 0  # Основной — XHTTP порт 12631
-        return 2      # CDN (БС) — последний
-    links.sort(key=_link_sort_key)
+    # Порядок ссылок = порядок inbound в панели 3x-ui.
+    # Чтобы изменить порядок — меняй remark/порядок inbound в панели.
     return links
 
 
