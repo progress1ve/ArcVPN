@@ -128,6 +128,18 @@ _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
 }
 
 
+def _subscription_inbound_order(name: str) -> int:
+    """Возвращает порядок подписки, игнорируя флаг страны в remark панели."""
+    normalized = name or ""
+    for prefix in ("🇫🇮 ", "🇩🇪 "):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
+    return _SUBSCRIPTION_INBOUND_ORDER_INDEX.get(
+        normalized, len(_SUBSCRIPTION_INBOUND_ORDER_INDEX)
+    )
+
+
 # Настройка логирования
 logging.basicConfig(
     level=logging.INFO,
@@ -1007,9 +1019,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
         for config in sorted(
             configs,
             key=lambda item: (
-                _SUBSCRIPTION_INBOUND_ORDER_INDEX.get(
-                    item.get("inbound_name", ""), len(_SUBSCRIPTION_INBOUND_ORDER_INDEX)
-                ),
+                _subscription_inbound_order(item.get("inbound_name", "")),
                 item.get("id", 0),
             ),
         ):
@@ -1039,23 +1049,32 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             # Yandex CDN режет POST, но пропускает OPTIONS: клиент шлёт XHTTP-аплинк
             # методом OPTIONS (uplinkHTTPMethod), nginx на origin переписывает
             # OPTIONS->POST. alpn=h2 обязателен — CDN отвечает по HTTP/2.
-            if CDN_DOMAIN and config.get("port") in CDN_PORTS:
+            inbound_stream_settings = dict(config.get("stream_settings") or {})
+            inbound_xhttp_settings = dict(
+                inbound_stream_settings.get("xhttpSettings") or {}
+            )
+            # У каждого CDN-inbound домен хранится в панели. Это позволяет
+            # направлять финский LTE через отдельный cdn-fi ресурс, а немецкий
+            # продолжать через основной CDN. Старые inbound без host используют
+            # прежний глобальный домен как fallback.
+            inbound_cdn_domain = inbound_xhttp_settings.get("host") or CDN_DOMAIN
+            if inbound_cdn_domain and config.get("port") in CDN_PORTS:
                 # Проверка лимита CDN-трафика
                 if _cdn_traffic_exceeded(key.panel_email):
                     logger.info("CDN-трафик превышен для %s — исключаем CDN-ссылку", _mask_email(key.panel_email))
                     continue
-                link_payload["host"] = CDN_DOMAIN
+                link_payload["host"] = inbound_cdn_domain
                 link_payload["port"] = 443
-                ss = dict(config.get("stream_settings") or {})
+                ss = inbound_stream_settings
                 ss["security"] = "tls"
                 ss["tlsSettings"] = {
-                    "serverName": CDN_DOMAIN,
+                    "serverName": inbound_cdn_domain,
                     "alpn": ["h2", "http/1.1"],
                 }
                 # Гарантируем host/mode в xhttpSettings (клиент шлёт Host=CDN,
                 # packet-up — единственный режим, совместимый с OPTIONS-трюком).
-                xs = dict(ss.get("xhttpSettings") or {})
-                xs["host"] = CDN_DOMAIN
+                xs = inbound_xhttp_settings
+                xs["host"] = inbound_cdn_domain
                 xs["mode"] = "packet-up"
                 ss["xhttpSettings"] = xs
                 link_payload["stream_settings"] = ss
