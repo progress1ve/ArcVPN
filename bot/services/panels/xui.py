@@ -565,7 +565,9 @@ class XUIClient(BaseVPNClient):
         multi=False → один конфig (VLESS-приоритет) на email.
         Возвращает {email: [config, ...]}.
         """
-        inbounds = self._sort_inbounds_vless_first(await self.get_inbounds())
+        inbounds = await self.get_inbounds()
+        if not multi:
+            inbounds = self._sort_inbounds_vless_first(inbounds)
         ib_by_id = {ib.get("id"): ib for ib in inbounds}
         out: Dict[str, List[Dict[str, Any]]] = {e: [] for e in emails}
 
@@ -1787,7 +1789,7 @@ class XUIClient(BaseVPNClient):
                 return {}
 
         try:
-            inbounds = self._sort_inbounds_vless_first(await self.get_inbounds())
+            inbounds = await self.get_inbounds()
             for inbound in inbounds:
                 if inbound.get("protocol") not in self.SUPPORTED_PROTOCOLS:
                     continue

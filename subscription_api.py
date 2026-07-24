@@ -95,10 +95,11 @@ PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {})
 # Каждая строка — отдельный #-комментарий. Переопределяется в config.py.
 SUBSCRIPTION_INFO_LINES = getattr(config, "SUBSCRIPTION_INFO_LINES", [
     "#",
-    "#\U0001f3e0 РФ-сервисы РАБОТАЮТ с VPN",
+    "# ArcVPN ✨",
+    "# РФ-сервисы РАБОТАЮТ с VPN",
     "#\u26a1 \u2014 скорость",
     "#\u2b50 \u2014 надёжность",
-    "#\U0001f6e1\ufe0f LTE \u2014 белые списки",
+    "#\U0001f1f7\U0001f1fa LTE \u2014 белые списки",
     "#",
 ])
 
