@@ -133,6 +133,14 @@ VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 # Брендинг можно переопределить в config.py; по умолчанию — текущие значения ArcVPN.
 PROFILE_TITLE = getattr(config, "PROFILE_TITLE", "ArcVPN \u2728")
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
+SUBSCRIPTION_ANNOUNCE = getattr(
+    config,
+    "SUBSCRIPTION_ANNOUNCE",
+    "РФ-сервисы РАБОТАЮТ с VPN\n⚡ — скорость\n⭐ — надёжность\n🇷🇺 LTE — белые списки",
+)
+SUBSCRIPTION_ANNOUNCE_BASE64 = base64.b64encode(
+    SUBSCRIPTION_ANNOUNCE.encode("utf-8")
+).decode("ascii")
 SUPPORT_URL = getattr(config, "SUPPORT_URL", "https://t.me/Turan11627")
 PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arcvpn1")
 
@@ -570,6 +578,7 @@ def _build_plain_text_subscription(
 ) -> str:
     lines = [
         f"#profile-title: base64:{PROFILE_TITLE_BASE64}",
+        f"#announce: base64:{SUBSCRIPTION_ANNOUNCE_BASE64}",
         f"#profile-update-interval: {PROFILE_UPDATE_INTERVAL_HOURS}",
         f"#subscription-userinfo: {userinfo_header}",
         f"#support-url: {SUPPORT_URL}",
@@ -829,6 +838,7 @@ def _response_from_prepared(prepared: PreparedSubscription) -> Response:
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["profile-update-interval"] = str(PROFILE_UPDATE_INTERVAL_HOURS)
     response.headers["profile-title"] = f"base64:{PROFILE_TITLE_BASE64}"
+    response.headers["announce"] = f"base64:{SUBSCRIPTION_ANNOUNCE_BASE64}"
     response.headers["support-url"] = SUPPORT_URL
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
     response.headers["Subscription-Userinfo"] = prepared.userinfo_header
