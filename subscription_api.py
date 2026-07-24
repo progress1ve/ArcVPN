@@ -131,7 +131,7 @@ _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
 def _subscription_inbound_order(name: str) -> int:
     """Возвращает порядок подписки, игнорируя флаг страны в remark панели."""
     normalized = name or ""
-    for prefix in ("🇫🇮 ", "🇩🇪 "):
+    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇷🇺 "):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
