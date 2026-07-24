@@ -110,6 +110,23 @@ SUBSCRIPTION_INFO_LINES = getattr(config, "SUBSCRIPTION_INFO_LINES", [
 # Пустой = всегда берём remark из панели (рекомендуется).
 INBOUND_DISPLAY_OVERRIDES = getattr(config, "INBOUND_DISPLAY_OVERRIDES", {})
 
+# 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
+# Имена остаются редактируемыми в панели; этот список задаёт только порядок
+# известных конфигураций в подписке. Неизвестные конфиги идут после них.
+SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
+    "Финляндия ⭐⚡ [АВТОВЫБОР]",
+    "Германия ⭐ [АВТОВЫБОР]",
+    "Финляндия #1",
+    "Германия #1",
+    "Финляндия #2⚡",
+    "Германия #2⚡",
+    "Обход глушилок (LTE) #1",
+    "Обход глушилок (LTE) #2",
+])
+_SUBSCRIPTION_INBOUND_ORDER_INDEX = {
+    name: index for index, name in enumerate(SUBSCRIPTION_INBOUND_ORDER)
+}
+
 
 # Настройка логирования
 logging.basicConfig(
@@ -987,7 +1004,15 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
         # В кэше — список конфигов (по одному на inbound сервера). Генерируем
         # отдельную ссылку на каждый inbound; имя берём из remark inbound.
-        for config in configs:
+        for config in sorted(
+            configs,
+            key=lambda item: (
+                _SUBSCRIPTION_INBOUND_ORDER_INDEX.get(
+                    item.get("inbound_name", ""), len(_SUBSCRIPTION_INBOUND_ORDER_INDEX)
+                ),
+                item.get("id", 0),
+            ),
+        ):
             link_payload = dict(config)
             if key.id == -1:
                 # Резервный (аварийный) ключ — призыв к действию вместо имени inbound.
