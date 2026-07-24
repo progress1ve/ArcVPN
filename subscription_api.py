@@ -95,11 +95,12 @@ PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {})
 # Каждая строка — отдельный #-комментарий. Переопределяется в config.py.
 SUBSCRIPTION_INFO_LINES = getattr(config, "SUBSCRIPTION_INFO_LINES", [
     "#",
-    "# ArcVPN ✨",
-    "# РФ-сервисы РАБОТАЮТ с VPN",
+    "# ❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.",
+    "#",
+    "# 🔥РФ сервисы РАБОТАЮТ с VPN",
     "#\u26a1 \u2014 скорость",
     "#\u2b50 \u2014 надёжность",
-    "#\U0001f1f7\U0001f1fa LTE \u2014 белые списки",
+    "# LTE \u2014 обход глушилок (белые списки)",
     "#",
 ])
 
@@ -136,7 +137,7 @@ PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("a
 SUBSCRIPTION_ANNOUNCE = getattr(
     config,
     "SUBSCRIPTION_ANNOUNCE",
-    "РФ-сервисы РАБОТАЮТ с VPN\n⚡ — скорость\n⭐ — надёжность\n🇷🇺 LTE — белые списки",
+    "❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.\n\n🔥РФ сервисы РАБОТАЮТ с VPN\n⚡ — скорость\n⭐ — надёжность\nLTE — обход глушилок (белые списки)",
 )
 SUBSCRIPTION_ANNOUNCE_BASE64 = base64.b64encode(
     SUBSCRIPTION_ANNOUNCE.encode("utf-8")
