@@ -200,7 +200,22 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
             update_key_tariff(key_id, order['tariff_id'], traffic_limit_bytes)
 
         restore_traffic_limit_in_db(key_id)
-        await push_key_to_panel(key_id, reset_traffic=True)
+        panel_updated = await push_key_to_panel(key_id, reset_traffic=True)
+        if not panel_updated:
+            logger.error(
+                "Ключ %s продлён в БД, но панель не обновлена (order=%s)",
+                key_id,
+                order_id,
+            )
+            update_order_fulfillment(
+                order_id,
+                'manual_review',
+                'vpn key extended in DB but panel update failed',
+            )
+            return True, (
+                "✅ Оплата принята!\n\n"
+                "⚠️ Подписка продлена, но её активация требует проверки поддержки."
+            ), _reload_order(order_id)
         update_order_fulfillment(order_id, 'applied')
 
         if order.get('payment_type') == 'crypto':

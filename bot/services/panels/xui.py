@@ -528,7 +528,10 @@ class XUIClient(BaseVPNClient):
         }
         body.update(changes)
         enc = urllib.parse.quote(email, safe='')
-        await self._v3_post_client(f"/panel/api/clients/update/{enc}", {"client": body})
+        # 3x-ui v3 expects client fields at the JSON root on update. The
+        # nested {"client": ...} shape belongs to clients/add and is rejected
+        # here with "client email is required".
+        await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
         return True
 
     async def _v3_list_clients(self) -> List[Dict[str, Any]]:
@@ -665,7 +668,7 @@ class XUIClient(BaseVPNClient):
             )
             import urllib.parse
             enc = urllib.parse.quote(email, safe='')
-            await self._v3_post_client(f"/panel/api/clients/update/{enc}", {"client": body})
+            await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
             missing = [i for i in supported_ids if i not in current_ids]
             if missing:
                 await self._v3_attach(email, missing)
@@ -1113,7 +1116,7 @@ class XUIClient(BaseVPNClient):
                     inbound_ids=ids, flow=flow,
                 )
                 enc = urllib.parse.quote(email, safe='')
-                await self._v3_post_client(f"/panel/api/clients/update/{enc}", {"client": body})
+                await self._v3_post_client(f"/panel/api/clients/update/{enc}", body)
                 if inbound_id not in current_ids:
                     await self._v3_attach(email, [inbound_id])
             else:
