@@ -8,6 +8,41 @@ from .connection import get_db
 
 logger = logging.getLogger(__name__)
 
+# Динамический пересчёт цен Stars/крипты от price_rub и курса USD/RUB.
+# Звезда на Fragment = $0.015 (фиксировано площадкой). Крипта = курс ЦБ + 1%
+# на комиссию сети. Курс USD/RUB берётся из БД (обновляется планировщиком из ЦБ,
+# см. bot/services/exchange_rate.py); при отсутствии — безопасный fallback.
+import math
+
+STAR_USD_VALUE = 0.015        # стоимость 1 звезды в USD (Fragment)
+CRYPTO_MARKUP = 1.01          # +1% на комиссию крипто-сети
+_FALLBACK_USD_RUB_CENTS = 9500  # 95.00 ₽ — если курса нет в БД
+
+
+def _recompute_prices(tariff: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Пересчитывает price_stars и price_cents от price_rub по текущему курсу.
+
+    price_rub — источник истины (задаётся админом). price_stars и price_cents
+    в БД игнорируются как устаревшие: считаются на лету, чтобы Stars/крипта
+    всегда соответствовали рублёвой цене и актуальному курсу USD/RUB.
+    """
+    if not tariff:
+        return tariff
+    price_rub = tariff.get('price_rub') or 0
+    if price_rub <= 0:
+        return tariff  # бесплатные/админские тарифы не трогаем
+    rate_cents = get_exchange_rate('USD_RUB') or _FALLBACK_USD_RUB_CENTS
+    usd_rub = rate_cents / 100.0
+    if usd_rub <= 0:
+        return tariff
+    price_usd = price_rub / usd_rub
+    # Stars: округляем вверх, минимум 1
+    tariff['price_stars'] = max(1, math.ceil(price_usd / STAR_USD_VALUE))
+    # Крипта: центы USD с наценкой на комиссию
+    tariff['price_cents'] = max(1, round(price_usd * CRYPTO_MARKUP * 100))
+    return tariff
+
+
 __all__ = [
     'get_all_tariffs',
     'get_tariff_by_id',
@@ -49,7 +84,7 @@ def get_all_tariffs(include_hidden: bool = False) -> List[Dict[str, Any]]:
                 WHERE is_active = 1
                 ORDER BY display_order, id
             """)
-        return [dict(row) for row in cursor.fetchall()]
+        return [_recompute_prices(dict(row)) for row in cursor.fetchall()]
 
 def get_tariff_by_id(tariff_id: int) -> Optional[Dict[str, Any]]:
     """
@@ -69,7 +104,7 @@ def get_tariff_by_id(tariff_id: int) -> Optional[Dict[str, Any]]:
             WHERE id = ?
         """, (tariff_id,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        return _recompute_prices(dict(row)) if row else None
 
 def get_tariff_by_external_id(external_id: int) -> Optional[Dict[str, Any]]:
     """
@@ -89,7 +124,7 @@ def get_tariff_by_external_id(external_id: int) -> Optional[Dict[str, Any]]:
             WHERE external_id = ? AND is_active = 1
         """, (external_id,))
         row = cursor.fetchone()
-        return dict(row) if row else None
+        return _recompute_prices(dict(row)) if row else None
 
 def add_tariff(
     name: str,

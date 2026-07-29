@@ -25,7 +25,8 @@ from config import ADMIN_IDS, GITHUB_REPO_URL
 from database.requests import (
     get_all_servers, get_users_stats, get_keys_stats,
     get_daily_payments_stats, get_new_users_count_today,
-    get_setting, get_expiring_keys, get_expired_keys_today, is_notification_sent_today, log_notification_sent
+    get_setting, get_expiring_keys, get_expired_keys_today, is_notification_sent_today,
+    log_notification_sent, notification_allowed,
 )
 from database.db_statistics import (
     get_revenue_stats, get_new_users_stats, get_subscriptions_stats,
@@ -380,7 +381,8 @@ async def notify_expired_subscription(bot: Bot, vpn_key_id: int, telegram_id: in
     Дедупликация — через is_notification_sent_today/log_notification_sent (7 дней).
     Вынесено в один хелпер, чтобы не дублировать логику в двух местах.
     """
-    if not telegram_id or is_notification_sent_today(vpn_key_id):
+    if (not telegram_id or not notification_allowed(telegram_id, "expiry")
+            or is_notification_sent_today(vpn_key_id)):
         return False
     from bot.services.notifications import render_template
     default_expired = (
@@ -430,6 +432,8 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             days_left = key_info['days_left']
             keyname = key_info.get('custom_name', f"Подписка #{vpn_key_id}")
 
+            if not notification_allowed(user_telegram_id, "expiry"):
+                continue
             if is_notification_sent_today(vpn_key_id):
                 continue
 
@@ -474,27 +478,47 @@ def get_seconds_until(target_hour: int, target_minute: int = 0) -> int:
     return int((target - now).total_seconds())
 
 
+async def refresh_exchange_rate() -> None:
+    """Обновляет курс USD/RUB из ЦБ РФ и сохраняет в БД.
+
+    Цены Stars/крипты считаются от price_rub по этому курсу (см. db_tariffs.py
+    _recompute_prices), поэтому актуальность курса важна для корректных сумм.
+    """
+    try:
+        from bot.services.exchange_rate import get_usd_rub_rate
+        rate_cents = await get_usd_rub_rate()  # сам пишет в БД при успехе
+        logger.info(f"💱 Курс USD/RUB обновлён: {rate_cents / 100:.2f} ₽")
+    except Exception as e:
+        logger.error(f"Не удалось обновить курс USD/RUB: {e}")
+
+
 async def run_daily_tasks(bot: Bot) -> None:
     """
     Фоновая задача для запуска ежедневных заданий.
-    
+
     Расписание (изменено на 09:00 UTC = 12:00 МСК):
     - 09:00 — Уведомления об истечении подписок
     - 09:05 — Суточная статистика
     - 09:10 — Архив с бэкапами
-    
+
     Args:
         bot: Экземпляр бота
     """
     logger.info("🕐 Планировщик ежедневных задач запущен")
-    
+
+    # Обновляем курс валют сразу при старте (курс в БD мог устареть)
+    await refresh_exchange_rate()
+
     while True:
         try:
             # Ждём до 09:00 UTC (12:00 МСК) вместо 03:00
             seconds_to_wait = get_seconds_until(9, 0)
             logger.info(f"Следующий запуск задач через {seconds_to_wait // 3600}ч {(seconds_to_wait % 3600) // 60}м")
-            
+
             await asyncio.sleep(seconds_to_wait)
+
+            # 09:00 - Обновляем курс валют (для актуальных цен Stars/крипты)
+            await refresh_exchange_rate()
             
             # 09:00 - Отправляем уведомления пользователям (ПЕРВЫМ ДЕЛОМ!)
             logger.info("📬 Запуск отправки уведомлений об истечении подписок...")
@@ -915,14 +939,15 @@ async def sync_traffic_stats(bot: Bot) -> None:
             telegram_id = key.get('telegram_id')
             keyname = key.get('custom_name') or "Подписка"
             if telegram_id:
-                from bot.utils.text import escape_html
-                text = (
-                    f"✅ <b>Подписка подключена!</b>\n\n"
-                    f"🔑 {escape_html(str(keyname))}\n"
-                    f"📱 Устройств подключено: <b>{devices}/{device_limit}</b>\n\n"
-                    f"Приятного пользования ArcVPN!"
-                )
-                await send_to_user(bot, telegram_id, text)
+                if notification_allowed(telegram_id, "connection"):
+                    from bot.utils.text import escape_html
+                    text = (
+                        f"✅ <b>Подписка подключена!</b>\n\n"
+                        f"🔑 {escape_html(str(keyname))}\n"
+                        f"📱 Устройств подключено: <b>{devices}/{device_limit}</b>\n\n"
+                        f"Приятного пользования ArcVPN!"
+                    )
+                    await send_to_user(bot, telegram_id, text)
             mark_key_connect_notified(key['id'])
             key['connect_notified'] = 1
 
@@ -949,6 +974,8 @@ async def sync_traffic_stats(bot: Bot) -> None:
             if remaining_pct <= threshold and notified_pct > threshold:
                 telegram_id = key.get('telegram_id')
                 if telegram_id:
+                    if not notification_allowed(telegram_id, "traffic"):
+                        break
                     if key.get('custom_name'):
                         keyname = key['custom_name']
                     elif key.get('client_uuid'):
@@ -1043,23 +1070,23 @@ async def sync_traffic_stats(bot: Bot) -> None:
 
 async def run_traffic_sync_scheduler(bot: Bot) -> None:
     """
-    Фоновая задача для синхронизации трафика каждые 5 минут.
+    Фоновая задача для синхронизации трафика и устройств каждую минуту.
     Не заменяет существующие ежедневные задачи.
     
     Args:
         bot: Экземпляр бота
     """
-    logger.info("📊 Планировщик синхронизации трафика запущен (каждые 5 мин)")
+    logger.info("📊 Планировщик синхронизации трафика запущен (каждую минуту)")
     
-    # Первый запуск через 30 секунд после старта бота
-    await asyncio.sleep(30)
+    # Не откладываем первое уведомление о подключении после рестарта бота.
+    await asyncio.sleep(5)
     
     while True:
         try:
             await sync_traffic_stats(bot)
             
-            # Ждём 5 минут
-            await asyncio.sleep(300)
+            # Уведомление и счётчик устройств должны быть практически свежими.
+            await asyncio.sleep(60)
             
         except asyncio.CancelledError:
             logger.info("Планировщик синхронизации трафика остановлен")

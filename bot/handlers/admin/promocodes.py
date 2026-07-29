@@ -191,9 +191,10 @@ async def show_promocode_view(callback: CallbackQuery):
     else:
         status = "✅ Активен"
     
+    from database.db_promocodes import format_promocode_discount
     text = (
         f"🎟️ <b>Промокод: {escape_html(promocode['code'])}</b>\n\n"
-        f"💰 <b>Скидка:</b> {promocode['discount_rub']} ₽\n"
+        f"💰 <b>Скидка:</b> {format_promocode_discount(promocode)}\n"
         f"👥 <b>Использований:</b> {used_count} / {promocode['max_uses']}\n"
         f"📅 <b>Действует до:</b> {expires_str}\n"
         f"📊 <b>Статус:</b> {status}"
@@ -257,50 +258,94 @@ async def process_promocode_code(message: Message, state: FSMContext):
         return
     
     await state.update_data(promocode_code=code)
-    await state.set_state(AdminStates.waiting_promocode_discount)
-    
+
     text = (
         f"➕ <b>Создание промокода</b>\n\n"
         f"Код: <code>{escape_html(code)}</code>\n\n"
-        f"Шаг 2/4: Введите размер скидки в рублях\n\n"
-        f"Например: <code>100</code> или <code>500</code>"
+        f"Шаг 2/5: Выберите тип скидки"
     )
-    
-    await message.answer(text, parse_mode='HTML')
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='💰 Фиксированная (₽)', callback_data='admin_promo_type:fixed'))
+    builder.row(InlineKeyboardButton(text='％ Процент (%)', callback_data='admin_promo_type:percent'))
+    builder.row(InlineKeyboardButton(text='❌ Отмена', callback_data='admin_promocodes'))
+
+    await message.answer(text, parse_mode='HTML', reply_markup=builder.as_markup())
     try:
         await message.delete()
     except:
         pass
 
 
+@router.callback_query(F.data.startswith('admin_promo_type:'))
+async def process_promocode_type(callback: CallbackQuery, state: FSMContext):
+    """Обрабатывает выбор типа скидки (fixed/percent)."""
+    if not is_admin(callback.from_user.id):
+        await callback.answer('⛔ Доступ запрещён', show_alert=True)
+        return
+
+    discount_type = callback.data.split(':')[1]
+    await state.update_data(promocode_discount_type=discount_type)
+    await state.set_state(AdminStates.waiting_promocode_discount)
+
+    data = await state.get_data()
+    code = data.get('promocode_code')
+
+    if discount_type == 'percent':
+        hint = (
+            "Шаг 3/5: Введите размер скидки в процентах (1-100)\n\n"
+            "Например: <code>20</code> (20%) или <code>50</code> (50%)"
+        )
+    else:
+        hint = (
+            "Шаг 3/5: Введите размер скидки в рублях\n\n"
+            "Например: <code>100</code> или <code>500</code>"
+        )
+
+    text = (
+        f"➕ <b>Создание промокода</b>\n\n"
+        f"Код: <code>{escape_html(code)}</code>\n\n"
+        f"{hint}"
+    )
+
+    await safe_edit_or_send(callback.message, text, reply_markup=None)
+    await callback.answer()
+
+
 @router.message(AdminStates.waiting_promocode_discount, F.text, ~F.text.startswith('/'))
 async def process_promocode_discount(message: Message, state: FSMContext):
-    """Обрабатывает ввод скидки."""
+    """Обрабатывает ввод скидки (рубли или процент, в зависимости от типа)."""
     if not is_admin(message.from_user.id):
         return
-    
+
+    data = await state.get_data()
+    discount_type = data.get('promocode_discount_type', 'fixed')
+
     try:
         discount = int(get_message_text_for_storage(message, 'plain').strip())
         if discount <= 0:
             raise ValueError()
+        if discount_type == 'percent' and discount > 100:
+            await message.answer("❌ Процент скидки не может превышать 100")
+            return
     except ValueError:
         await message.answer("❌ Введите положительное число")
         return
-    
+
     await state.update_data(promocode_discount=discount)
     await state.set_state(AdminStates.waiting_promocode_max_uses)
-    
-    data = await state.get_data()
+
     code = data.get('promocode_code')
-    
+    discount_str = f"{discount}%" if discount_type == 'percent' else f"{discount} ₽"
+
     text = (
         f"➕ <b>Создание промокода</b>\n\n"
         f"Код: <code>{escape_html(code)}</code>\n"
-        f"Скидка: {discount} ₽\n\n"
-        f"Шаг 3/4: Введите максимальное количество использований\n\n"
+        f"Скидка: {discount_str}\n\n"
+        f"Шаг 4/5: Введите максимальное количество использований\n\n"
         f"Например: <code>10</code> или <code>100</code>"
     )
-    
+
     await message.answer(text, parse_mode='HTML')
     try:
         await message.delete()
@@ -324,17 +369,19 @@ async def process_promocode_max_uses(message: Message, state: FSMContext):
     
     await state.update_data(promocode_max_uses=max_uses)
     await state.set_state(AdminStates.waiting_promocode_duration)
-    
+
     data = await state.get_data()
     code = data.get('promocode_code')
     discount = data.get('promocode_discount')
-    
+    discount_type = data.get('promocode_discount_type', 'fixed')
+    discount_str = f"{discount}%" if discount_type == 'percent' else f"{discount} ₽"
+
     text = (
         f"➕ <b>Создание промокода</b>\n\n"
         f"Код: <code>{escape_html(code)}</code>\n"
-        f"Скидка: {discount} ₽\n"
+        f"Скидка: {discount_str}\n"
         f"Использований: {max_uses}\n\n"
-        f"Шаг 4/4: Введите длительность действия в днях\n\n"
+        f"Шаг 5/5: Введите длительность действия в днях\n\n"
         f"Например: <code>7</code> (неделя) или <code>30</code> (месяц)"
     )
     
@@ -363,20 +410,28 @@ async def process_promocode_duration(message: Message, state: FSMContext):
     code = data.get('promocode_code')
     discount = data.get('promocode_discount')
     max_uses = data.get('promocode_max_uses')
-    
-    # Создаем промокод
-    promocode_id = create_promocode(code, discount, max_uses, duration_days)
+    discount_type = data.get('promocode_discount_type', 'fixed')
+
+    # Создаем промокод (fixed → discount_rub, percent → discount_percent)
+    if discount_type == 'percent':
+        promocode_id = create_promocode(
+            code, 0, max_uses, duration_days,
+            discount_type='percent', discount_percent=discount,
+        )
+    else:
+        promocode_id = create_promocode(code, discount, max_uses, duration_days)
     
     if promocode_id:
         expires_at = datetime.now()
         from datetime import timedelta
         expires_at += timedelta(days=duration_days)
         expires_str = expires_at.strftime('%d.%m.%Y')
-        
+        discount_str = f"{discount}%" if discount_type == 'percent' else f"{discount} ₽"
+
         text = (
             f"✅ <b>Промокод создан!</b>\n\n"
             f"🎟️ Код: <code>{escape_html(code)}</code>\n"
-            f"💰 Скидка: {discount} ₽\n"
+            f"💰 Скидка: {discount_str}\n"
             f"👥 Использований: 0 / {max_uses}\n"
             f"📅 Действует до: {expires_str}"
         )

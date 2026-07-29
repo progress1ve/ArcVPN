@@ -11,6 +11,7 @@ class AdminStates(StatesGroup):
     
     # ========== Главное меню ==========
     admin_menu = State()  # Главный экран админки
+    waiting_support_reply = State()  # Ответ на сообщение пользователя из WebApp
     
     # ========== Управление серверами ==========
     servers_list = State()           # Список серверов
@@ -110,7 +111,7 @@ class AdminStates(StatesGroup):
     
     # ========== Управление промокодами ==========
     waiting_promocode_code = State()      # Ввод кода промокода
-    waiting_promocode_discount = State()  # Ввод скидки
+    waiting_promocode_discount = State()  # Ввод скидки (рубли или процент, зависит от типа)
     waiting_promocode_max_uses = State()  # Ввод максимального количества использований
     waiting_promocode_duration = State()  # Ввод длительности действия
 
@@ -314,4 +315,3 @@ def get_crypto_param_by_index(index: int) -> dict:
 def get_total_crypto_params() -> int:
     """Возвращает общее количество параметров крипто-настроек."""
     return len(CRYPTO_PARAMS)
-

@@ -190,13 +190,18 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
             if get_tariff_by_id(tariff_id):
                 from bot.utils.payment_flow_ui import (
                     show_payment_method_selection_screen,
-                    show_tariff_selection_screen,
                 )
                 from bot.utils.message_editor import get_message_data
                 primary = get_user_primary_key(user_id)
                 if primary:
-                    # Модель «одна подписка» — ведём на продление существующей.
-                    await show_tariff_selection_screen(message, user_id, key_id=primary['id'])
+                    # Mini App уже получил явный выбор тарифа. Сохраняем его и
+                    # сразу открываем оплату продления существующей подписки.
+                    await show_payment_method_selection_screen(
+                        message,
+                        user_id,
+                        tariff_id,
+                        key_id=primary['id'],
+                    )
                 else:
                     intro = (get_message_data('payment_select_text', '').get('text', '') or '').strip() or None
                     await show_payment_method_selection_screen(message, user_id, tariff_id, intro_text=intro)
@@ -213,17 +218,24 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
 
     # Обязательный авто-триал: новый пользователь сразу получает пробную подписку
     # (без кнопки). Делаем ПОСЛЕ привязки реферера — чтобы начислить рефереру +N дней.
-    if is_new:
-        try:
-            if is_trial_enabled() and not has_used_trial(user_id):
-                from bot.handlers.user.trial import provision_trial_for_user
-                trial_result = await provision_trial_for_user(user)
-                if trial_result:
-                    logger.info(f"Авто-триал выдан пользователю {user_id}")
-                else:
-                    logger.warning(f"Авто-триал не создан для {user_id} (серверы недоступны?)")
-        except Exception as e:
-            logger.error(f"Ошибка авто-триала при /start для {user_id}: {e}")
+    # Пользователь мог быть создан middleware'ом/проверкой канала до первого
+    # полноценного /start. Поэтому is_new здесь не подходит: выдаём триал
+    # идемпотентно всем, кто ещё его не получал.
+    try:
+        if is_trial_enabled() and not has_used_trial(user_id):
+            from bot.handlers.user.trial import provision_trial_for_user
+            trial_result = await provision_trial_for_user(user)
+            if trial_result:
+                logger.info(f"Авто-триал выдан пользователю {user_id}")
+            else:
+                logger.warning(f"Авто-триал не создан для {user_id} (серверы недоступны?)")
+    except Exception as e:
+        logger.error(f"Ошибка авто-триала при /start для {user_id}: {e}")
+
+    # Ключ мог появиться только что при авто-триале — собираем приветствие после
+    # выдачи, чтобы пользователь сразу увидел актуальное состояние подписки.
+    primary_key = get_user_primary_key(user_id)
+    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=False, primary_key=primary_key)
 
     show_referral = is_referral_enabled()
     has_subscription, primary_key_id = _get_subscription_state(user_id)
@@ -428,10 +440,18 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             username=callback.from_user.username
         )
         
-        # Проверяем доступность пробного периода
-        trial_enabled = is_trial_enabled()
-        trial_used = has_used_trial(user_id)
-        show_trial = trial_enabled and not trial_used
+        # После проверки обязательного канала триал тоже выдаётся сам. Это
+        # покрывает пользователя, которого middleware успел создать раньше
+        # первого /start, и не оставляет в интерфейсе устаревший CTA.
+        if is_trial_enabled() and not has_used_trial(user_id):
+            from bot.handlers.user.trial import provision_trial_for_user
+            try:
+                result = await provision_trial_for_user(user)
+                if not result:
+                    logger.warning("Авто-триал после проверки канала не создан для %s", user_id)
+            except Exception:
+                logger.exception("Ошибка авто-триала после проверки канала для %s", user_id)
+        show_trial = False
         
         # Проверяем реферальную систему
         show_referral = is_referral_enabled()
@@ -440,12 +460,19 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         is_admin = user_id in ADMIN_IDS
         
         # Формируем клавиатуру
-        keyboard = create_main_menu_kb(is_admin=is_admin, show_trial=show_trial, show_referral=show_referral)
+        has_subscription, primary_key_id = _get_subscription_state(user_id)
+        keyboard = create_main_menu_kb(
+            is_admin=is_admin,
+            show_trial=False,
+            show_referral=show_referral,
+            has_subscription=has_subscription,
+            primary_key_id=primary_key_id,
+        )
         
         # Получаем правильное приветственное сообщение
         from database.requests import get_user_primary_key
         pk = get_user_primary_key(user_id)
-        (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=pk)
+        (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=False, primary_key=pk)
         
         # Удаляем старое сообщение
         try:

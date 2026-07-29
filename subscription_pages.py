@@ -1,15 +1,17 @@
-"""
-HTML-страницы subscription-сервиса.
+"""HTML-страницы subscription-сервиса.
 
 Вынесено из subscription_api.py, чтобы не держать большой шаблон внутри логики
 роутинга. Шаблон — обычный f-string; CSS-скобки экранированы как {{ }}.
 """
+
+import html
 
 
 def render_import_page(
     safe_happ_deeplink: str,
     safe_subscription_url: str,
     js_subscription_url: str,
+    js_device_registration_url: str,
     profile_title: str = "ArcVPN",
 ) -> str:
     """
@@ -19,6 +21,7 @@ def render_import_page(
         safe_happ_deeplink: html-экранированный happ://add/... deeplink
         safe_subscription_url: html-экранированный URL подписки
         js_subscription_url: JSON-сериализованный URL подписки (для вставки в JS)
+        js_device_registration_url: JSON-сериализованный endpoint регистрации устройства
         profile_title: Название профиля/бренда
     """
     return f"""<!DOCTYPE html>
@@ -263,7 +266,7 @@ def render_import_page(
         <h1>{profile_title}</h1>
 
         <!-- Кнопка открытия в Happ -->
-        <a href="{safe_happ_deeplink}" class="btn btn-primary" rel="noopener noreferrer">Открыть в Happ</a>
+        <a href="{safe_happ_deeplink}" onclick="openHapp(event)" class="btn btn-primary" rel="noopener noreferrer">Открыть в Happ</a>
 
         <p class="divider-text">Или скопируйте ссылку вручную</p>
 
@@ -278,6 +281,68 @@ def render_import_page(
     </div>
 
     <script>
+        const registrationUrl = {js_device_registration_url};
+
+        function getDeviceToken() {{
+            let token = localStorage.getItem('arcvpn_device_token');
+            if (!token) {{
+                const bytes = new Uint8Array(24);
+                crypto.getRandomValues(bytes);
+                token = btoa(String.fromCharCode(...bytes)).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48);
+                localStorage.setItem('arcvpn_device_token', token);
+            }}
+            return token;
+        }}
+
+        async function devicePayload() {{
+            let model = '';
+            let platform = navigator.userAgentData?.platform || navigator.platform || '';
+            let browser = navigator.userAgentData?.brands?.map((item) => item.brand).join(', ') || '';
+            try {{
+                const hints = await navigator.userAgentData?.getHighEntropyValues?.(['model', 'platformVersion']);
+                model = hints?.model || '';
+            }} catch (_) {{}}
+            return {{
+                device_token: getDeviceToken(),
+                platform,
+                model,
+                browser,
+                screen_size: `${{screen.width}}x${{screen.height}}`,
+            }};
+        }}
+
+        async function registerDevice() {{
+            try {{
+                const payload = await devicePayload();
+                await fetch(registrationUrl, {{
+                    method: 'POST',
+                    headers: {{'Content-Type': 'application/json'}},
+                    body: JSON.stringify(payload),
+                    credentials: 'omit',
+                    keepalive: true,
+                }});
+                return payload;
+            }} catch (_) {{
+                return null;
+            }}
+        }}
+
+        const registration = registerDevice();
+
+        function openHapp(event) {{
+            event.preventDefault();
+            const href = event.currentTarget.href;
+            // Deep-link должен открыться внутри исходного пользовательского клика.
+            // Фоновая регистрация уже стартовала при загрузке страницы; beacon
+            // лишь дублирует её без задержки перехода в Happ.
+            registration.then((payload) => {{
+                if (payload && navigator.sendBeacon) {{
+                    navigator.sendBeacon(registrationUrl, new Blob([JSON.stringify(payload)], {{type: 'application/json'}}));
+                }}
+            }});
+            window.location.href = href;
+        }}
+
         function copyUrl() {{
             const url = {js_subscription_url};
             const toast = document.getElementById('toast');
@@ -307,3 +372,43 @@ def render_import_page(
     </script>
 </body>
 </html>"""
+
+
+def render_user_agreement(
+    *, profile_title: str, updated_date: str, support_url: str,
+    operator_name: str, operator_inn: str, operator_registration: str,
+    operator_address: str, contact_email: str,
+) -> str:
+    """Публичная читаемая версия соглашения; та же дата показывается в WebApp."""
+    title = html.escape(profile_title)
+    updated = html.escape(updated_date)
+    support = html.escape(support_url, quote=True)
+    legal = {
+        "name": html.escape(operator_name),
+        "inn": html.escape(operator_inn),
+        "registration": html.escape(operator_registration),
+        "address": html.escape(operator_address),
+        "email": html.escape(contact_email),
+    }
+    return f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Пользовательское соглашение — {title}</title>
+<style>
+:root{{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#03070e;color:#f7f9fd}}
+*{{box-sizing:border-box}} body{{margin:0;background:radial-gradient(70% 35% at 95% 5%,#16385c66,transparent 72%),#03070e}}
+main{{width:min(100% - 32px,720px);margin:auto;padding:48px 0 80px}} .brand{{font-size:18px;font-weight:800}}
+.meta{{margin:8px 0 34px;color:#aab6c5;font-size:13px}} article{{padding:clamp(20px,5vw,38px);border-radius:28px;background:#0a111b}}
+h1{{margin:0 0 22px;font-size:clamp(28px,7vw,46px);line-height:1.05;letter-spacing:-.045em}} h2{{margin:28px 0 9px;font-size:18px}}
+p,li{{color:#bdc7d2;font-size:14px;line-height:1.65}} a{{color:#91d3f8}} .note{{padding:14px 16px;border-radius:14px;background:#111c2a}}
+</style></head><body><main><div class="brand">{title}</div><p class="meta">Обновлено: {updated}</p><article>
+<h1>Пользовательское соглашение</h1>
+<p>Используя {title}, вы принимаете эти условия. Если вы с ними не согласны, не подключайте и не оплачивайте сервис.</p>
+<h2>1. Аккаунт и доступ</h2><p>Аккаунт связан с Telegram. Подтверждённый email может использоваться как дополнительный способ входа в тот же аккаунт и не создаёт новую учётную запись. Пользователь отвечает за сохранность своих ссылок подключения.</p>
+<h2>2. Подписка и оплата</h2><p>Срок, цена и состав тарифа показываются до оплаты. Доступ предоставляется на оплаченный период. Вопросы об ошибочном платеже или возврате рассматриваются поддержкой с учётом обязательных требований применимого законодательства.</p>
+<h2>3. Допустимое использование</h2><p>Запрещено использовать сервис для нарушения закона и прав третьих лиц, атак, распространения вредоносного кода, спама, мошенничества, перепродажи доступа или действий, создающих чрезмерную нагрузку.</p>
+<h2>4. Доступность сервиса</h2><p>Мы поддерживаем инфраструктуру и устраняем неисправности, однако доступность отдельных серверов, протоколов и сторонних сайтов может меняться. Эти условия не ограничивают права потребителя, которые нельзя исключить соглашением.</p>
+<h2>5. Данные</h2><p>Для работы сервиса обрабатываются Telegram ID, имя пользователя, подтверждённый email, сведения о подписке и оплате. При импорте подписки сохраняются случайный идентификатор, тип устройства и модель только когда её сообщает браузер или операционная система. Содержимое интернет-трафика не сохраняется.</p>
+<h2>6. Изменения условий</h2><p>При изменении документа обновляется дата публикации. Существенные изменения применяются после публикации новой версии.</p>
+<h2>7. Поддержка</h2><p class="note">Вопросы по сервису, оплате и данным можно направить <a href="{support}">в поддержку {title}</a>.</p>
+<h2>8. Реквизиты оператора</h2><p>Оператор: {legal['name']}<br>ИНН: {legal['inn']}<br>ОГРНИП/ОГРН: {legal['registration']}<br>Адрес: {legal['address']}<br>Email: {legal['email']}</p>
+</article></main></body></html>"""

@@ -71,13 +71,14 @@ def broadcast_template_promocode_kb(promocodes: List[Dict[str, Any]], template_t
     builder = InlineKeyboardBuilder()
     
     if promocodes:
+        from database.db_promocodes import format_promocode_discount
         for promo in promocodes:
             code = promo['code']
-            discount = promo['discount_rub']
+            discount = format_promocode_discount(promo)
             used = promo.get('used_count', 0)
             max_uses = promo['max_uses']
-            
-            button_text = f"🎟️ {code} (-{discount}₽) [{used}/{max_uses}]"
+
+            button_text = f"🎟️ {code} (-{discount}) [{used}/{max_uses}]"
             builder.row(InlineKeyboardButton(
                 text=button_text, 
                 callback_data=f'template_promo:{template_type}:{promo["id"]}'

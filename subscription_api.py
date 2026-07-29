@@ -16,6 +16,7 @@ import logging
 import os
 import re
 import secrets
+import smtplib
 import sqlite3
 import threading
 import time
@@ -24,6 +25,7 @@ import urllib.request
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from email.message import EmailMessage
 from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
 
 from flask import Flask, Response, jsonify, redirect, request, send_from_directory
@@ -47,9 +49,25 @@ from database.requests import (
     get_referral_reward_type,
     get_all_tariffs,
     get_setting,
+    get_webapp_account,
+    get_notification_preferences,
+    update_notification_preferences,
+    get_user_devices,
+    register_import_device,
+    save_email_code,
+    get_email_code,
+    increment_email_attempts,
+    link_verified_email,
+    unlink_email,
+    get_user_by_verified_email,
+    create_web_session,
+    telegram_id_from_session,
+    revoke_web_session,
+    get_support_messages,
+    add_user_support_message,
 )
 from bot.services.reserve import get_reserve_client_info
-from subscription_pages import render_import_page
+from subscription_pages import render_import_page, render_user_agreement
 
 # Конфиг читаем через getattr с дефолтами: устаревший config.py (а он не
 # версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
@@ -184,6 +202,19 @@ BOT_TOKEN = getattr(config, "BOT_TOKEN", "")
 # Возраст initData, после которого считаем её протухшей (сек). Mini App
 # переоткрывают часто, сутки — безопасный дефолт.
 WEBAPP_INITDATA_MAX_AGE = getattr(config, "WEBAPP_INITDATA_MAX_AGE", 24 * 60 * 60)
+SMTP_HOST = os.getenv("SMTP_HOST", getattr(config, "SMTP_HOST", ""))
+SMTP_PORT = int(os.getenv("SMTP_PORT", getattr(config, "SMTP_PORT", 587)) or 587)
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", getattr(config, "SMTP_USERNAME", ""))
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", getattr(config, "SMTP_PASSWORD", ""))
+SMTP_FROM = os.getenv("SMTP_FROM", getattr(config, "SMTP_FROM", SMTP_USERNAME or ""))
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", str(getattr(config, "SMTP_USE_TLS", True))).lower() not in {"0", "false", "no"}
+WEB_SESSION_COOKIE = "arcvpn_session"
+LEGAL_LAST_UPDATED = "29 июля 2026"
+LEGAL_OPERATOR_NAME = os.getenv("LEGAL_OPERATOR_NAME", getattr(config, "LEGAL_OPERATOR_NAME", "[УКАЖИТЕ ФИО ИЛИ НАЗВАНИЕ]"))
+LEGAL_OPERATOR_INN = os.getenv("LEGAL_OPERATOR_INN", getattr(config, "LEGAL_OPERATOR_INN", "[УКАЖИТЕ ИНН]"))
+LEGAL_OPERATOR_REGISTRATION = os.getenv("LEGAL_OPERATOR_REGISTRATION", getattr(config, "LEGAL_OPERATOR_REGISTRATION", "[УКАЖИТЕ ОГРНИП/ОГРН]"))
+LEGAL_OPERATOR_ADDRESS = os.getenv("LEGAL_OPERATOR_ADDRESS", getattr(config, "LEGAL_OPERATOR_ADDRESS", "[УКАЖИТЕ АДРЕС]"))
+LEGAL_CONTACT_EMAIL = os.getenv("LEGAL_CONTACT_EMAIL", getattr(config, "LEGAL_CONTACT_EMAIL", "[УКАЖИТЕ EMAIL]"))
 
 LOCAL_AND_RESERVED_CIDRS = [
     "10.0.0.0/8",
@@ -1404,6 +1435,7 @@ def import_to_happ(sub_id: str):
         safe_happ_deeplink=safe_happ_deeplink,
         safe_subscription_url=safe_subscription_url,
         js_subscription_url=js_subscription_url,
+        js_device_registration_url=json.dumps(f"{SUBSCRIPTION_URL}/api/device/import/{sub_id}"),
         profile_title=PROFILE_TITLE,
     )
     response = Response(html_page, mimetype='text/html')
@@ -1454,12 +1486,136 @@ def _webapp_telegram_id() -> Optional[int]:
     initData ждём в заголовке X-Telegram-Init-Data (фронт ставит его на каждый
     запрос). Подпись проверяется HMAC по токену бота — клиенту доверять нельзя.
     """
-    if not BOT_TOKEN:
-        return None
     init_data = request.headers.get("X-Telegram-Init-Data", "")
-    if not init_data:
-        return None
-    return get_telegram_id(init_data, BOT_TOKEN, WEBAPP_INITDATA_MAX_AGE)
+    if init_data and BOT_TOKEN:
+        telegram_id = get_telegram_id(init_data, BOT_TOKEN, WEBAPP_INITDATA_MAX_AGE)
+        if telegram_id is not None:
+            return telegram_id
+
+    # Вход по подтверждённому email создаёт HttpOnly-сессию. Сырой токен в БД
+    # не хранится: при утечке базы его нельзя использовать как cookie.
+    session_token = request.cookies.get(WEB_SESSION_COOKIE, "")
+    if session_token and 32 <= len(session_token) <= 128:
+        return telegram_id_from_session(hashlib.sha256(session_token.encode("utf-8")).hexdigest())
+    return None
+
+
+_EMAIL_RATE_LOCK = threading.Lock()
+_EMAIL_RATE: Dict[str, float] = {}
+
+
+def _clean_text(value: Any, limit: int) -> str:
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    return text[:limit]
+
+
+def _email_code_hash(code: str, purpose: str) -> str:
+    secret = BOT_TOKEN or SMTP_PASSWORD or "arcvpn-local"
+    return hashlib.sha256(f"{secret}:{purpose}:{code}".encode("utf-8")).hexdigest()
+
+
+def _valid_email(value: str) -> bool:
+    return bool(re.fullmatch(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]{1,64}@[A-Za-z0-9.-]{1,190}\.[A-Za-z]{2,24}", value))
+
+
+def _email_rate_allowed(email: str) -> bool:
+    key = hashlib.sha256(f"{request.remote_addr}:{email.lower()}".encode("utf-8")).hexdigest()
+    now = time.monotonic()
+    with _EMAIL_RATE_LOCK:
+        previous = _EMAIL_RATE.get(key, 0.0)
+        if now - previous < 60:
+            return False
+        _EMAIL_RATE[key] = now
+        if len(_EMAIL_RATE) > 4096:
+            cutoff = now - 900
+            for old_key, stamp in list(_EMAIL_RATE.items()):
+                if stamp < cutoff:
+                    _EMAIL_RATE.pop(old_key, None)
+    return True
+
+
+def _send_email_code(email: str, code: str, purpose: str) -> bool:
+    if not SMTP_HOST or not SMTP_FROM:
+        return False
+
+
+def _notify_support_admins(thread_id: int, telegram_id: int, body: str) -> None:
+    """Передаёт новое WebApp-сообщение админам с кнопкой быстрого ответа."""
+    if not BOT_TOKEN:
+        return
+    username = get_webapp_account(telegram_id) or {}
+    user_label = username.get("username") or str(telegram_id)
+    payload = {
+        "text": (
+            f"💬 <b>Новое сообщение ArcVPN</b>\n"
+            f"Пользователь: <code>{html.escape(str(user_label))}</code>\n\n"
+            f"{html.escape(body)}"
+        ),
+        "parse_mode": "HTML",
+        "reply_markup": {
+            "inline_keyboard": [[{
+                "text": "Ответить",
+                "callback_data": f"support_reply:{thread_id}",
+            }]],
+        },
+    }
+    endpoint = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+    for admin_id in getattr(config, "ADMIN_IDS", []):
+        try:
+            data = json.dumps({**payload, "chat_id": admin_id}).encode("utf-8")
+            req = urllib.request.Request(endpoint, data=data, headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=5).read()
+        except Exception:
+            logger.exception("Не удалось передать support thread %s админу %s", thread_id, admin_id)
+    subject = "Код входа в ArcVPN" if purpose == "login" else "Подтверждение email в ArcVPN"
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = SMTP_FROM
+    message["To"] = email
+    message.set_content(
+        f"Код подтверждения ArcVPN: {code}\n\n"
+        "Он действует 10 минут. Если вы не запрашивали код, ничего не делайте."
+    )
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as smtp:
+            if SMTP_USE_TLS:
+                smtp.starttls()
+            if SMTP_USERNAME:
+                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(message)
+        return True
+    except Exception:
+        logger.exception("Не удалось отправить email-код на %s", _mask_email(email))
+        return False
+
+
+def _device_identity(payload: Dict[str, Any], user_agent: str) -> tuple[str, str, str, str]:
+    ua = user_agent or ""
+    platform_hint = _clean_text(payload.get("platform"), 40).lower()
+    model = _clean_text(payload.get("model"), 80)
+    browser = _clean_text(payload.get("browser"), 50)
+
+    if "iphone" in ua.lower() or "iphone" in platform_hint:
+        platform, fallback = "ios", "iPhone"
+    elif "ipad" in ua.lower() or "ipad" in platform_hint:
+        platform, fallback = "ios", "iPad"
+    elif "android" in ua.lower() or "android" in platform_hint:
+        platform, fallback = "android", "Android"
+        if not model:
+            match = re.search(r"Android[^;]*;\s*([^;)]+?)(?:\s+Build[/;]|\))", ua, re.I)
+            if match:
+                model = _clean_text(match.group(1), 80)
+    elif "windows" in ua.lower() or "win" in platform_hint:
+        platform, fallback = "windows", "Windows PC"
+    elif "mac" in ua.lower() or "mac" in platform_hint:
+        platform, fallback = "macos", "Mac"
+    elif "linux" in ua.lower() or "linux" in platform_hint:
+        platform, fallback = "linux", "Linux"
+    else:
+        platform, fallback = "unknown", "Новое устройство"
+
+    display_name = model if model and model.lower() not in {"unknown", "not available"} else fallback
+    return platform, model, display_name, browser
 
 
 def _api_no_store(response: Response) -> Response:
@@ -1488,6 +1644,7 @@ def _public_links() -> Dict[str, str]:
     username = _get_bot_username()
     return {
         "support_url": support,
+        "legal_url": f"{SUBSCRIPTION_URL.rstrip('/')}/legal/user-agreement",
         "channel_url": channel,
         "bot_url": f"https://t.me/{username}" if username else "",
         "bot_username": username,
@@ -1594,16 +1751,243 @@ def api_referral():
         "enabled": True,
         "code": code,
         "link": link,
+        "site_link": f"{SUBSCRIPTION_URL.rstrip('/')}/invite/{urllib.parse.quote(code, safe='')}",
         "balance_cents": int(get_user_balance(user_id) or 0),
         "reward_type": get_referral_reward_type(),
         "earned_days": int(get_referral_earned_days(user_id) or 0),
-        "trial_bonus_days": int(get_setting('referral_trial_bonus_days', '3') or 3),
-        "purchase_bonus_days": int(get_setting('referral_purchase_bonus_days', '5') or 5),
+        "trial_bonus_days": int(get_setting('referral_trial_bonus_days', '0') or 0),
+        "purchase_bonus_days": int(get_setting('referral_purchase_bonus_days', '15') or 15),
         "total_invited": total_invited,
         "paid_invited": paid_invited,
         "friends": friends,
     })
     return _api_no_store(response)
+
+
+@app.route('/api/account')
+def api_account():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    account = get_webapp_account(telegram_id)
+    if not account:
+        return _api_error("user_not_found", 404)
+    response = jsonify({
+        "ok": True,
+        "telegram_id": telegram_id,
+        "username": account.get("username"),
+        "email": account.get("email"),
+        "email_verified": bool(account.get("email_verified_at")),
+        "email_available": bool(SMTP_HOST and SMTP_FROM),
+    })
+    return _api_no_store(response)
+
+
+@app.route('/api/preferences', methods=['GET', 'POST'])
+def api_preferences():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    if request.method == 'POST':
+        payload = request.get_json(silent=True) or {}
+        values = {key: payload[key] for key in ("expiry", "traffic", "connection") if isinstance(payload.get(key), bool)}
+        if not values or not update_notification_preferences(telegram_id, values):
+            return _api_error("invalid_preferences", 400)
+    response = jsonify({"ok": True, "notifications": get_notification_preferences(telegram_id)})
+    return _api_no_store(response)
+
+
+@app.route('/api/devices')
+def api_devices():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    devices = get_user_devices(telegram_id)
+    online_total = sum(int(key.get("online_devices") or 0) for key in get_user_keys_for_display(telegram_id))
+    response = jsonify({"ok": True, "online_total": online_total, "devices": devices})
+    return _api_no_store(response)
+
+
+@app.route('/api/support/messages', methods=['GET', 'POST'])
+def api_support_messages():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    if request.method == 'GET':
+        try:
+            after_id = max(0, int(request.args.get("after", "0")))
+        except ValueError:
+            after_id = 0
+        result = get_support_messages(telegram_id, after_id=after_id)
+        return _api_no_store(jsonify({"ok": True, **result}))
+
+    if (request.content_length or 0) > 8192:
+        return _api_error("message_too_large", 413)
+    payload = request.get_json(silent=True) or {}
+    body = str(payload.get("body") or "").replace("\x00", "").strip()
+    body = re.sub(r"[ \t]+", " ", body)[:2000]
+    if not body:
+        return _api_error("empty_message", 400)
+    result = add_user_support_message(telegram_id, body)
+    if not result:
+        return _api_error("user_not_found", 404)
+    if result.get("rate_limited"):
+        return _api_error("try_later", 429)
+    threading.Thread(
+        target=_notify_support_admins,
+        args=(int(result["thread_id"]), telegram_id, body),
+        daemon=True,
+        name=f"support-notify-{result['thread_id']}",
+    ).start()
+    return _api_no_store(jsonify({"ok": True, **result}))
+
+
+@app.route('/api/device/import/<sub_id>', methods=['POST'])
+def api_register_import_device(sub_id: str):
+    """Регистрирует устройство в момент нажатия «Открыть в Happ»."""
+    if not _is_valid_subscription_id(sub_id) or (request.content_length or 0) > 8192:
+        return _api_error("invalid_device_request", 400)
+    payload = request.get_json(silent=True) or {}
+    device_token = _clean_text(payload.get("device_token"), 128)
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", device_token):
+        return _api_error("invalid_device_token", 400)
+    platform, model, display_name, browser = _device_identity(
+        payload, request.headers.get("User-Agent", "")
+    )
+    screen_size = _clean_text(payload.get("screen_size"), 30)
+    if not register_import_device(
+        sub_id, device_token, platform, model, display_name, browser, screen_size
+    ):
+        return _api_error("subscription_not_found", 404)
+    return _api_no_store(jsonify({"ok": True, "device_name": display_name}))
+
+
+@app.route('/api/auth/email/request', methods=['POST'])
+def api_email_request():
+    payload = request.get_json(silent=True) or {}
+    email = _clean_text(payload.get("email"), 254).lower()
+    purpose = _clean_text(payload.get("purpose"), 12)
+    if purpose not in {"link", "login"} or not _valid_email(email):
+        return _api_error("invalid_email", 400)
+    if not SMTP_HOST or not SMTP_FROM:
+        return _api_error("email_unavailable", 503)
+    if not _email_rate_allowed(email):
+        return _api_error("try_later", 429)
+
+    if purpose == "link":
+        telegram_id = _webapp_telegram_id()
+        account = get_webapp_account(telegram_id) if telegram_id is not None else None
+        if not account:
+            return _api_error("unauthorized", 401)
+        user = {"id": account["id"]}
+    else:
+        user = get_user_by_verified_email(email)
+        # Не раскрываем, привязан ли email. Для неизвестного адреса ответ такой же.
+        if not user:
+            return _api_no_store(jsonify({"ok": True, "sent": True}))
+
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    save_email_code(int(user["id"]), email, purpose, _email_code_hash(code, purpose))
+    if not _send_email_code(email, code, purpose):
+        return _api_error("email_delivery_failed", 502)
+    return _api_no_store(jsonify({"ok": True, "sent": True}))
+
+
+@app.route('/api/auth/email/verify', methods=['POST'])
+def api_email_verify():
+    payload = request.get_json(silent=True) or {}
+    email = _clean_text(payload.get("email"), 254).lower()
+    purpose = _clean_text(payload.get("purpose"), 12)
+    code = _clean_text(payload.get("code"), 6)
+    if purpose not in {"link", "login"} or not _valid_email(email) or not re.fullmatch(r"\d{6}", code):
+        return _api_error("invalid_code", 400)
+
+    if purpose == "link":
+        telegram_id = _webapp_telegram_id()
+        account = get_webapp_account(telegram_id) if telegram_id is not None else None
+        user = {"id": account["id"]} if account else None
+    else:
+        user = get_user_by_verified_email(email)
+    if not user:
+        return _api_error("invalid_code", 400)
+
+    record = get_email_code(int(user["id"]), purpose)
+    if not record or int(record.get("attempts") or 0) >= 5:
+        return _api_error("invalid_code", 400)
+    if not secrets.compare_digest(record["code_hash"], _email_code_hash(code, purpose)):
+        increment_email_attempts(int(record["id"]))
+        return _api_error("invalid_code", 400)
+
+    response = jsonify({"ok": True, "email": email})
+    if purpose == "link":
+        try:
+            link_verified_email(int(user["id"]), email)
+        except sqlite3.IntegrityError:
+            return _api_error("email_in_use", 409)
+    else:
+        raw_token = secrets.token_urlsafe(48)
+        create_web_session(int(user["id"]), hashlib.sha256(raw_token.encode("utf-8")).hexdigest())
+        response.set_cookie(
+            WEB_SESSION_COOKIE, raw_token, max_age=30 * 86400,
+            secure=True, httponly=True, samesite="Lax", path="/",
+        )
+    return _api_no_store(response)
+
+
+@app.route('/api/auth/email/unlink', methods=['POST'])
+def api_email_unlink():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None or not unlink_email(telegram_id):
+        return _api_error("unauthorized", 401)
+    response = jsonify({"ok": True})
+    response.delete_cookie(WEB_SESSION_COOKIE, path="/")
+    return _api_no_store(response)
+
+
+@app.route('/api/auth/logout', methods=['POST'])
+def api_logout():
+    raw_token = request.cookies.get(WEB_SESSION_COOKIE, "")
+    if raw_token:
+        revoke_web_session(hashlib.sha256(raw_token.encode("utf-8")).hexdigest())
+    response = jsonify({"ok": True})
+    response.delete_cookie(WEB_SESSION_COOKIE, path="/")
+    return _api_no_store(response)
+
+
+@app.route('/legal/user-agreement')
+def user_agreement():
+    response = Response(
+        render_user_agreement(
+            profile_title=PROFILE_TITLE.replace("✨", "").strip(),
+            updated_date=LEGAL_LAST_UPDATED,
+            support_url=_public_links()["support_url"],
+            operator_name=LEGAL_OPERATOR_NAME,
+            operator_inn=LEGAL_OPERATOR_INN,
+            operator_registration=LEGAL_OPERATOR_REGISTRATION,
+            operator_address=LEGAL_OPERATOR_ADDRESS,
+            contact_email=LEGAL_CONTACT_EMAIL,
+        ),
+        mimetype="text/html",
+    )
+    response.headers["Cache-Control"] = "public, max-age=3600"
+    return response
+
+
+@app.route('/invite/<code>')
+def referral_invite(code: str):
+    """Публичная короткая реферальная ссылка на домене ArcVPN."""
+    if not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", code or ""):
+        return Response("Referral link not found", status=404, mimetype="text/plain")
+
+    username = _get_bot_username()
+    if not username:
+        return Response("ArcVPN bot is temporarily unavailable", status=503, mimetype="text/plain")
+
+    target = f"https://t.me/{username}?start=ref_{urllib.parse.quote(code, safe='')}"
+    response = redirect(target, code=302)
+    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
 
 
 @app.route('/app')

@@ -8,8 +8,16 @@ export function initTelegram() {
   if (!tg) return
   tg.ready()
   tg.expand()
+  tg.setHeaderColor?.('#02050b')
+  tg.setBackgroundColor?.('#02050b')
+  tg.setBottomBarColor?.('#02050b')
   // Закрываем приложение только осознанно — гасим случайный свайп вниз.
   tg.disableVerticalSwipes?.()
+  // BotFather Fullscreen — основной launch mode. Этот вызов страхует старые
+  // direct-link/inline-точки входа в клиентах с Bot API 8.0+.
+  try {
+    if (tg.isVersionAtLeast?.('8.0') && !tg.isFullscreen) tg.requestFullscreen?.()
+  } catch {}
 }
 
 export function getInitData() {
@@ -29,6 +37,10 @@ export function haptic(kind = 'light') {
   } else {
     h.impactOccurred(kind)
   }
+}
+
+export function selectionHaptic() {
+  tg?.HapticFeedback?.selectionChanged?.()
 }
 
 // Внешняя ссылка (App Store, сайт, deeplink happ://)

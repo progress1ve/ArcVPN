@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 25
+LATEST_VERSION = 29
 
 
 def get_current_version() -> int:
@@ -317,8 +317,8 @@ def migration_3(conn: sqlite3.Connection) -> None:
         "• Полный доступ к VPN без ограничений по сайтам\n"
         "• Высокая скорость соединения\n"
         "• Несколько протоколов на выбор\n\n"
-        "Нажмите кнопку ниже, чтобы активировать пробный доступ прямо сейчас\!\n\n"
-        "_Пробный период предоставляется один раз на аккаунт\._"
+        "Нажмите кнопку ниже, чтобы активировать пробный доступ прямо сейчас\\!\n\n"
+        "_Пробный период предоставляется один раз на аккаунт\\._"
     )
 
     # Настройки пробной подписки
@@ -1047,8 +1047,8 @@ def migration_15(conn: sqlite3.Connection) -> None:
         "• Полный доступ к VPN без ограничений по сайтам\n"
         "• Высокая скорость соединения\n"
         "• Несколько протоколов на выбор\n\n"
-        "Нажмите кнопку ниже, чтобы активировать пробный доступ прямо сейчас\!\n\n"
-        "_Пробный период предоставляется один раз на аккаунт\._"
+        "Нажмите кнопку ниже, чтобы активировать пробный доступ прямо сейчас\\!\n\n"
+        "_Пробный период предоставляется один раз на аккаунт\\._"
     )
     html_trial = (
         "🎁 <b>Пробная подписка</b>\n\n"
@@ -1243,9 +1243,17 @@ def migration_18(conn: sqlite3.Connection) -> None:
             discount_rub INTEGER NOT NULL,
             max_uses INTEGER NOT NULL,
             expires_at DATETIME NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            discount_type TEXT NOT NULL DEFAULT 'fixed',
+            discount_percent INTEGER NOT NULL DEFAULT 0
         )
     """)
+    # Обратная совместимость для БД, созданных до появления процентных промокодов
+    _promo_cols = [r[1] for r in conn.execute("PRAGMA table_info(promocodes)")]
+    if 'discount_type' not in _promo_cols:
+        conn.execute("ALTER TABLE promocodes ADD COLUMN discount_type TEXT NOT NULL DEFAULT 'fixed'")
+    if 'discount_percent' not in _promo_cols:
+        conn.execute("ALTER TABLE promocodes ADD COLUMN discount_percent INTEGER NOT NULL DEFAULT 0")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_promocodes_code ON promocodes(code)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_promocodes_expires_at ON promocodes(expires_at)")
     
@@ -1476,6 +1484,169 @@ def migration_25(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v25 применена")
 
 
+def migration_26(conn: sqlite3.Connection) -> None:
+    """Реферальная программа: по 15 дней обоим за первую покупку друга."""
+    logger.info("Применение миграции v26 (реферальная награда 15+15)...")
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('referral_trial_bonus_days', '0') "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    )
+    conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('referral_purchase_bonus_days', '15') "
+        "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+    )
+    logger.info("Миграция v26 применена")
+
+
+def migration_27(conn: sqlite3.Connection) -> None:
+    """WebApp: устройства, email-вход и персональные уведомления."""
+    logger.info("Применение миграции v27 (WebApp account и devices)...")
+
+    _add_column(conn, "users", "email TEXT")
+    _add_column(conn, "users", "email_verified_at DATETIME")
+    _add_column(conn, "users", "notify_expiry INTEGER DEFAULT 1")
+    _add_column(conn, "users", "notify_traffic INTEGER DEFAULT 1")
+    _add_column(conn, "users", "notify_connection INTEGER DEFAULT 1")
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_unique "
+        "ON users(LOWER(email)) WHERE email IS NOT NULL"
+    )
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS user_devices (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            vpn_key_id INTEGER REFERENCES vpn_keys(id) ON DELETE SET NULL,
+            device_token_hash TEXT NOT NULL,
+            platform TEXT NOT NULL DEFAULT 'unknown',
+            model TEXT,
+            display_name TEXT NOT NULL,
+            browser TEXT,
+            screen_size TEXT,
+            first_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            imported_at DATETIME,
+            UNIQUE(user_id, device_token_hash)
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_user_devices_user ON user_devices(user_id, last_seen_at DESC)")
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS email_verification_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            email TEXT NOT NULL,
+            purpose TEXT NOT NULL CHECK(purpose IN ('link', 'login')),
+            code_hash TEXT NOT NULL,
+            expires_at DATETIME NOT NULL,
+            attempts INTEGER DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, purpose)
+        )
+    """)
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS web_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at DATETIME NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            last_seen_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_web_sessions_user ON web_sessions(user_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_web_sessions_expiry ON web_sessions(expires_at)")
+    logger.info("Миграция v27 применена")
+
+
+def migration_28(conn: sqlite3.Connection) -> None:
+    """Диалоги поддержки WebApp с ответами администратора через Telegram."""
+    logger.info("Применение миграции v28 (WebApp support chat)...")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS support_threads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+            status TEXT NOT NULL DEFAULT 'open',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS support_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            thread_id INTEGER NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
+            sender TEXT NOT NULL CHECK(sender IN ('user', 'admin')),
+            sender_telegram_id INTEGER,
+            body TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            read_at DATETIME
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_support_messages_thread ON support_messages(thread_id, id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_support_threads_updated ON support_threads(updated_at)")
+    logger.info("Миграция v28 применена")
+
+
+def migration_29(conn: sqlite3.Connection) -> None:
+    """Фиксированная коммерческая сетка ArcVPN: 1/3/6/12 месяцев."""
+    logger.info("Применение миграции v29 (новая тарифная сетка)...")
+
+    plans = (
+        ("1 месяц", 30, 125, 10),
+        ("3 месяца", 90, 300, 20),
+        ("6 месяцев", 180, 540, 30),
+        ("12 месяцев", 365, 960, 40),
+    )
+    regular = conn.execute(
+        """
+        SELECT traffic_limit_gb, group_id
+        FROM tariffs
+        WHERE is_active = 1 AND name != 'Admin Tariff'
+        ORDER BY display_order, id
+        LIMIT 1
+        """
+    ).fetchone()
+    traffic_limit_gb = int(regular["traffic_limit_gb"] or 0) if regular else 1024
+    group_id = int(regular["group_id"] or 1) if regular else 1
+
+    for name, days, price_rub, display_order in plans:
+        lower = days - (2 if days < 365 else 1)
+        upper = days + (2 if days < 365 else 1)
+        rows = conn.execute(
+            """
+            SELECT id FROM tariffs
+            WHERE is_active = 1
+              AND name != 'Admin Tariff'
+              AND duration_days BETWEEN ? AND ?
+            """,
+            (lower, upper),
+        ).fetchall()
+        if rows:
+            conn.execute(
+                """
+                UPDATE tariffs
+                SET name = ?, duration_days = ?, price_rub = ?, display_order = ?
+                WHERE is_active = 1
+                  AND name != 'Admin Tariff'
+                  AND duration_days BETWEEN ? AND ?
+                """,
+                (name, days, price_rub, display_order, lower, upper),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO tariffs (
+                    name, duration_days, price_cents, price_stars, price_rub,
+                    external_id, display_order, is_active, traffic_limit_gb, group_id
+                ) VALUES (?, ?, 0, 0, ?, NULL, ?, 1, ?, ?)
+                """,
+                (name, days, price_rub, display_order, traffic_limit_gb, group_id),
+            )
+
+    logger.info("Миграция v29 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1502,6 +1673,10 @@ MIGRATIONS = {
     23: migration_23,
     24: migration_24,
     25: migration_25,
+    26: migration_26,
+    27: migration_27,
+    28: migration_28,
+    29: migration_29,
 }
 
 

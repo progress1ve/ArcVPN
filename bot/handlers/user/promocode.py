@@ -113,9 +113,10 @@ async def process_promocode_input(message: Message, state: FSMContext):
         await state.clear()
         return
     
-    # Вычисляем цену со скидкой
+    # Вычисляем цену со скидкой (fixed — рубли, percent — процент от цены тарифа)
+    from database.db_promocodes import compute_discount_rub
     original_price = tariff['price_rub']
-    discount = promocode['discount_rub']
+    discount = compute_discount_rub(promocode, original_price)
     final_price = max(0, original_price - discount)
     
     # НЕ отмечаем использование сразу - это будет сделано при успешной оплате
@@ -134,10 +135,14 @@ async def process_promocode_input(message: Message, state: FSMContext):
     new_order_id = prepared_order['order_id']
     
     # Формируем сообщение об успехе
+    if promocode.get('discount_type') == 'percent':
+        discount_str = f"{promocode.get('discount_percent', 0)}% (−{discount} ₽)"
+    else:
+        discount_str = f"{discount} ₽"
     text = (
         f"✅ <b>Промокод применен!</b>\n\n"
         f"🎟️ Промокод: <code>{escape_html(code)}</code>\n"
-        f"💰 Скидка: {discount} ₽\n\n"
+        f"💰 Скидка: {discount_str}\n\n"
         f"Цена без скидки: <s>{original_price} ₽</s>\n"
         f"<b>Цена со скидкой: {final_price} ₽</b>\n\n"
     )
@@ -181,9 +186,13 @@ async def process_promocode_input(message: Message, state: FSMContext):
     from bot.utils.payment_flow_ui import show_payment_method_selection_screen
 
     helper_key_id = data.get('promocode_key_id') if action == 'renew' else None
+    if promocode.get('discount_type') == 'percent':
+        discount_label = f"{promocode.get('discount_percent', 0)}% (−{discount} ₽)"
+    else:
+        discount_label = f"{discount} ₽"
     intro = (
         f"✅ <b>Промокод применён!</b>\n\n"
-        f"🎟️ <code>{escape_html(code)}</code> — скидка {discount} ₽"
+        f"🎟️ <code>{escape_html(code)}</code> — скидка {discount_label}"
     )
     await show_payment_method_selection_screen(
         message,

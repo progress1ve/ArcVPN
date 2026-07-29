@@ -10,6 +10,7 @@ import hashlib
 import logging
 import uuid
 import base64
+import asyncio
 import aiohttp
 import qrcode
 import io
@@ -36,6 +37,67 @@ STAR_TO_USD = 0.013
 USDT_TO_USD = 1.0
 
 YOOKASSA_API_URL = "https://api.yookassa.ru/v3/payments"
+
+# Таймауты и ретраи для запросов к ЮКассе. DNS отдаёт несколько A-записей,
+# и один из адресов периодически не отвечает — короткий connect-таймаут
+# позволяет быстро повторить попытку через другой IP.
+_YK_TIMEOUT = aiohttp.ClientTimeout(total=25, connect=6, sock_connect=6, sock_read=20)
+_YK_MAX_ATTEMPTS = 4
+
+
+async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    """
+    POST к API ЮКассы с таймаутом и ретраями на сетевых сбоях.
+
+    Idempotence-Key в headers остаётся неизменным между попытками, поэтому
+    повтор не создаёт дубль платежа — ЮКасса вернёт тот же объект.
+    HTTP-ответы (в т.ч. 4xx/5xx) считаются успешным ответом сети и не ретраятся.
+    """
+    last_err: Optional[Exception] = None
+    for attempt in range(1, _YK_MAX_ATTEMPTS + 1):
+        try:
+            async with aiohttp.ClientSession(timeout=_YK_TIMEOUT) as session:
+                async with session.post(url, json=payload, headers=headers) as response:
+                    data = await response.json()
+                    if response.status not in (200, 201):
+                        error_desc = data.get('description', 'Неизвестная ошибка')
+                        logger.error(f"ЮКасса API ошибка {response.status}: {error_desc}")
+                        raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
+                    return data
+        except (aiohttp.ClientConnectionError, aiohttp.ClientConnectorError,
+                aiohttp.ServerTimeoutError, TimeoutError, asyncio.TimeoutError) as e:
+            last_err = e
+            logger.warning(f"ЮКасса POST попытка {attempt}/{_YK_MAX_ATTEMPTS} — сетевой сбой: {e}")
+            if attempt < _YK_MAX_ATTEMPTS:
+                await asyncio.sleep(0.5 * attempt)
+    raise RuntimeError(
+        "Не удалось связаться с ЮКассой (сеть недоступна). Попробуйте ещё раз через минуту."
+    ) from last_err
+
+
+async def _yookassa_get(url: str, headers: Dict[str, str]) -> Dict[str, Any]:
+    """GET к API ЮКассы с таймаутом и ретраями на сетевых сбоях."""
+    last_err: Optional[Exception] = None
+    for attempt in range(1, _YK_MAX_ATTEMPTS + 1):
+        try:
+            async with aiohttp.ClientSession(timeout=_YK_TIMEOUT) as session:
+                async with session.get(url, headers=headers) as response:
+                    data = await response.json()
+                    if response.status != 200:
+                        error_desc = data.get('description', 'Неизвестная ошибка')
+                        logger.error(f"ЮКасса статус ошибка {response.status}: {error_desc}")
+                        raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
+                    return data
+        except (aiohttp.ClientConnectionError, aiohttp.ClientConnectorError,
+                aiohttp.ServerTimeoutError, TimeoutError, asyncio.TimeoutError) as e:
+            last_err = e
+            logger.warning(f"ЮКасса GET попытка {attempt}/{_YK_MAX_ATTEMPTS} — сетевой сбой: {e}")
+            if attempt < _YK_MAX_ATTEMPTS:
+                await asyncio.sleep(0.5 * attempt)
+    raise RuntimeError(
+        "Не удалось связаться с ЮКассой (сеть недоступна). Попробуйте ещё раз через минуту."
+    ) from last_err
+
 
 # Алфавит для Base62 кодирования
 ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
@@ -652,53 +714,43 @@ async def create_yookassa_qr_payment(
         "Content-Type": "application/json"
     }
 
-    async with aiohttp.ClientSession() as session:
-        async with session.post(
-            YOOKASSA_API_URL,
-            json=payload,
-            headers=headers
-        ) as response:
-            data = await response.json()
+    # DNS ЮКассы отдаёт несколько A-записей, и один из адресов периодически
+    # не отвечает (ConnectionTimeout). Короткий connect-таймаут + ретраи с тем
+    # же Idempotence-Key дают быстрый повтор через другой IP без риска дубля платежа.
+    data = await _yookassa_post(YOOKASSA_API_URL, payload, headers)
+    confirmation = data.get('confirmation', {})
+    qr_url = confirmation.get('confirmation_url', '')
 
-            if response.status not in (200, 201):
-                error_desc = data.get('description', 'Неизвестная ошибка')
-                logger.error(f"ЮКасса API ошибка {response.status}: {error_desc} | payload={payload}")
-                raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
+    if not qr_url:
+        logger.error(f"ЮКасса API не вернул confirmation_url: {data}")
+        raise RuntimeError("ЮКасса API не вернул данные для QR-кода")
 
-            confirmation = data.get('confirmation', {})
-            qr_url = confirmation.get('confirmation_url', '')
+    # Генерируем QR-код из строки оплаты через локальную библиотеку qrcode
+    qr = qrcode.QRCode(
+        version=1,
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=10,
+        border=4,
+    )
+    qr.add_data(qr_url)
+    qr.make(fit=True)
 
-            if not qr_url:
-                logger.error(f"ЮКасса API не вернул confirmation_url: {data}")
-                raise RuntimeError("ЮКасса API не вернул данные для QR-кода")
+    img = qr.make_image(fill_color="black", back_color="white")
+    bio = io.BytesIO()
+    img.save(bio, format="PNG")
+    qr_image_data = bio.getvalue()
 
-            # Генерируем QR-код из строки оплаты через локальную библиотеку qrcode
+    logger.info(
+        f"ЮКасса QR создан: payment_id={data['id']}, order_id={order_id}, "
+        f"amount={amount_rub} RUB"
+    )
 
-            qr = qrcode.QRCode(
-                version=1,
-                error_correction=qrcode.constants.ERROR_CORRECT_L,
-                box_size=10,
-                border=4,
-            )
-            qr.add_data(qr_url)
-            qr.make(fit=True)
-
-            img = qr.make_image(fill_color="black", back_color="white")
-            bio = io.BytesIO()
-            img.save(bio, format="PNG")
-            qr_image_data = bio.getvalue()
-
-            logger.info(
-                f"ЮКасса QR создан: payment_id={data['id']}, order_id={order_id}, "
-                f"amount={amount_rub} RUB"
-            )
-
-            return {
-                'yookassa_payment_id': data['id'],
-                'qr_image_data': qr_image_data,
-                'qr_url': qr_url,
-                'status': data.get('status', 'pending')
-            }
+    return {
+        'yookassa_payment_id': data['id'],
+        'qr_image_data': qr_image_data,
+        'qr_url': qr_url,
+        'status': data.get('status', 'pending')
+    }
 
 
 async def check_yookassa_payment_status(yookassa_payment_id: str) -> str:
@@ -728,18 +780,10 @@ async def check_yookassa_payment_status(yookassa_payment_id: str) -> str:
 
     url = f"{YOOKASSA_API_URL}/{yookassa_payment_id}"
 
-    async with aiohttp.ClientSession() as session:
-        async with session.get(url, headers=headers) as response:
-            data = await response.json()
-
-            if response.status != 200:
-                error_desc = data.get('description', 'Неизвестная ошибка')
-                logger.error(f"ЮКасса статус ошибка {response.status}: {error_desc}")
-                raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
-
-            status = data.get('status', 'pending')
-            logger.debug(f"ЮКасса payment {yookassa_payment_id}: status={status}")
-            return status
+    data = await _yookassa_get(url, headers)
+    status = data.get('status', 'pending')
+    logger.debug(f"ЮКасса payment {yookassa_payment_id}: status={status}")
+    return status
 
 
 def convert_to_rub_cents(amount_raw: int, payment_type: str, usd_rub_rate: int) -> int:
@@ -834,9 +878,9 @@ async def process_referral_reward(
         return
 
     try:
-        bonus_days = int(get_setting('referral_purchase_bonus_days', '5'))
+        bonus_days = int(get_setting('referral_purchase_bonus_days', '15'))
     except (TypeError, ValueError):
-        bonus_days = 5
+        bonus_days = 15
     if bonus_days <= 0:
         return
 
@@ -866,9 +910,9 @@ async def process_referral_trial_reward(referee_internal_id: int) -> None:
         return
 
     try:
-        bonus_days = int(get_setting('referral_trial_bonus_days', '3'))
+        bonus_days = int(get_setting('referral_trial_bonus_days', '0'))
     except (TypeError, ValueError):
-        bonus_days = 3
+        bonus_days = 0
     if bonus_days <= 0:
         return
 

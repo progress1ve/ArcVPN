@@ -14,6 +14,8 @@ from database.db_stats import *
 from database.db_groups import *
 from database.db_settings import *
 from database.db_promocodes import *
+from database.db_webapp import *
+from database.db_support import *
 
 
 # Subscription URL

@@ -333,10 +333,10 @@ async def pay_qr_handler(callback: CallbackQuery):
             )
             await callback.answer()
             
-        except (ValueError, RuntimeError) as e:
-            logger.error(f'Ошибка создания QR ЮКасса: {e}')
+        except Exception as e:
+            logger.exception(f'Ошибка создания QR ЮКасса: {e}')
             await callback.answer(f'❌ Ошибка создания платежа: {e}', show_alert=True)
-    
+
     else:
         # Старая логика - показываем выбор тарифа
         tariffs = get_all_tariffs(include_hidden=False)
@@ -411,8 +411,8 @@ async def qr_pay_create(callback: CallbackQuery):
         from aiogram.types import BufferedInputFile
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
         await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'pay_qr:{order_id}', qr_url=qr_url), force_new=True)
-    except (ValueError, RuntimeError) as e:
-        logger.error(f'Ошибка создания QR ЮКасса: {e}')
+    except Exception as e:
+        logger.exception(f'Ошибка создания QR ЮКасса: {e}')
         await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.', reply_markup=home_only_kb())
     await callback.answer()
 
@@ -556,7 +556,7 @@ async def renew_qr_create(callback: CallbackQuery):
         from aiogram.types import BufferedInputFile
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
         await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'renew_qr_tariff:{key_id}:{order_id}', qr_url=qr_url), force_new=True)
-    except (ValueError, RuntimeError) as e:
-        logger.error(f'Ошибка QR ЮКасса (продление): {e}')
+    except Exception as e:
+        logger.exception(f'Ошибка QR ЮКасса (продление): {e}')
         await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>', reply_markup=home_only_kb())
     await callback.answer()

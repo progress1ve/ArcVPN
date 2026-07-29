@@ -526,7 +526,10 @@ def generate_hysteria2_link(config: Dict[str, Any]) -> str:
         params['sni'] = sni
     # insecure всегда указываем явно (0/1) — клиенты ожидают этот флаг
     params['insecure'] = str(config.get('insecure', 0))
-
+    # Расширение Xray/3x-ui: uTLS fingerprint для Hysteria2-клиента.
+    fp = config.get('fp', '')
+    if fp:
+        params['fp'] = fp
     obfs = config.get('obfs', '')
     if obfs:
         params['obfs'] = obfs

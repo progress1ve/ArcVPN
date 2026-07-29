@@ -578,7 +578,8 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
                 if p['id'] == promo_id_int:
                     promocode = p
                     promo_code = p['code']
-                    promo_discount = p['discount_rub']
+                    from database.db_promocodes import format_promocode_discount
+                    promo_discount = format_promocode_discount(p)
                     break
         except ValueError:
             pass
@@ -592,7 +593,7 @@ async def apply_template(callback: CallbackQuery, template_type: str, promo_id: 
                 f"👋 <b>Привет!</b>\n\n"
                 f"Мы заметили, что у вас нет активной подписки на наш VPN-сервис.\n\n"
                 f"Специально для вас:\n"
-                f"🎟️ Промокод <code>{promo_code}</code> на скидку <b>{promo_discount}₽</b>\n\n"
+                f"🎟️ Промокод <code>{promo_code}</code> на скидку <b>{promo_discount}</b>\n\n"
                 f"🔐 Что вы получите:\n"
                 f"• Быстрый и стабильный VPN\n"
                 f"• Доступ к заблокированным сайтам\n"

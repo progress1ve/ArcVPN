@@ -69,13 +69,13 @@ async def show_referral_system(callback: CallbackQuery):
 
     # Размеры бонусов (настройки)
     try:
-        trial_bonus = int(get_setting('referral_trial_bonus_days', '3'))
+        trial_bonus = int(get_setting('referral_trial_bonus_days', '0'))
     except (TypeError, ValueError):
-        trial_bonus = 3
+        trial_bonus = 0
     try:
-        purchase_bonus = int(get_setting('referral_purchase_bonus_days', '5'))
+        purchase_bonus = int(get_setting('referral_purchase_bonus_days', '15'))
     except (TypeError, ValueError):
-        purchase_bonus = 5
+        purchase_bonus = 15
 
     # Весь текст в HTML с blockquote
     text_lines = [
@@ -95,6 +95,9 @@ async def show_referral_system(callback: CallbackQuery):
         f"<code>{escape_html(referral_link)}</code>",
     ]
 
+    # В актуальной модели награда выдаётся только за первую покупку друга.
+    # Отсекаем сохранённую строку старого условия, не меняя остальную разметку.
+    text_lines = [line for line in text_lines if "когда друг запустит" not in line]
     text = "\n".join(text_lines)
 
     # Создаем клавиатуру с кнопками

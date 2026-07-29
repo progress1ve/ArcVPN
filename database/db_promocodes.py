@@ -17,6 +17,8 @@ __all__ = [
     'use_promocode',
     'is_promocode_valid',
     'get_promocode_usage_count',
+    'compute_discount_rub',
+    'format_promocode_discount',
 ]
 
 
@@ -24,36 +26,62 @@ def create_promocode(
     code: str,
     discount_rub: int,
     max_uses: int,
-    duration_days: int
+    duration_days: int,
+    discount_type: str = 'fixed',
+    discount_percent: int = 0,
 ) -> Optional[int]:
     """
     Создает новый промокод.
-    
+
     Args:
         code: Код промокода (уникальный)
-        discount_rub: Скидка в рублях
+        discount_rub: Скидка в рублях (для discount_type='fixed')
         max_uses: Максимальное количество использований
         duration_days: Длительность действия в днях
-    
+        discount_type: 'fixed' (рубли) или 'percent' (процент от цены тарифа)
+        discount_percent: Процент скидки 1-100 (для discount_type='percent')
+
     Returns:
         ID созданного промокода или None при ошибке
     """
     expires_at = datetime.now() + timedelta(days=duration_days)
-    
+
     with get_db() as conn:
         try:
             cursor = conn.execute("""
-                INSERT INTO promocodes (code, discount_rub, max_uses, expires_at, created_at)
-                VALUES (?, ?, ?, ?, datetime('now'))
-            """, (code.upper(), discount_rub, max_uses, expires_at.isoformat()))
-            
+                INSERT INTO promocodes (code, discount_rub, max_uses, expires_at, created_at, discount_type, discount_percent)
+                VALUES (?, ?, ?, ?, datetime('now'), ?, ?)
+            """, (code.upper(), discount_rub, max_uses, expires_at.isoformat(), discount_type, discount_percent))
+
             promocode_id = cursor.lastrowid
-            logger.info(f"Создан промокод: {code} (ID: {promocode_id})")
+            logger.info(f"Создан промокод: {code} (ID: {promocode_id}, type={discount_type})")
             return promocode_id
-            
+
         except sqlite3.IntegrityError:
             logger.warning(f"Промокод {code} уже существует")
             return None
+
+
+def compute_discount_rub(promocode: Dict[str, Any], price_rub: float) -> int:
+    """
+    Вычисляет рублёвую скидку промокода для конкретной цены тарифа.
+
+    Для 'fixed' возвращает discount_rub. Для 'percent' — процент от price_rub,
+    округлённый вниз, но не больше самой цены.
+    """
+    dtype = promocode.get('discount_type', 'fixed')
+    if dtype == 'percent':
+        percent = promocode.get('discount_percent', 0) or 0
+        discount = int(price_rub * percent / 100)
+        return max(0, min(discount, int(price_rub)))
+    return int(promocode.get('discount_rub', 0) or 0)
+
+
+def format_promocode_discount(promocode: Dict[str, Any]) -> str:
+    """Человекочитаемое описание скидки промокода (для UI)."""
+    if promocode.get('discount_type') == 'percent':
+        return f"{promocode.get('discount_percent', 0)}%"
+    return f"{promocode.get('discount_rub', 0)} ₽"
 
 
 def get_promocode_by_code(code: str) -> Optional[Dict[str, Any]]:

@@ -583,8 +583,8 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
             force_new=True
         )
         
-    except (ValueError, RuntimeError) as e:
-        logger.error(f'Ошибка создания QR ЮКасса: {e}')
+    except Exception as e:
+        logger.exception(f'Ошибка создания QR ЮКасса: {e}')
         await safe_edit_or_send(
             callback.message,
             f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.',

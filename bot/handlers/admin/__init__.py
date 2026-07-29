@@ -19,10 +19,12 @@ from bot.handlers.admin.referral import router as referral_router
 from bot.handlers.admin.groups import router as groups_router
 from bot.handlers.admin.statistics import router as statistics_router
 from bot.handlers.admin.promocodes import router as promocodes_router
+from bot.handlers.admin.support import router as support_router
 
 admin_router = Router()
 
 admin_router.include_router(main_router)
+admin_router.include_router(support_router)
 admin_router.include_router(message_editor_router)
 admin_router.include_router(servers_router)
 admin_router.include_router(payments_router)
@@ -38,4 +40,3 @@ admin_router.include_router(trial_router)
 admin_router.include_router(referral_router)
 admin_router.include_router(statistics_router)
 admin_router.include_router(promocodes_router)
-

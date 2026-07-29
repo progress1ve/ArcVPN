@@ -76,6 +76,7 @@ class XUIClient(BaseVPNClient):
         self.session: Optional[aiohttp.ClientSession] = None
         self.is_authenticated = False
         self._csrf_token: Optional[str] = None  # 3x-ui v3.0.0+ CSRF-токен сессии
+        self._node_addr_cache: Optional[Dict[Any, str]] = None  # {node_id: address}
         # Версия client-API панели: "v2" (эндпоинты /panel/api/inbounds/*Client)
         # или "v3" (/panel/api/clients/*). Определяется лениво в _ensure_api_version
         # и кэшируется на время жизни клиента (внутри сессии не меняется).
@@ -558,6 +559,29 @@ class XUIClient(BaseVPNClient):
             "security": c.get("security", "auto"),
         }
 
+    async def _fetch_node_addresses(self) -> Dict[Any, str]:
+        """
+        Возвращает {node_id: address} для нод, привязанных к этой панели-мастеру.
+
+        Нужно для мульти-серверной схемы «Мастер+Нода» (встроенные ноды 3x-ui):
+        инбаунд с nodeId физически живёт на ноде, поэтому в клиентском конфиге
+        host должен быть адресом ноды, а не мастера. Кэшируется на инстанс.
+        Ошибка/отсутствие эндпоинта → пустая карта (host останется мастера).
+        """
+        if getattr(self, "_node_addr_cache", None) is not None:
+            return self._node_addr_cache
+        addrs: Dict[Any, str] = {}
+        try:
+            resp = await self._request("GET", "/panel/api/nodes/list", retry=False, log_error=False)
+            for n in (resp.get("obj") or []):
+                addr = n.get("address")
+                if n.get("id") is not None and addr:
+                    addrs[n.get("id")] = addr
+        except Exception as e:
+            logger.debug(f"Не удалось получить список нод (ноды не используются?): {e}")
+        self._node_addr_cache = addrs
+        return addrs
+
     async def _v3_configs_by_inbound(
         self, emails: set, multi: bool
     ) -> Dict[str, List[Dict[str, Any]]]:
@@ -568,10 +592,13 @@ class XUIClient(BaseVPNClient):
         multi=False → один конфig (VLESS-приоритет) на email.
         Возвращает {email: [config, ...]}.
         """
+        # Подписка должна повторять порядок панели. VLESS-приоритет нужен лишь
+        # для одиночного конфига (QR/отправка ключа), а не для списка подписки.
         inbounds = await self.get_inbounds()
         if not multi:
             inbounds = self._sort_inbounds_vless_first(inbounds)
         ib_by_id = {ib.get("id"): ib for ib in inbounds}
+        node_addrs = await self._fetch_node_addresses()
         out: Dict[str, List[Dict[str, Any]]] = {e: [] for e in emails}
 
         for c in await self._v3_list_clients():
@@ -579,14 +606,27 @@ class XUIClient(BaseVPNClient):
             if email not in emails:
                 continue
             entry = self._v3_client_as_settings_entry(c)
-            # inboundIds в порядке VLESS-first (как отсортированы inbounds)
+            # inboundIds идут в текущем порядке inbounds: для подписки это
+            # порядок, который возвращает (и отображает) панель 3x-ui.
             ordered_ids = [ib.get("id") for ib in inbounds if ib.get("id") in set(c.get("inboundIds") or [])]
             for ib_id in ordered_ids:
                 inbound = ib_by_id.get(ib_id)
                 if not inbound or inbound.get("protocol") not in self.SUPPORTED_PROTOCOLS:
                     continue
                 settings = _as_obj(inbound.get("settings", "{}"))
-                out[email].append(self._build_client_config(inbound, settings, entry))
+                # clients/list в 3x-ui v3 возвращает общий password клиента,
+                # но Hysteria2 хранит фактический auth в settings.clients
+                # конкретного inbound. Без этого подписка получает UUID/password
+                # вместо auth и QUIC-соединение отклоняется после handshake.
+                inbound_entry = dict(entry)
+                for inbound_client in (settings.get("clients") or []):
+                    if inbound_client.get("email") == email:
+                        if inbound_client.get("auth"):
+                            inbound_entry["auth"] = inbound_client["auth"]
+                        break
+                out[email].append(
+                    self._build_client_config(inbound, settings, inbound_entry, node_addrs)
+                )
                 if not multi:
                     break
         return {e: cfgs for e, cfgs in out.items() if cfgs}
@@ -900,8 +940,9 @@ class XUIClient(BaseVPNClient):
             entry["password"] = secret
             entry["method"] = ""
         elif protocol in ("hysteria2", "hysteria"):
-            # Hysteria2 — аутентификация по password
-            entry["password"] = secret
+            # В 3x-ui Hysteria2 хранится как protocol=hysteria, version=2,
+            # а клиент аутентифицируется полем auth (не password).
+            entry["auth"] = secret
         else:
             # VLESS / VMess — используют id (UUID)
             entry["id"] = secret
@@ -1658,13 +1699,23 @@ class XUIClient(BaseVPNClient):
         self,
         inbound: Dict[str, Any],
         settings: Dict[str, Any],
-        target_client: Dict[str, Any]
+        target_client: Dict[str, Any],
+        node_addrs: Optional[Dict[Any, str]] = None,
     ) -> Dict[str, Any]:
         """Собирает клиентский конфиг из inbound и записи клиента."""
         stream_raw = inbound.get("streamSettings", "{}")
         stream_settings = json.loads(stream_raw) if isinstance(stream_raw, str) else stream_raw
         protocol = inbound.get("protocol", "vless")
         email = target_client.get("email", "")
+
+        # Мульти-серверная схема: инбаунд, привязанный к ноде (nodeId), физически
+        # живёт на ноде — host должен быть адресом ноды, а не мастера.
+        node_id = inbound.get("nodeId", inbound.get("node_id"))
+        host = self.server["host"]
+        if node_id is not None and node_addrs:
+            node_host = node_addrs.get(node_id)
+            if node_host:
+                host = node_host
 
         logger.debug(f"Stream settings for {email}: {json.dumps(stream_settings, ensure_ascii=False)}")
         if stream_settings.get("security") == "reality":
@@ -1683,7 +1734,7 @@ class XUIClient(BaseVPNClient):
             "email": email,
             "port": inbound["port"],
             "protocol": protocol,
-            "host": self.server["host"],
+            "host": host,
             "stream_settings": stream_settings,
             "inbound_name": inbound.get("remark", "VPN"),
             "server_name": self.server.get("name", "VPN Server"),
@@ -1700,16 +1751,49 @@ class XUIClient(BaseVPNClient):
         elif protocol == 'vmess':
             result["security_method"] = target_client.get("security", "auto")
         elif protocol in ('hysteria2', 'hysteria'):
-            # Hysteria2: аутентификация по password; TLS/obfs — параметры inbound
+            # Hysteria2: 3x-ui хранит пароль в auth; старые панели могли
+            # использовать password, поэтому оставляем совместимый fallback.
             result["protocol"] = "hysteria2"
-            result["password"] = target_client.get("password", target_client.get("id", ""))
+            # На проде трафик Hysteria обслуживает официальный сервер на UDP/443.
+            # Технический inbound 3x-ui оставлен на другом порту только для
+            # хранения клиентов и генерации подписки.
+            result["port"] = 443
+            result["password"] = (
+                target_client.get("auth")
+                or target_client.get("password")
+                or target_client.get("id", "")
+            )
             tls = stream_settings.get("tlsSettings", {}) or {}
             result["sni"] = tls.get("serverName", "") or self.server["host"]
+            # Для Hysteria2 выдаём TLS-домен и как адрес сервера. Некоторые
+            # мобильные клиенты не применяют query-параметр sni при валидации
+            # сертификата, если в authority URI указан голый IP.
+            if tls.get("serverName"):
+                result["host"] = tls["serverName"]
             result["insecure"] = 1 if tls.get("allowInsecure") else 0
+            # Некоторые мобильные клиенты не подставляют дефолтный ALPN Hysteria2.
+            # Передаём значение inbound явно, чтобы TLS/QUIC-проверка совпадала
+            # с серверной конфигурацией 3x-ui.
+            alpn = tls.get("alpn") or []
+            if isinstance(alpn, str):
+                alpn = [alpn]
+            result["alpn"] = ",".join(str(item) for item in alpn if item)
+            # Xray-клиенты (включая Happ) используют uTLS fingerprint при
+            # Hysteria2. Без него некоторые сети обрывают TLS/QUIC после hello.
+            result["fp"] = (tls.get("fingerprint") or "chrome")
             obfs = settings.get("obfs")
             if isinstance(obfs, dict) and obfs.get("type"):
                 result["obfs"] = obfs.get("type")
                 result["obfs_password"] = obfs.get("password", "")
+            else:
+                # В 3x-ui v3 UDP-маска Hysteria2 лежит в finalmask.udp.
+                for mask in (stream_settings.get("finalmask", {}) or {}).get("udp", []):
+                    if mask.get("type") == "salamander":
+                        result["obfs"] = "salamander"
+                        result["obfs_password"] = (
+                            (mask.get("settings") or {}).get("password", "")
+                        )
+                        break
 
         return result
 
@@ -1792,6 +1876,7 @@ class XUIClient(BaseVPNClient):
                 return {}
 
         try:
+            # Не сортируем: подписка должна повторять порядок панели 3x-ui.
             inbounds = await self.get_inbounds()
             for inbound in inbounds:
                 if inbound.get("protocol") not in self.SUPPORTED_PROTOCOLS:

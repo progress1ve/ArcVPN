@@ -28,10 +28,10 @@
     keys.find((k) => k.is_active && k.has_sub) || keys.find((k) => k.has_sub) || null
   $: subUrl = subKey?.sub_url || ''
   $: importUrl = subKey?.import_url || ''
-  // Прямой happ:// deeplink — openExternal открывает в системном браузере,
-  // где Happ перехватывает свой протокол. В TG WebView happ:// не работает,
-  // но openExternal выходит из WebView -> срабатывает.
-  $: happLink = (subUrl ? 'happ://add/' + subUrl : importUrl)
+  // Telegram WebView блокирует custom scheme happ:// с ERR_UNKNOWN_URLSCHEME.
+  // Открываем обычную HTTPS import-страницу внешне: уже там пользователь
+  // нажимает Happ, и iOS/Android корректно передают ссылку приложению.
+  $: externalImportUrl = importUrl
 
   function toGuide() {
     stage = 'guide'
@@ -108,7 +108,7 @@
           <span class="muted small">Кнопка откроет Happ и добавит профиль. Не сработало — скопируйте ссылку.</span>
         </div>
       </div>
-      <Button on:click={() => openExternal(happLink)}><Icon name="connect" size={18} /> Импортировать в Happ</Button>
+      <Button on:click={() => openExternal(externalImportUrl)}><Icon name="connect" size={18} /> Импортировать в Happ</Button>
       <Button variant="subtle" on:click={() => copyText(subUrl, 'Ссылка подписки скопирована')}>
         <Icon name="copy" size={17} /> Скопировать подписку
       </Button>

@@ -6,21 +6,17 @@
   import Icon from '../components/Icon.svelte'
   import Button from '../components/Button.svelte'
 
-  export let goHome = () => {}
-
   loadReferral()
 
   $: d = $referral.data ?? {}
   $: enabled = d.enabled
   $: friends = d.friends ?? []
   $: earnedDays = d.earned_days ?? 0
-  $: trialBonus = d.trial_bonus_days ?? 3
-  $: purchaseBonus = d.purchase_bonus_days ?? 5
+  $: purchaseBonus = d.purchase_bonus_days ?? 15
 
   $: STEPS = [
     { t: 'Поделитесь ссылкой', s: 'Отправьте другу свою реферальную ссылку' },
-    { t: `Друг запустил бота — +${trialBonus} ${daysWord(trialBonus)}`, s: 'Бонус вам, как только он активирует VPN по ссылке' },
-    { t: `Друг купил подписку — +${purchaseBonus} ${daysWord(purchaseBonus)}`, s: `И другу тоже +${purchaseBonus} ${daysWord(purchaseBonus)} за первую покупку` },
+    { t: `Друг купил подписку — +${purchaseBonus} ${daysWord(purchaseBonus)}`, s: `Вам и другу — по +${purchaseBonus} ${daysWord(purchaseBonus)} за его первую покупку` },
   ]
 
   function share() {
@@ -36,7 +32,7 @@
 <section class="view">
   <header class="head">
     <h1 class="display">Друзья</h1>
-    <p class="muted">Приглашайте друзей и получайте дни подписки — за запуск бота и за их покупки.</p>
+    <p class="muted">Приглашайте друзей: после первой покупки вы получите по 15 дней подписки.</p>
   </header>
 
   {#if $referral.loading && !$referral.data}

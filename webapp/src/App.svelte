@@ -12,6 +12,8 @@
   import Connect from './views/Connect.svelte'
   import Referral from './views/Referral.svelte'
   import Profile from './views/Profile.svelte'
+  import HomeV2Preview from './views/HomeV2Preview.svelte'
+  import HomeFlowPreview from './views/HomeFlowPreview.svelte'
 
   // тема применяется через подписку в theme.js; здесь просто держим store «живым»
   $: $theme
@@ -21,8 +23,14 @@
   const known = ['home', 'connect', 'referral', 'profile']
   const fromHash = typeof location !== 'undefined' ? location.hash.slice(1) : ''
   let tab = known.includes(fromHash) ? fromHash : 'home'
+  const previewVariant = typeof location !== 'undefined'
+    ? new URLSearchParams(location.search).get('design')
+    : null
 </script>
 
+{#if previewVariant === 'blue' || previewVariant === 'mono'}
+  <HomeV2Preview variant={previewVariant} />
+{:else if previewVariant === 'legacy'}
 <div class="shell">
   <!-- Фирменный «воздух»: один мягкий индиго-ореол сверху. Не иллюминация. -->
   <div class="ambient" aria-hidden="true"></div>
@@ -48,7 +56,7 @@
         {:else if tab === 'connect'}
           <Connect />
         {:else if tab === 'referral'}
-          <Referral goHome={() => (tab = 'home')} />
+          <Referral />
         {:else}
           <Profile />
         {/if}
@@ -59,6 +67,9 @@
   <TabBar bind:active={tab} />
   <Toast />
 </div>
+{:else}
+  <HomeFlowPreview />
+{/if}
 
 <style>
   .shell {
