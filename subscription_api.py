@@ -1538,6 +1538,27 @@ def _send_email_code(email: str, code: str, purpose: str) -> bool:
     if not SMTP_HOST or not SMTP_FROM:
         return False
 
+    subject = "Код входа в ArcVPN" if purpose == "login" else "Подтверждение email в ArcVPN"
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = SMTP_FROM
+    message["To"] = email
+    message.set_content(
+        f"Код подтверждения ArcVPN: {code}\n\n"
+        "Он действует 10 минут. Если вы не запрашивали код, ничего не делайте."
+    )
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as smtp:
+            if SMTP_USE_TLS:
+                smtp.starttls()
+            if SMTP_USERNAME:
+                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(message)
+        return True
+    except Exception:
+        logger.exception("Не удалось отправить email-код на %s", _mask_email(email))
+        return False
+
 
 def _notify_support_admins(thread_id: int, telegram_id: int, body: str) -> None:
     """Передаёт новое WebApp-сообщение админам с кнопкой быстрого ответа."""
@@ -1567,26 +1588,6 @@ def _notify_support_admins(thread_id: int, telegram_id: int, body: str) -> None:
             urllib.request.urlopen(req, timeout=5).read()
         except Exception:
             logger.exception("Не удалось передать support thread %s админу %s", thread_id, admin_id)
-    subject = "Код входа в ArcVPN" if purpose == "login" else "Подтверждение email в ArcVPN"
-    message = EmailMessage()
-    message["Subject"] = subject
-    message["From"] = SMTP_FROM
-    message["To"] = email
-    message.set_content(
-        f"Код подтверждения ArcVPN: {code}\n\n"
-        "Он действует 10 минут. Если вы не запрашивали код, ничего не делайте."
-    )
-    try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as smtp:
-            if SMTP_USE_TLS:
-                smtp.starttls()
-            if SMTP_USERNAME:
-                smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
-            smtp.send_message(message)
-        return True
-    except Exception:
-        logger.exception("Не удалось отправить email-код на %s", _mask_email(email))
-        return False
 
 
 def _device_identity(payload: Dict[str, Any], user_agent: str) -> tuple[str, str, str, str]:
