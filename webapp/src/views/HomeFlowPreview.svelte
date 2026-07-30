@@ -493,7 +493,7 @@
   </div>
   <div class="grain" aria-hidden="true"></div>
   {#if purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen}
-    <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
+    <button class="desktop-back" class:chat-back={supportChatOpen} aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
     </button>
   {/if}
@@ -650,7 +650,7 @@
         </section>
 
       {:else if active === 'support'}
-        <section class="screen inner-screen" aria-label="Поддержка">
+        <section class="screen inner-screen" class:chat-screen={supportChatOpen} aria-label="Поддержка">
           {#if supportChatOpen}
             <header class="section-head subpage-head chat-head native-back-head"><div><h1>Чат с менеджером</h1></div></header>
             <section class="support-chat" aria-live="polite">
@@ -1370,9 +1370,15 @@
   }
   .desktop-back { display: none; }
   .faq {
-    min-height: 76px;
-    border-radius: var(--radius-card);
+    min-height: 64px;
+    align-items: center;
+    padding: 14px 18px;
+    border-radius: 32px;
   }
+  .faq.open { align-items: flex-start; border-radius: 28px; }
+  .faq-number { width: 32px; height: 32px; border-radius: 50%; }
+  .faq-copy, .faq > i { padding-top: 0; }
+  .faq.open .faq-copy, .faq.open > i { padding-top: 4px; }
   .settings-group h2 {
     padding: 17px 18px 9px;
     color: rgba(255,255,255,.94);
@@ -1508,6 +1514,55 @@
       font-size: 12px;
       font-weight: 750;
     }
+    .chat-screen {
+      width: min(100%, 820px);
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: auto minmax(0,1fr) auto;
+      padding-top: 54px;
+      padding-bottom: 32px;
+    }
+    .chat-screen .chat-head {
+      width: 100%;
+      min-height: 48px;
+      display: grid;
+      align-items: center;
+    }
+    .chat-screen .chat-head h1 { font-size: 30px; }
+    .chat-screen .support-chat {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 24px 0 20px;
+      scrollbar-width: thin;
+    }
+    .chat-screen .chat-input-zone {
+      position: static;
+      width: 100%;
+      transform: none;
+    }
+    .chat-screen .chat-quick {
+      justify-content: flex-start;
+      padding-bottom: 12px;
+    }
+    .chat-screen .chat-quick button {
+      min-height: 40px;
+      padding-inline: 16px;
+      border-radius: var(--radius-pill);
+      font-size: 10px;
+    }
+    .chat-screen .chat-compose {
+      min-height: 62px;
+      border-radius: 26px;
+    }
+    .chat-screen .chat-compose > button {
+      width: 48px;
+      height: 48px;
+      border-radius: 18px;
+    }
+    .desktop-back.chat-back {
+      top: 54px;
+      left: max(142px,calc(50% - 328px));
+    }
     .purchase-screen { width: min(100%, 1040px); }
     .inner-screen { width: min(100%, 700px); }
     .connect-sheet { max-width: 680px; }
@@ -1534,6 +1589,8 @@
     border-radius: 0;
     pointer-events: none;
     background:
+      radial-gradient(ellipse 44% 34% at 5% -5%,rgba(78,168,230,.34),transparent 71%),
+      radial-gradient(ellipse 48% 37% at 96% 106%,rgba(86,182,239,.43),transparent 70%),
       radial-gradient(ellipse 58% 38% at 12% 104%,rgba(74,172,235,.52),transparent 70%),
       radial-gradient(ellipse 47% 57% at 104% 30%,rgba(108,199,244,.42),transparent 72%),
       radial-gradient(ellipse 48% 34% at 64% -8%,rgba(48,116,196,.32),transparent 71%),
