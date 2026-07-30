@@ -129,16 +129,30 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
         row = conn.execute(
             """SELECT COALESCE(device_limit, 2) device_limit,
                       COALESCE(lte_quota_gb, 20) lte_quota_gb,
-                      COALESCE(lte_used_bytes, 0) lte_used_bytes
+                      COALESCE(lte_used_bytes, 0) lte_used_bytes,
+                      COALESCE(traffic_monthly_limit_gb, 500) traffic_monthly_limit_gb,
+                      COALESCE(normal_used_bytes, 0) normal_used_bytes
                FROM users WHERE telegram_id = ?""",
             (telegram_id,),
         ).fetchone()
         if not row:
-            return {"device_limit": 2, "lte_quota_gb": 20, "lte_used_bytes": 0}
+            return {
+                "device_limit": 2,
+                "lte_quota_gb": 20,
+                "lte_used_bytes": 0,
+                "traffic_monthly_limit_gb": 500,
+                "normal_used_bytes": 0,
+                "weighted_used_bytes": 0,
+            }
+        normal_used = max(0, int(row["normal_used_bytes"] or 0))
+        lte_used = max(0, int(row["lte_used_bytes"] or 0))
         return {
             "device_limit": max(2, int(row["device_limit"] or 2)),
             "lte_quota_gb": max(20, int(row["lte_quota_gb"] or 20)),
-            "lte_used_bytes": max(0, int(row["lte_used_bytes"] or 0)),
+            "lte_used_bytes": lte_used,
+            "traffic_monthly_limit_gb": max(1, int(row["traffic_monthly_limit_gb"] or 500)),
+            "normal_used_bytes": normal_used,
+            "weighted_used_bytes": normal_used + lte_used * 10,
         }
 
 

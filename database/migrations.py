@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 30
+LATEST_VERSION = 31
 
 
 def get_current_version() -> int:
@@ -1676,6 +1676,25 @@ def migration_30(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v30 применена")
 
 
+def migration_31(conn: sqlite3.Connection) -> None:
+    """Raw counters for the approved 500 GB weighted traffic model."""
+    logger.info("Применение миграции v31 (weighted traffic 500 GB, LTE x10)...")
+    _add_column(conn, "users", "traffic_monthly_limit_gb INTEGER NOT NULL DEFAULT 500")
+    _add_column(conn, "users", "normal_used_bytes INTEGER NOT NULL DEFAULT 0")
+    _add_column(conn, "users", "traffic_cycle_started_at DATETIME")
+    _add_column(conn, "users", "traffic_cycle_reset_at DATETIME")
+
+    conn.execute(
+        "UPDATE users SET traffic_monthly_limit_gb = 500 "
+        "WHERE traffic_monthly_limit_gb IS NULL OR traffic_monthly_limit_gb <= 0"
+    )
+    conn.execute(
+        "UPDATE users SET normal_used_bytes = 0 "
+        "WHERE normal_used_bytes IS NULL OR normal_used_bytes < 0"
+    )
+    logger.info("Миграция v31 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1707,6 +1726,7 @@ MIGRATIONS = {
     28: migration_28,
     29: migration_29,
     30: migration_30,
+    31: migration_31,
 }
 
 
