@@ -70,6 +70,7 @@
   let supportError = ''
   let supportPoll = null
   let purchaseOpen = false
+  let planStrip
   let selectedPlanId = null
   let purchaseDevices = 2
   let purchaseLteGb = 20
@@ -377,6 +378,21 @@
     selectedPlanId = id
   }
 
+  function movePlan(direction) {
+    if (!plans.length) return
+    const currentIndex = Math.max(0, plans.findIndex((plan) => plan.id === selectedPlanId))
+    const nextIndex = Math.min(plans.length - 1, Math.max(0, currentIndex + direction))
+    if (nextIndex === currentIndex) return
+    choosePlan(plans[nextIndex].id)
+    requestAnimationFrame(() => {
+      planStrip?.querySelector(`[data-plan-index="${nextIndex}"]`)?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'nearest',
+        inline: 'center',
+      })
+    })
+  }
+
   function changePurchaseDevices(delta) {
     purchaseDevices = Math.min(10, Math.max(2, purchaseDevices + delta))
     selectionHaptic()
@@ -512,9 +528,10 @@
 
           {#if plans.length}
             <div class="plan-viewport">
-              <div class="plan-strip" aria-label="Выбор тарифа">
-                {#each plans as plan}
-                  <button class="plan-card" class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
+              <button class="plan-arrow previous" aria-label="Предыдущий тариф" disabled={plans.findIndex((plan) => plan.id === selectedPlanId) <= 0} on:click={() => movePlan(-1)}><ArcIcon name="back" size={22} weight="bold" /></button>
+              <div class="plan-strip" bind:this={planStrip} aria-label="Выбор тарифа">
+                {#each plans as plan, planIndex}
+                  <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
                     <span>{planPeriod(plan)}</span>
                     {#if planBadge(plan)}<em>{planBadge(plan)}</em>{/if}
                     <strong>{rub(plan.price_rub)}</strong>
@@ -523,6 +540,7 @@
                   </button>
                 {/each}
               </div>
+              <button class="plan-arrow next" aria-label="Следующий тариф" disabled={plans.findIndex((plan) => plan.id === selectedPlanId) >= plans.length - 1} on:click={() => movePlan(1)}><ArcIcon name="arrow" size={22} weight="bold" /></button>
             </div>
           {:else}
             <p class="purchase-empty">Тарифы загружаются…</p>
@@ -1173,9 +1191,10 @@
   .purchase-head > div { padding-inline: 0; }
   .purchase-head h1 { margin: 0; font-size: 29px; line-height: 1.06; letter-spacing: -.05em; text-align: center; }
   .purchase-head span { display: block; max-width: 310px; margin: 11px auto 0; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
-  .plan-viewport { width: auto; overflow: hidden; margin: 28px -20px 0; }
+  .plan-viewport { position: relative; width: auto; overflow: hidden; margin: 28px -20px 0; }
   .plan-strip { width: 100%; display: flex; gap: 10px; overflow-x: auto; padding: 0 20px 8px; scroll-padding-inline: 20px; scrollbar-width: none; scroll-snap-type: x mandatory; }
   .plan-strip::-webkit-scrollbar { display: none; }
+  .plan-arrow { display: none; }
   .plan-card { position: relative; min-width: 0; flex: 0 0 clamp(150px,42vw,188px); min-height: 154px; display: flex; align-items: flex-start; flex-direction: column; padding: 17px; border-radius: 23px; color: var(--text); background: var(--surface); scroll-snap-align: start; text-align: left; transition: background .2s ease, border-color .2s ease, transform .12s ease; }
   .plan-card.active { border-color: rgba(137,211,250,.34); background: linear-gradient(150deg,#152c42,#0b1623 68%); }
   .plan-card > span { font-size: 12px; font-weight: 800; }
@@ -1701,6 +1720,35 @@
     .desktop-back {
       top: 54px;
       left: max(142px,calc(50% - 328px));
+    }
+    .plan-strip {
+      padding-inline: 72px;
+      scroll-padding-inline: 72px;
+    }
+    .plan-arrow {
+      position: absolute;
+      z-index: 4;
+      top: 50%;
+      width: 48px;
+      height: 48px;
+      display: grid;
+      place-items: center;
+      border: 1px solid rgba(175,218,248,.12);
+      border-radius: 50%;
+      color: #dcebf6;
+      background: rgba(10,19,31,.9);
+      box-shadow: 0 16px 34px -22px rgba(0,0,0,.95);
+      transform: translateY(-55%);
+      backdrop-filter: blur(18px);
+      transition: color .2s ease, background .2s ease, transform .2s ease, opacity .2s ease;
+    }
+    .plan-arrow.previous { left: 12px; }
+    .plan-arrow.next { right: 12px; }
+    .plan-arrow:disabled { opacity: .28; }
+    .plan-arrow:not(:disabled):hover {
+      color: #07131f;
+      background: #92d6fa;
+      transform: translateY(-55%) scale(1.05);
     }
   }
   @media (min-width: 1400px) {
