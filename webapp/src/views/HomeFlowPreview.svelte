@@ -774,6 +774,9 @@
   {/if}
 
   {#if $status.error !== 'unauthorized' && !purchaseOpen}<div class="dock">
+    <div class="desktop-brand" aria-hidden="true">
+      <img src={`${asset}/arc-logo.svg`} alt="" />
+    </div>
     <nav aria-label="Навигация">
       {#each tabs as tab}
         <button class:active={active === tab.id} aria-label={tab.label} title={tab.label} on:click={() => selectTab(tab.id)}>
@@ -947,6 +950,7 @@
   .dock nav { display: flex; gap: 4px; padding: 7px; border: 1px solid rgba(163,207,248,.14); border-radius: 25px; background: rgba(5,11,20,.82); box-shadow: 0 24px 70px -28px rgba(0,0,0,.92),inset 0 1px 0 rgba(255,255,255,.045); backdrop-filter: blur(24px); }
   .dock button { min-width: 0; min-height: 52px; display: grid; flex: 1; place-items: center; border-radius: 18px; color: #8090a3; transition: flex .22s ease, color .22s ease, background .22s ease, transform .12s ease; }
   .dock button.active { flex: 1.18; color: #071321; background: linear-gradient(135deg,#b4e5ff,#64bdf0); box-shadow: inset 0 1px 0 rgba(255,255,255,.66),0 9px 26px -15px rgba(82,180,240,.9); }
+  .desktop-brand { display: none; }
   button:focus-visible { outline: 2px solid #9bd9ff; outline-offset: 3px; }
   button:active { transform: scale(.985); }
   /* Arc surfaces: depth comes from tone, never from permanent outlines. */
@@ -1154,6 +1158,95 @@
     .purchase-config { grid-template-columns: 1fr; }
     .stepper { justify-self: stretch; grid-template-columns: 44px 1fr 44px; }
     .stepper.wide { grid-template-columns: 44px 1fr 44px; }
+  }
+  @media (min-width: 900px) {
+    .flow-preview {
+      width: calc(100% - 116px);
+      min-height: calc(100dvh - 24px);
+      margin: 12px 12px 12px 104px;
+      overflow: hidden;
+      border: 1px solid rgba(186,220,249,.07);
+      border-radius: 38px;
+      box-shadow: 0 28px 90px -45px rgba(0,0,0,.95);
+    }
+    .flow-preview::before {
+      content: '';
+      position: fixed;
+      z-index: -3;
+      inset: 12px 12px 12px 104px;
+      border-radius: 38px;
+      background:
+        radial-gradient(45% 55% at 0% 78%,rgba(48,129,191,.14),transparent 72%),
+        radial-gradient(40% 52% at 100% 25%,rgba(78,166,220,.12),transparent 74%);
+      pointer-events: none;
+    }
+    main { min-height: calc(100dvh - 24px); }
+    .screen {
+      width: min(100%, 540px);
+      min-height: calc(100dvh - 24px);
+      margin-inline: auto;
+      padding-top: 54px;
+      padding-bottom: 52px;
+    }
+    .home-screen {
+      display: flex;
+      justify-content: center;
+      flex-direction: column;
+      padding-top: 48px;
+      padding-bottom: 48px;
+    }
+    .home-screen .brand { margin-bottom: 22px; }
+    .home-screen .stats { margin-top: 18px; }
+    .home-screen .actions { margin-top: 24px; }
+    .home-screen .shortcuts { margin-top: 28px; }
+    .shortcut { min-height: 112px; }
+    .dock {
+      position: fixed;
+      z-index: 40;
+      top: 0;
+      bottom: 0;
+      left: 0;
+      width: 92px;
+      padding: 24px 16px;
+      transform: none;
+    }
+    .desktop-brand {
+      width: 60px;
+      height: 60px;
+      display: grid;
+      place-items: center;
+    }
+    .desktop-brand img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+      filter: brightness(0) invert(1);
+    }
+    .dock nav {
+      position: absolute;
+      top: 50%;
+      left: 16px;
+      width: 60px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      transform: translateY(-50%);
+      backdrop-filter: none;
+    }
+    .dock button {
+      width: 60px;
+      min-height: 60px;
+      flex: none;
+      border-radius: 19px;
+    }
+    .dock button.active { flex: none; }
+    .purchase-screen { width: min(100%, 980px); }
+    .connect-sheet { max-width: 620px; }
+    .inner-screen { width: min(100%, 620px); }
   }
   @media (prefers-reduced-motion: reduce) {
     .aurora-blob { animation: none; }

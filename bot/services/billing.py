@@ -41,7 +41,10 @@ YOOKASSA_API_URL = "https://api.yookassa.ru/v3/payments"
 # Таймауты и ретраи для запросов к ЮКассе. DNS отдаёт несколько A-записей,
 # и один из адресов периодически не отвечает — короткий connect-таймаут
 # позволяет быстро повторить попытку через другой IP.
-_YK_TIMEOUT = aiohttp.ClientTimeout(total=25, connect=6, sock_connect=6, sock_read=20)
+# Рабочий адрес отвечает за доли секунды, а один из A-адресов YooKassa
+# периодически зависает на TLS. Не ждём его 6 секунд: быстро переходим к
+# следующей попытке, сохраняя тот же Idempotence-Key.
+_YK_TIMEOUT = aiohttp.ClientTimeout(total=18, connect=2.5, sock_connect=2.5, sock_read=15)
 _YK_MAX_ATTEMPTS = 4
 
 
