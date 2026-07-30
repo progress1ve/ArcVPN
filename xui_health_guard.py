@@ -106,6 +106,28 @@ def _run_systemctl(action: str) -> None:
     )
 
 
+def _service_active(name: str) -> bool:
+    result = subprocess.run(
+        ["systemctl", "is-active", "--quiet", name],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5,
+    )
+    return result.returncode == 0
+
+
+def _xray_running() -> bool:
+    result = subprocess.run(
+        ["pgrep", "-f", "xray-linux-amd64"],
+        check=False,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        timeout=5,
+    )
+    return result.returncode == 0
+
+
 def _wait_for_xui(timeout: int = 20) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -119,6 +141,36 @@ def _wait_for_xui(timeout: int = 20) -> None:
             return
         time.sleep(1)
     raise GuardError("x-ui.service did not become active")
+
+
+def _ensure_runtime() -> None:
+    if not _service_active("x-ui.service"):
+        _run_systemctl("restart")
+        _wait_for_xui()
+
+    if not _xray_running():
+        LOGGER.warning("Xray child is absent; restarting x-ui")
+        _run_systemctl("restart")
+        _wait_for_xui()
+        if not _xray_running():
+            integrity, inbound_ids = _database_state()
+            if integrity != "ok":
+                raise GuardError(f"Xray is down and DB quick_check failed: {integrity}")
+            _restore_topology_from_baseline(inbound_ids)
+            if not _xray_running():
+                raise GuardError("Xray is still down after restoring the known-good topology")
+
+    if not _service_active("arcvpn-hysteria.service"):
+        subprocess.run(
+            ["systemctl", "restart", "arcvpn-hysteria.service"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=30,
+        )
+        if not _service_active("arcvpn-hysteria.service"):
+            raise GuardError("arcvpn-hysteria.service did not recover")
 
 
 def _repair_sqlite_journal() -> None:
@@ -286,6 +338,7 @@ async def _reconcile_clients() -> list[str]:
 
 
 async def _guard_once() -> list[str]:
+    _ensure_runtime()
     integrity, actual_ids = _database_state()
     if integrity != "ok":
         raise GuardError(f"3x-ui quick_check failed: {integrity}")
