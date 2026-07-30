@@ -918,3 +918,8 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   персональный `device_limit` как `limitIp`; новый клиент создаётся с ним сразу.
   LTE entitlement продаётся и хранится, но физическое weighted-списание нельзя
   включать до готовности раздельного meter.
+- YooKassa webhook endpoint: `POST /api/payments/yookassa/webhook`. Нельзя
+  доверять входящему `object.status`: endpoint находит order по provider ID и
+  повторно вызывает YooKassa API, затем идемпотентно выполняет fulfillment.
+  После applied отправляет пользователю Telegram-уведомление. Позже напомнить
+  владельцу зарегистрировать этот URL в кабинете YooKassa.

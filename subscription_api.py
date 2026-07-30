@@ -72,6 +72,7 @@ from database.requests import (
     get_tariff_by_id,
     prepare_payment_order,
     find_order_by_order_id,
+    find_order_by_yookassa_id,
     save_yookassa_payment_id,
 )
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, process_payment_order
@@ -1656,6 +1657,36 @@ def _notify_support_admins(thread_id: int, telegram_id: int, body: str) -> None:
             logger.exception("Не удалось передать support thread %s админу %s", thread_id, admin_id)
 
 
+def _notify_payment_applied(user_id: int, message: str) -> None:
+    if not BOT_TOKEN:
+        return
+    user = get_user_by_id(user_id)
+    if not user or not user.get("telegram_id"):
+        return
+    payload = {
+        "chat_id": int(user["telegram_id"]),
+        "text": (
+            "✅ <b>Оплата получена</b>\n\n"
+            f"{html.escape(message or 'Подписка и выбранные лимиты обновлены.')}\n\n"
+            "Обновите подписку в VPN-приложении."
+        ),
+        "parse_mode": "HTML",
+        "reply_markup": {
+            "inline_keyboard": [[{
+                "text": "Открыть ArcVPN",
+                "web_app": {"url": f"{SUBSCRIPTION_URL.rstrip('/')}/app/"},
+            }]],
+        },
+    }
+    try:
+        endpoint = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
+        data = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(endpoint, data=data, headers={"Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=6).read()
+    except Exception:
+        logger.exception("Не удалось отправить уведомление об оплате user=%s", user_id)
+
+
 def _device_identity(payload: Dict[str, Any], user_agent: str) -> tuple[str, str, str, str]:
     ua = user_agent or ""
     platform_hint = _clean_text(payload.get("platform"), 40).lower()
@@ -1838,6 +1869,63 @@ def api_create_sbp_payment():
         "confirmation_url": payment["qr_url"], "status": payment["status"],
         "amount_rub": total_rub,
     }))
+
+
+@app.route('/api/payments/yookassa/webhook', methods=['POST'])
+def api_yookassa_webhook():
+    """Verify YooKassa events with the provider before applying an order."""
+    payload = request.get_json(silent=True) or {}
+    event = str(payload.get("event") or "")
+    payment = payload.get("object") if isinstance(payload.get("object"), dict) else {}
+    provider_id = str(payment.get("id") or "")
+    if event not in {"payment.succeeded", "payment.canceled", "payment.waiting_for_capture"}:
+        return jsonify({"ok": True, "ignored": True})
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,80}", provider_id):
+        return _api_error("invalid_webhook", 400)
+
+    order = find_order_by_yookassa_id(provider_id)
+    if not order:
+        logger.warning("YooKassa webhook для неизвестного payment %s", _mask_token(provider_id))
+        return _api_error("payment_not_found", 404)
+    if event != "payment.succeeded":
+        return jsonify({"ok": True, "status": event.removeprefix("payment.")})
+
+    was_applied = (
+        order.get("status") == "paid"
+        and order.get("fulfillment_status") == "applied"
+    )
+    try:
+        verified_status = ASYNC_EXECUTOR.run(
+            check_yookassa_payment_status(provider_id),
+            timeout=45,
+        )
+        if verified_status != "succeeded":
+            logger.warning(
+                "YooKassa webhook status mismatch: payment=%s api=%s",
+                _mask_token(provider_id),
+                verified_status,
+            )
+            return _api_error("payment_not_confirmed", 409)
+        success, message, updated = ASYNC_EXECUTOR.run(
+            process_payment_order(order["order_id"]),
+            timeout=60,
+        )
+        if not success:
+            return _api_error("payment_fulfillment_failed", 503)
+        if not was_applied and updated and updated.get("fulfillment_status") == "applied":
+            threading.Thread(
+                target=_notify_payment_applied,
+                args=(int(order["user_id"]), message),
+                daemon=True,
+            ).start()
+        return jsonify({
+            "ok": True,
+            "status": "succeeded",
+            "applied": bool(updated and updated.get("fulfillment_status") == "applied"),
+        })
+    except Exception:
+        logger.exception("Ошибка YooKassa webhook payment=%s", _mask_token(provider_id))
+        return _api_error("payment_webhook_retry", 503)
 
 
 @app.route('/api/payments/sbp/<order_id>')
