@@ -89,6 +89,8 @@
     if (deviceResult.status === 'fulfilled') {
       registeredDevices = deviceResult.value.devices || []
       deviceOnlineTotal = Number(deviceResult.value.online_total || 0)
+      purchaseDevices = Math.max(2, Number(deviceResult.value.device_limit || 2))
+      purchaseLteGb = Math.max(20, Number(deviceResult.value.lte_quota_gb || 20))
     }
     accountLoading = false
   })
@@ -104,7 +106,7 @@
   $: purchaseMonths = Math.max(1, Math.round(Number(selectedPlan?.duration_days || 30) / 30))
   $: purchaseBaseRub = Number(selectedPlan?.price_rub || 0)
   $: purchaseDeviceRub = Math.max(0, purchaseDevices - 2) * extraDeviceMonthlyRub * purchaseMonths
-  $: purchaseLteRub = Math.max(0, purchaseLteGb - includedLteGb) * extraLteGbMonthlyRub * purchaseMonths
+  $: purchaseLteRub = 0 // Enabled together with the verified weighted LTE meter.
   $: purchaseTotalRub = purchaseBaseRub + purchaseDeviceRub + purchaseLteRub
   $: purchaseMonthlyRub = Math.round(purchaseTotalRub / purchaseMonths)
   $: supportTimeline = supportMessages.map((message, index) => {
@@ -556,11 +558,11 @@
           </section>
 
           <section class="purchase-config traffic-config">
-            <div class="config-copy"><span>Обход глушения</span><h2>Дополнительный LTE-трафик</h2><p>20 ГБ включено бесплатно. Дальше — по 5 ГБ за 10 ₽ в месяц.</p></div>
+            <div class="config-copy"><span>Обход глушения</span><h2>Дополнительный LTE-трафик</h2><p>{purchaseLteGb} ГБ включено. Покупка пакетов откроется после запуска точного LTE-счётчика.</p></div>
             <div class="stepper wide" aria-label="Дополнительный LTE-трафик">
-              <button aria-label="Уменьшить LTE-трафик" disabled={purchaseLteGb <= includedLteGb} on:click={() => changeLteTraffic(-1)}>−</button>
+              <button aria-label="Уменьшить LTE-трафик" disabled on:click={() => changeLteTraffic(-1)}>−</button>
               <strong>{purchaseLteGb}<small>ГБ</small></strong>
-              <button aria-label="Увеличить LTE-трафик" disabled={purchaseLteGb >= 500} on:click={() => changeLteTraffic(1)}>+</button>
+              <button aria-label="Увеличить LTE-трафик" disabled on:click={() => changeLteTraffic(1)}>+</button>
             </div>
           </section>
 
@@ -568,7 +570,7 @@
             <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
             <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} устройства</span><small>{purchaseDeviceRub ? `+${rub(purchaseDeviceRub)}` : 'включено'}</small></div>
             <div class="total-row"><span><ArcIcon name="lte" size={19} />LTE {purchaseLteGb} ГБ</span><small>{purchaseLteRub ? `+${rub(purchaseLteRub)}` : '20 ГБ включено'}</small></div>
-            <button disabled={!selectedPlan || paymentBusy} on:click={() => buy(selectedPlan)}><span>{paymentBusy ? 'Подождите…' : 'Оплатить через СБП'}</span><strong>{rub(purchaseBaseRub)}</strong></button>
+            <button disabled={!selectedPlan || paymentBusy} on:click={() => buy(selectedPlan)}><span>{paymentBusy ? 'Подождите…' : 'Оплатить через СБП'}</span><strong>{rub(purchaseTotalRub)}</strong></button>
             {#if paymentOrderId}<button class="payment-check" disabled={paymentBusy} on:click={checkPayment}>Проверить оплату</button>{/if}
             {#if paymentMessage}<p class="payment-message">{paymentMessage}</p>{/if}
             <p>{rub(purchaseMonthlyRub)} в месяц · настройки сохранятся для выбранной подписки</p>

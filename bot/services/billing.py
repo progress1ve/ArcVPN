@@ -27,7 +27,8 @@ from database.requests import (
     get_user_referrer, get_user_referral_coefficient, get_user_balance,
     add_to_balance, deduct_from_balance, add_days_to_first_active_key,
     update_referral_stat, get_user_by_id, update_order_fulfillment,
-    infer_order_operation_type
+    infer_order_operation_type, apply_payment_entitlements,
+    get_user_entitlements_by_id,
 )
 from bot.services.exchange_rate import get_usd_rub_rate
 
@@ -310,6 +311,7 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
     days = order.get('period_days') or order.get('duration_days') or 30
     tariff = _get_tariff(order['tariff_id'])
     traffic_limit_bytes = (tariff.get('traffic_limit_gb', 0) or 0) * (1024**3) if tariff else 0
+    device_limit = get_user_entitlements_by_id(user_internal_id)['device_limit']
 
     try:
         key_id = create_initial_vpn_key(order['user_id'], order['tariff_id'], days, traffic_limit=traffic_limit_bytes)
@@ -346,7 +348,7 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
                             email=panel_email,
                             total_gb=limit_gb,
                             expire_days=days,
-                            limit_ip=getattr(config, "DEFAULT_LIMIT_IP", 2),
+                            limit_ip=device_limit,
                             enable=True,
                             tg_id=str(telegram_id),
                         )
@@ -428,6 +430,14 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
     order = _reload_order(order_id)
     if not order:
         return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
+
+    entitlements = apply_payment_entitlements(order_id)
+    if not entitlements:
+        update_order_fulfillment(order_id, 'manual_review', 'failed to apply entitlements')
+        return True, (
+            "✅ Оплата принята!\n\n"
+            "⚠️ Лимиты заказа требуют проверки поддержки."
+        ), _reload_order(order_id)
 
     update_order_fulfillment(order_id, 'pending', None, increment_attempt_count=True)
 

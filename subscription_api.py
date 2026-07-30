@@ -57,6 +57,7 @@ from database.requests import (
     import_device_is_allowed,
     get_user_entitlements,
     get_subscription_device_limit,
+    set_payment_requested_entitlements,
     save_email_code,
     get_email_code,
     increment_email_attempts,
@@ -1791,27 +1792,37 @@ def api_create_sbp_payment():
         lte_gb = int(payload.get("lte_gb") or 20)
     except (TypeError, ValueError):
         return _api_error("invalid_payment_request", 400)
-    if devices != 2 or lte_gb != 20:
-        return _api_error("addons_not_available", 409)
+    if not 2 <= devices <= 10 or not 20 <= lte_gb <= 500 or (lte_gb - 20) % 5:
+        return _api_error("invalid_addons", 400)
     tariff = get_tariff_by_id(tariff_id)
     user_id = get_user_internal_id(telegram_id)
     if not tariff or not user_id:
         return _api_error("tariff_or_user_not_found", 404)
+    current_entitlements = get_user_entitlements(telegram_id)
+    if lte_gb != int(current_entitlements.get("lte_quota_gb") or 20):
+        return _api_error("lte_addons_not_available", 409)
     price_rub = int(tariff.get("price_rub") or 0)
     if price_rub <= 0:
         price_rub = round(int(tariff.get("price_cents") or 0) / 100)
     if price_rub <= 0:
         return _api_error("invalid_amount", 400)
+    months = max(1, round(int(tariff.get("duration_days") or 30) / 30))
+    total_rub = price_rub
+    total_rub += max(0, devices - 2) * 25 * months
+    # LTE add-on charging is enabled only after the weighted meter is active.
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
     order = prepare_payment_order(
         user_id=user_id, tariff_id=tariff_id, payment_type="yookassa_qr",
-        vpn_key_id=key_id, amount_cents=price_rub * 100,
+        vpn_key_id=key_id, amount_cents=total_rub * 100,
         operation_type="renew" if key_id else "new",
     )
+    if not set_payment_requested_entitlements(order["order_id"], devices, lte_gb):
+        logger.error("Не удалось сохранить add-ons заказа %s", order["order_id"])
+        return _api_error("payment_initialization_failed", 500)
     try:
         payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
-            amount_rub=price_rub,
+            amount_rub=total_rub,
             order_id=order["order_id"],
             description=f"ArcVPN — {tariff.get('name') or 'подписка'}",
             bot_name=_get_bot_username(),
@@ -1825,6 +1836,7 @@ def api_create_sbp_payment():
     return _api_no_store(jsonify({
         "ok": True, "order_id": order["order_id"],
         "confirmation_url": payment["qr_url"], "status": payment["status"],
+        "amount_rub": total_rub,
     }))
 
 

@@ -156,6 +156,75 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
         }
 
 
+def get_user_entitlements_by_id(user_id: int) -> Dict[str, int]:
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(device_limit, 2) device_limit,
+                      COALESCE(lte_quota_gb, 20) lte_quota_gb
+               FROM users WHERE id = ?""",
+            (user_id,),
+        ).fetchone()
+        return {
+            "device_limit": max(2, int(row["device_limit"] or 2)) if row else 2,
+            "lte_quota_gb": max(20, int(row["lte_quota_gb"] or 20)) if row else 20,
+        }
+
+
+def set_payment_requested_entitlements(
+    order_id: str,
+    device_limit: int,
+    lte_quota_gb: int,
+) -> bool:
+    with get_db() as conn:
+        cur = conn.execute(
+            """UPDATE payments
+               SET requested_device_limit = ?, requested_lte_quota_gb = ?
+               WHERE order_id = ? AND status = 'pending'""",
+            (max(2, int(device_limit)), max(20, int(lte_quota_gb)), order_id),
+        )
+        return cur.rowcount > 0
+
+
+def apply_payment_entitlements(order_id: str) -> Optional[Dict[str, int]]:
+    """Idempotently apply requested limits from a paid order to its owner."""
+    with get_db() as conn:
+        order = conn.execute(
+            """SELECT user_id, status, requested_device_limit,
+                      requested_lte_quota_gb, addons_applied_at
+               FROM payments WHERE order_id = ?""",
+            (order_id,),
+        ).fetchone()
+        if not order or order["status"] != "paid":
+            return None
+        if order["requested_device_limit"] is None and order["requested_lte_quota_gb"] is None:
+            current = conn.execute(
+                """SELECT COALESCE(device_limit, 2) device_limit,
+                          COALESCE(lte_quota_gb, 20) lte_quota_gb
+                   FROM users WHERE id = ?""",
+                (order["user_id"],),
+            ).fetchone()
+            return {
+                "device_limit": max(2, int(current["device_limit"] or 2)),
+                "lte_quota_gb": max(20, int(current["lte_quota_gb"] or 20)),
+            } if current else None
+        device_limit = max(2, int(order["requested_device_limit"] or 2))
+        lte_quota_gb = max(20, int(order["requested_lte_quota_gb"] or 20))
+        if not order["addons_applied_at"]:
+            conn.execute(
+                """UPDATE users
+                   SET device_limit = ?, lte_quota_gb = ?,
+                       entitlements_updated_at = CURRENT_TIMESTAMP
+                   WHERE id = ?""",
+                (device_limit, lte_quota_gb, order["user_id"]),
+            )
+            conn.execute(
+                """UPDATE payments SET addons_applied_at = CURRENT_TIMESTAMP
+                   WHERE order_id = ? AND addons_applied_at IS NULL""",
+                (order_id,),
+            )
+        return {"device_limit": device_limit, "lte_quota_gb": lte_quota_gb}
+
+
 def get_subscription_device_limit(sub_id: str, default: int = 2) -> int:
     with get_db() as conn:
         row = conn.execute(

@@ -1510,7 +1510,8 @@ class XUIClient(BaseVPNClient):
         email: str,
         expiry_time_ms: int,
         total_gb_bytes: int,
-        enable: bool = True
+        enable: bool = True,
+        limit_ip: Optional[int] = None,
     ) -> bool:
         """
         Обновляет ВСЕ параметры клиента на панели данными из нашей БД.
@@ -1535,9 +1536,14 @@ class XUIClient(BaseVPNClient):
 
         # v3: один клиент с inboundIds — обновляем одним вызовом по email.
         if await self._ensure_api_version() == "v3":
-            await self._v3_update_fields(
-                email, expiryTime=expiry_time_ms, totalGB=total_gb_bytes, enable=enable
-            )
+            fields = {
+                "expiryTime": expiry_time_ms,
+                "totalGB": total_gb_bytes,
+                "enable": enable,
+            }
+            if limit_ip is not None:
+                fields["limitIp"] = max(1, int(limit_ip))
+            await self._v3_update_fields(email, **fields)
             from datetime import datetime
             expiry_str = datetime.fromtimestamp(expiry_time_ms / 1000).strftime('%Y-%m-%d %H:%M') if expiry_time_ms > 0 else '∞'
             logger.info(f"[v3] Обновлён клиент {email}: expiry={expiry_str}, enable={enable}")
@@ -1567,7 +1573,7 @@ class XUIClient(BaseVPNClient):
                 "password": target_client.get('password', ''),
                 "flow": target_client.get('flow', ''),
                 "email": target_client.get('email', email),
-                "limitIp": target_client.get('limitIp', 1),
+                "limitIp": max(1, int(limit_ip)) if limit_ip is not None else target_client.get('limitIp', 1),
                 "totalGB": total_gb_bytes,
                 "expiryTime": expiry_time_ms,
                 "enable": enable,

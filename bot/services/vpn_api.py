@@ -121,7 +121,7 @@ async def reset_key_traffic_if_active(key_id: int) -> bool:
     Returns:
         True при успешном сбросе, иначе False.
     """
-    from database.requests import get_vpn_key_by_id
+    from database.requests import get_vpn_key_by_id, get_user_entitlements_by_id
     key = get_vpn_key_by_id(key_id)
     if not key or not key.get('server_active'):
         return False
@@ -203,6 +203,7 @@ async def restore_key_traffic_limit(key_id: int) -> bool:
     # Получаем лимит из тарифа
     tariff_id = key.get('tariff_id')
     traffic_limit = key.get('traffic_limit', 0) or 0
+    device_limit = get_user_entitlements_by_id(key['user_id'])['device_limit']
     
     if tariff_id:
         tariff = get_tariff_by_id(tariff_id)
@@ -431,7 +432,8 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
             client_uuid=client_uuid,
             email=email,
             expiry_time_ms=expiry_time_ms,
-            total_gb_bytes=traffic_limit
+            total_gb_bytes=traffic_limit,
+            limit_ip=device_limit,
         )
         
         if success:
