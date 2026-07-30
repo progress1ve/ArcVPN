@@ -1,0 +1,12 @@
+[Unit]
+Description=Run ArcVPN 3x-ui health guard every two minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=10
+Persistent=true
+Unit=arcvpn-xui-guard.service
+
+[Install]
+WantedBy=timers.target

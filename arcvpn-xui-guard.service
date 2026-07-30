@@ -1,0 +1,13 @@
+[Unit]
+Description=ArcVPN 3x-ui integrity and client reconciliation guard
+After=network-online.target x-ui.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/ArcVPN
+ExecStart=/usr/bin/python3 /root/ArcVPN/xui_health_guard.py
+TimeoutStartSec=90
+Nice=10
+
