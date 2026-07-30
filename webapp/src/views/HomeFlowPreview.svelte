@@ -118,7 +118,6 @@
   $: ref = $referral.data ?? {}
   $: referralBonus = Number(ref.purchase_bonus_days || 15)
   $: referralSiteLink = ref.site_link || (ref.code ? `${location.origin}/invite/${encodeURIComponent(ref.code)}` : '')
-  $: referralStatsLink = ref.stats_link || import.meta.env.VITE_REFERRAL_STATS_URL || referralSiteLink
   $: referralTelegramLink = ref.link || ''
   $: currentReferralLink = referralLinkType === 'site' ? referralSiteLink : referralTelegramLink
   $: subKey = activeKeys.find((key) => key.has_sub) || keys.find((key) => key.has_sub) || null
@@ -648,10 +647,6 @@
             <div><i>2</i><span><b>Друг покупает тариф</b><small>На любой срок и любым способом</small></span></div>
             <div><i>3</i><span><b>Оба получаете +{referralBonus} дней</b><small>Начислим автоматически</small></span></div>
           </section>
-          <button class="referral-stats-link" disabled={!referralStatsLink} on:click={() => openExternal(referralStatsLink)}>
-            <span><b>Полная статистика</b><small>Открыть на сайте</small></span>
-            <ArcIcon name="external" size={19} weight="bold" />
-          </button>
         </section>
 
       {:else if active === 'support'}
@@ -710,7 +705,7 @@
           {#if settingsPage === 'main'}
             <article class="profile-card">
               {#if user?.photo_url}<img class="avatar avatar-photo" src={user.photo_url} alt="" />{:else}<div class="avatar">{displayName.charAt(0).toUpperCase()}</div>{/if}
-              <div><strong>{displayName}</strong><span>{telegramId ? `Telegram ID · ${telegramId}` : username}</span></div><i><ArcIcon name="shield" size={22} weight="duotone" /></i>
+              <div><strong>{displayName}</strong><span>{telegramId ? `Telegram ID · ${telegramId}` : username}</span></div>
             </article>
 
             <section class="settings-group">
@@ -920,10 +915,6 @@
   .referral-link span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .referral-link i { width: 40px; height: 40px; display: grid; flex: none; place-items: center; border-radius: 13px; color: #0a1a28; background: #75c6f3; }
   .share-referral { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 9px; border: 1px solid rgba(105,190,244,.44); border-radius: 16px; color: #83cff9; background: rgba(10,26,43,.38); font-size: 11.5px; font-weight: 800; }
-  .referral-stats-link { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: space-between; margin-top: 16px; padding: 0 17px; color: #dcebf6; background: var(--surface-raised); text-align: left; }
-  .referral-stats-link span { display: flex; flex-direction: column; }
-  .referral-stats-link b { font-size: 11.5px; }
-  .referral-stats-link small { margin-top: 3px; color: var(--muted); font-size: 9.5px; }
   .steps { margin-top: 20px; padding: 4px 16px; border: 1px solid var(--border); border-radius: 22px; background: rgba(7,13,23,.62); }
   .steps > div { display: flex; align-items: center; gap: 12px; padding: 13px 0; }
   .steps > div + div { border-top: 1px solid rgba(255,255,255,.06); }
@@ -954,7 +945,6 @@
   .profile-card > div:nth-child(2) { min-width: 0; display: flex; flex: 1; flex-direction: column; }
   .profile-card strong { font-size: 14px; }
   .profile-card span { margin-top: 3px; color: var(--muted); font-size: 10px; }
-  .profile-card > i { color: #7bc7f3; }
   .settings-group { margin-top: 22px; overflow: hidden; border: 1px solid var(--border); border-radius: 22px; background: rgba(7,13,23,.7); }
   .settings-group h2 { padding: 14px 16px 8px; color: #647287; font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
   .setting-row { width: 100%; min-height: 58px; display: flex; align-items: center; gap: 11px; padding: 9px 15px; color: #7e8da0; text-align: left; }
@@ -1070,7 +1060,6 @@
   .referral-link { border-radius: 20px; background: var(--surface); color: #c4ced9; }
   .referral-link i { border-radius: 10px; }
   .share-referral { border-radius: 17px; color: #acdafa; background: var(--surface-raised); }
-  .referral-stats-link { border: 1px solid var(--hairline); border-radius: 19px; }
   .steps { border-radius: 22px; background: var(--surface); }
   .steps > div + div, .setting-row + .setting-row { border-top: 0; }
   .steps > div + div { margin-top: 2px; }
@@ -1365,11 +1354,12 @@
   .guide-card { border-radius: var(--radius-inner); }
   .link-switch,
   .referral-link,
-  .chat-compose { border-radius: var(--radius-control); }
+  .chat-compose { border-radius: var(--radius-card); }
   .link-switch button,
   .setting-row em.connected,
-  .avatar { border-radius: 12px; }
-  .share-referral { border-radius: var(--radius-inner); }
+  .avatar { border-radius: 50%; }
+  .link-switch button { border-radius: var(--radius-inner); }
+  .share-referral { border-radius: var(--radius-pill); }
   .referral-link i { border-radius: 50%; }
   .setting-row > i,
   .registered-device > i,
@@ -1379,6 +1369,17 @@
     border-radius: 50%;
   }
   .desktop-back { display: none; }
+  .faq {
+    min-height: 76px;
+    border-radius: var(--radius-card);
+  }
+  .settings-group h2 {
+    padding: 17px 18px 9px;
+    color: rgba(255,255,255,.94);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .12em;
+  }
 
   @media (min-width: 900px) {
     .flow-preview {
@@ -1451,18 +1452,18 @@
       height: 148px;
     }
     .dock {
-      width: 110px;
+      width: 126px;
       padding: 28px 0;
     }
     .desktop-brand {
-      width: 74px;
-      height: 74px;
-      margin-left: 26px;
+      width: 86px;
+      height: 86px;
+      margin-left: 28px;
     }
-    .desktop-brand img { width: 34px; height: 34px; }
+    .desktop-brand img { width: 38px; height: 38px; }
     .flow-preview .dock nav {
-      left: 26px;
-      width: 74px;
+      left: 28px;
+      width: 86px;
       gap: 5px;
       padding: 7px;
       border: 1px solid rgba(163,207,248,.14);
@@ -1474,8 +1475,8 @@
       backdrop-filter: blur(24px);
     }
     .dock button {
-      width: 60px;
-      min-height: 60px;
+      width: 70px;
+      min-height: 70px;
       color: #8fa3b8;
       background: transparent;
       box-shadow: none;
@@ -1487,12 +1488,12 @@
         inset 0 1px 0 rgba(255,255,255,.7),
         0 18px 38px -20px rgba(79,177,237,.78);
     }
-    .dock button :global(.arc-icon) { width: 29px; height: 29px; }
+    .dock button :global(.arc-icon) { width: 32px; height: 32px; }
     .desktop-back {
       position: fixed;
       z-index: 45;
       top: 44px;
-      left: 126px;
+      left: 142px;
       min-height: 48px;
       display: flex;
       align-items: center;
@@ -1522,6 +1523,36 @@
     0% { background-position: 0% 0%,100% 0%,70% 100%; filter: saturate(.9); }
     50% { background-position: 7% 12%,93% 9%,54% 94%; filter: saturate(1.08); }
     100% { background-position: -5% 24%,105% 18%,84% 88%; filter: saturate(.96); }
+  }
+  /* Edge-only aurora: soft radial light without blurred DOM rectangles. */
+  .aurora { display: none; }
+  .flow-preview::before {
+    content: '';
+    position: fixed;
+    z-index: 0;
+    inset: -4%;
+    border-radius: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 58% 38% at 12% 104%,rgba(74,172,235,.52),transparent 70%),
+      radial-gradient(ellipse 47% 57% at 104% 30%,rgba(108,199,244,.42),transparent 72%),
+      radial-gradient(ellipse 48% 34% at 64% -8%,rgba(48,116,196,.32),transparent 71%),
+      radial-gradient(ellipse 39% 52% at -6% 36%,rgba(42,111,178,.3),transparent 72%);
+    animation: arc-edge-flow 17s ease-in-out infinite alternate;
+    will-change: transform, opacity;
+  }
+  .flow-preview::after {
+    content: '';
+    position: fixed;
+    z-index: 1;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(ellipse 61% 69% at 50% 47%,rgba(3,7,14,.995) 0 42%,rgba(3,7,14,.94) 57%,rgba(3,7,14,.28) 79%,transparent 100%);
+  }
+  @keyframes arc-edge-flow {
+    0% { opacity: .8; transform: translate3d(-2.5%,1%,0) scale(1.02) rotate(-.2deg); }
+    48% { opacity: 1; transform: translate3d(2%,-2.5%,0) scale(1.075) rotate(.35deg); }
+    100% { opacity: .86; transform: translate3d(-1%,2.5%,0) scale(1.035) rotate(-.3deg); }
   }
   @media (prefers-reduced-motion: reduce) {
     .aurora-blob, .flow-preview::before { animation: none; }
