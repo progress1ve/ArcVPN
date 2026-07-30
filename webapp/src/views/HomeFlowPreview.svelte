@@ -954,7 +954,19 @@
   button:focus-visible { outline: 2px solid #9bd9ff; outline-offset: 3px; }
   button:active { transform: scale(.985); }
   /* Arc surfaces: depth comes from tone, never from permanent outlines. */
-  .flow-preview { --muted: #adb8c7; --faint: #8290a3; --surface: #0a111b; --surface-raised: #101a27; --hairline: rgba(214,233,255,.07); background: #03070e; }
+  .flow-preview {
+    --muted: #adb8c7;
+    --faint: #8290a3;
+    --surface: #0a111b;
+    --surface-raised: #101a27;
+    --hairline: rgba(214,233,255,.07);
+    --radius-shell: 48px;
+    --radius-card: 28px;
+    --radius-inner: 20px;
+    --radius-control: 16px;
+    --radius-pill: 999px;
+    background: #03070e;
+  }
   .aurora { position: fixed; z-index: -4; inset: 0; overflow: hidden; pointer-events: none; }
   .aurora::after { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse 62% 72% at 50% 48%,#03070e 0 58%,rgba(3,7,14,.98) 69%,rgba(3,7,14,.62) 83%,transparent 100%); }
   .aurora-blob { position: absolute; display: block; opacity: .2; filter: blur(76px); will-change: border-radius, transform; }
@@ -1277,31 +1289,50 @@
   .dock button.active { border-radius: 999px; }
   .profile-card,
   .referral-hero,
-  .support-hero { border-radius: 32px; }
+  .support-hero { border-radius: var(--radius-card); }
   .settings-group,
   .purchase-config,
   .purchase-total,
-  .agreement { border-radius: 30px; }
+  .agreement { border-radius: var(--radius-card); }
   .metric-grid article,
   .steps,
   .faq,
   .device-summary,
-  .empty-connect { border-radius: 26px; }
+  .empty-connect { border-radius: var(--radius-inner); }
   .subpage-primary,
   .purchase-total > button,
   .share-referral,
-  .danger-action { border-radius: 999px; }
+  .danger-action { border-radius: var(--radius-pill); }
+  .content-block,
+  .email-form,
+  .email-connected,
+  .preference-list > button,
+  .registered-device,
+  .guide-card { border-radius: var(--radius-inner); }
+  .link-switch,
+  .referral-link,
+  .chat-compose { border-radius: var(--radius-control); }
+  .link-switch button,
+  .referral-link i,
+  .setting-row em.connected,
+  .avatar { border-radius: 12px; }
+  .setting-row > i,
+  .registered-device > i,
+  .email-connected > i,
+  .preference-list > button > i {
+    border-radius: 50%;
+  }
 
   @media (min-width: 900px) {
     .flow-preview {
-      width: calc(100% - 142px);
+      width: calc(100% - 32px);
       min-height: calc(100dvh - 32px);
-      margin: 16px 16px 16px 126px;
-      border-radius: 48px;
+      margin: 16px;
+      border-radius: var(--radius-shell);
     }
     .flow-preview::before {
-      inset: 16px 16px 16px 126px;
-      border-radius: 48px;
+      inset: 16px;
+      border-radius: var(--radius-shell);
       background:
         radial-gradient(52% 68% at -4% 82%,rgba(43,130,198,.25),transparent 68%),
         radial-gradient(44% 62% at 104% 18%,rgba(104,193,239,.2),transparent 70%),
@@ -1362,32 +1393,34 @@
     }
     .dock {
       width: 110px;
-      padding: 28px 18px;
+      padding: 28px 0;
     }
     .desktop-brand {
       width: 74px;
       height: 74px;
+      margin-left: 26px;
     }
     .desktop-brand img { width: 34px; height: 34px; }
     .flow-preview .dock nav {
-      left: 18px;
+      left: 26px;
       width: 74px;
-      gap: 14px;
-      padding: 0;
-      border: 0;
+      gap: 5px;
+      padding: 7px;
+      border: 1px solid rgba(163,207,248,.14);
+      border-radius: var(--radius-pill);
+      background: rgba(7,14,24,.78);
+      box-shadow:
+        0 24px 70px -28px rgba(0,0,0,.92),
+        inset 0 1px 0 rgba(255,255,255,.045);
+      backdrop-filter: blur(24px);
+    }
+    .dock button {
+      width: 60px;
+      min-height: 60px;
+      color: #8fa3b8;
       background: transparent;
       box-shadow: none;
       backdrop-filter: none;
-    }
-    .dock button {
-      width: 74px;
-      min-height: 74px;
-      color: #8fa3b8;
-      background: rgba(8,16,27,.52);
-      box-shadow:
-        inset 0 1px 0 rgba(255,255,255,.045),
-        0 18px 38px -24px rgba(0,0,0,.92);
-      backdrop-filter: blur(18px);
     }
     .dock button.active {
       background: linear-gradient(145deg,#bceaff,#65bff2);
