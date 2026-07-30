@@ -1640,7 +1640,8 @@ def _api_error(message: str, status: int) -> Response:
 def _import_url_for(sub_id: Optional[str]) -> Optional[str]:
     if not sub_id:
         return None
-    return f"{SUBSCRIPTION_URL}/import/{sub_id}"
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
+    return f"happ://add/{subscription_url}"
 
 
 def _public_links() -> Dict[str, str]:

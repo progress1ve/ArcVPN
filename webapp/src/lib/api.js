@@ -17,10 +17,11 @@ async function get(path) {
   return res.json()
 }
 
-async function post(path, payload = {}) {
+async function post(path, payload = {}, options = {}) {
   const res = await fetch(path, {
     method: 'POST',
     credentials: 'same-origin',
+    keepalive: Boolean(options.keepalive),
     headers: {
       'Content-Type': 'application/json',
       'X-Telegram-Init-Data': getInitData(),
@@ -58,8 +59,8 @@ const MOCK = {
         traffic_limit: 0,
         online_devices: 2,
         has_sub: true,
-        import_url: 'https://arcc.mooo.com:2053/import/demo',
-        sub_url: 'https://arcc.mooo.com:2053/sub/demo?format=plain',
+        import_url: 'happ://add/https://sub.arccnet.space/sub/demo?format=plain',
+        sub_url: 'https://sub.arccnet.space/sub/demo?format=plain',
       },
     ],
     links: {
@@ -135,6 +136,10 @@ export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))
 export const fetchPreferences = () => (import.meta.env.DEV ? mock('preferences') : get('/api/preferences'))
 export const fetchDevices = () => (import.meta.env.DEV ? mock('devices') : get('/api/devices'))
+export const registerImportDevice = (subId, device) =>
+  (import.meta.env.DEV
+    ? Promise.resolve({ ok: true, device_name: device?.model || device?.platform || 'Устройство' })
+    : post(`/api/device/import/${encodeURIComponent(subId)}`, device, { keepalive: true }))
 export const createSbpPayment = (tariffId, devices = 2, lteGb = 20) =>
   post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb })
 export const fetchSbpPayment = (orderId) =>

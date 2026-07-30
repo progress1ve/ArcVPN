@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -79,6 +79,7 @@
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
+  const deviceMetadataPromise = collectDeviceMetadata()
 
   Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices()]).then(([accountResult, preferenceResult, deviceResult]) => {
     if (accountResult.status === 'fulfilled') account = accountResult.value
@@ -291,6 +292,55 @@
     } finally { paymentBusy = false }
   }
 
+  function deviceToken() {
+    const key = 'arcvpn-device-token'
+    let token = localStorage.getItem(key)
+    if (!token) {
+      token = (crypto.randomUUID?.() || `${Date.now()}-${Math.random()}`).replace(/[^A-Za-z0-9_-]/g, '')
+      localStorage.setItem(key, token)
+    }
+    return token
+  }
+
+  async function collectDeviceMetadata() {
+    const ua = navigator.userAgent || ''
+    const uaData = navigator.userAgentData
+    let model = ''
+    let platform = uaData?.platform || navigator.platform || ''
+    if (uaData?.getHighEntropyValues) {
+      try {
+        const details = await uaData.getHighEntropyValues(['model', 'platform', 'platformVersion'])
+        model = details.model || ''
+        platform = details.platform || platform
+      } catch (_) { /* Client Hints can be intentionally unavailable. */ }
+    }
+    const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : ''
+    return {
+      device_token: deviceToken(),
+      platform: selectedDevice || platform,
+      model,
+      browser,
+      screen_size: `${screen.width}×${screen.height} · ${window.devicePixelRatio || 1}x`,
+    }
+  }
+
+  function subscriptionId(url) {
+    return String(url || '').match(/\/sub\/([^/?#]+)/)?.[1] || ''
+  }
+
+  function importToHapp() {
+    if (!subKey?.import_url) return
+    const subId = subscriptionId(subKey.sub_url || subKey.import_url)
+    if (subId) {
+      deviceMetadataPromise
+        .then((metadata) => registerImportDevice(subId, { ...metadata, platform: selectedDevice }))
+        .then(() => setTimeout(refreshDevices, 500))
+        .catch(() => {})
+    }
+    haptic('medium')
+    openExternal(subKey.import_url)
+  }
+
   async function checkPayment() {
     if (!paymentOrderId || paymentBusy) return
     paymentBusy = true
@@ -443,6 +493,11 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
+  {#if purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen}
+    <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
+      <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
+    </button>
+  {/if}
 
   {#key active}
     <main in:fly={{ y: 14, duration: 260, easing: cubicOut }} out:fade={{ duration: 90 }}>
@@ -675,14 +730,14 @@
               <button class="setting-row" on:click={() => openSettingsPage('agreement')}><i><ArcIcon name="file" size={21} weight="duotone" /></i><span><b>Пользовательское соглашение</b><small>Обновлено 29 июля 2026</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
             </section>
           {:else if settingsPage === 'devices'}
-            <p class="subpage-intro">Устройство появляется здесь сразу после открытия страницы импорта в Happ. Точную модель показываем только когда её передаёт система.</p>
+            <p class="subpage-intro">Устройство появляется сразу после импорта в Happ. Модель определяем автоматически, когда браузер разрешает передать её; иначе показываем платформу и размер экрана.</p>
             <div class="device-summary"><strong>{deviceOnlineTotal || onlineDevices}</strong><span>активно сейчас</span><small>{registeredDevices.length} импортировано</small></div>
             <section class="device-list">
               {#if registeredDevices.length}
                 {#each registeredDevices as device}
                   <article class="registered-device">
                     <i><DeviceIcon name={deviceIcon(device.platform)} size={25} /></i>
-                    <span><b>{device.display_name || device.model || 'Устройство'}</b><small>{[device.model, device.browser].filter(Boolean).join(' · ') || 'Данные платформы скрыты системой'}</small></span>
+                    <span><b>{device.display_name || device.model || 'Устройство'}</b><small>{[device.model && device.model !== device.display_name ? device.model : '', device.screen_size, device.browser].filter(Boolean).join(' · ') || 'Данные платформы скрыты системой'}</small></span>
                     <em>{device.last_seen_at ? 'видели недавно' : 'импортировано'}</em>
                   </article>
                 {/each}
@@ -764,7 +819,7 @@
           </div>
           <div class="guide-card">
             <i>2</i><div><b>Добавьте ArcVPN</b><small>HTTPS-страница безопасно передаст подписку в Happ</small></div>
-            <button on:click={() => openExternal(subKey.import_url)}>Импорт<ArcIcon name="arrow" size={16} /></button>
+            <button on:click={importToHapp}>Импорт в Happ<ArcIcon name="arrow" size={16} /></button>
           </div>
           <button class="sheet-secondary" on:click={() => copyText(subKey.sub_url, 'Ссылка подписки скопирована')}><ArcIcon name="copy" size={18} />Скопировать ссылку</button>
           <p class="connect-success"><ArcIcon name="check" size={18} />После импорта разрешите Happ добавить VPN-конфигурацию.</p>
@@ -960,10 +1015,10 @@
     --surface: #0a111b;
     --surface-raised: #101a27;
     --hairline: rgba(214,233,255,.07);
-    --radius-shell: 48px;
-    --radius-card: 28px;
-    --radius-inner: 20px;
-    --radius-control: 16px;
+    --radius-shell: 40px;
+    --radius-card: 24px;
+    --radius-inner: 16px;
+    --radius-control: 12px;
     --radius-pill: 999px;
     background: #03070e;
   }
@@ -1301,7 +1356,6 @@
   .empty-connect { border-radius: var(--radius-inner); }
   .subpage-primary,
   .purchase-total > button,
-  .share-referral,
   .danger-action { border-radius: var(--radius-pill); }
   .content-block,
   .email-form,
@@ -1313,26 +1367,31 @@
   .referral-link,
   .chat-compose { border-radius: var(--radius-control); }
   .link-switch button,
-  .referral-link i,
   .setting-row em.connected,
   .avatar { border-radius: 12px; }
+  .share-referral { border-radius: var(--radius-inner); }
+  .referral-link i { border-radius: 50%; }
   .setting-row > i,
   .registered-device > i,
   .email-connected > i,
-  .preference-list > button > i {
+  .preference-list > button > i,
+  .device-grid i {
     border-radius: 50%;
   }
+  .desktop-back { display: none; }
 
   @media (min-width: 900px) {
     .flow-preview {
-      width: calc(100% - 32px);
-      min-height: calc(100dvh - 32px);
-      margin: 16px;
-      border-radius: var(--radius-shell);
+      width: 100%;
+      min-height: 100dvh;
+      margin: 0;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
     }
     .flow-preview::before {
-      inset: 16px;
-      border-radius: var(--radius-shell);
+      inset: 0;
+      border-radius: 0;
       background:
         radial-gradient(52% 68% at -4% 82%,rgba(43,130,198,.25),transparent 68%),
         radial-gradient(44% 62% at 104% 18%,rgba(104,193,239,.2),transparent 70%),
@@ -1341,7 +1400,7 @@
       animation: edge-breathe 16s ease-in-out infinite alternate;
     }
     main,
-    .screen { min-height: calc(100dvh - 32px); }
+    .screen { min-height: 100dvh; }
     .screen {
       width: min(100%, 680px);
       padding-inline: 22px;
@@ -1376,7 +1435,7 @@
     .shortcut {
       min-height: 140px;
       padding: 18px 20px;
-      border-radius: 36px;
+      border-radius: var(--radius-card);
     }
     .shortcut-copy b { font-size: 16px; }
     .shortcut-copy small { font-size: 10px; }
@@ -1429,6 +1488,25 @@
         0 18px 38px -20px rgba(79,177,237,.78);
     }
     .dock button :global(.arc-icon) { width: 29px; height: 29px; }
+    .desktop-back {
+      position: fixed;
+      z-index: 45;
+      top: 44px;
+      left: 126px;
+      min-height: 48px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 18px;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-pill);
+      color: #dceaf5;
+      background: rgba(9,17,28,.76);
+      box-shadow: 0 18px 42px -28px rgba(0,0,0,.92);
+      backdrop-filter: blur(20px);
+      font-size: 12px;
+      font-weight: 750;
+    }
     .purchase-screen { width: min(100%, 1040px); }
     .inner-screen { width: min(100%, 700px); }
     .connect-sheet { max-width: 680px; }
