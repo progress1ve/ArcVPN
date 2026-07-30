@@ -1248,8 +1248,172 @@
     .connect-sheet { max-width: 620px; }
     .inner-screen { width: min(100%, 620px); }
   }
+  /* Soft-capsule scale pass: larger touch geometry and a distinct ArcVPN silhouette. */
+  .home-screen { padding-inline: 16px; }
+  .days strong { font-size: 66px; }
+  .stats { gap: 8px; }
+  .stat {
+    min-height: 52px;
+    border-radius: 999px;
+  }
+  .actions { gap: 11px; }
+  .actions button {
+    min-height: 61px;
+    border-radius: 999px;
+    font-size: 13px;
+  }
+  .shortcuts { gap: 10px; }
+  .shortcut {
+    min-height: 112px;
+    border-radius: 30px;
+  }
+  .shortcut-copy i {
+    width: 52px;
+    height: 32px;
+    border-radius: 999px;
+  }
+  .flow-preview .dock nav { border-radius: 999px; }
+  .dock button,
+  .dock button.active { border-radius: 999px; }
+  .profile-card,
+  .referral-hero,
+  .support-hero { border-radius: 32px; }
+  .settings-group,
+  .purchase-config,
+  .purchase-total,
+  .agreement { border-radius: 30px; }
+  .metric-grid article,
+  .steps,
+  .faq,
+  .device-summary,
+  .empty-connect { border-radius: 26px; }
+  .subpage-primary,
+  .purchase-total > button,
+  .share-referral,
+  .danger-action { border-radius: 999px; }
+
+  @media (min-width: 900px) {
+    .flow-preview {
+      width: calc(100% - 142px);
+      min-height: calc(100dvh - 32px);
+      margin: 16px 16px 16px 126px;
+      border-radius: 48px;
+    }
+    .flow-preview::before {
+      inset: 16px 16px 16px 126px;
+      border-radius: 48px;
+      background:
+        radial-gradient(52% 68% at -4% 82%,rgba(43,130,198,.25),transparent 68%),
+        radial-gradient(44% 62% at 104% 18%,rgba(104,193,239,.2),transparent 70%),
+        radial-gradient(34% 32% at 78% 105%,rgba(37,93,163,.15),transparent 72%);
+      background-size: 118% 118%;
+      animation: edge-breathe 16s ease-in-out infinite alternate;
+    }
+    main,
+    .screen { min-height: calc(100dvh - 32px); }
+    .screen {
+      width: min(100%, 680px);
+      padding-inline: 22px;
+      padding-top: 64px;
+      padding-bottom: 58px;
+    }
+    .home-screen {
+      width: min(100%, 650px);
+      padding-top: 52px;
+      padding-bottom: 52px;
+    }
+    .home-screen .brand { margin-bottom: 26px; }
+    .brand img { width: 25px; height: 24px; }
+    .brand span { font-size: 20px; }
+    .eyebrow { font-size: 10px; }
+    .days strong { font-size: 82px; }
+    .days span { font-size: 16px; }
+    .expires { font-size: 12px; }
+    .home-screen .stats { margin-top: 22px; }
+    .stat {
+      min-height: 58px;
+      padding-inline: 13px;
+    }
+    .stat b { font-size: 14px; }
+    .stat small { font-size: 9px; }
+    .home-screen .actions { margin-top: 28px; }
+    .actions button {
+      min-height: 68px;
+      font-size: 16px;
+    }
+    .home-screen .shortcuts { margin-top: 32px; }
+    .shortcut {
+      min-height: 140px;
+      padding: 18px 20px;
+      border-radius: 36px;
+    }
+    .shortcut-copy b { font-size: 16px; }
+    .shortcut-copy small { font-size: 10px; }
+    .shortcut-copy i {
+      width: 58px;
+      height: 36px;
+      margin-top: 12px;
+    }
+    .shortcut img {
+      right: -8px;
+      bottom: -20px;
+      width: 148px;
+      height: 148px;
+    }
+    .dock {
+      width: 110px;
+      padding: 28px 18px;
+    }
+    .desktop-brand {
+      width: 74px;
+      height: 74px;
+    }
+    .desktop-brand img { width: 34px; height: 34px; }
+    .flow-preview .dock nav {
+      left: 18px;
+      width: 74px;
+      gap: 14px;
+      padding: 0;
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+    }
+    .dock button {
+      width: 74px;
+      min-height: 74px;
+      color: #8fa3b8;
+      background: rgba(8,16,27,.52);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.045),
+        0 18px 38px -24px rgba(0,0,0,.92);
+      backdrop-filter: blur(18px);
+    }
+    .dock button.active {
+      background: linear-gradient(145deg,#bceaff,#65bff2);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.7),
+        0 18px 38px -20px rgba(79,177,237,.78);
+    }
+    .dock button :global(.arc-icon) { width: 29px; height: 29px; }
+    .purchase-screen { width: min(100%, 1040px); }
+    .inner-screen { width: min(100%, 700px); }
+    .connect-sheet { max-width: 680px; }
+    .aurora-blob {
+      opacity: .27;
+      filter: blur(108px);
+    }
+    .blob-one { left: -28%; max-width: 560px; }
+    .blob-two { right: -30%; max-width: 620px; opacity: .22; }
+    .blob-three { max-width: 680px; opacity: .18; }
+  }
+  @keyframes edge-breathe {
+    0% { background-position: 0% 0%,100% 0%,70% 100%; filter: saturate(.9); }
+    50% { background-position: 7% 12%,93% 9%,54% 94%; filter: saturate(1.08); }
+    100% { background-position: -5% 24%,105% 18%,84% 88%; filter: saturate(.96); }
+  }
   @media (prefers-reduced-motion: reduce) {
-    .aurora-blob { animation: none; }
+    .aurora-blob, .flow-preview::before { animation: none; }
     button:active { transform: none; }
   }
 </style>

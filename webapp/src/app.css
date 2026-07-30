@@ -136,6 +136,14 @@ body {
   overflow-x: hidden;
 }
 
+/* The flow WebApp owns its desktop canvas; the mobile shell cap made it
+   render at phone width in the middle of large screens. */
+@media (min-width: 900px) {
+  #app {
+    max-width: none;
+  }
+}
+
 button {
   font: inherit;
   color: inherit;
