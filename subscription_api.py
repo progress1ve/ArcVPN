@@ -55,6 +55,8 @@ from database.requests import (
     get_user_devices,
     register_import_device,
     import_device_is_allowed,
+    get_user_entitlements,
+    get_subscription_device_limit,
     save_email_code,
     get_email_code,
     increment_email_attempts,
@@ -1391,7 +1393,10 @@ def subscription(sub_id: str):
             allowed = import_device_is_allowed(
                 sub_id,
                 device_token,
-                int(getattr(config, "DEFAULT_LIMIT_IP", 2) or 2),
+                get_subscription_device_limit(
+                    sub_id,
+                    int(getattr(config, "DEFAULT_LIMIT_IP", 2) or 2),
+                ),
             )
             if allowed is False:
                 logger.info("Лимит устройств превышен для %s", masked_sub_id)
@@ -1941,7 +1946,13 @@ def api_devices():
         return _api_error("unauthorized", 401)
     devices = get_user_devices(telegram_id)
     online_total = sum(int(key.get("online_devices") or 0) for key in get_user_keys_for_display(telegram_id))
-    response = jsonify({"ok": True, "online_total": online_total, "devices": devices})
+    entitlements = get_user_entitlements(telegram_id)
+    response = jsonify({
+        "ok": True,
+        "online_total": online_total,
+        "devices": devices,
+        **entitlements,
+    })
     return _api_no_store(response)
 
 

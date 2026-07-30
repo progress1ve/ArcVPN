@@ -123,6 +123,36 @@ def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Opti
         return hashes.index(token_hash) < max(1, int(limit))
 
 
+def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
+    """Return persisted commercial limits with backwards-compatible defaults."""
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(device_limit, 2) device_limit,
+                      COALESCE(lte_quota_gb, 20) lte_quota_gb,
+                      COALESCE(lte_used_bytes, 0) lte_used_bytes
+               FROM users WHERE telegram_id = ?""",
+            (telegram_id,),
+        ).fetchone()
+        if not row:
+            return {"device_limit": 2, "lte_quota_gb": 20, "lte_used_bytes": 0}
+        return {
+            "device_limit": max(2, int(row["device_limit"] or 2)),
+            "lte_quota_gb": max(20, int(row["lte_quota_gb"] or 20)),
+            "lte_used_bytes": max(0, int(row["lte_used_bytes"] or 0)),
+        }
+
+
+def get_subscription_device_limit(sub_id: str, default: int = 2) -> int:
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(u.device_limit, ?) device_limit
+               FROM vpn_keys k JOIN users u ON u.id = k.user_id
+               WHERE k.sub_id = ?""",
+            (default, sub_id),
+        ).fetchone()
+        return max(2, int(row["device_limit"])) if row else max(2, int(default))
+
+
 def get_user_devices(telegram_id: int) -> List[Dict[str, Any]]:
     with get_db() as conn:
         rows = conn.execute(

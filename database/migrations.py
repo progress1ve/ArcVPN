@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 29
+LATEST_VERSION = 30
 
 
 def get_current_version() -> int:
@@ -1647,6 +1647,35 @@ def migration_29(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v29 применена")
 
 
+def migration_30(conn: sqlite3.Connection) -> None:
+    """Persistent WebApp entitlements and requested payment add-ons."""
+    logger.info("Применение миграции v30 (лимиты WebApp и add-ons платежа)...")
+
+    _add_column(conn, "users", "device_limit INTEGER NOT NULL DEFAULT 2")
+    _add_column(conn, "users", "lte_quota_gb INTEGER NOT NULL DEFAULT 20")
+    _add_column(conn, "users", "lte_used_bytes INTEGER NOT NULL DEFAULT 0")
+    _add_column(conn, "users", "entitlements_updated_at DATETIME")
+
+    _add_column(conn, "payments", "requested_device_limit INTEGER")
+    _add_column(conn, "payments", "requested_lte_quota_gb INTEGER")
+    _add_column(conn, "payments", "addons_applied_at DATETIME")
+
+    conn.execute(
+        "UPDATE users SET device_limit = 2 "
+        "WHERE device_limit IS NULL OR device_limit < 2"
+    )
+    conn.execute(
+        "UPDATE users SET lte_quota_gb = 20 "
+        "WHERE lte_quota_gb IS NULL OR lte_quota_gb < 20"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_payments_addons_pending "
+        "ON payments(status, addons_applied_at) "
+        "WHERE requested_device_limit IS NOT NULL OR requested_lte_quota_gb IS NOT NULL"
+    )
+    logger.info("Миграция v30 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1677,6 +1706,7 @@ MIGRATIONS = {
     27: migration_27,
     28: migration_28,
     29: migration_29,
+    30: migration_30,
 }
 
 
