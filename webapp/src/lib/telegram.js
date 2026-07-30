@@ -75,6 +75,20 @@ export function openPayment(url) {
   else window.open(url, '_blank', 'noopener,noreferrer')
 }
 
+let activeBackHandler = null
+
+export function setNativeBackHandler(handler = null) {
+  if (!tg?.BackButton) return
+  if (activeBackHandler) tg.BackButton.offClick(activeBackHandler)
+  activeBackHandler = typeof handler === 'function' ? handler : null
+  if (activeBackHandler) {
+    tg.BackButton.onClick(activeBackHandler)
+    tg.BackButton.show()
+  } else {
+    tg.BackButton.hide()
+  }
+}
+
 // Ссылка внутрь Telegram (t.me/...) — открывает бот/канал и закрывает Mini App
 export function openTelegram(url) {
   if (!url) return

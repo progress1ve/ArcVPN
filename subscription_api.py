@@ -442,11 +442,11 @@ class AsyncExecutor:
             raise RuntimeError("Async loop was not initialized")
         return self._loop
 
-    def run(self, coro: Coroutine[Any, Any, Any]) -> Any:
+    def run(self, coro: Coroutine[Any, Any, Any], timeout: Optional[float] = None) -> Any:
         loop = self._ensure_started()
         future = asyncio.run_coroutine_threadsafe(coro, loop)
         try:
-            return future.result(timeout=ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS)
+            return future.result(timeout=timeout or ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS)
         except concurrent.futures.TimeoutError:
             future.cancel()
             raise TimeoutError("Subscription generation timed out")
@@ -1753,7 +1753,7 @@ def api_create_sbp_payment():
             bot_name=_get_bot_username(),
             metadata={"telegram_id": str(telegram_id), "source": "webapp"},
             return_url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/?payment={order['order_id']}",
-        ))
+        ), timeout=45)
         save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
     except Exception:
         logger.exception("Не удалось создать СБП-платёж для user=%s", telegram_id)
@@ -1779,10 +1779,10 @@ def api_sbp_payment_status(order_id: str):
     if not provider_id:
         return _api_error("payment_not_initialized", 409)
     try:
-        status = ASYNC_EXECUTOR.run(check_yookassa_payment_status(provider_id))
+        status = ASYNC_EXECUTOR.run(check_yookassa_payment_status(provider_id), timeout=45)
         applied = False
         if status == "succeeded":
-            success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id))
+            success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id), timeout=45)
             applied = bool(success and updated and updated.get("fulfillment_status") == "applied")
         return _api_no_store(jsonify({"ok": True, "status": status, "applied": applied}))
     except Exception:

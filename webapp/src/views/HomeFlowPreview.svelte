@@ -3,7 +3,7 @@
   import { fade, fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
-  import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment } from '../lib/telegram.js'
+  import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
   import { fetchAccount, fetchPreferences, fetchDevices, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
@@ -125,6 +125,25 @@
   $: displayName = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Пользователь' : 'Пользователь ArcVPN'
   $: username = user?.username ? `@${user.username}` : 'Telegram подключён'
   $: telegramId = $status.data?.telegram_id || user?.id || null
+  $: {
+    purchaseOpen
+    supportChatOpen
+    settingsPage
+    connectOpen
+    setNativeBackHandler(
+      purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen
+        ? handleNativeBack
+        : null,
+    )
+  }
+
+  function handleNativeBack() {
+    haptic('light')
+    if (connectOpen) return closeConnect()
+    if (purchaseOpen) return closePurchase()
+    if (supportChatOpen) return closeSupportChat()
+    if (settingsPage !== 'main') settingsPage = 'main'
+  }
 
   function selectTab(id) {
     if (id === active) return
@@ -411,7 +430,10 @@
     submitSupportMessage(text)
   }
 
-  onDestroy(() => clearInterval(supportPoll))
+  onDestroy(() => {
+    clearInterval(supportPoll)
+    setNativeBackHandler(null)
+  })
 </script>
 
 <div class="flow-preview">
@@ -583,12 +605,12 @@
           {#if supportChatOpen}
             <header class="section-head subpage-head chat-head"><button aria-label="Назад" on:click={closeSupportChat}><ArcIcon name="back" size={20} /></button><div><h1>Чат с менеджером</h1></div></header>
             <section class="support-chat" aria-live="polite">
-              {#if !supportMessages.length}<div class="chat-row incoming"><span class="care-avatar"><img src={`${asset}/arc-logo.svg`} alt="" /></span><div class="chat-welcome"><b>Здравствуйте 👋</b><span>Опишите вопрос. Менеджер ответит здесь, а бот пришлёт уведомление.</span></div></div>{/if}
+              {#if !supportMessages.length}<div class="chat-row incoming"><span class="care-avatar"><img src={`${asset}/arc-logo.svg`} alt="" /></span><div class="chat-welcome"><b>Поддержка ArcVPN</b><span>Здравствуйте 👋 Опишите вопрос. Менеджер ответит здесь, а бот пришлёт уведомление.</span></div></div>{/if}
               {#each supportTimeline as message}
                 {#if message.showDay}<div class="chat-day"><span>{message.dayLabel}</span></div>{/if}
                 <div class:mine={message.sender === 'user'} class:incoming={message.sender !== 'user'} class="chat-row">
                   {#if message.sender !== 'user'}<span class="care-avatar"><img src={`${asset}/arc-logo.svg`} alt="Arc Care" /></span>{/if}
-                  <article class:mine={message.sender === 'user'} class="chat-message"><p>{message.body}</p><small>{chatTime(message.created_at)}</small></article>
+                  <article class:mine={message.sender === 'user'} class="chat-message">{#if message.sender !== 'user'}<b>Поддержка ArcVPN</b>{/if}<p>{message.body}</p><small>{chatTime(message.created_at)}</small></article>
                 </div>
               {/each}
               {#if supportError}<p class="chat-error">{supportError}</p>{/if}
@@ -1071,6 +1093,7 @@
   .chat-message { max-width: 82%; padding: 12px 13px 9px; border-radius: 18px 18px 18px 7px; background: #101a27; }
   .chat-message.mine { border-radius: 18px 18px 7px 18px; background: #173c59; }
   .chat-message p { margin: 0; color: #fff; font-size: 11px; font-weight: 500; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .chat-message > b { display: block; margin-bottom: 4px; color: #9bd8fa; font-size: 9.5px; font-weight: 700; }
   .chat-message small { display: block; margin-top: 6px; color: rgba(224,238,249,.7); font-size: 8px; text-align: right; }
   .chat-error { margin: 4px 0; padding: 10px 12px; border-radius: 11px; color: #f0b5b5; background: #211217; font-size: 9.5px; }
   .chat-input-zone { position: fixed; z-index: 19; left: 50%; bottom: calc(var(--safe-bottom-flow) + 87px); width: min(calc(100% - 40px),420px); transform: translateX(-50%); }
