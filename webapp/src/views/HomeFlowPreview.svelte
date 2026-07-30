@@ -1358,7 +1358,7 @@
   .link-switch button,
   .setting-row em.connected,
   .avatar { border-radius: 50%; }
-  .link-switch button { border-radius: var(--radius-inner); }
+  .link-switch button { border-radius: var(--radius-pill); }
   .share-referral { border-radius: var(--radius-pill); }
   .referral-link i { border-radius: 50%; }
   .setting-row > i,
@@ -1585,18 +1585,18 @@
     content: '';
     position: fixed;
     z-index: 0;
-    inset: -4%;
+    inset: -5%;
     border-radius: 0;
     pointer-events: none;
-    background:
-      radial-gradient(ellipse 44% 34% at 5% -5%,rgba(78,168,230,.34),transparent 71%),
-      radial-gradient(ellipse 48% 37% at 96% 106%,rgba(86,182,239,.43),transparent 70%),
-      radial-gradient(ellipse 58% 38% at 12% 104%,rgba(74,172,235,.52),transparent 70%),
-      radial-gradient(ellipse 47% 57% at 104% 30%,rgba(108,199,244,.42),transparent 72%),
-      radial-gradient(ellipse 48% 34% at 64% -8%,rgba(48,116,196,.32),transparent 71%),
-      radial-gradient(ellipse 39% 52% at -6% 36%,rgba(42,111,178,.3),transparent 72%);
-    animation: arc-edge-flow 17s ease-in-out infinite alternate;
-    will-change: transform, opacity;
+    background-image:
+      radial-gradient(ellipse at center,rgba(119,207,250,.48) 0%,rgba(57,139,205,.24) 38%,transparent 72%),
+      radial-gradient(ellipse at center,rgba(75,174,235,.5) 0%,rgba(43,111,185,.23) 40%,transparent 72%),
+      radial-gradient(ellipse at center,rgba(104,197,243,.46) 0%,rgba(49,130,201,.22) 39%,transparent 72%),
+      radial-gradient(ellipse at center,rgba(64,151,220,.47) 0%,rgba(38,98,172,.22) 40%,transparent 72%);
+    background-repeat: no-repeat;
+    background-size: 52% 56%,52% 56%,52% 56%,52% 56%;
+    animation: arc-edge-flow 24s linear infinite;
+    will-change: background-position;
   }
   .flow-preview::after {
     content: '';
@@ -1607,9 +1607,21 @@
     background: radial-gradient(ellipse 61% 69% at 50% 47%,rgba(3,7,14,.995) 0 42%,rgba(3,7,14,.94) 57%,rgba(3,7,14,.28) 79%,transparent 100%);
   }
   @keyframes arc-edge-flow {
-    0% { opacity: .8; transform: translate3d(-2.5%,1%,0) scale(1.02) rotate(-.2deg); }
-    48% { opacity: 1; transform: translate3d(2%,-2.5%,0) scale(1.075) rotate(.35deg); }
-    100% { opacity: .86; transform: translate3d(-1%,2.5%,0) scale(1.035) rotate(-.3deg); }
+    0% {
+      background-position: -24% -22%,90% -18%,112% 96%,4% 112%;
+    }
+    25% {
+      background-position: 22% -24%,112% 20%,78% 112%,-22% 76%;
+    }
+    50% {
+      background-position: 82% -20%,110% 76%,22% 112%,-24% 22%;
+    }
+    75% {
+      background-position: 108% 20%,76% 112%,-20% 82%,18% -24%;
+    }
+    100% {
+      background-position: -24% -22%,90% -18%,112% 96%,4% 112%;
+    }
   }
   @media (prefers-reduced-motion: reduce) {
     .aurora-blob, .flow-preview::before { animation: none; }
