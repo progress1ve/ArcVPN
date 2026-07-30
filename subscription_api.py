@@ -1736,18 +1736,21 @@ def api_create_sbp_payment():
     user_id = get_user_internal_id(telegram_id)
     if not tariff or not user_id:
         return _api_error("tariff_or_user_not_found", 404)
+    price_rub = int(tariff.get("price_rub") or 0)
+    if price_rub <= 0:
+        price_rub = round(int(tariff.get("price_cents") or 0) / 100)
+    if price_rub <= 0:
+        return _api_error("invalid_amount", 400)
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
     order = prepare_payment_order(
         user_id=user_id, tariff_id=tariff_id, payment_type="yookassa_qr",
-        vpn_key_id=key_id, operation_type="renew" if key_id else "new",
+        vpn_key_id=key_id, amount_cents=price_rub * 100,
+        operation_type="renew" if key_id else "new",
     )
-    amount_rub = int(tariff.get("price_cents") or 0) / 100
-    if amount_rub <= 0:
-        return _api_error("invalid_amount", 400)
     try:
         payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
-            amount_rub=amount_rub,
+            amount_rub=price_rub,
             order_id=order["order_id"],
             description=f"ArcVPN — {tariff.get('name') or 'подписка'}",
             bot_name=_get_bot_username(),

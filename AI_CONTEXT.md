@@ -873,3 +873,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   нативная `Telegram.WebApp.BackButton` и событие `backButtonClicked`.
 - Доплаты за устройства и LTE пока запрещены сервером (`addons_not_available`):
   не брать деньги до появления постоянного учёта и применения этих лимитов.
+- Для YooKassa сумма тарифа берётся из `tariffs.price_rub`; в платёжный order
+  записывается `price_rub * 100`. Не использовать старое `price_cents` как
+  копейки рублей: в текущей базе это историческая расчётная валютная цена
+  (например, 3 месяца: `price_rub=300`, `price_cents=382`).

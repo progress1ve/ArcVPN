@@ -448,8 +448,7 @@
     <main in:fly={{ y: 14, duration: 260, easing: cubicOut }} out:fade={{ duration: 90 }}>
       {#if purchaseOpen}
         <section class="screen purchase-screen" aria-label="Покупка подписки">
-          <header class="purchase-head">
-            <button aria-label="Назад" on:click={closePurchase}><ArcIcon name="back" size={20} /></button>
+          <header class="purchase-head native-back-head">
             <div><h1>Выберите свой<br />ритм подключения</h1><span>Срок, устройства и запас трафика — в одной подписке.</span></div>
           </header>
 
@@ -603,7 +602,7 @@
       {:else if active === 'support'}
         <section class="screen inner-screen" aria-label="Поддержка">
           {#if supportChatOpen}
-            <header class="section-head subpage-head chat-head"><button aria-label="Назад" on:click={closeSupportChat}><ArcIcon name="back" size={20} /></button><div><h1>Чат с менеджером</h1></div></header>
+            <header class="section-head subpage-head chat-head native-back-head"><div><h1>Чат с менеджером</h1></div></header>
             <section class="support-chat" aria-live="polite">
               {#if !supportMessages.length}<div class="chat-row incoming"><span class="care-avatar"><img src={`${asset}/arc-logo.svg`} alt="" /></span><div class="chat-welcome"><b>Поддержка ArcVPN</b><span>Здравствуйте 👋 Опишите вопрос. Менеджер ответит здесь, а бот пришлёт уведомление.</span></div></div>{/if}
               {#each supportTimeline as message}
@@ -647,8 +646,7 @@
 
       {:else}
         <section class="screen inner-screen settings-screen" aria-label="Настройки">
-          <header class="section-head subpage-head">
-            {#if settingsPage !== 'main'}<button aria-label="Назад" on:click={() => (settingsPage = 'main')}><ArcIcon name="back" size={20} /></button>{/if}
+          <header class="section-head subpage-head" class:native-back-head={settingsPage !== 'main'}>
             <div><h1>{settingsPage === 'main' ? 'Настройки' : settingsPage === 'devices' ? 'Устройства' : settingsPage === 'notifications' ? 'Уведомления' : settingsPage === 'email' ? 'Email' : 'Соглашение'}</h1></div>
           </header>
 
@@ -1026,8 +1024,7 @@
   .dock button { border-radius: 20px; }
 
   .subpage-head { position: relative; display: flex; align-items: flex-start; justify-content: center; gap: 12px; }
-  .subpage-head > button { position: absolute; top: 0; left: 0; width: 42px; height: 42px; display: grid; flex: none; place-items: center; margin-top: 1px; border-radius: 12px; color: #b9c7d5; background: var(--surface-raised); }
-  .subpage-head > div { width: 100%; padding-inline: 50px; text-align: center; }
+  .subpage-head > div { width: 100%; text-align: center; }
   .settings-error, .form-message { margin: 14px 0 0; padding: 11px 13px; border-radius: 12px; color: #d8e3ed; background: #172131; font-size: 10.5px; line-height: 1.4; }
   .subpage-intro { margin: 24px 0 18px; color: var(--muted); font-size: 11px; line-height: 1.55; }
   .device-summary { display: grid; grid-template-columns: auto 1fr auto; align-items: baseline; gap: 8px; padding: 18px; border-radius: 23px; background: linear-gradient(135deg,#15273a,#0b141f); }
@@ -1106,14 +1103,12 @@
   .chat-compose textarea::placeholder { color: #738296; }
   .chat-compose > button { width: 42px; height: 42px; display: grid; flex: none; place-items: center; border-radius: 12px; color: #06131e; background: #8bd2f7; }
   .chat-head { position: relative; justify-content: center; text-align: center; }
-  .chat-head > button { position: absolute; top: 0; left: 0; }
-  .chat-head > div { width: 100%; padding: 0 48px; }
+  .chat-head > div { width: 100%; }
   .chat-head h1 { font-size: 25px; text-align: center; }
 
   .purchase-screen { max-width: 480px; margin: auto; padding-top: calc(var(--safe-top-flow) + 28px); padding-bottom: calc(var(--safe-bottom-flow) + 40px); }
   .purchase-head { position: relative; min-height: 76px; text-align: center; }
-  .purchase-head > button { position: absolute; top: 0; left: 0; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 13px; color: #c6d4e1; background: var(--surface-raised); }
-  .purchase-head > div { padding-inline: 52px; }
+  .purchase-head > div { padding-inline: 0; }
   .purchase-head h1 { margin: 0; font-size: 29px; line-height: 1.06; letter-spacing: -.05em; text-align: center; }
   .purchase-head span { display: block; max-width: 310px; margin: 11px auto 0; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
   .plan-viewport { width: auto; overflow: hidden; margin: 28px -20px 0; }

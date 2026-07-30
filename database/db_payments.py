@@ -310,8 +310,10 @@ def create_pending_order(
     """
     tariff = get_tariff_by_id(tariff_id) if tariff_id else None
     
-    # Если тариф указан, берем данные из него, иначе используем переданные параметры
-    final_amount_cents = tariff['price_cents'] if tariff else (amount_cents or 0)
+    # Явно рассчитанная платёжным каналом сумма имеет приоритет. Это важно для
+    # рублёвых каналов: историческое price_cents некоторых тарифов хранит
+    # расчётную валютную цену, тогда как YooKassa получает price_rub * 100.
+    final_amount_cents = amount_cents if amount_cents is not None else (tariff['price_cents'] if tariff else 0)
     final_amount_stars = tariff['price_stars'] if tariff else (amount_stars or 0)
     final_period_days = tariff['duration_days'] if tariff else None
     final_operation_type = infer_order_operation_type(
@@ -621,7 +623,7 @@ def prepare_payment_order(
     existing_order = find_order_by_order_id(order_id) if order_id else None
     if existing_order:
         tariff = get_tariff_by_id(tariff_id) if tariff_id else None
-        final_amount_cents = tariff['price_cents'] if tariff else amount_cents
+        final_amount_cents = amount_cents if amount_cents is not None else (tariff['price_cents'] if tariff else None)
         final_amount_stars = tariff['price_stars'] if tariff else amount_stars
         final_period_days = tariff['duration_days'] if tariff else None
         with get_db() as conn:
