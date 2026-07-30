@@ -851,3 +851,19 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - The guard never deletes clients and never resets traffic. It recreates only missing active clients across all supported inbound IDs, repairs missing attachments and synchronization drift, performs a controlled WAL recovery on write I/O failure, and sends admins a Telegram alert only on recovery or failure.
 - `/root/ArcVPN/backup/xui-guard/last-known-good.db` is atomically refreshed only after a successful full check. A daily consistent SQLite backup is stored alongside it. If inbound topology disappears, the guard restores the last known-good topology and then reconciles active clients from the ArcVPN DB.
 - Both Germany and Finland use a systemd override with `Restart=always` and `RestartSec=3s` for x-ui. Official Hysteria already uses the same restart policy. A transient Germany→Finland panel timeout was checked: Finland x-ui/Hysteria/Xray were active, required ports listened, and subsequent cross-node TCP/HTTP probes completed normally.
+# WebApp, онбординг и платежи (2026-07-30)
+
+- Telegram Mini App работает в Fullscreen. Верхние и нижние отступы нельзя
+  задавать константами: `webapp/src/lib/telegram.js` синхронизирует
+  `contentSafeAreaInset` в CSS-переменные `--tg-content-safe-top/bottom`.
+- После обязательной подписки на канал пробный доступ создаётся автоматически.
+  Новый пользователь видит фирменное приветствие и две кнопки:
+  `Подключиться` (WebApp) и `Продолжить в боте` (резервный интерфейс).
+- Покупка базового тарифа из WebApp идёт через
+  `POST /api/payments/sbp`, проверка — `GET /api/payments/sbp/<order_id>`.
+  YooKassa вызывается строго с `payment_method_data.type=sbp`; заказ и
+  fulfillment идемпотентны.
+- Выбор банковского приложения после перехода — штатная часть СБП/НСПК, а не
+  выбор способа оплаты ArcVPN.
+- Доплаты за устройства и LTE пока запрещены сервером (`addons_not_available`):
+  не брать деньги до появления постоянного учёта и применения этих лимитов.
