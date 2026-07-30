@@ -79,6 +79,7 @@
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
+  const stableDeviceToken = deviceToken()
   const deviceMetadataPromise = collectDeviceMetadata()
 
   Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices()]).then(([accountResult, preferenceResult, deviceResult]) => {
@@ -315,7 +316,7 @@
     }
     const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : ''
     return {
-      device_token: deviceToken(),
+      device_token: stableDeviceToken,
       platform: selectedDevice || platform,
       model,
       browser,
@@ -327,17 +328,20 @@
     return String(url || '').match(/\/sub\/([^/?#]+)/)?.[1] || ''
   }
 
-  function importToHapp() {
+  async function importToHapp() {
     if (!subKey?.import_url) return
     const subId = subscriptionId(subKey.sub_url || subKey.import_url)
+    const separator = subKey.import_url.includes('?') ? '&' : '?'
+    const deviceImportUrl = `${subKey.import_url}${separator}device=${encodeURIComponent(stableDeviceToken)}`
     if (subId) {
-      deviceMetadataPromise
-        .then((metadata) => registerImportDevice(subId, { ...metadata, platform: selectedDevice }))
-        .then(() => setTimeout(refreshDevices, 500))
-        .catch(() => {})
+      try {
+        const metadata = await deviceMetadataPromise
+        await registerImportDevice(subId, { ...metadata, platform: selectedDevice })
+        setTimeout(refreshDevices, 500)
+      } catch (_) { /* Import remains available if telemetry registration is unavailable. */ }
     }
     haptic('medium')
-    openExternal(subKey.import_url)
+    openExternal(deviceImportUrl)
   }
 
   async function checkPayment() {
@@ -493,7 +497,7 @@
   </div>
   <div class="grain" aria-hidden="true"></div>
   {#if purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen}
-    <button class="desktop-back" class:chat-back={supportChatOpen} aria-label="Назад" on:click={handleNativeBack}>
+    <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
     </button>
   {/if}
@@ -634,7 +638,7 @@
 
           <section class="content-block">
             <div class="block-title"><div><span>Ваша ссылка</span><small>Отправьте её другу</small></div><ArcIcon name="link" size={21} weight="duotone" /></div>
-            <div class="link-switch" aria-label="Вид реферальной ссылки">
+            <div class="link-switch" class:telegram={referralLinkType === 'telegram'} aria-label="Вид реферальной ссылки">
               <button class:active={referralLinkType === 'site'} on:click={() => (referralLinkType = 'site')}>Для сайта</button>
               <button class:active={referralLinkType === 'telegram'} on:click={() => (referralLinkType = 'telegram')}>Для Telegram</button>
             </div>
@@ -784,7 +788,6 @@
       <section class="connect-sheet" role="dialog" aria-modal="true" aria-label="Подключение VPN" in:fly={{ y: 60, duration: 260, easing: cubicOut }}>
         <header class="connect-head">
           <div>
-            <span>ARC CONNECT</span>
             <h2>{connectStage === 'device' ? 'Выберите устройство' : currentDevice.label}</h2>
           </div>
           <button aria-label="Закрыть" on:click={closeConnect}><ArcIcon name="close" size={26} /></button>
@@ -963,7 +966,6 @@
   .connect-sheet { position: relative; width: min(100%,480px); max-height: calc(100dvh - var(--safe-top-flow) - 12px); overflow-y: auto; padding: 10px 20px calc(24px + var(--safe-bottom-flow)); border: 1px solid rgba(164,210,249,.16); border-bottom: 0; border-radius: 30px 30px 0 0; background: linear-gradient(155deg,rgba(18,35,55,.98),rgba(4,9,17,.99) 42%); box-shadow: 0 -30px 90px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.06); }
   .connect-sheet::before { content: ''; display: block; width: 40px; height: 4px; margin: 0 auto 14px; border-radius: 99px; background: rgba(177,207,233,.24); }
   .connect-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-  .connect-head span { color: #72bee9; font-size: 9px; font-weight: 800; letter-spacing: .18em; }
   .connect-head h2 { margin: 5px 0 0; font-size: 24px; line-height: 1.1; letter-spacing: -.045em; }
   .connect-head > button { width: 44px; height: 44px; display: grid; flex: none; place-items: center; border: 1px solid var(--border); border-radius: 15px; color: #8f9caf; background: rgba(255,255,255,.035); }
   .connect-note { max-width: 300px; margin: 12px 0 20px; color: #8c9bad; font-size: 11px; line-height: 1.5; }
@@ -1559,10 +1561,6 @@
       height: 48px;
       border-radius: 18px;
     }
-    .desktop-back.chat-back {
-      top: 54px;
-      left: max(142px,calc(50% - 328px));
-    }
     .purchase-screen { width: min(100%, 1040px); }
     .inner-screen { width: min(100%, 700px); }
     .connect-sheet { max-width: 680px; }
@@ -1621,6 +1619,102 @@
     }
     100% {
       background-position: -24% -22%,90% -18%,112% 96%,4% 112%;
+    }
+  }
+  /* One moving selection capsule, instead of two unrelated active buttons. */
+  .link-switch {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: var(--radius-pill);
+  }
+  .link-switch::before {
+    content: '';
+    position: absolute;
+    z-index: 0;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 6px);
+    border-radius: var(--radius-pill);
+    background: linear-gradient(135deg,#b5e5ff,#70c2ef);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.62);
+    transition: transform .34s cubic-bezier(.22,1,.36,1);
+  }
+  .link-switch.telegram::before { transform: translateX(calc(100% + 4px)); }
+  .link-switch button {
+    position: relative;
+    z-index: 1;
+    background: transparent !important;
+    box-shadow: none !important;
+    transition: color .25s ease;
+  }
+  .link-switch button.active { color: #07131f; }
+  .steps i,
+  .faq-number {
+    border-radius: 50%;
+  }
+  .device-grid em,
+  .device-grid i,
+  .avatar,
+  .setting-row em.connected {
+    border-radius: 50%;
+  }
+  .device-grid em { width: 30px; height: 30px; }
+
+  @media (hover: hover) and (pointer: fine) {
+    .actions button,
+    .shortcut,
+    .faq,
+    .setting-row,
+    .metric-grid article,
+    .referral-link,
+    .share-referral,
+    .device-grid > button,
+    .desktop-back,
+    .dock button {
+      transition: transform .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
+    }
+    .actions button:hover,
+    .shortcut:hover,
+    .metric-grid article:hover,
+    .share-referral:hover,
+    .device-grid > button:hover {
+      transform: translateY(-2px);
+    }
+    .faq:hover,
+    .setting-row:hover,
+    .referral-link:hover {
+      background-color: rgba(17,31,48,.92);
+    }
+    .dock button:not(.active):hover {
+      color: #d8e8f5;
+      background: rgba(117,190,234,.09);
+    }
+    .desktop-back:hover {
+      transform: translateX(-2px);
+      background: rgba(18,32,49,.92);
+    }
+  }
+
+  @media (min-width: 900px) {
+    .desktop-back {
+      top: 54px;
+      left: max(142px,calc(50% - 328px));
+    }
+  }
+  @media (min-width: 1400px) {
+    main .screen {
+      zoom: 1.1;
+      min-height: calc(100dvh / 1.1);
+    }
+    .flow-preview .dock nav {
+      width: 92px;
+      padding: 8px;
+    }
+    .dock button {
+      width: 76px;
+      min-height: 76px;
     }
   }
   @media (prefers-reduced-motion: reduce) {

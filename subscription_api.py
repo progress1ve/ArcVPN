@@ -54,6 +54,7 @@ from database.requests import (
     update_notification_preferences,
     get_user_devices,
     register_import_device,
+    import_device_is_allowed,
     save_email_code,
     get_email_code,
     increment_email_attempts,
@@ -885,6 +886,47 @@ def _prepare_subscription(
     )
 
 
+def _prepare_device_limit_subscription(
+    key: ActiveKeyRecord,
+    output_format: str,
+) -> PreparedSubscription:
+    """A visible two-row profile for devices beyond the purchased limit."""
+    notices = (
+        "❗ Превышен лимит устройств",
+        "➕ Докупите устройство в ArcVPN",
+    )
+    links = [
+        (
+            "vless://00000000-0000-4000-8000-00000000000"
+            f"{index}@127.0.0.1:1?encryption=none&security=none&type=tcp"
+            f"#{urllib.parse.quote(text)}"
+        )
+        for index, text in enumerate(notices, start=1)
+    ]
+    userinfo_header = _build_subscription_userinfo(key)
+
+    if output_format == "json":
+        body = json.dumps(
+            {
+                "remarks": PROFILE_TITLE,
+                "message": "Превышен лимит устройств. Докупите устройство в ArcVPN.",
+                "outbounds": [],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        return PreparedSubscription(body, "application/json; charset=utf-8", userinfo_header)
+
+    plain = "\n".join(links)
+    if output_format == "base64":
+        return PreparedSubscription(
+            base64.b64encode(plain.encode("utf-8")).decode("ascii"),
+            "application/octet-stream",
+            userinfo_header,
+        )
+    return PreparedSubscription(plain, "text/plain; charset=utf-8", userinfo_header)
+
+
 def _subscription_not_available() -> Response:
     return Response("Subscription not available", status=404, mimetype="text/plain")
 
@@ -1343,6 +1385,19 @@ def subscription(sub_id: str):
                 return reserve_response
             logger.info("Подписка недоступна: %s", masked_sub_id)
             return _subscription_not_available()
+
+        device_token = (request.args.get("device") or "").strip()
+        if device_token and re.fullmatch(r"[A-Za-z0-9_-]{16,128}", device_token):
+            allowed = import_device_is_allowed(
+                sub_id,
+                device_token,
+                int(getattr(config, "DEFAULT_LIMIT_IP", 2) or 2),
+            )
+            if allowed is False:
+                logger.info("Лимит устройств превышен для %s", masked_sub_id)
+                return _response_from_prepared(
+                    _prepare_device_limit_subscription(key, output_format)
+                )
 
         if request.method == "HEAD":
             prepared = _prepare_headers_only_subscription(key, output_format)
@@ -2057,7 +2112,7 @@ def user_agreement():
 
 @app.route('/invite/<code>')
 def referral_invite(code: str):
-    """Публичная короткая реферальная ссылка на домене ArcVPN."""
+    """Fast, self-contained referral landing page on the ArcVPN domain."""
     if not re.fullmatch(r"[A-Za-z0-9_-]{4,64}", code or ""):
         return Response("Referral link not found", status=404, mimetype="text/plain")
 
@@ -2066,8 +2121,32 @@ def referral_invite(code: str):
         return Response("ArcVPN bot is temporarily unavailable", status=503, mimetype="text/plain")
 
     target = f"https://t.me/{username}?start=ref_{urllib.parse.quote(code, safe='')}"
-    response = redirect(target, code=302)
-    response.headers["Cache-Control"] = "public, max-age=300"
+    safe_target = html.escape(target, quote=True)
+    page = f"""<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#050a12"><title>Приглашение в ArcVPN</title>
+<style>
+*{{box-sizing:border-box}}html,body{{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,sans-serif}}
+body{{min-height:100dvh;display:grid;place-items:center;padding:24px;color:#f5f9ff;background:#050a12;
+background-image:radial-gradient(55% 65% at 0 100%,#174b7355,transparent 72%),radial-gradient(50% 60% at 100% 0,#58b9ed38,transparent 74%)}}
+main{{width:min(100%,520px);padding:36px 28px;border:1px solid #b9ddf31a;border-radius:36px;background:#0a1320e8;
+box-shadow:0 30px 90px #0008;text-align:center}}.logo{{width:64px;height:64px;display:grid;place-items:center;margin:auto;
+border-radius:22px;background:linear-gradient(145deg,#bceaff,#65bff2);color:#06121d;font-weight:900;font-size:25px}}
+h1{{margin:24px 0 12px;font-size:clamp(30px,7vw,46px);line-height:1.05;letter-spacing:-.045em}}
+p{{margin:0 auto;color:#aebdca;font-size:16px;line-height:1.55}}.bonus{{color:#8ed5fa}}
+a{{min-height:58px;display:flex;align-items:center;justify-content:center;margin-top:28px;border-radius:999px;
+color:#06121d;background:linear-gradient(135deg,#bceaff,#69c1f2);font-weight:800;text-decoration:none}}
+small{{display:block;margin-top:16px;color:#718296;line-height:1.45}}
+</style></head><body><main><div class="logo">A</div><h1>ArcVPN уже ждёт</h1>
+<p>Перейдите по приглашению и подключите VPN. После первой покупки вы и ваш друг получите <b class="bonus">по 15 дней</b>.</p>
+<a href="{safe_target}">Продолжить в Telegram</a><small>Ссылка откроет официального бота ArcVPN и сохранит приглашение.</small>
+</main></body></html>"""
+    response = Response(page, mimetype="text/html")
+    response.headers["Cache-Control"] = "public, max-age=300, stale-while-revalidate=86400"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'none'; style-src 'unsafe-inline'; img-src data:; "
+        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+    )
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
 

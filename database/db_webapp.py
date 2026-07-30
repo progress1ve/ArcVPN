@@ -95,6 +95,34 @@ def register_import_device(
         return True
 
 
+def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Optional[bool]:
+    """Return whether this stable WebApp device belongs to the allowed device slots.
+
+    Devices are ranked by their first import, so importing one extra phone never
+    revokes access from devices that were already using the subscription.
+    ``None`` means the subscription or device token is not registered yet.
+    """
+    token_hash = hashlib.sha256(device_token.encode("utf-8")).hexdigest()
+    with get_db() as conn:
+        owner = conn.execute(
+            "SELECT user_id FROM vpn_keys WHERE sub_id = ?",
+            (sub_id,),
+        ).fetchone()
+        if not owner:
+            return None
+        rows = conn.execute(
+            """SELECT device_token_hash
+               FROM user_devices
+               WHERE user_id = ?
+               ORDER BY COALESCE(first_seen_at, imported_at) ASC, id ASC""",
+            (owner["user_id"],),
+        ).fetchall()
+        hashes = [row["device_token_hash"] for row in rows]
+        if token_hash not in hashes:
+            return None
+        return hashes.index(token_hash) < max(1, int(limit))
+
+
 def get_user_devices(telegram_id: int) -> List[Dict[str, Any]]:
     with get_db() as conn:
         rows = conn.execute(
