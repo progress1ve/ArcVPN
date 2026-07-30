@@ -65,7 +65,12 @@ from database.requests import (
     revoke_web_session,
     get_support_messages,
     add_user_support_message,
+    get_tariff_by_id,
+    prepare_payment_order,
+    find_order_by_order_id,
+    save_yookassa_payment_id,
 )
+from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, process_payment_order
 from bot.services.reserve import get_reserve_client_info
 from subscription_pages import render_import_page, render_user_agreement
 
@@ -1711,6 +1716,78 @@ def api_tariffs():
 
     response = jsonify({"ok": True, "tariffs": tariffs})
     return _api_no_store(response)
+
+
+@app.route('/api/payments/sbp', methods=['POST'])
+def api_create_sbp_payment():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    payload = request.get_json(silent=True) or {}
+    try:
+        tariff_id = int(payload.get("tariff_id"))
+        devices = int(payload.get("devices") or 2)
+        lte_gb = int(payload.get("lte_gb") or 20)
+    except (TypeError, ValueError):
+        return _api_error("invalid_payment_request", 400)
+    if devices != 2 or lte_gb != 20:
+        return _api_error("addons_not_available", 409)
+    tariff = get_tariff_by_id(tariff_id)
+    user_id = get_user_internal_id(telegram_id)
+    if not tariff or not user_id:
+        return _api_error("tariff_or_user_not_found", 404)
+    keys = get_user_keys_for_display(telegram_id)
+    key_id = keys[0].get("id") if keys else None
+    order = prepare_payment_order(
+        user_id=user_id, tariff_id=tariff_id, payment_type="yookassa_qr",
+        vpn_key_id=key_id, operation_type="renew" if key_id else "new",
+    )
+    amount_rub = int(tariff.get("price_cents") or 0) / 100
+    if amount_rub <= 0:
+        return _api_error("invalid_amount", 400)
+    try:
+        payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
+            amount_rub=amount_rub,
+            order_id=order["order_id"],
+            description=f"ArcVPN — {tariff.get('name') or 'подписка'}",
+            bot_name=_get_bot_username(),
+            metadata={"telegram_id": str(telegram_id), "source": "webapp"},
+            return_url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/?payment={order['order_id']}",
+        ))
+        save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
+    except Exception:
+        logger.exception("Не удалось создать СБП-платёж для user=%s", telegram_id)
+        return _api_error("payment_provider_unavailable", 503)
+    return _api_no_store(jsonify({
+        "ok": True, "order_id": order["order_id"],
+        "confirmation_url": payment["qr_url"], "status": payment["status"],
+    }))
+
+
+@app.route('/api/payments/sbp/<order_id>')
+def api_sbp_payment_status(order_id: str):
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    order = find_order_by_order_id(order_id)
+    user_id = get_user_internal_id(telegram_id)
+    if not order or not user_id or int(order.get("user_id") or 0) != int(user_id):
+        return _api_error("payment_not_found", 404)
+    if order.get("status") == "paid" and order.get("fulfillment_status") == "applied":
+        return _api_no_store(jsonify({"ok": True, "status": "succeeded", "applied": True}))
+    provider_id = order.get("yookassa_payment_id")
+    if not provider_id:
+        return _api_error("payment_not_initialized", 409)
+    try:
+        status = ASYNC_EXECUTOR.run(check_yookassa_payment_status(provider_id))
+        applied = False
+        if status == "succeeded":
+            success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id))
+            applied = bool(success and updated and updated.get("fulfillment_status") == "applied")
+        return _api_no_store(jsonify({"ok": True, "status": status, "applied": applied}))
+    except Exception:
+        logger.exception("Не удалось проверить СБП-платёж %s", order_id)
+        return _api_error("payment_status_unavailable", 503)
 
 
 @app.route('/api/referral')

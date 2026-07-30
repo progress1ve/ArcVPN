@@ -59,8 +59,12 @@
   --maxw: 460px;
   --pad: 16px;
   --tabbar-h: 64px;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tg-safe-top: 0px;
+  --tg-safe-bottom: 0px;
+  --tg-content-safe-top: 0px;
+  --tg-content-safe-bottom: 0px;
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--tg-content-safe-top));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-bottom));
 }
 
 [data-theme='light'] {

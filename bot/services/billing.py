@@ -638,7 +638,8 @@ async def create_yookassa_qr_payment(
     order_id: str,
     description: str,
     bot_name: str,
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: Optional[Dict[str, Any]] = None,
+    return_url: str = "https://t.me",
 ) -> Dict[str, Any]:
     """
     Создаёт платёж в ЮКасса REST API с подтверждением через QR-код.
@@ -671,7 +672,9 @@ async def create_yookassa_qr_payment(
     credentials = base64.b64encode(f"{shop_id}:{secret_key}".encode()).decode()
 
     # Ключ идемпотентности — уникальный для этого ордера
-    idempotence_key = f"qr-{order_id}-{uuid.uuid4().hex[:8]}"
+    # Один order_id всегда соответствует одному платежу. Стабильный ключ не
+    # создаст дубль, если WebApp повторит запрос после сетевого таймаута.
+    idempotence_key = f"sbp-{order_id}"
 
     payload = {
         "amount": {
@@ -679,9 +682,12 @@ async def create_yookassa_qr_payment(
             "currency": "RUB"
         },
         "capture": True,
+        "payment_method_data": {
+            "type": "sbp"
+        },
         "confirmation": {
             "type": "redirect",
-            "return_url": "https://t.me"
+            "return_url": return_url
         },
         "description": description,
         "receipt": {

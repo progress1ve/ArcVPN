@@ -3,9 +3,9 @@
   import { fade, fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
-  import { getUser, haptic, selectionHaptic, openExternal, openTelegram } from '../lib/telegram.js'
+  import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -73,6 +73,9 @@
   let selectedPlanId = null
   let purchaseDevices = 2
   let purchaseLteGb = 20
+  let paymentBusy = false
+  let paymentOrderId = ''
+  let paymentMessage = ''
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
@@ -249,10 +252,40 @@
     openFaq = openFaq === index ? -1 : index
   }
 
-  function buy(plan = preferredPlan) {
-    if (!plan || !links.bot_url) return
-    haptic('medium')
-    openTelegram(`${links.bot_url}?start=buy_${plan.id}`)
+  async function buy(plan = preferredPlan) {
+    if (!plan || paymentBusy) return
+    if (purchaseDevices !== 2 || purchaseLteGb !== 20) {
+      paymentMessage = 'Дополнительные лимиты скоро появятся. Для оплаты выберите 2 устройства и 20 ГБ LTE.'
+      return
+    }
+    paymentBusy = true
+    paymentMessage = ''
+    try {
+      const result = await createSbpPayment(plan.id, purchaseDevices, purchaseLteGb)
+      paymentOrderId = result.order_id
+      openPayment(result.confirmation_url)
+      paymentMessage = 'Оплатите в приложении банка, вернитесь сюда и проверьте оплату.'
+    } catch (error) {
+      paymentMessage = error.reason === 'payment_provider_unavailable'
+        ? 'СБП временно недоступна. Попробуйте через минуту.'
+        : 'Не удалось создать платёж. Попробуйте ещё раз.'
+    } finally { paymentBusy = false }
+  }
+
+  async function checkPayment() {
+    if (!paymentOrderId || paymentBusy) return
+    paymentBusy = true
+    try {
+      const result = await fetchSbpPayment(paymentOrderId)
+      if (result.applied) {
+        paymentMessage = 'Оплата получена. Подписка обновлена.'
+        haptic('success')
+        await loadStatus()
+      } else {
+        paymentMessage = result.status === 'canceled' ? 'Платёж отменён.' : 'Платёж пока не найден. Проверьте через несколько секунд.'
+      }
+    } catch (_) { paymentMessage = 'Не удалось проверить платёж. Попробуйте ещё раз.' }
+    finally { paymentBusy = false }
   }
 
   function openPurchase() {
@@ -438,7 +471,9 @@
             <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
             <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} устройства</span><small>{purchaseDeviceRub ? `+${rub(purchaseDeviceRub)}` : 'включено'}</small></div>
             <div class="total-row"><span><ArcIcon name="lte" size={19} />LTE {purchaseLteGb} ГБ</span><small>{purchaseLteRub ? `+${rub(purchaseLteRub)}` : '20 ГБ включено'}</small></div>
-            <button disabled={!selectedPlan} on:click={() => buy(selectedPlan)}><span>Перейти к оплате</span><strong>{rub(purchaseTotalRub)}</strong></button>
+            <button disabled={!selectedPlan || paymentBusy} on:click={() => buy(selectedPlan)}><span>{paymentBusy ? 'Подождите…' : 'Оплатить через СБП'}</span><strong>{rub(purchaseBaseRub)}</strong></button>
+            {#if paymentOrderId}<button class="payment-check" disabled={paymentBusy} on:click={checkPayment}>Проверить оплату</button>{/if}
+            {#if paymentMessage}<p class="payment-message">{paymentMessage}</p>{/if}
             <p>{rub(purchaseMonthlyRub)} в месяц · настройки сохранятся для выбранной подписки</p>
           </section>
         </section>
@@ -736,8 +771,8 @@
     --faint: #556477;
     --border: rgba(187, 218, 249, .12);
     --surface: rgba(7, 13, 23, .78);
-    --safe-top-flow: max(env(safe-area-inset-top, 0px), var(--tg-content-safe-area-inset-top, 0px));
-    --safe-bottom-flow: max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-area-inset-bottom, 0px));
+    --safe-top-flow: max(env(safe-area-inset-top, 0px), var(--tg-content-safe-top, 0px));
+    --safe-bottom-flow: max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-bottom, 0px));
     position: relative;
     min-height: 100dvh;
     overflow-x: hidden;
@@ -1088,6 +1123,8 @@
   .purchase-total > button span { font-size: 12px; font-weight: 800; }
   .purchase-total > button strong { font-size: 16px; }
   .purchase-total > p { margin: 9px 2px 0; color: #7790a6; font-size: 8.5px; text-align: center; }
+  .purchase-total > button.payment-check { justify-content: center; min-height: 46px; color: #b9e2fb; background: var(--surface-raised); box-shadow: none; }
+  .purchase-total > p.payment-message { color: #b7c6d6; font-size: 10px; line-height: 1.45; }
   @media (max-width: 360px) {
     .screen { padding-inline: 16px; }
     .home-screen { padding-top: calc(var(--safe-top-flow) + 96px); }

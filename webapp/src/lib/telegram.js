@@ -4,6 +4,17 @@
 
 export const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : undefined
 
+function syncSafeArea() {
+  if (typeof document === 'undefined') return
+  const safe = tg?.safeAreaInset || {}
+  const content = tg?.contentSafeAreaInset || safe
+  const root = document.documentElement
+  root.style.setProperty('--tg-safe-top', `${Math.max(0, Number(safe.top) || 0)}px`)
+  root.style.setProperty('--tg-safe-bottom', `${Math.max(0, Number(safe.bottom) || 0)}px`)
+  root.style.setProperty('--tg-content-safe-top', `${Math.max(0, Number(content.top) || 0)}px`)
+  root.style.setProperty('--tg-content-safe-bottom', `${Math.max(0, Number(content.bottom) || 0)}px`)
+}
+
 export function initTelegram() {
   if (!tg) return
   tg.ready()
@@ -11,6 +22,10 @@ export function initTelegram() {
   tg.setHeaderColor?.('#02050b')
   tg.setBackgroundColor?.('#02050b')
   tg.setBottomBarColor?.('#02050b')
+  syncSafeArea()
+  tg.onEvent?.('safeAreaChanged', syncSafeArea)
+  tg.onEvent?.('contentSafeAreaChanged', syncSafeArea)
+  tg.onEvent?.('viewportChanged', syncSafeArea)
   // Закрываем приложение только осознанно — гасим случайный свайп вниз.
   tg.disableVerticalSwipes?.()
   // BotFather Fullscreen — основной launch mode. Этот вызов страхует старые
@@ -51,6 +66,13 @@ export function openExternal(url) {
   } else {
     window.location.href = url
   }
+}
+
+export function openPayment(url) {
+  if (!url) return
+  haptic('medium')
+  if (tg?.openLink) tg.openLink(url)
+  else window.open(url, '_blank', 'noopener,noreferrer')
 }
 
 // Ссылка внутрь Telegram (t.me/...) — открывает бот/канал и закрывает Mini App

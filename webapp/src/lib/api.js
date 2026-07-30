@@ -135,6 +135,12 @@ export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))
 export const fetchPreferences = () => (import.meta.env.DEV ? mock('preferences') : get('/api/preferences'))
 export const fetchDevices = () => (import.meta.env.DEV ? mock('devices') : get('/api/devices'))
+export const createSbpPayment = (tariffId, devices = 2, lteGb = 20) =>
+  post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb })
+export const fetchSbpPayment = (orderId) =>
+  (import.meta.env.DEV
+    ? Promise.resolve({ ok: true, status: 'succeeded', applied: true })
+    : get(`/api/payments/sbp/${encodeURIComponent(orderId)}`))
 export const fetchSupportMessages = (after = 0) => (import.meta.env.DEV ? mock('support') : get(`/api/support/messages?after=${encodeURIComponent(after)}`))
 
 export async function sendSupportMessage(body) {

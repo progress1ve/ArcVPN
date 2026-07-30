@@ -19,6 +19,43 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+
+def create_onboarding_kb() -> InlineKeyboardMarkup:
+    """Минимальный вход: Mini App и резервный интерфейс в чате."""
+    from aiogram.types import WebAppInfo
+    from config import SUBSCRIPTION_URL
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="🚀 Подключиться",
+        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/"),
+        style="primary",
+    ))
+    builder.row(InlineKeyboardButton(
+        text="Продолжить в боте",
+        callback_data="start",
+    ))
+    return builder.as_markup()
+
+
+def trial_welcome_text(user: dict, trial_result: Optional[dict]) -> str:
+    first_name = escape_html(user.get("first_name") or "друг")
+    if trial_result:
+        days = int(trial_result.get("trial_days") or 0)
+        traffic = int(trial_result.get("trial_traffic_gb") or 0)
+        traffic_line = f"\nТрафик: <b>{traffic} ГБ</b>" if traffic > 0 else ""
+        return (
+            f"<b>{first_name}, добро пожаловать в ArcVPN</b>\n\n"
+            f"Пробная подписка уже активирована — ничего дополнительно нажимать не нужно.\n"
+            f"Доступ: <b>{days} дней</b>{traffic_line}\n\n"
+            "Откройте приложение и подключите VPN. Если Mini App не загрузится, "
+            "используйте резервную кнопку."
+        )
+    return (
+        f"<b>{first_name}, добро пожаловать в ArcVPN</b>\n\n"
+        "Откройте приложение, чтобы проверить подписку и подключить VPN."
+    )
+
+
 def get_welcome_text(user: dict, is_admin: bool=False, show_trial_offer: bool=False, primary_key: Optional[Dict[str, Any]] = None) -> tuple:
     """Формирует приветственный текст с информацией о пользователе.
     
@@ -221,6 +258,7 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     # Пользователь мог быть создан middleware'ом/проверкой канала до первого
     # полноценного /start. Поэтому is_new здесь не подходит: выдаём триал
     # идемпотентно всем, кто ещё его не получал.
+    trial_result = None
     try:
         if is_trial_enabled() and not has_used_trial(user_id):
             from bot.handlers.user.trial import provision_trial_for_user
@@ -241,10 +279,14 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     has_subscription, primary_key_id = _get_subscription_state(user_id)
 
     # Создаем клавиатуру с кнопкой пробного периода если нужно
-    kb = create_main_menu_kb(
-        is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
-        has_subscription=has_subscription, primary_key_id=primary_key_id,
-    )
+    if is_new:
+        text = trial_welcome_text(user, trial_result)
+        kb = create_onboarding_kb()
+    else:
+        kb = create_main_menu_kb(
+            is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
+            has_subscription=has_subscription, primary_key_id=primary_key_id,
+        )
 
     try:
         await safe_edit_or_send(message, text, reply_markup=kb, photo=welcome_photo, force_new=True)
@@ -443,11 +485,12 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         # После проверки обязательного канала триал тоже выдаётся сам. Это
         # покрывает пользователя, которого middleware успел создать раньше
         # первого /start, и не оставляет в интерфейсе устаревший CTA.
+        trial_result = None
         if is_trial_enabled() and not has_used_trial(user_id):
             from bot.handlers.user.trial import provision_trial_for_user
             try:
-                result = await provision_trial_for_user(user)
-                if not result:
+                trial_result = await provision_trial_for_user(user)
+                if not trial_result:
                     logger.warning("Авто-триал после проверки канала не создан для %s", user_id)
             except Exception:
                 logger.exception("Ошибка авто-триала после проверки канала для %s", user_id)
@@ -459,20 +502,13 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         # Проверяем админа
         is_admin = user_id in ADMIN_IDS
         
-        # Формируем клавиатуру
-        has_subscription, primary_key_id = _get_subscription_state(user_id)
-        keyboard = create_main_menu_kb(
-            is_admin=is_admin,
-            show_trial=False,
-            show_referral=show_referral,
-            has_subscription=has_subscription,
-            primary_key_id=primary_key_id,
-        )
+        keyboard = create_onboarding_kb()
         
         # Получаем правильное приветственное сообщение
         from database.requests import get_user_primary_key
         pk = get_user_primary_key(user_id)
         (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=False, primary_key=pk)
+        text = trial_welcome_text(user, trial_result)
         
         # Удаляем старое сообщение
         try:
