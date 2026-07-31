@@ -86,6 +86,7 @@ from database.requests import (
     find_order_by_yookassa_id,
     save_yookassa_payment_id,
 )
+from database.db_support import get_support_thread, add_admin_support_message
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, process_payment_order
 from bot.services.reserve import get_reserve_client_info
 from subscription_pages import render_import_page, render_user_agreement
@@ -2389,6 +2390,11 @@ def api_admin_overview():
     except sqlite3.Error as exc:
         local_panel["detail"] = type(exc).__name__
 
+    server_stats = get_servers_stats()
+    if not any(str(node.get("host")) == "195.226.92.37" for node in server_stats):
+        server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 1,
+                             "clients_count": 0, "active_clients": 0, "total_traffic_gb": 0, "managed_externally": True})
+
     return _api_no_store(jsonify({
         "ok": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -2397,7 +2403,7 @@ def api_admin_overview():
         "revenue": get_revenue_stats(),
         "conversion": get_conversion_stats(),
         "activity": get_usage_activity_stats(),
-        "servers": get_servers_stats(),
+        "servers": server_stats,
         "operations": {
             "open_support_threads": int(support_open),
             "pending_payments": int(pending_payments),
@@ -2406,6 +2412,45 @@ def api_admin_overview():
         "recent_payments": recent_payments,
         "local_panel": local_panel,
     }))
+
+
+@app.route('/api/admin/support/threads', methods=['GET'])
+def api_admin_support_threads():
+    if not _admin_authorized():
+        return _api_error("admin_unauthorized", 403)
+    with get_db() as conn:
+        rows = conn.execute("""SELECT t.id,t.status,t.updated_at,u.telegram_id,u.username,u.first_name,
+            (SELECT body FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_message,
+            (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id AND m.sender='user' AND m.read_at IS NULL) unread
+            FROM support_threads t JOIN users u ON u.id=t.user_id
+            ORDER BY CASE WHEN t.status='open' THEN 0 ELSE 1 END,t.updated_at DESC LIMIT 100""").fetchall()
+    return _api_no_store(jsonify({"ok": True, "threads": [dict(row) for row in rows]}))
+
+
+@app.route('/api/admin/support/threads/<int:thread_id>', methods=['GET', 'POST'])
+def api_admin_support_thread(thread_id: int):
+    if not _admin_authorized():
+        return _api_error("admin_unauthorized", 403)
+    thread = get_support_thread(thread_id)
+    if not thread:
+        return _api_error("thread_not_found", 404)
+    if request.method == 'POST':
+        body = str((request.get_json(silent=True) or {}).get('body') or '').strip()
+        if not body or len(body) > 4000:
+            return _api_error("invalid_message", 400)
+        message = add_admin_support_message(thread_id, 0, body)
+        token = getattr(config, 'BOT_TOKEN', '')
+        if token:
+            try:
+                encoded = urllib.parse.urlencode({"chat_id": thread["telegram_id"], "text": f"💬 Поддержка ArcVPN\n\n{body}"}).encode()
+                urllib.request.urlopen(f"https://api.telegram.org/bot{token}/sendMessage", data=encoded, timeout=8).read()
+            except Exception:
+                logger.exception("Не удалось отправить ответ поддержки thread=%s", thread_id)
+        return _api_no_store(jsonify({"ok": True, "message": message}))
+    with get_db() as conn:
+        rows = conn.execute("SELECT id,sender,body,created_at,read_at FROM support_messages WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
+        conn.execute("UPDATE support_messages SET read_at=CURRENT_TIMESTAMP WHERE thread_id=? AND sender='user' AND read_at IS NULL", (thread_id,))
+    return _api_no_store(jsonify({"ok": True, "thread": thread, "messages": [dict(row) for row in rows]}))
 
 
 @app.route('/legal/user-agreement')

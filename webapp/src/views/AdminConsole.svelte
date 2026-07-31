@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte'
   import ArcIcon from '../components/ArcIcon.svelte'
-  import { fetchAdminOverview, loginAdmin, logoutAdmin } from '../lib/api.js'
+  import { fetchAdminOverview, loginAdmin, logoutAdmin, fetchAdminSupportThreads, fetchAdminSupportThread, sendAdminSupportReply } from '../lib/api.js'
 
   let data = null
   let loading = true
@@ -11,6 +11,11 @@
   let signingIn = false
   let userFilter = 'top'
   let paymentFilter = 'paid'
+  let supportThreads = []
+  let selectedThread = null
+  let supportMessages = []
+  let replyBody = ''
+  let sendingReply = false
   const nav = [
     ['overview', 'home', 'Обзор'], ['users', 'users', 'Пользователи'],
     ['payments', 'wallet', 'Платежи'], ['network', 'signal', 'Инфраструктура'],
@@ -35,6 +40,12 @@
     finally { signingIn = false }
   }
   async function signOut() { await logoutAdmin(); data = null; error = 'auth' }
+  async function openSupport() {
+    active = 'support'; const result = await fetchAdminSupportThreads(); supportThreads = result.threads || []
+    if (supportThreads[0]) await selectThread(supportThreads[0].id)
+  }
+  async function selectThread(id) { const result = await fetchAdminSupportThread(id); selectedThread = result.thread; supportMessages = result.messages || [] }
+  async function sendReply() { if (!selectedThread || !replyBody.trim() || sendingReply) return; sendingReply = true; try { await sendAdminSupportReply(selectedThread.id, replyBody.trim()); replyBody=''; await selectThread(selectedThread.id) } finally { sendingReply=false } }
   onMount(load)
 </script>
 
@@ -43,7 +54,7 @@
 <div class="console">
   <aside>
     <a class="brand" href="/admin"><img src="/app/assets/arc-flow/arc-logo.svg" alt="" /><span>ArcVPN<small>Business console</small></span></a>
-    <nav>{#each nav as item}<button class:active={active === item[0]} on:click={() => active = item[0]} title={item[2]}><ArcIcon name={item[1]} size={20} weight="duotone" /><span>{item[2]}</span></button>{/each}</nav>
+    <nav>{#each nav as item}<button class:active={active === item[0]} on:click={() => item[0] === 'support' ? openSupport() : active = item[0]} title={item[2]}><ArcIcon name={item[1]} size={20} weight="duotone" /><span>{item[2]}</span></button>{/each}</nav>
     <div class="owner"><i>К</i><span>Владелец<small>Полный доступ</small></span></div>
   </aside>
 
@@ -77,7 +88,7 @@
         <div class="network-grid">{#each data.servers as server}<article class:offline={!server.is_active}><div class="node-name"><i class:offline={!server.is_active}></i><div><b>{server.name}</b><span>{server.is_active ? 'Работает' : 'Недоступен'}</span></div></div><strong>{num(server.active_clients)}</strong><small>активных из {num(server.clients_count)} клиентов</small><div class="bar"><i style={`width:${Math.min(100,(server.active_clients/Math.max(1,server.clients_count))*100)}%`}></i></div></article>{/each}</div>
       </section>
     {:else if active === 'support'}
-      <section class="workspace-section"><div class="section-title"><div><span class="eyebrow">Поддержка</span><h2>Обращения пользователей</h2></div></div><div class="empty-action"><i><ArcIcon name="headset" size={28}/></i><strong>{num(data.operations.open_support_threads)} открытых обращений</strong><p>Ответы менеджера продолжают приходить пользователям в WebApp и Telegram.</p><a href="https://t.me/arcvpnnbot" target="_blank" rel="noreferrer">Открыть рабочий бот</a></div></section>
+      <section class="support-workspace"><aside class="thread-list"><div class="section-title"><div><span class="eyebrow">Поддержка</span><h2>Диалоги</h2></div><button on:click={openSupport}>↻</button></div>{#each supportThreads as thread}<button class:active={selectedThread?.id===thread.id} on:click={()=>selectThread(thread.id)}><i>{(thread.first_name || thread.username || '?')[0]}</i><span><b>{thread.first_name || `@${thread.username}` || `ID ${thread.telegram_id}`}</b><small>{thread.last_message || 'Нет сообщений'}</small></span>{#if thread.unread}<em>{thread.unread}</em>{/if}</button>{/each}</aside><section class="admin-chat">{#if selectedThread}<header><div><b>{selectedThread.first_name || selectedThread.username || `ID ${selectedThread.telegram_id}`}</b><small>@{selectedThread.username || selectedThread.telegram_id}</small></div></header><div class="chat-messages">{#each supportMessages as message}<article class:admin={message.sender==='admin'}><span>{message.body}</span><small>{message.created_at}</small></article>{/each}</div><form on:submit|preventDefault={sendReply}><textarea bind:value={replyBody} placeholder="Ответить пользователю" maxlength="4000"></textarea><button disabled={sendingReply || !replyBody.trim()}>Отправить</button></form>{:else}<div class="chat-empty">Выберите диалог слева</div>{/if}</section></section>
     {:else if active === 'settings'}
       <section class="workspace-section"><div class="section-title"><div><span class="eyebrow">Система</span><h2>Готовность сервиса</h2></div></div><div class="check-grid"><article class="done"><i>✓</i><div><b>WebApp и подписки</b><span>Публичные endpoints и импорт</span></div></article><article class:done={data.local_panel.healthy}><i>{data.local_panel.healthy?'✓':'!'}</i><div><b>x-ui и inbounds</b><span>{data.local_panel.inbounds} активных подключений</span></div></article><article><i>→</i><div><b>Автопродление</b><span>Нужно разрешение YooKassa и scheduler</span></div></article><article><i>→</i><div><b>Email и документы</b><span>Ожидаются SMTP и реквизиты</span></div></article></div></section>
     {:else if active !== 'overview'}
@@ -123,4 +134,5 @@
   @media(max-width:560px){.console{display:block}aside{position:fixed;z-index:10;top:auto;bottom:12px;left:12px;right:12px;height:64px;flex-direction:row;padding:8px;border:1px solid var(--line);border-radius:24px}.brand,.owner{display:none}nav{display:flex;width:100%;justify-content:space-around}nav button{width:48px;min-height:48px;border-radius:18px}nav button:nth-child(n+5){display:none}main{padding:26px 0 100px}header{align-items:flex-start}.refresh{width:44px;padding:0;justify-content:center;font-size:0}.health>strong{display:none}.metrics{gap:10px}.metrics article{min-height:105px;padding:17px}.metrics strong{font-size:24px}.nodes{grid-template-columns:1fr}.panel{padding:19px;border-radius:24px}}
   main{box-sizing:border-box;height:100vh;overflow-y:auto;scrollbar-width:none}main::-webkit-scrollbar{display:none}.console:has(.records) main{overflow:hidden}
   .workspace-section{max-width:1040px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.section-title h2{font-size:30px}.network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.network-grid article,.empty-action,.check-grid article{border:1px solid var(--line);background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96))}.network-grid article{padding:24px;border-radius:28px}.network-grid article>strong{display:block;margin-top:36px;font-size:38px}.network-grid article>small{color:#7890a5}.network-grid article.offline{opacity:.64}.empty-action{min-height:360px;border-radius:30px;display:grid;place-content:center;justify-items:center;text-align:center}.empty-action>i{display:grid;place-items:center;width:64px;height:64px;border-radius:50%;background:#102942;color:#9bd9ff}.empty-action strong{margin-top:20px;font-size:24px}.empty-action p{max-width:430px;color:#7890a5;line-height:1.5}.empty-action a{padding:13px 20px;border-radius:20px;background:#9bd9ff;color:#07111d;text-decoration:none;font-weight:800}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.check-grid article{display:flex;align-items:center;gap:14px;padding:20px;border-radius:24px}.check-grid article>i{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#172433;color:#8ca1b4;font-style:normal;font-weight:900}.check-grid article.done>i{background:rgba(97,216,165,.12);color:#78e1b4}.check-grid article div{display:flex;flex-direction:column;gap:4px}.check-grid span{color:#7890a5;font-size:12px}@media(max-width:720px){.network-grid,.check-grid{grid-template-columns:1fr}}
+  .support-workspace{height:calc(100vh - 150px);display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px}.thread-list,.admin-chat{min-height:0;border:1px solid var(--line);border-radius:28px;background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96));overflow:hidden}.thread-list{padding:20px;overflow-y:auto;scrollbar-width:none}.thread-list::-webkit-scrollbar{display:none}.thread-list>.section-title{position:sticky;top:-20px;z-index:2;padding:18px 0 14px;background:#0d1927}.thread-list>.section-title button{border:0;background:transparent;color:#9bd9ff;font-size:20px}.thread-list>button{box-sizing:border-box;width:100%;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;padding:12px;border:0;border-radius:20px;background:transparent;color:#eaf4fc;text-align:left}.thread-list>button.active{background:#14283a}.thread-list>button>i{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#1b3852;color:#9bd9ff;font-style:normal;font-weight:900}.thread-list span{min-width:0;display:flex;flex-direction:column;gap:4px}.thread-list small{overflow:hidden;color:#7890a5;text-overflow:ellipsis;white-space:nowrap}.thread-list em{display:grid;place-items:center;min-width:22px;height:22px;border-radius:50%;background:#9bd9ff;color:#07111d;font-size:11px;font-style:normal;font-weight:900}.admin-chat{display:grid;grid-template-rows:auto 1fr auto}.admin-chat header{padding:20px 24px;border-bottom:1px solid var(--line)}.admin-chat header div{display:flex;flex-direction:column}.admin-chat header small{color:#7890a5}.chat-messages{min-height:0;padding:22px;overflow-y:auto;scrollbar-width:none}.chat-messages::-webkit-scrollbar{display:none}.chat-messages article{max-width:72%;display:flex;flex-direction:column;gap:5px;margin:0 auto 12px 0;padding:13px 16px;border-radius:20px 20px 20px 7px;background:#142333}.chat-messages article.admin{margin-left:auto;margin-right:0;border-radius:20px 20px 7px 20px;background:#1c405a}.chat-messages small{color:#7990a4;font-size:10px}.admin-chat form{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px;border-top:1px solid var(--line)}.admin-chat textarea{min-height:46px;max-height:120px;resize:none;border:0;border-radius:18px;padding:14px;background:#111e2c;color:#fff;font:inherit;outline:0}.admin-chat form button{border:0;border-radius:18px;padding:0 20px;background:#9bd9ff;color:#07111d;font-weight:900}.chat-empty{display:grid;place-content:center;color:#7890a5}@media(max-width:900px){.support-workspace{grid-template-columns:1fr}.thread-list{display:none}}
 </style>

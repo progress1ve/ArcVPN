@@ -776,9 +776,9 @@
               <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" on:click|stopPropagation transition:fly={{y:28,duration:220,easing:cubicOut}}>
                 <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
                 <div class="payment-options">
-                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><ArcIcon name="pulse" size={22}/></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
-                  <button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><ArcIcon name="wallet" size={22}/></i><span><b>Картой</b><small>Visa, Mastercard и Мир</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
-                  <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i><ArcIcon name="signal" size={22}/></i><span><b>Криптовалютой</b><small>USDT и другие валюты</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><svg class="pay-symbol" viewBox="0 0 32 32" aria-label="СБП"><path fill="#ee2a7b" d="M5 4l10 6-5 3-5-3z"/><path fill="#f7931e" d="M17 11l10 6-5 3-10-6z"/><path fill="#00a651" d="M5 12l10 6-5 3-5-3z"/><path fill="#00aeef" d="M17 19l10 6-5 3-10-6z"/><path fill="#8dc63f" d="M5 20l10 6-5 3-5-3z"/></svg></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Visa, Mastercard и Мир</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i><span class="dollar">$</span></i><span><b>Криптовалютой</b><small>USDT и другие валюты</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
                 </div>
                 <label class="promo-field"><ArcIcon name="gift" size={20}/><input bind:value={promoCode} maxlength="32" placeholder="Промокод" autocomplete="off"/><span>Применить</span></label>
                 <button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>✓</i><span><b>Автопродление</b><small>Включено по умолчанию</small></span></button>
@@ -2033,4 +2033,5 @@
     .aurora-blob, .flow-preview::before { animation: none; }
     button:active { transform: none; }
   }
+  .pay-symbol{width:28px;height:28px}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}.dollar{color:#fff;font-size:25px;font-weight:800;line-height:1}
 </style>
