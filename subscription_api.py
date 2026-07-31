@@ -2346,14 +2346,21 @@ def api_admin_overview():
         ).fetchone()["count"]
         recent_users = [dict(row) for row in conn.execute("""
             SELECT u.telegram_id, u.username, u.first_name, u.created_at,
-                   EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active
-            FROM users u ORDER BY u.created_at DESC LIMIT 40
+                   EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active,
+                   COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id), 0) AS online_devices,
+                   (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
+                   COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded')), 0) AS paid_cents,
+                   (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at
+            FROM users u
+            ORDER BY paid_cents DESC, u.created_at DESC LIMIT 200
         """).fetchall()]
         recent_payments = [dict(row) for row in conn.execute("""
             SELECT p.order_id, p.status, p.amount_cents, p.payment_type, p.paid_at,
-                   u.telegram_id, u.username
+                   u.telegram_id, u.username, t.name AS tariff_name, t.price_rub AS tariff_price_rub,
+                   CASE WHEN p.amount_cents < 1000 AND t.price_rub >= 100 THEN 1 ELSE 0 END AS legacy_price
             FROM payments p JOIN users u ON u.id=p.user_id
-            ORDER BY p.id DESC LIMIT 40
+            LEFT JOIN tariffs t ON t.id=p.tariff_id
+            ORDER BY p.id DESC LIMIT 200
         """).fetchall()]
 
     local_panel = {"healthy": False, "inbounds": 0, "detail": "unavailable"}

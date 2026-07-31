@@ -1,5 +1,8 @@
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any
+
+from aiogram.types import FSInputFile
 
 from bot.utils.text import escape_html, safe_edit_or_send
 
@@ -82,10 +85,11 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
         photo_file_id = tariff_select_data.get('photo_file_id')
         text = custom_text or '💳 <b>Купить подписку</b>\n\nВыберите тариф:'
 
+        default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v1.png"
         await safe_edit_or_send(
             message,
             text,
-            photo=photo_file_id,
+            photo=photo_file_id or (FSInputFile(default_cover) if default_cover.exists() else None),
             reply_markup=tariff_select_kb(tariffs, back_callback='start', order_id=order_id, is_select_only=True)
         )
         return True
@@ -123,9 +127,11 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
         "Выберите период:"
     )
 
+    default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v1.png"
     await safe_edit_or_send(
         message,
         text,
+        photo=FSInputFile(default_cover) if default_cover.exists() else None,
         reply_markup=tariff_select_kb(
             tariffs,
             back_callback=f'key:{key_id}',

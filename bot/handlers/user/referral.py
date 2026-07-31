@@ -4,8 +4,9 @@
 Отображение реферальной ссылки и статистики по уровням.
 """
 import logging
+from pathlib import Path
 from aiogram import Router, F
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, FSInputFile
 
 from database.requests import (
     is_referral_enabled,
@@ -106,8 +107,10 @@ async def show_referral_system(callback: CallbackQuery):
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
-    await safe_edit_or_send(callback.message, 
+    cover = Path(__file__).resolve().parents[2] / "assets" / "arc-referral-v1.png"
+    await safe_edit_or_send(callback.message,
         text,
-        reply_markup=builder.as_markup()
+        reply_markup=builder.as_markup(),
+        photo=FSInputFile(cover) if cover.exists() else None,
     )
     await callback.answer()

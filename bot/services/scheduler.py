@@ -59,13 +59,15 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         rating_users = conn.execute("""
             SELECT u.id, u.telegram_id FROM users u
             WHERE u.created_at <= datetime('now', '-5 days')
+              AND u.created_at >= COALESCE((SELECT value FROM settings WHERE key='lifecycle_eligible_after'), datetime('now'))
               AND EXISTS (SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now'))
               AND NOT EXISTS (SELECT 1 FROM lifecycle_events le WHERE le.user_id=u.id AND le.event_key='day5_rating')
             LIMIT 25
         """).fetchall()
         winback_users = conn.execute("""
             SELECT u.id, u.telegram_id FROM users u
-            WHERE EXISTS (
+            WHERE u.created_at >= COALESCE((SELECT value FROM settings WHERE key='lifecycle_eligible_after'), datetime('now'))
+              AND EXISTS (
                 SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id
                 AND vk.expires_at BETWEEN datetime('now', '-10 days') AND datetime('now', '-2 days')
             )
@@ -84,7 +86,11 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         try:
             await bot.send_photo(
                 row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v1.png")),
-                caption="💙 <b>Вы с ArcVPN уже 5 дней</b>\n\nКак вам сервис? Оцените одним нажатием — это помогает нам выбирать, что улучшать дальше.",
+                caption=(
+                    "💙 <b>Поможете сделать ArcVPN лучше?</b>\n\n"
+                    "Вы пользуетесь сервисом уже 5 дней. Как вам ArcVPN?\n\n"
+                    "Поставьте оценку одним нажатием — мы читаем каждый ответ."
+                ),
                 reply_markup=kb,
             )
             with get_db() as conn:

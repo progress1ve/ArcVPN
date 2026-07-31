@@ -124,11 +124,12 @@ def trial_welcome_text(user: dict, trial_result: Optional[dict]) -> str:
         traffic = int(trial_result.get("trial_traffic_gb") or 0)
         traffic_line = f"\nТрафик: <b>{traffic} ГБ</b>" if traffic > 0 else ""
         return (
-            f"<b>{first_name}, добро пожаловать в ArcVPN</b>\n\n"
-            f"Пробная подписка уже активирована — ничего дополнительно нажимать не нужно.\n"
-            f"Доступ: <b>{days} дней</b>{traffic_line}\n\n"
-            "Откройте приложение и подключите VPN. Если Mini App не загрузится, "
-            "используйте резервную кнопку."
+            f"👋 <b>{first_name}, добро пожаловать в ArcVPN!</b>\n\n"
+            "Мы уже подготовили вашу пробную подписку — активировать её отдельно не нужно.\n\n"
+            f"🎁 <b>{days} дней бесплатно</b>{traffic_line}\n"
+            "⚡ Быстрые серверы для видео, мессенджеров и сайтов\n"
+            "🔥 Российские сервисы продолжают работать с VPN\n\n"
+            "Нажмите «Подключиться»: внутри подберём приложение и импортируем подписку."
         )
     return (
         f"<b>{first_name}, добро пожаловать в ArcVPN</b>\n\n"
@@ -363,7 +364,7 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         from aiogram.types import FSInputFile
         text = trial_welcome_text(user, trial_result)
         kb = create_onboarding_kb()
-        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v5.png"
+        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-welcome-v1.png"
         if cabinet_banner.exists():
             welcome_photo = FSInputFile(cabinet_banner)
     else:
@@ -371,6 +372,11 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
             is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
             has_subscription=has_subscription, primary_key_id=primary_key_id,
         )
+        if not welcome_photo:
+            from aiogram.types import FSInputFile
+            cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v6.png"
+            if cabinet_banner.exists():
+                welcome_photo = FSInputFile(cabinet_banner)
 
     try:
         await safe_edit_or_send(message, text, reply_markup=kb, photo=welcome_photo, force_new=True)

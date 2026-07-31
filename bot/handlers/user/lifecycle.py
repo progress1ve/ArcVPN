@@ -1,7 +1,7 @@
 """Feedback and win-back callbacks for lifecycle messages."""
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, ForceReply, Message
 
 from database.connection import get_db
 from database.db_keys import extend_vpn_key
@@ -67,3 +67,23 @@ async def lifecycle_winback(callback: CallbackQuery):
         ),
         reply_markup=None,
     )
+    if reason == "competitor":
+        await callback.message.answer(
+            "Спасибо за ответ — для нас это очень ценно ❤️\n\n"
+            "Напишите, пожалуйста, название VPN, которым вы пользуетесь, и почему решили выбрать его.",
+            reply_markup=ForceReply(input_field_placeholder="Название VPN и причина выбора"),
+        )
+
+
+@router.message(F.reply_to_message.text.contains("название VPN"))
+async def lifecycle_competitor_details(message: Message):
+    details = (message.text or "").strip()[:500]
+    if not details:
+        return
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE lifecycle_events SET answer = 'competitor: ' || ?
+            WHERE user_id=(SELECT id FROM users WHERE telegram_id=?)
+              AND event_key='expired_winback' AND answer='competitor'
+        """, (details, message.from_user.id))
+    await message.answer("Записали, спасибо! Это поможет нам стать лучше 💙")

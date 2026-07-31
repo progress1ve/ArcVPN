@@ -69,6 +69,21 @@ async def on_startup(bot: Bot):
     bot.my_username = bot_info.username
     logger.info(f"✅ Бот запущен: @{bot_info.username}")
 
+    try:
+        await bot.set_my_short_description(
+            short_description="ArcVPN — быстрый VPN, который просто работает."
+        )
+        await bot.set_my_description(description=(
+            "🛡 ArcVPN — быстрый и надёжный VPN без лишних сложностей.\n\n"
+            "⚡ Стабильные серверы для видео, мессенджеров и сайтов.\n"
+            "🔥 Российские сервисы продолжают работать с VPN.\n"
+            "📱 Подключение за минуту через удобное приложение.\n"
+            "🎁 Новым пользователям — 5 дней бесплатно."
+        ))
+        logger.info("✅ Описание профиля бота обновлено")
+    except Exception as exc:
+        logger.warning("⚠️ Не удалось обновить описание профиля бота: %s", exc)
+
     # Кнопка-меню чата открывает Mini App (Svelte SPA на subscription-сервисе).
     # URL берём из config (SUBSCRIPTION_URL), путь /app раздаётся Flask-сервисом.
     try:

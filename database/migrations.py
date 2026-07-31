@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 34
+LATEST_VERSION = 35
 
 
 def get_current_version() -> int:
@@ -1739,6 +1739,16 @@ def migration_34(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v34 применена")
 
 
+def migration_35(conn: sqlite3.Connection) -> None:
+    """Lifecycle campaigns apply only to users who join after rollout."""
+    logger.info("Применение миграции v35 (граница lifecycle-аудитории)...")
+    conn.execute("""
+        INSERT OR IGNORE INTO settings(key, value)
+        VALUES ('lifecycle_eligible_after', datetime('now'))
+    """)
+    logger.info("Миграция v35 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1774,6 +1784,7 @@ MIGRATIONS = {
     32: migration_32,
     33: migration_33,
     34: migration_34,
+    35: migration_35,
 }
 
 
