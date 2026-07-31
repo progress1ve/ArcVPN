@@ -10,6 +10,7 @@ import asyncio
 import base64
 import concurrent.futures
 import hashlib
+import hmac
 import html
 import json
 import logging
@@ -219,6 +220,9 @@ PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arc
 # деплой на сервер был обычным git pull — Node на сервере не нужен).
 WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp_dist")
 BOT_TOKEN = getattr(config, "BOT_TOKEN", "")
+ADMIN_CONSOLE_PASSWORD = os.getenv("ADMIN_CONSOLE_PASSWORD", "")
+ADMIN_CONSOLE_COOKIE = "arcvpn_admin"
+ADMIN_CONSOLE_SESSION_SECONDS = 12 * 60 * 60
 # Возраст initData, после которого считаем её протухшей (сек). Mini App
 # переоткрывают часто, сутки — безопасный дефолт.
 WEBAPP_INITDATA_MAX_AGE = getattr(config, "WEBAPP_INITDATA_MAX_AGE", 24 * 60 * 60)
@@ -1582,6 +1586,47 @@ def _admin_telegram_id() -> Optional[int]:
     return telegram_id if telegram_id in set(getattr(config, "ADMIN_IDS", [])) else None
 
 
+def _admin_cookie_signature(issued_at: str, nonce: str) -> str:
+    secret = f"{BOT_TOKEN}:{ADMIN_CONSOLE_PASSWORD}:admin-console".encode("utf-8")
+    return hmac.new(secret, f"{issued_at}.{nonce}".encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def _admin_cookie_valid() -> bool:
+    if not ADMIN_CONSOLE_PASSWORD:
+        return False
+    try:
+        issued_at, nonce, signature = request.cookies.get(ADMIN_CONSOLE_COOKIE, "").split(".", 2)
+        age = int(time.time()) - int(issued_at)
+        return (
+            0 <= age <= ADMIN_CONSOLE_SESSION_SECONDS
+            and 16 <= len(nonce) <= 64
+            and secrets.compare_digest(signature, _admin_cookie_signature(issued_at, nonce))
+        )
+    except (TypeError, ValueError):
+        return False
+
+
+def _admin_authorized() -> bool:
+    return _admin_telegram_id() is not None or _admin_cookie_valid()
+
+
+_ADMIN_LOGIN_LOCK = threading.Lock()
+_ADMIN_LOGIN_ATTEMPTS: Dict[str, Deque[float]] = defaultdict(deque)
+
+
+def _admin_login_allowed() -> bool:
+    now = time.monotonic()
+    key = request.remote_addr or "unknown"
+    with _ADMIN_LOGIN_LOCK:
+        attempts = _ADMIN_LOGIN_ATTEMPTS[key]
+        while attempts and now - attempts[0] > 15 * 60:
+            attempts.popleft()
+        if len(attempts) >= 8:
+            return False
+        attempts.append(now)
+        return True
+
+
 _EMAIL_RATE_LOCK = threading.Lock()
 _EMAIL_RATE: Dict[str, float] = {}
 
@@ -2253,10 +2298,43 @@ def api_logout():
     return _api_no_store(response)
 
 
+@app.route('/api/admin/login', methods=['POST'])
+def api_admin_login():
+    if not ADMIN_CONSOLE_PASSWORD:
+        return _api_error("admin_password_unavailable", 503)
+    if not _admin_login_allowed():
+        return _api_error("try_later", 429)
+    payload = request.get_json(silent=True) or {}
+    supplied = str(payload.get("password") or "")[:256]
+    if not secrets.compare_digest(supplied, ADMIN_CONSOLE_PASSWORD):
+        time.sleep(0.35)
+        return _api_error("invalid_password", 403)
+    issued_at = str(int(time.time()))
+    nonce = secrets.token_urlsafe(18)
+    response = jsonify({"ok": True})
+    response.set_cookie(
+        ADMIN_CONSOLE_COOKIE,
+        f"{issued_at}.{nonce}.{_admin_cookie_signature(issued_at, nonce)}",
+        max_age=ADMIN_CONSOLE_SESSION_SECONDS,
+        secure=True,
+        httponly=True,
+        samesite="Strict",
+        path="/",
+    )
+    return _api_no_store(response)
+
+
+@app.route('/api/admin/logout', methods=['POST'])
+def api_admin_logout():
+    response = jsonify({"ok": True})
+    response.delete_cookie(ADMIN_CONSOLE_COOKIE, path="/")
+    return _api_no_store(response)
+
+
 @app.route('/api/admin/overview', methods=['GET'])
 def api_admin_overview():
     """Read-only first slice of ArcVPN Business Console."""
-    if _admin_telegram_id() is None:
+    if not _admin_authorized():
         return _api_error("admin_unauthorized", 403)
 
     with get_db() as conn:
@@ -2266,6 +2344,17 @@ def api_admin_overview():
         pending_payments = conn.execute(
             "SELECT COUNT(*) AS count FROM payments WHERE status IN ('pending', 'created')"
         ).fetchone()["count"]
+        recent_users = [dict(row) for row in conn.execute("""
+            SELECT u.telegram_id, u.username, u.first_name, u.created_at,
+                   EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active
+            FROM users u ORDER BY u.created_at DESC LIMIT 40
+        """).fetchall()]
+        recent_payments = [dict(row) for row in conn.execute("""
+            SELECT p.order_id, p.status, p.amount_cents, p.payment_type, p.paid_at,
+                   u.telegram_id, u.username
+            FROM payments p JOIN users u ON u.id=p.user_id
+            ORDER BY p.id DESC LIMIT 40
+        """).fetchall()]
 
     local_panel = {"healthy": False, "inbounds": 0, "detail": "unavailable"}
     try:
@@ -2296,6 +2385,8 @@ def api_admin_overview():
             "open_support_threads": int(support_open),
             "pending_payments": int(pending_payments),
         },
+        "recent_users": recent_users,
+        "recent_payments": recent_payments,
         "local_panel": local_panel,
     }))
 

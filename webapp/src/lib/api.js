@@ -161,6 +161,8 @@ export const fetchAdminOverview = () => (import.meta.env.DEV
       ],
     })
   : get('/api/admin/overview'))
+export const loginAdmin = (password) => post('/api/admin/login', { password })
+export const logoutAdmin = () => post('/api/admin/logout')
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))
 export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get('/api/referral'))
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))

@@ -257,7 +257,7 @@ def payment_method_kb(
     if yookassa_qr_enabled:
         builder.row(
             InlineKeyboardButton(
-                text="📱 QR-оплата (Карта/СБП)", 
+                text="⚡ Оплатить через СБП",
                 callback_data=f"pay_qr_tariff:{tariff_id}:{order_id}"
             )
         )

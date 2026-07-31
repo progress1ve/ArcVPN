@@ -1,12 +1,14 @@
 <script>
   import { onMount } from 'svelte'
   import ArcIcon from '../components/ArcIcon.svelte'
-  import { fetchAdminOverview } from '../lib/api.js'
+  import { fetchAdminOverview, loginAdmin, logoutAdmin } from '../lib/api.js'
 
   let data = null
   let loading = true
   let error = ''
   let active = 'overview'
+  let password = ''
+  let signingIn = false
   const nav = [
     ['overview', 'home', 'Обзор'], ['users', 'users', 'Пользователи'],
     ['payments', 'wallet', 'Платежи'], ['network', 'signal', 'Инфраструктура'],
@@ -18,9 +20,17 @@
   async function load() {
     loading = true; error = ''
     try { data = await fetchAdminOverview() }
-    catch (e) { error = e.code === 403 ? 'Откройте панель из админского аккаунта Telegram' : 'Данные временно недоступны' }
+    catch (e) { error = e.code === 403 ? 'auth' : 'Данные временно недоступны' }
     finally { loading = false }
   }
+  async function signIn() {
+    if (!password || signingIn) return
+    signingIn = true; error = ''
+    try { await loginAdmin(password); password = ''; await load() }
+    catch (e) { error = e.code === 429 ? 'Слишком много попыток. Подождите 15 минут.' : 'Неверный пароль' }
+    finally { signingIn = false }
+  }
+  async function signOut() { await logoutAdmin(); data = null; error = 'auth' }
   onMount(load)
 </script>
 
@@ -38,10 +48,27 @@
     {#if loading}
       <section class="state"><i class="loader"></i><p>Собираем показатели ArcVPN…</p></section>
     {:else if error}
-      <section class="state"><ArcIcon name="shield" size={30} /><h2>Доступ закрыт</h2><p>{error}</p></section>
+      <section class="state login-card">
+        <img src="/app/assets/arc-flow/arc-logo.svg" alt="" />
+        <h2>Вход в Business Console</h2>
+        <p>{error === 'auth' ? 'Введите пароль владельца или откройте панель из Telegram.' : error}</p>
+        <form on:submit|preventDefault={signIn}>
+          <input bind:value={password} type="password" autocomplete="current-password" placeholder="Пароль" aria-label="Пароль" />
+          <button disabled={signingIn || !password}>{signingIn ? 'Проверяем…' : 'Войти'}</button>
+        </form>
+      </section>
+    {:else if active === 'users'}
+      <section class="panel records"><div class="panel-head"><div><span>Последние регистрации</span><h2>Пользователи</h2></div></div>
+        {#each data.recent_users || [] as user}<article><div><b>{user.first_name || user.username || `ID ${user.telegram_id}`}</b><small>@{user.username || 'без username'} · {user.telegram_id}</small></div><span class:ok={user.active}>{user.active ? 'Активен' : 'Без подписки'}</span></article>{/each}
+      </section>
+    {:else if active === 'payments'}
+      <section class="panel records"><div class="panel-head"><div><span>Последние операции</span><h2>Платежи</h2></div></div>
+        {#each data.recent_payments || [] as payment}<article><div><b>{rub(Number(payment.amount_cents || 0) / 100)}</b><small>@{payment.username || payment.telegram_id} · {payment.payment_type || 'оплата'}</small></div><span class:ok={payment.status === 'succeeded' || payment.status === 'paid'}>{payment.status}</span></article>{/each}
+      </section>
     {:else if active !== 'overview'}
       <section class="state"><ArcIcon name="gift" size={30} /><h2>{nav.find(i => i[0] === active)?.[2]}</h2><p>Раздел входит в следующий этап Business Console.</p></section>
     {:else}
+      <button class="logout" on:click={signOut}>Выйти</button>
       <section class:alert={!data.local_panel.healthy} class="health"><i></i><div><b>{data.local_panel.healthy ? 'Сеть ArcVPN работает штатно' : 'Требуется внимание к сети'}</b><span>{data.local_panel.inbounds} из 8 inbound · проверено только что</span></div><strong>{data.local_panel.healthy ? 'Стабильно' : data.local_panel.detail}</strong></section>
       <section class="metrics">
         <article><span>Выручка за месяц</span><strong>{rub(data.revenue.month.total_rub)}</strong><small>{num(data.revenue.month.count)} платежей</small></article>
@@ -74,7 +101,9 @@
   .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0}.metrics article,.panel{border:1px solid var(--line);background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96))}.metrics article{min-height:120px;padding:22px;border-radius:24px;display:flex;flex-direction:column}.metrics span,.metrics small{color:#7890a5;font-size:12px}.metrics strong{margin:auto 0 5px;font-size:30px;letter-spacing:-.045em}.metrics small{color:#9bd9ff}
   .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}.panel{padding:24px;border-radius:28px}.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}h2{margin:6px 0 0;font-size:21px}.panel-head button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#8fcdf5;cursor:pointer}.nodes{display:grid;grid-template-columns:1fr 1fr;gap:12px}.nodes article{padding:18px;border-radius:20px;background:rgba(4,10,18,.56)}.node-name{display:flex;align-items:center;gap:9px}.node-name>i{width:8px;height:8px;border-radius:50%;background:#60d7a4}.node-name>i.offline{background:#ff7474}.node-name div{display:flex;flex-direction:column}.node-name span,.nodes small{color:#6f8497;font-size:11px}.nodes article>strong{display:block;margin-top:24px;font-size:27px}.bar{height:4px;margin-top:14px;border-radius:2px;background:#162534;overflow:hidden}.bar i{display:block;height:100%;background:#91d6ff}
   .queue>button{width:100%;display:flex;align-items:center;gap:12px;padding:13px 0;border:0;border-bottom:1px solid var(--line);background:transparent;color:#dbe8f3;text-align:left}.queue>button:last-child{border-bottom:0}.queue button>i{display:grid;place-items:center;width:40px;height:40px;border-radius:50%;color:#9bd9ff;background:#102942}.queue button>i.violet{color:#c2afff;background:#211b3b}.queue button>i.green{color:#79deb2;background:#102d27}.queue button span{display:flex;flex:1;flex-direction:column;gap:3px}.queue button small{color:#70879b}.queue button>strong{display:grid;place-items:center;min-width:32px;height:32px;border-radius:50%;background:#122131}
+  .records{max-width:980px}.records>article{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:15px 4px;border-bottom:1px solid var(--line)}.records>article:last-child{border-bottom:0}.records article div{display:flex;flex-direction:column;gap:4px}.records small{color:#70879b}.records article>span{padding:7px 11px;border-radius:14px;background:rgba(255,121,121,.08);color:#ff9c9c;font-size:11px;font-weight:800}.records article>span.ok{background:rgba(97,216,165,.09);color:#78e1b4}
   .state{min-height:55vh;display:grid;place-content:center;justify-items:center;text-align:center;color:#8196a9}.state h2{color:#fff}.loader{width:34px;height:34px;border:3px solid #183047;border-top-color:#9bd9ff;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+  .login-card{min-height:0;width:min(440px,calc(100% - 48px));margin:12vh auto 0;padding:40px 32px;border:1px solid var(--line);border-radius:30px;background:linear-gradient(145deg,rgba(14,26,41,.98),rgba(8,15,25,.98));box-shadow:0 32px 90px rgba(0,0,0,.35)}.login-card>img{width:48px}.login-card p{max-width:340px;line-height:1.5}.login-card form{width:100%;display:grid;gap:12px;margin-top:14px}.login-card input,.login-card button{box-sizing:border-box;width:100%;min-height:52px;border-radius:18px;font:inherit}.login-card input{border:1px solid var(--line);padding:0 17px;background:#07101b;color:#fff;outline:none}.login-card input:focus{border-color:rgba(155,217,255,.55);box-shadow:0 0 0 4px rgba(155,217,255,.07)}.login-card button{border:0;background:#9bd9ff;color:#07111d;font-weight:800;cursor:pointer}.login-card button:disabled{opacity:.55}.logout{float:right;margin:-54px 118px 0 0;border:0;background:transparent;color:#7890a5;cursor:pointer}
   @media(max-width:900px){.console{grid-template-columns:76px 1fr}aside{padding:20px 10px}.brand span,nav span,.owner span{display:none}.brand{justify-content:center;padding-inline:0}nav button{justify-content:center;padding:0}.owner{justify-content:center;background:transparent}.metrics{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr}main{width:calc(100% - 32px);padding-top:28px}}
   @media(max-width:560px){.console{display:block}aside{position:fixed;z-index:10;top:auto;bottom:12px;left:12px;right:12px;height:64px;flex-direction:row;padding:8px;border:1px solid var(--line);border-radius:24px}.brand,.owner{display:none}nav{display:flex;width:100%;justify-content:space-around}nav button{width:48px;min-height:48px;border-radius:18px}nav button:nth-child(n+5){display:none}main{padding:26px 0 100px}header{align-items:flex-start}.refresh{width:44px;padding:0;justify-content:center;font-size:0}.health>strong{display:none}.metrics{gap:10px}.metrics article{min-height:105px;padding:17px}.metrics strong{font-size:24px}.nodes{grid-template-columns:1fr}.panel{padding:19px;border-radius:24px}}
 </style>

@@ -19,7 +19,7 @@ from io import BytesIO
 from typing import Optional
 
 from aiogram import Bot
-from aiogram.types import BufferedInputFile
+from aiogram.types import BufferedInputFile, FSInputFile
 
 from config import ADMIN_IDS, GITHUB_REPO_URL
 from database.requests import (
@@ -49,6 +49,82 @@ BACKUP_DIR = os.path.join(PROJECT_ROOT, 'backup')
 
 # Сколько дней хранить локальные бэкапы
 BACKUP_RETENTION_DAYS = 7
+
+
+async def _send_lifecycle_batch(bot: Bot) -> None:
+    """Send each lifecycle message once; database uniqueness prevents duplicates."""
+    from database.connection import get_db
+
+    with get_db() as conn:
+        rating_users = conn.execute("""
+            SELECT u.id, u.telegram_id FROM users u
+            WHERE u.created_at <= datetime('now', '-5 days')
+              AND EXISTS (SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now'))
+              AND NOT EXISTS (SELECT 1 FROM lifecycle_events le WHERE le.user_id=u.id AND le.event_key='day5_rating')
+            LIMIT 25
+        """).fetchall()
+        winback_users = conn.execute("""
+            SELECT u.id, u.telegram_id FROM users u
+            WHERE EXISTS (
+                SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id
+                AND vk.expires_at BETWEEN datetime('now', '-10 days') AND datetime('now', '-2 days')
+            )
+              AND NOT EXISTS (SELECT 1 FROM vpn_keys active WHERE active.user_id=u.id AND active.expires_at > datetime('now'))
+              AND NOT EXISTS (SELECT 1 FROM lifecycle_events le WHERE le.user_id=u.id AND le.event_key='expired_winback')
+            LIMIT 25
+        """).fetchall()
+
+    assets = os.path.join(PROJECT_ROOT, "bot", "assets")
+    for row in rating_users:
+        kb = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="😕 1", callback_data="lifecycle_rating:1"),
+            InlineKeyboardButton(text="🙂 3", callback_data="lifecycle_rating:3"),
+            InlineKeyboardButton(text="🤩 5", callback_data="lifecycle_rating:5"),
+        ]])
+        try:
+            await bot.send_photo(
+                row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v1.png")),
+                caption="💙 <b>Вы с ArcVPN уже 5 дней</b>\n\nКак вам сервис? Оцените одним нажатием — это помогает нам выбирать, что улучшать дальше.",
+                reply_markup=kb,
+            )
+            with get_db() as conn:
+                conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'day5_rating')", (row["id"],))
+        except Exception as exc:
+            logger.warning("Lifecycle rating delivery failed for %s: %s", row["telegram_id"], exc)
+
+    for row in winback_users:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💸 Дорого", callback_data="lifecycle_winback:expensive")],
+            [InlineKeyboardButton(text="📉 Плохо работало", callback_data="lifecycle_winback:quality")],
+            [InlineKeyboardButton(text="🔄 Пользуюсь другим VPN", callback_data="lifecycle_winback:competitor")],
+            [InlineKeyboardButton(text="💬 Другое", callback_data="lifecycle_winback:other")],
+        ])
+        try:
+            await bot.send_photo(
+                row["telegram_id"], FSInputFile(os.path.join(assets, "arc-winback-v1.png")),
+                caption=(
+                    "👋 <b>Ваша подписка закончилась</b>\n\n"
+                    "Расскажите, почему не стали продлевать. За один ответ мы сразу подарим "
+                    "<b>3 дня ArcVPN</b>, чтобы вы могли проверить сервис ещё раз."
+                ), reply_markup=kb,
+            )
+            with get_db() as conn:
+                conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
+        except Exception as exc:
+            logger.warning("Lifecycle winback delivery failed for %s: %s", row["telegram_id"], exc)
+
+
+async def run_lifecycle_scheduler(bot: Bot) -> None:
+    """Check lifecycle campaigns hourly, with a short startup delay."""
+    await asyncio.sleep(90)
+    while True:
+        try:
+            await _send_lifecycle_batch(bot)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Lifecycle scheduler iteration failed")
+        await asyncio.sleep(3600)
 
 
 def _fmt_money(rev: dict) -> str:

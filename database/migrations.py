@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 33
+LATEST_VERSION = 34
 
 
 def get_current_version() -> int:
@@ -1720,6 +1720,25 @@ def migration_33(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v33 применена")
 
 
+def migration_34(conn: sqlite3.Connection) -> None:
+    """Idempotent lifecycle messages and answers for retention campaigns."""
+    logger.info("Применение миграции v34 (lifecycle-коммуникации)...")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS lifecycle_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            event_key TEXT NOT NULL,
+            answer TEXT,
+            sent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            answered_at DATETIME,
+            UNIQUE(user_id, event_key),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_lifecycle_events_key ON lifecycle_events(event_key, sent_at)")
+    logger.info("Миграция v34 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1754,6 +1773,7 @@ MIGRATIONS = {
     31: migration_31,
     32: migration_32,
     33: migration_33,
+    34: migration_34,
 }
 
 

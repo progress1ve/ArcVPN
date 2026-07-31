@@ -52,7 +52,8 @@ def _format_payment_context_text(
 
     text = "\n\n".join(header_lines + [
         f"<blockquote>{chr(10).join(block_lines)}</blockquote>",
-        "Выберите удобный способ оплаты:",
+        "⚡ Оплата откроется сразу в приложении банка через СБП.\n"
+        "После оплаты подписка продлится автоматически.",
     ])
     if intro_text:
         return intro_text.strip() + "\n\n" + text
