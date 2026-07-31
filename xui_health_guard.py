@@ -219,6 +219,47 @@ def _restore_topology_from_baseline(actual_ids: set[int]) -> None:
         _wait_for_xui()
 
 
+def _recover_corrupt_database(reason: Exception | str) -> None:
+    """Replace an unreadable live DB with the most recent verified snapshot.
+
+    A raw forensic copy is kept because SQLite's online backup API cannot read
+    a malformed database.  The bot database remains the source of truth for
+    client expiry and limits; client reconciliation runs immediately after the
+    restore.
+    """
+    if not BASELINE_DB.exists():
+        raise GuardError(f"3x-ui DB is corrupt and no baseline exists: {reason}")
+
+    baseline_integrity, baseline_ids = _database_state(BASELINE_DB)
+    if baseline_integrity != "ok" or baseline_ids != EXPECTED_INBOUND_IDS:
+        raise GuardError("3x-ui DB is corrupt and the recovery baseline is unusable")
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    forensic_dir = BACKUP_DIR / f"corrupt-{stamp}"
+    forensic_dir.mkdir(parents=True, exist_ok=False)
+    LOGGER.error("Recovering corrupt 3x-ui DB (%s); forensic copy: %s", reason, forensic_dir)
+
+    _run_systemctl("stop")
+    try:
+        for suffix in ("", "-wal", "-shm"):
+            source = XUI_DB.with_name(XUI_DB.name + suffix)
+            if source.exists():
+                shutil.copy2(source, forensic_dir / source.name)
+
+        temporary = XUI_DB.with_suffix(".recovery")
+        shutil.copy2(BASELINE_DB, temporary)
+        os.chmod(temporary, 0o644)
+        if _database_state(temporary) != ("ok", EXPECTED_INBOUND_IDS):
+            temporary.unlink(missing_ok=True)
+            raise GuardError("Recovery copy failed verification")
+        os.replace(temporary, XUI_DB)
+        XUI_DB.with_name(XUI_DB.name + "-wal").unlink(missing_ok=True)
+        XUI_DB.with_name(XUI_DB.name + "-shm").unlink(missing_ok=True)
+    finally:
+        _run_systemctl("start")
+        _wait_for_xui()
+
+
 def _expiry_ms(value: Any) -> int:
     if not value:
         return 0
@@ -339,9 +380,18 @@ async def _reconcile_clients() -> list[str]:
 
 async def _guard_once() -> list[str]:
     _ensure_runtime()
-    integrity, actual_ids = _database_state()
+    try:
+        integrity, actual_ids = _database_state()
+    except sqlite3.DatabaseError as exc:
+        _recover_corrupt_database(exc)
+        integrity, actual_ids = _database_state()
+        recovered = True
+    else:
+        recovered = False
     if integrity != "ok":
-        raise GuardError(f"3x-ui quick_check failed: {integrity}")
+        _recover_corrupt_database(integrity)
+        integrity, actual_ids = _database_state()
+        recovered = True
     if actual_ids != EXPECTED_INBOUND_IDS:
         LOGGER.error(
             "Inbound topology mismatch: expected=%s actual=%s",
@@ -358,6 +408,9 @@ async def _guard_once() -> list[str]:
         _repair_sqlite_journal()
         changes = await _reconcile_clients()
         changes.insert(0, "sqlite-journal")
+
+    if recovered:
+        changes.insert(0, "database-recovered")
 
     integrity, actual_ids = _database_state()
     if integrity != "ok" or actual_ids != EXPECTED_INBOUND_IDS:

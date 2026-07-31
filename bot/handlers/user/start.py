@@ -363,7 +363,7 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         from aiogram.types import FSInputFile
         text = trial_welcome_text(user, trial_result)
         kb = create_onboarding_kb()
-        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v2.webp"
+        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v3.png"
         if cabinet_banner.exists():
             welcome_photo = FSInputFile(cabinet_banner)
     else:

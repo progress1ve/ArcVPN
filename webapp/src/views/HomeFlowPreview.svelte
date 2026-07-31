@@ -804,7 +804,7 @@
           <div class="shortcuts">
             <button class="shortcut" on:click={() => selectTab('friends')}>
               <span class="shortcut-copy">
-                <b>Пригласи друга</b><small>+{referralEntryBonus} дней сразу</small>
+                <b>Пригласи друга</b><small>+{referralEntryBonus} за вход · +{referralBonus} после оплаты</small>
                 <i><ArcIcon name="arrow" size={17} weight="bold" /></i>
               </span>
               <img src={`${asset}/referral-gift-v2.png`} alt="" />
@@ -824,7 +824,14 @@
           <header class="section-head"><h1>Приглашай.<br />Получай дни.</h1></header>
 
           <article class="referral-hero">
-            <div class="referral-copy"><span>Реферальная программа</span><strong>+{referralEntryBonus} дней</strong><p>за вход друга · ещё по {referralBonus} после оплаты</p></div>
+            <div class="referral-copy">
+              <span>Реферальная программа</span>
+              <div class="referral-rewards">
+                <strong>+{referralEntryBonus}<small>дней за вход</small></strong>
+                <strong>+{referralBonus}<small>дней после оплаты</small></strong>
+              </div>
+              <p>После покупки +{referralBonus} дней получаете и вы, и друг</p>
+            </div>
             <img src={`${asset}/referral-gift-v2.png`} alt="" />
           </article>
 
@@ -1111,6 +1118,10 @@
   .referral-copy { position: relative; z-index: 2; max-width: 190px; }
   .referral-copy > span, .support-hero > div > span { color: #91a5b8; font-size: 10.5px; font-weight: 700; }
   .referral-copy strong { display: block; margin-top: 10px; font-size: 35px; line-height: 1; letter-spacing: -.055em; }
+  .referral-rewards { display: flex; align-items: stretch; gap: 8px; margin-top: 12px; }
+  .referral-rewards strong { min-width: 78px; margin: 0; padding: 10px 11px; border-radius: 16px; background: rgba(151,210,250,.1); font-size: 27px; letter-spacing: -.045em; }
+  .referral-rewards strong:last-child { background: rgba(151,210,250,.17); }
+  .referral-rewards small { display: block; max-width: 68px; margin-top: 5px; color: #c6d8e7; font-size: 8.5px; font-weight: 700; line-height: 1.2; letter-spacing: 0; }
   .referral-copy p { max-width: 150px; margin: 8px 0 0; color: #9eacbb; font-size: 11px; line-height: 1.45; }
   .referral-hero img { position: absolute; right: -34px; bottom: -27px; width: 190px; height: 190px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(87,180,237,.15)); }
   .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
