@@ -88,6 +88,7 @@ from database.requests import (
 )
 from database.db_support import get_support_thread, add_admin_support_message
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, process_payment_order
+from bot.services.vpn_api import get_client_from_server_data
 from bot.services.reserve import get_reserve_client_info
 from subscription_pages import render_import_page, render_user_agreement
 
@@ -2391,9 +2392,36 @@ def api_admin_overview():
         local_panel["detail"] = type(exc).__name__
 
     server_stats = get_servers_stats()
+    try:
+        master = get_server_by_id(int(server_stats[0]["id"])) if server_stats else None
+        async def _node_stats():
+            client = get_client_from_server_data(master)
+            try:
+                return await client._request("GET", "/panel/api/nodes/list", retry=False, log_error=False)
+            finally:
+                await client.close()
+        node_response = ASYNC_EXECUTOR.run(_node_stats(), timeout=8) if master else {}
+        for node in (node_response.get("obj") or []):
+            host = str(node.get("address") or "")
+            existing = next((item for item in server_stats if str(item.get("host")) == host), None)
+            values = {
+                "id": f"node-{node.get('id')}", "name": node.get("name") or host, "host": host,
+                "is_active": int(node.get("status") == "online" and node.get("xrayState") == "running"),
+                "clients_count": int(node.get("clientCount") or 0), "active_clients": int(node.get("onlineCount") or 0),
+                "total_traffic_gb": 0, "managed_externally": True, "latency_ms": int(node.get("latencyMs") or 0),
+                "cpu_pct": round(float(node.get("cpuPct") or 0), 1), "mem_pct": round(float(node.get("memPct") or 0), 1),
+                "inbound_count": int(node.get("inboundCount") or 0), "telemetry_available": True,
+            }
+            if existing:
+                existing.update(values)
+            else:
+                server_stats.append(values)
+    except Exception:
+        logger.exception("Не удалось получить телеметрию 3x-ui nodes")
     if not any(str(node.get("host")) == "195.226.92.37" for node in server_stats):
-        server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 1,
-                             "clients_count": 0, "active_clients": 0, "total_traffic_gb": 0, "managed_externally": True})
+        server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 0,
+                             "clients_count": None, "active_clients": None, "total_traffic_gb": 0,
+                             "managed_externally": True, "telemetry_available": False})
 
     return _api_no_store(jsonify({
         "ok": True,

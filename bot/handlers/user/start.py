@@ -368,15 +368,15 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         if cabinet_banner.exists():
             welcome_photo = FSInputFile(cabinet_banner)
     else:
+        # Старые main_page_text/photo_file_id больше не управляют пользовательским UI.
+        # /start и callback «На главную» обязаны показывать один новый кабинет.
+        text = build_fallback_home_text(user, primary_key)
         kb = create_main_menu_kb(
             is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
             has_subscription=has_subscription, primary_key_id=primary_key_id,
         )
-        if not welcome_photo:
-            from aiogram.types import FSInputFile
-            cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v6.png"
-            if cabinet_banner.exists():
-                welcome_photo = FSInputFile(cabinet_banner)
+        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v6.png"
+        welcome_photo = FSInputFile(cabinet_banner) if cabinet_banner.exists() else None
 
     try:
         await safe_edit_or_send(message, text, reply_markup=kb, photo=welcome_photo, force_new=True)
