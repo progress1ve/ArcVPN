@@ -17,6 +17,15 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+
+def _subscription_urls(sub_id: str) -> tuple[str, str]:
+    """Return the raw subscription URL and the HTTPS Happ import bridge."""
+    from config import SUBSCRIPTION_URL
+
+    base = SUBSCRIPTION_URL.rstrip("/")
+    subscription_url = f"{base}/sub/{sub_id}?format=plain"
+    return subscription_url, f"{base}/import/{sub_id}"
+
 @router.message(Command('mykeys'))
 async def cmd_mykeys(message: Message, state: FSMContext):
     """Обработчик команды /mykeys - вызывает логику кнопки 'Мои подписки'."""
@@ -106,6 +115,10 @@ async def show_my_keys(
         f"<blockquote>Трафик: <b>{traffic}</b>\n"
         f"Устройства: <b>{device_count} из {device_limit}</b></blockquote>"
     )
+    sub_id = str(primary.get("sub_id") or "")
+    if sub_id:
+        subscription_url, _ = _subscription_urls(sub_id)
+        text += f'\n\n🔗 <a href="{subscription_url}">Ссылка на подписку</a>'
     if prepend_text:
         text = f"{prepend_text}\n\n{text}"
 
@@ -301,17 +314,35 @@ async def instruction_device_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data == 'show_subscription')
 async def show_subscription_handler(callback: CallbackQuery):
-    """Показать subscription ссылку пользователю."""
-    from bot.utils.key_sender import send_subscription_link
-    from bot.keyboards.user import back_and_home_kb
+    """Show the modern direct subscription/import message without legacy QR UI."""
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
     from database.requests import get_user_primary_key
     
     telegram_id = callback.from_user.id
     primary = get_user_primary_key(telegram_id)
-    if not primary:
+    if not primary or not primary.get("sub_id"):
         await callback.answer("Подписка не найдена", show_alert=True)
         return
-    await send_subscription_link(callback, primary["id"], back_and_home_kb(back_callback="my_keys"))
+
+    subscription_url, import_url = _subscription_urls(str(primary["sub_id"]))
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="📲 Импортировать в Happ",
+        url=import_url,
+        style="primary",
+    ))
+    builder.row(
+        InlineKeyboardButton(text="← Назад", callback_data="my_keys"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start"),
+    )
+    text = (
+        "📲 <b>Подключить VPN</b>\n\n"
+        "Нажмите кнопку ниже — Happ откроется и добавит подписку.\n\n"
+        f'🔗 <a href="{subscription_url}">Открыть или скопировать ссылку подписки</a>\n\n'
+        "<blockquote>Подписка обновляется автоматически каждый час.</blockquote>"
+    )
+    await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_renew:'))

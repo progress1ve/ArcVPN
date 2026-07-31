@@ -37,6 +37,14 @@ from bot.utils.telegram_webapp import get_telegram_id
 import config
 from database.connection import get_db
 from database.db_servers import get_server_by_id
+from database.db_statistics import (
+    get_new_users_stats,
+    get_subscriptions_stats,
+    get_revenue_stats,
+    get_servers_stats,
+    get_conversion_stats,
+    get_usage_activity_stats,
+)
 from database.requests import (
     get_user_keys_for_display,
     get_user_internal_id,
@@ -1569,6 +1577,11 @@ def _webapp_telegram_id() -> Optional[int]:
     return None
 
 
+def _admin_telegram_id() -> Optional[int]:
+    telegram_id = _webapp_telegram_id()
+    return telegram_id if telegram_id in set(getattr(config, "ADMIN_IDS", [])) else None
+
+
 _EMAIL_RATE_LOCK = threading.Lock()
 _EMAIL_RATE: Dict[str, float] = {}
 
@@ -2240,6 +2253,53 @@ def api_logout():
     return _api_no_store(response)
 
 
+@app.route('/api/admin/overview', methods=['GET'])
+def api_admin_overview():
+    """Read-only first slice of ArcVPN Business Console."""
+    if _admin_telegram_id() is None:
+        return _api_error("admin_unauthorized", 403)
+
+    with get_db() as conn:
+        support_open = conn.execute(
+            "SELECT COUNT(*) AS count FROM support_threads WHERE status != 'closed'"
+        ).fetchone()["count"]
+        pending_payments = conn.execute(
+            "SELECT COUNT(*) AS count FROM payments WHERE status IN ('pending', 'created')"
+        ).fetchone()["count"]
+
+    local_panel = {"healthy": False, "inbounds": 0, "detail": "unavailable"}
+    try:
+        panel_db = sqlite3.connect("file:/etc/x-ui/x-ui.db?mode=ro", uri=True, timeout=3)
+        try:
+            integrity = str(panel_db.execute("PRAGMA quick_check").fetchone()[0])
+            inbound_count = int(panel_db.execute("SELECT COUNT(*) FROM inbounds").fetchone()[0])
+            local_panel = {
+                "healthy": integrity == "ok" and inbound_count == 8,
+                "inbounds": inbound_count,
+                "detail": integrity,
+            }
+        finally:
+            panel_db.close()
+    except sqlite3.Error as exc:
+        local_panel["detail"] = type(exc).__name__
+
+    return _api_no_store(jsonify({
+        "ok": True,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "users": get_new_users_stats(),
+        "subscriptions": get_subscriptions_stats(),
+        "revenue": get_revenue_stats(),
+        "conversion": get_conversion_stats(),
+        "activity": get_usage_activity_stats(),
+        "servers": get_servers_stats(),
+        "operations": {
+            "open_support_threads": int(support_open),
+            "pending_payments": int(pending_payments),
+        },
+        "local_panel": local_panel,
+    }))
+
+
 @app.route('/legal/user-agreement')
 def user_agreement():
     response = Response(
@@ -2319,6 +2379,14 @@ def webapp(path: str = ""):
         return Response("Mini App не собран (webapp_dist отсутствует)", status=404,
                         mimetype="text/plain")
     return send_from_directory(WEBAPP_DIST_DIR, "index.html")
+
+
+@app.route('/admin')
+@app.route('/admin/')
+@app.route('/admin/<path:path>')
+def admin_webapp(path: str = ""):
+    """Serve the signed SPA bundle; the client selects the admin console."""
+    return webapp(path)
 
 
 if __name__ == '__main__':

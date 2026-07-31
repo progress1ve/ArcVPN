@@ -14,6 +14,7 @@
   import Profile from './views/Profile.svelte'
   import HomeV2Preview from './views/HomeV2Preview.svelte'
   import HomeFlowPreview from './views/HomeFlowPreview.svelte'
+  import AdminConsole from './views/AdminConsole.svelte'
 
   // тема применяется через подписку в theme.js; здесь просто держим store «живым»
   $: $theme
@@ -26,9 +27,13 @@
   const previewVariant = typeof location !== 'undefined'
     ? new URLSearchParams(location.search).get('design')
     : null
+  const isAdminConsole = typeof location !== 'undefined'
+    && (location.pathname.startsWith('/admin') || location.pathname.startsWith('/app/admin'))
 </script>
 
-{#if previewVariant === 'blue' || previewVariant === 'mono'}
+{#if isAdminConsole}
+  <AdminConsole />
+{:else if previewVariant === 'blue' || previewVariant === 'mono'}
   <HomeV2Preview variant={previewVariant} />
 {:else if previewVariant === 'legacy'}
 <div class="shell">

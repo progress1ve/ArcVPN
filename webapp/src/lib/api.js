@@ -145,6 +145,22 @@ const MOCK = {
 const mock = (key) => new Promise((r) => setTimeout(() => r(MOCK[key]), 250))
 
 export const fetchStatus = () => (import.meta.env.DEV ? mock('status') : get('/api/status'))
+export const fetchAdminOverview = () => (import.meta.env.DEV
+  ? Promise.resolve({
+      ok: true,
+      users: { day: 12, week: 74, month: 286, total: 1824 },
+      subscriptions: { active: 641, expired: 138, month: 207, total: 779 },
+      revenue: { day: { total_rub: 4875, count: 31 }, month: { total_rub: 126400, count: 812 } },
+      conversion: { conversion_rate: 28.4, trial_users: 972, converted: 276 },
+      activity: { online_now: 93, d3: 508, week: 617, month: 705 },
+      operations: { open_support_threads: 7, pending_payments: 14 },
+      local_panel: { healthy: true, inbounds: 8, detail: 'ok' },
+      servers: [
+        { id: 10, name: 'Германия', is_active: 1, active_clients: 402, clients_count: 510 },
+        { id: 11, name: 'Финляндия', is_active: 1, active_clients: 239, clients_count: 303 },
+      ],
+    })
+  : get('/api/admin/overview'))
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))
 export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get('/api/referral'))
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))

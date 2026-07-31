@@ -363,7 +363,7 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         from aiogram.types import FSInputFile
         text = trial_welcome_text(user, trial_result)
         kb = create_onboarding_kb()
-        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v3.png"
+        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v4.png"
         if cabinet_banner.exists():
             welcome_photo = FSInputFile(cabinet_banner)
     else:
@@ -437,7 +437,12 @@ def create_main_menu_kb(
 
     # Админ-панель (если админ)
     if is_admin:
-        builder.row(InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin_panel"))
+        builder.row(InlineKeyboardButton(
+            text="📊 Business Console",
+            web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/admin"),
+            style="primary",
+        ))
+        builder.row(InlineKeyboardButton(text="⚙️ Старая админка", callback_data="admin_panel"))
 
     return builder.as_markup()
 
@@ -502,12 +507,21 @@ def _fallback_back_kb(*, primary_label: str, primary_callback: str) -> InlineKey
 
 @router.callback_query(F.data == "bot_connect")
 async def fallback_connect_handler(callback: CallbackQuery):
+    from database.requests import get_user_primary_key
+
+    primary = get_user_primary_key(callback.from_user.id)
+    subscription_line = ""
+    if primary and primary.get("sub_id"):
+        from bot.handlers.user.keys import _subscription_urls
+        subscription_url, _ = _subscription_urls(str(primary["sub_id"]))
+        subscription_line = f'\n\n🔗 <a href="{subscription_url}">Ссылка на вашу подписку</a>'
     text = (
-        "<b>Подключение VPN</b>\n\n"
+        "📱 <b>Подключить VPN</b>\n\n"
         "1. Установите приложение Happ.\n"
         "2. Импортируйте подписку.\n"
         "3. Выберите сервер и включите VPN.\n\n"
         "<blockquote>Если приложение уже установлено, нажмите «Импортировать подписку».</blockquote>"
+        + subscription_line
     )
     await safe_edit_or_send(
         callback.message,
