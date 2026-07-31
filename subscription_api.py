@@ -2012,7 +2012,7 @@ def api_referral():
         "balance_cents": int(get_user_balance(user_id) or 0),
         "reward_type": get_referral_reward_type(),
         "earned_days": int(get_referral_earned_days(user_id) or 0),
-        "trial_bonus_days": int(get_setting('referral_trial_bonus_days', '0') or 0),
+        "trial_bonus_days": int(get_setting('referral_trial_bonus_days', '5') or 5),
         "purchase_bonus_days": int(get_setting('referral_purchase_bonus_days', '15') or 15),
         "total_invited": total_invited,
         "paid_invited": paid_invited,
@@ -2287,7 +2287,7 @@ a{{min-height:58px;display:flex;align-items:center;justify-content:center;margin
 color:#06121d;background:linear-gradient(135deg,#bceaff,#69c1f2);font-weight:800;text-decoration:none}}
 small{{display:block;margin-top:16px;color:#718296;line-height:1.45}}
 </style></head><body><main><div class="logo">A</div><h1>ArcVPN уже ждёт</h1>
-<p>Перейдите по приглашению и подключите VPN. После первой покупки вы и ваш друг получите <b class="bonus">по 15 дней</b>.</p>
+<p>Перейдите по приглашению и подключите VPN. Пригласивший получит <b class="bonus">+5 дней</b>, а после первой покупки вы оба получите <b class="bonus">по 15 дней</b>.</p>
 <a href="{safe_target}">Продолжить в Telegram</a><small>Ссылка откроет официального бота ArcVPN и сохранит приглашение.</small>
 </main></body></html>"""
     response = Response(page, mimetype="text/html")

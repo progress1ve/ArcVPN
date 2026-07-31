@@ -19,11 +19,8 @@ def _format_payment_context_text(
     intro_text: Optional[str] = None,
 ) -> str:
     is_renew = key is not None
-    title = "💳 <b>Продление подписки</b>" if is_renew else "💳 <b>Оплата подписки</b>"
+    title = "⚡ <b>Продление подписки</b>" if is_renew else "💳 <b>Оплата подписки</b>"
     header_lines = [title]
-
-    if is_renew:
-        header_lines.append(f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}")
 
     traffic_gb = tariff.get('traffic_limit_gb', 0) or 0
     traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "Безлимит"
@@ -40,18 +37,23 @@ def _format_payment_context_text(
         price_str = f"{price_usd:g}".replace('.', ',')
         price_text = f"${price_str}"
 
-    duration_label = "Продление" if is_renew else "Срок"
+    months = max(1, round(int(tariff['duration_days']) / 30))
+    monthly = ""
+    if tariff.get('price_rub') and months > 1:
+        monthly = f" · {round(float(tariff['price_rub']) / months):g} ₽/мес"
     block_lines = [
-        f"Тариф: {escape_html(tariff['name'])}",
-        f"Стоимость: {price_text}",
-        f"{duration_label}: {tariff['duration_days']} дней",
-        f"Трафик: {traffic_text}",
+        f"📅 Срок: <b>{months} мес.</b>",
+        f"💳 К оплате: <b>{price_text}</b>{monthly}",
+        f"📶 Трафик: <b>{traffic_text}</b>",
     ]
 
     if discount_rub > 0 and tariff.get('price_rub'):
         block_lines.append(f"Скидка по промокоду: {discount_rub} ₽")
 
-    text = "\n\n".join(header_lines + [f"<blockquote>{chr(10).join(block_lines)}</blockquote>", "Выберите способ оплаты:"])
+    text = "\n\n".join(header_lines + [
+        f"<blockquote>{chr(10).join(block_lines)}</blockquote>",
+        "Выберите удобный способ оплаты:",
+    ])
     if intro_text:
         return intro_text.strip() + "\n\n" + text
     return text
@@ -113,11 +115,11 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
 
     days_text = _pluralize_days(days_left) if days_left > 0 else 'истек'
     text = (
-        f"💳 <b>Продление подписки</b>\n\n"
-        f"🔑 <b>Подписка:</b> {escape_html(key['display_name'])}\n"
-        f"📅 <b>Действует до:</b> {expires}\n"
-        f"⏳ <b>Осталось:</b> {days_text}\n\n"
-        f"Выберите тариф:"
+        "⚡ <b>Продлить подписку</b>\n\n"
+        f"Сейчас осталось: <b>{days_text}</b>\n"
+        f"Доступ оплачен до: <b>{expires}</b>\n\n"
+        "<blockquote>Новый срок прибавится к текущему — оставшиеся дни не сгорят.</blockquote>\n\n"
+        "Выберите период:"
     )
 
     await safe_edit_or_send(

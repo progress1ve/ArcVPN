@@ -840,7 +840,7 @@ async def grant_bonus_days(user_internal_id: int, days: int) -> bool:
     """
     Продлевает основную подписку пользователя на N бонус-дней и пушит на панель.
 
-    Используется реферальной моделью «3 + 5». После обязательного авто-триала
+    Используется реферальной моделью «5 за вход + 15 обоим за покупку». После обязательного авто-триала
     у пользователя всегда есть ключ, поэтому почти всегда есть что продлевать.
 
     Returns:
@@ -876,7 +876,7 @@ async def process_referral_reward(
     payment_type: str = ""
 ) -> None:
     """
-    Реф-бонус за ПЕРВУЮ покупку приглашённого друга (модель «3 + 5»).
+    Реф-бонус за ПЕРВУЮ покупку приглашённого друга.
 
     Начисляет +N дней рефереру И +N дней самому другу, ОДИН раз на друга
     (идемпотентно через grant_referral_bonus_once). Размер — настройка
@@ -917,7 +917,7 @@ async def process_referral_trial_reward(referee_internal_id: int) -> None:
     """
     Реф-бонус за ЗАПУСК приглашённого друга (его авто-триал): +N дней рефереру.
 
-    Один раз на друга. Размер — настройка referral_trial_bonus_days (по умолч. 3).
+    Один раз на друга. Размер — настройка referral_trial_bonus_days (по умолч. 5).
     """
     if not is_referral_enabled():
         return
@@ -929,9 +929,9 @@ async def process_referral_trial_reward(referee_internal_id: int) -> None:
         return
 
     try:
-        bonus_days = int(get_setting('referral_trial_bonus_days', '0'))
+        bonus_days = int(get_setting('referral_trial_bonus_days', '5'))
     except (TypeError, ValueError):
-        bonus_days = 0
+        bonus_days = 5
     if bonus_days <= 0:
         return
 

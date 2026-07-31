@@ -102,7 +102,7 @@ const MOCK = {
     balance_cents: 0,
     reward_type: 'days',
     earned_days: 30,
-    trial_bonus_days: 3,
+    trial_bonus_days: 5,
     purchase_bonus_days: 15,
     total_invited: 4,
     paid_invited: 2,

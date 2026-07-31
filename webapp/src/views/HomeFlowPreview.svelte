@@ -131,6 +131,7 @@
   $: trafficValue = primary?.traffic_limit ? formatBytes(trafficRemaining) : '∞'
   $: ref = $referral.data ?? {}
   $: referralBonus = Number(ref.purchase_bonus_days || 15)
+  $: referralEntryBonus = Number(ref.trial_bonus_days || 5)
   $: referralSiteLink = ref.site_link || (ref.code ? `${location.origin}/invite/${encodeURIComponent(ref.code)}` : '')
   $: referralTelegramLink = ref.link || ''
   $: currentReferralLink = referralLinkType === 'site' ? referralSiteLink : referralTelegramLink
@@ -574,7 +575,7 @@
 
   function shareReferral() {
     if (!currentReferralLink) return
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(currentReferralLink)}&text=${encodeURIComponent('Подключайся к ArcVPN — после первой оплаты получим по 15 дней')}`
+    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(currentReferralLink)}&text=${encodeURIComponent(`Подключайся к ArcVPN — мне +${referralEntryBonus} дней за приглашение, а после первой оплаты получим по ${referralBonus} дней`)}`
     openTelegram(shareUrl)
   }
 
@@ -803,7 +804,7 @@
           <div class="shortcuts">
             <button class="shortcut" on:click={() => selectTab('friends')}>
               <span class="shortcut-copy">
-                <b>Пригласи друга</b><small>По {referralBonus} дней каждому</small>
+                <b>Пригласи друга</b><small>+{referralEntryBonus} дней сразу</small>
                 <i><ArcIcon name="arrow" size={17} weight="bold" /></i>
               </span>
               <img src={`${asset}/referral-gift-v2.png`} alt="" />
@@ -823,7 +824,7 @@
           <header class="section-head"><h1>Приглашай.<br />Получай дни.</h1></header>
 
           <article class="referral-hero">
-            <div class="referral-copy"><span>Реферальная программа</span><strong>+{referralBonus} дней</strong><p>тебе и другу после первой оплаты</p></div>
+            <div class="referral-copy"><span>Реферальная программа</span><strong>+{referralEntryBonus} дней</strong><p>за вход друга · ещё по {referralBonus} после оплаты</p></div>
             <img src={`${asset}/referral-gift-v2.png`} alt="" />
           </article>
 
@@ -844,8 +845,8 @@
 
           <section class="steps">
             <div><i>1</i><span><b>Поделитесь ссылкой</b><small>Друг переходит в ArcVPN</small></span></div>
-            <div><i>2</i><span><b>Друг покупает тариф</b><small>На любой срок и любым способом</small></span></div>
-            <div><i>3</i><span><b>Оба получаете +{referralBonus} дней</b><small>Начислим автоматически</small></span></div>
+            <div><i>2</i><span><b>Вы получаете +{referralEntryBonus} дней</b><small>Сразу после первого входа друга</small></span></div>
+            <div><i>3</i><span><b>После покупки — по +{referralBonus} дней</b><small>Вам и другу автоматически</small></span></div>
           </section>
         </section>
 

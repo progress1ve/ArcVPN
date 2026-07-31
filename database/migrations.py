@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 32
+LATEST_VERSION = 33
 
 
 def get_current_version() -> int:
@@ -1710,6 +1710,16 @@ def migration_32(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v32 применена")
 
 
+def migration_33(conn: sqlite3.Connection) -> None:
+    """Give the referrer five days when an invited friend activates the trial."""
+    logger.info("Применение миграции v33 (реферальный бонус за первый вход)...")
+    conn.execute(
+        """INSERT INTO settings (key, value) VALUES ('referral_trial_bonus_days', '5')
+           ON CONFLICT(key) DO UPDATE SET value = '5'"""
+    )
+    logger.info("Миграция v33 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1743,6 +1753,7 @@ MIGRATIONS = {
     30: migration_30,
     31: migration_31,
     32: migration_32,
+    33: migration_33,
 }
 
 

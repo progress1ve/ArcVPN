@@ -47,20 +47,20 @@ async def show_my_keys(
     primary = get_user_primary_key(telegram_id)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
-        text="Открыть ArcVPN",
+        text="🚀 Открыть ArcVPN",
         web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app"),
         style="primary",
     ))
 
     if not primary:
         builder.row(InlineKeyboardButton(
-            text="Выбрать тариф",
+            text="💳 Выбрать тариф",
             callback_data="buy_key",
             style="primary",
         ))
-        builder.row(InlineKeyboardButton(text="На главную", callback_data="start"))
+        builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
         text = (
-            "<b>Моя подписка</b>\n\n"
+            "🔐 <b>Моя подписка</b>\n\n"
             "Подписка ещё не оформлена.\n"
             "Выберите тариф — доступ появится автоматически после оплаты."
         )
@@ -100,7 +100,7 @@ async def show_my_keys(
         access = "Продлите подписку, чтобы восстановить доступ"
 
     text = (
-        "<b>Моя подписка</b>\n\n"
+        "🔐 <b>Моя подписка</b>\n\n"
         f"{status}\n"
         f"{access}\n\n"
         f"<blockquote>Трафик: <b>{traffic}</b>\n"
@@ -111,17 +111,17 @@ async def show_my_keys(
 
     if active:
         builder.row(InlineKeyboardButton(
-            text="Импортировать подписку",
+            text="📲 Импортировать подписку",
             callback_data="show_subscription",
         ))
     builder.row(InlineKeyboardButton(
-        text="Продлить подписку",
+        text="⚡ Продлить подписку",
         callback_data=f"key_renew:{primary['id']}",
         style="primary",
     ))
     builder.row(
-        InlineKeyboardButton(text="Инструкция", callback_data="device_instructions"),
-        InlineKeyboardButton(text="На главную", callback_data="start"),
+        InlineKeyboardButton(text="📖 Инструкция", callback_data="device_instructions"),
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start"),
     )
 
     await safe_edit_or_send(
@@ -188,11 +188,14 @@ async def key_show_handler(callback: CallbackQuery):
     """Показать subscription ссылку (заменяет показ отдельной подписки)."""
     from bot.utils.key_sender import send_subscription_link
     from bot.keyboards.user import back_and_home_kb
+    from database.requests import get_user_primary_key
     
     telegram_id = callback.from_user.id
-    
-    # Показываем subscription ссылку вместо отдельной подписки
-    await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
+    primary = get_user_primary_key(telegram_id)
+    if not primary:
+        await callback.answer("Подписка не найдена", show_alert=True)
+        return
+    await send_subscription_link(callback, primary["id"], back_and_home_kb(back_callback="my_keys"))
     await callback.answer()
 
 @router.callback_query(F.data == 'device_instructions')
@@ -203,7 +206,7 @@ async def device_instructions_handler(callback: CallbackQuery):
     from bot.keyboards.user import device_instructions_kb
     
     text = (
-        "<b>Подключить VPN</b>\n\n"
+        "📱 <b>Подключить VPN</b>\n\n"
         "Выберите устройство. Покажем только нужные шаги для установки Happ "
         "и импорта вашей подписки."
     )
@@ -281,11 +284,11 @@ async def instruction_device_handler(callback: CallbackQuery):
         import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
 
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="Скачать Happ", url=cfg["download_url"]))
-        builder.row(InlineKeyboardButton(text="Импортировать подписку", url=import_url, style="primary"))
+        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url=cfg["download_url"]))
+        builder.row(InlineKeyboardButton(text="📲 Импортировать подписку", url=import_url, style="primary"))
         builder.row(
-            InlineKeyboardButton(text="Назад", callback_data="device_instructions"),
-            InlineKeyboardButton(text="На главную", callback_data="start")
+            InlineKeyboardButton(text="← Назад", callback_data="device_instructions"),
+            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
         )
 
         await safe_edit_or_send(callback.message, cfg["text"], reply_markup=builder.as_markup())
@@ -301,9 +304,14 @@ async def show_subscription_handler(callback: CallbackQuery):
     """Показать subscription ссылку пользователю."""
     from bot.utils.key_sender import send_subscription_link
     from bot.keyboards.user import back_and_home_kb
+    from database.requests import get_user_primary_key
     
     telegram_id = callback.from_user.id
-    await send_subscription_link(callback, telegram_id, back_and_home_kb(back_callback="my_keys"))
+    primary = get_user_primary_key(telegram_id)
+    if not primary:
+        await callback.answer("Подписка не найдена", show_alert=True)
+        return
+    await send_subscription_link(callback, primary["id"], back_and_home_kb(back_callback="my_keys"))
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_renew:'))

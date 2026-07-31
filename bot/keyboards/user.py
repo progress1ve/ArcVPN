@@ -428,8 +428,13 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
                     price_str = f"{price_usd:g}".replace('.', ',')
                     price_display = f"${price_str}"
                 
-                # Формат: Название (дни) — цена
-                text = f"📋 {tariff['name']} ({tariff['duration_days']} дн.) — {price_display}"
+                duration_days = int(tariff.get("duration_days") or 0)
+                months = max(1, round(duration_days / 30))
+                icon = {1: "🔹", 3: "⭐", 6: "💎", 12: "👑"}.get(months, "✨")
+                monthly = ""
+                if price_rub and price_rub > 0 and months > 1:
+                    monthly = f" · {round(price_rub / months)} ₽/мес"
+                text = f"{icon} {months} мес. · {price_display}{monthly}"
                 cb_data = f"{select_callback_prefix}{select_callback_suffix}:{tariff['id']}"
                 
                 builder.row(
@@ -508,7 +513,7 @@ def tariff_select_kb(tariffs: list, back_callback: str = "buy_key", order_id: st
         _add_tariff_buttons(tariffs)
     
     builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data=back_callback),
+        InlineKeyboardButton(text="← Назад", callback_data=back_callback),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     

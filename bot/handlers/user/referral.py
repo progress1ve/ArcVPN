@@ -69,16 +69,21 @@ async def show_referral_system(callback: CallbackQuery):
 
     # Размеры бонусов (настройки)
     try:
+        trial_bonus = int(get_setting('referral_trial_bonus_days', '5'))
+    except (TypeError, ValueError):
+        trial_bonus = 5
+    try:
         purchase_bonus = int(get_setting('referral_purchase_bonus_days', '15'))
     except (TypeError, ValueError):
         purchase_bonus = 15
 
     text = (
-        "<b>Пригласить друга</b>\n\n"
-        f"После первой покупки друга вы оба получите <b>+{purchase_bonus} дней</b> подписки.\n\n"
-        f"<blockquote>Приглашено: <b>{escape_html(str(total_invited))}</b>\n"
-        f"Получено: <b>{escape_html(str(earned_days))} дней</b></blockquote>\n\n"
-        "Ваша персональная ссылка:\n"
+        "🎁 <b>Пригласить друга</b>\n\n"
+        f"✨ <b>+{trial_bonus} дней вам</b> — когда друг впервые зайдёт в бот.\n"
+        f"🚀 <b>+{purchase_bonus} дней каждому</b> — после первой покупки друга.\n\n"
+        f"<blockquote>👥 Приглашено: <b>{escape_html(str(total_invited))}</b>\n"
+        f"⭐ Получено: <b>{escape_html(str(earned_days))} дней</b></blockquote>\n\n"
+        "🔗 Ваша персональная ссылка:\n"
         f"<code>{escape_html(referral_link)}</code>"
     )
 
@@ -91,14 +96,14 @@ async def show_referral_system(callback: CallbackQuery):
     # Кнопка "Пригласить друзей" с share
     builder.row(
         InlineKeyboardButton(
-            text="Поделиться ссылкой",
+            text="📨 Поделиться ссылкой",
             url=f"https://t.me/share/url?url={referral_link}&text=Присоединяйся к ArcVPN!"
         )
     )
 
     # Кнопка "Личный кабинет" (возврат на главную)
     builder.row(
-        InlineKeyboardButton(text="На главную", callback_data="start")
+        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
     await safe_edit_or_send(callback.message, 

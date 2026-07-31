@@ -13,9 +13,11 @@
   $: friends = d.friends ?? []
   $: earnedDays = d.earned_days ?? 0
   $: purchaseBonus = d.purchase_bonus_days ?? 15
+  $: entryBonus = d.trial_bonus_days ?? 5
 
   $: STEPS = [
     { t: 'Поделитесь ссылкой', s: 'Отправьте другу свою реферальную ссылку' },
+    { t: `Друг открыл бота — +${entryBonus} ${daysWord(entryBonus)}`, s: `Начислим вам сразу после его первого входа` },
     { t: `Друг купил подписку — +${purchaseBonus} ${daysWord(purchaseBonus)}`, s: `Вам и другу — по +${purchaseBonus} ${daysWord(purchaseBonus)} за его первую покупку` },
   ]
 
@@ -32,7 +34,7 @@
 <section class="view">
   <header class="head">
     <h1 class="display">Друзья</h1>
-    <p class="muted">Приглашайте друзей: после первой покупки вы получите по 15 дней подписки.</p>
+    <p class="muted">Получите +{entryBonus} дней за вход друга и ещё по {purchaseBonus} дней после его первой покупки.</p>
   </header>
 
   {#if $referral.loading && !$referral.data}
