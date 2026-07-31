@@ -373,7 +373,7 @@
 
   function startPaymentPolling(runImmediately = false) {
     clearInterval(paymentPoll)
-    if (!paymentOrderId || ['success', 'canceled'].includes(paymentState)) return
+    if (!paymentOrderId || ['success', 'canceled', 'review'].includes(paymentState)) return
     if (runImmediately) checkPayment(true)
     paymentPoll = setInterval(() => checkPayment(true), 4000)
   }
@@ -396,6 +396,12 @@
         clearPendingPayment()
         haptic('success')
         await Promise.all([loadStatus({ force: true }), refreshDevices()])
+      } else if (result.review_required || result.fulfillment_status === 'manual_review') {
+        paymentState = 'review'
+        paymentMessage = 'Деньги получены. Поддержка проверит выдачу подписки — повторно платить не нужно.'
+        clearInterval(paymentPoll)
+        clearPendingPayment()
+        haptic('warning')
       } else {
         paymentState = result.status === 'canceled' ? 'canceled' : 'awaiting'
         paymentMessage = result.status === 'canceled'
@@ -423,6 +429,10 @@
 
   function purchaseAction() {
     if (paymentState === 'success') return closePurchase()
+    if (paymentState === 'review') {
+      purchaseOpen = false
+      return openSupport()
+    }
     if (paymentState === 'awaiting') return reopenPayment()
     if (paymentState === 'canceled') resetPayment()
     return buy(selectedPlan)
@@ -670,20 +680,21 @@
             <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} устройства</span><small>{purchaseDeviceRub ? `+${rub(purchaseDeviceRub)}` : 'включено'}</small></div>
             <div class="total-row"><span><ArcIcon name="lte" size={19} />LTE {purchaseLteGb} ГБ</span><small>{purchaseLteRub ? `+${rub(purchaseLteRub)}` : '20 ГБ включено'}</small></div>
             {#if paymentState !== 'idle'}
-              <div class="payment-state" class:success={paymentState === 'success'} class:canceled={paymentState === 'canceled'} role="status" aria-live="polite">
+              <div class="payment-state" class:success={paymentState === 'success'} class:canceled={paymentState === 'canceled'} class:review={paymentState === 'review'} role="status" aria-live="polite">
                 <span class="payment-state-icon">
                   {#if paymentState === 'success'}<ArcIcon name="check" size={19} weight="bold" />
                   {:else if paymentState === 'canceled'}<b aria-hidden="true">×</b>
+                  {:else if paymentState === 'review'}<ArcIcon name="headset" size={19} weight="bold" />
                   {:else}<i class="payment-spinner"></i>{/if}
                 </span>
                 <div>
-                  <strong>{paymentState === 'success' ? 'Оплата получена' : paymentState === 'canceled' ? 'Платёж отменён' : 'Ожидаем оплату'}</strong>
+                  <strong>{paymentState === 'success' ? 'Оплата получена' : paymentState === 'canceled' ? 'Платёж отменён' : paymentState === 'review' ? 'Оплата на проверке' : 'Ожидаем оплату'}</strong>
                   <p>{paymentMessage}</p>
                 </div>
               </div>
             {/if}
             <button disabled={!selectedPlan || paymentBusy || paymentChecking} on:click={purchaseAction}>
-              <span>{paymentBusy || paymentChecking ? 'Подождите…' : paymentState === 'success' ? 'Вернуться в ArcVPN' : paymentState === 'awaiting' ? 'Открыть СБП снова' : paymentState === 'canceled' ? 'Создать новый платёж' : 'Оплатить через СБП'}</span>
+              <span>{paymentBusy || paymentChecking ? 'Подождите…' : paymentState === 'success' ? 'Вернуться в ArcVPN' : paymentState === 'review' ? 'Написать в поддержку' : paymentState === 'awaiting' ? 'Открыть СБП снова' : paymentState === 'canceled' ? 'Создать новый платёж' : 'Оплатить через СБП'}</span>
               {#if paymentState === 'idle' || paymentState === 'canceled'}<strong>{rub(purchaseTotalRub)}</strong>{/if}
             </button>
             {#if paymentOrderId && paymentState === 'awaiting'}<button class="payment-check" disabled={paymentChecking} on:click={() => checkPayment(false)}>Проверить сейчас</button>{/if}
@@ -1344,9 +1355,11 @@
   .payment-state { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 12px; align-items: center; margin-top: 13px; padding: 12px; border-radius: 18px; color: #dceaf5; background: rgba(116,194,239,.08); }
   .payment-state.success { background: rgba(93,208,163,.09); }
   .payment-state.canceled { background: rgba(241,131,131,.08); }
+  .payment-state.review { background: rgba(240,190,105,.08); }
   .payment-state-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; color: #8fd7fb; background: rgba(128,207,249,.11); }
   .payment-state.success .payment-state-icon { color: #8ce0bd; background: rgba(99,214,169,.12); }
   .payment-state.canceled .payment-state-icon { color: #f0a2a2; background: rgba(240,134,134,.11); }
+  .payment-state.review .payment-state-icon { color: #edc680; background: rgba(236,190,106,.11); }
   .payment-state-icon b { font-size: 23px; font-weight: 500; line-height: 1; }
   .payment-state > div strong { display: block; font-size: 11px; }
   .payment-state > div p { margin: 4px 0 0; color: #91a7ba; font-size: 9px; line-height: 1.4; }

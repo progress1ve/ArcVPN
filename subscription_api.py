@@ -1938,17 +1938,30 @@ def api_sbp_payment_status(order_id: str):
     if not order or not user_id or int(order.get("user_id") or 0) != int(user_id):
         return _api_error("payment_not_found", 404)
     if order.get("status") == "paid" and order.get("fulfillment_status") == "applied":
-        return _api_no_store(jsonify({"ok": True, "status": "succeeded", "applied": True}))
+        return _api_no_store(jsonify({
+            "ok": True,
+            "status": "succeeded",
+            "applied": True,
+            "fulfillment_status": "applied",
+        }))
     provider_id = order.get("yookassa_payment_id")
     if not provider_id:
         return _api_error("payment_not_initialized", 409)
     try:
         status = ASYNC_EXECUTOR.run(check_yookassa_payment_status(provider_id), timeout=45)
         applied = False
+        fulfillment_status = order.get("fulfillment_status") or "pending"
         if status == "succeeded":
             success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id), timeout=45)
             applied = bool(success and updated and updated.get("fulfillment_status") == "applied")
-        return _api_no_store(jsonify({"ok": True, "status": status, "applied": applied}))
+            fulfillment_status = (updated or {}).get("fulfillment_status") or fulfillment_status
+        return _api_no_store(jsonify({
+            "ok": True,
+            "status": status,
+            "applied": applied,
+            "fulfillment_status": fulfillment_status,
+            "review_required": status == "succeeded" and fulfillment_status == "manual_review",
+        }))
     except Exception:
         logger.exception("Не удалось проверить СБП-платёж %s", order_id)
         return _api_error("payment_status_unavailable", 503)
