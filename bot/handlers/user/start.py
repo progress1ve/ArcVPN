@@ -1,7 +1,7 @@
 import logging
 import uuid
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -18,6 +18,85 @@ from bot.utils.text import escape_html, safe_edit_or_send
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+
+def _format_bytes(value: int) -> str:
+    value = max(0, int(value or 0))
+    gb = value / (1024 ** 3)
+    if gb >= 100:
+        return f"{gb:.0f} ГБ"
+    if gb >= 10:
+        return f"{gb:.1f} ГБ".replace(".0 ", " ")
+    if gb >= 1:
+        return f"{gb:.1f} ГБ"
+    return f"{value / (1024 ** 2):.0f} МБ"
+
+
+def _plural_days(value: int) -> str:
+    value = max(0, int(value))
+    last_two = value % 100
+    last = value % 10
+    if 11 <= last_two <= 14:
+        word = "дней"
+    elif last == 1:
+        word = "день"
+    elif 2 <= last <= 4:
+        word = "дня"
+    else:
+        word = "дней"
+    return f"{value} {word}"
+
+
+def _days_left(expires_at: Any) -> int:
+    if not expires_at:
+        return 0
+    try:
+        expires = datetime.fromisoformat(str(expires_at).replace("Z", "+00:00"))
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        seconds = (expires - datetime.now(timezone.utc)).total_seconds()
+        return max(0, int((seconds + 86399) // 86400))
+    except (TypeError, ValueError):
+        return 0
+
+
+def build_fallback_home_text(user: dict, primary_key: Optional[Dict[str, Any]]) -> str:
+    """Компактный резервный кабинет без внутренних технических деталей."""
+    first_name = escape_html(user.get("first_name") or "друг")
+    if not primary_key:
+        return (
+            f"<b>ArcVPN</b>\n\n"
+            f"{first_name}, подписка ещё не оформлена.\n"
+            "Выберите тариф — после оплаты доступ появится автоматически.\n\n"
+            "<blockquote>Основное управление доступно в приложении ArcVPN.</blockquote>"
+        )
+
+    active = bool(primary_key.get("is_active"))
+    days = _days_left(primary_key.get("expires_at"))
+    status = "Подписка активна" if active else "Подписка закончилась"
+    status_icon = "●" if active else "○"
+    traffic_used = int(primary_key.get("traffic_used") or 0)
+    traffic_limit = int(primary_key.get("traffic_limit") or 0)
+    if traffic_limit > 0:
+        remaining = max(0, traffic_limit - traffic_used)
+        traffic_line = f"Трафик: <b>{_format_bytes(remaining)}</b> осталось"
+    else:
+        traffic_line = "Трафик: <b>без ограничений</b>"
+
+    if active:
+        access_line = f"Осталось: <b>{_plural_days(days)}</b>"
+        hint = "Откройте ArcVPN или выберите нужное действие ниже."
+    else:
+        access_line = "Доступ приостановлен"
+        hint = "Продлите подписку — доступ восстановится автоматически."
+
+    return (
+        f"<b>ArcVPN</b>\n\n"
+        f"{status_icon} <b>{status}</b>\n"
+        f"{access_line}\n"
+        f"{traffic_line}\n\n"
+        f"<blockquote>{hint}</blockquote>"
+    )
 
 
 def create_onboarding_kb() -> InlineKeyboardMarkup:
@@ -325,39 +404,35 @@ def create_main_menu_kb(
 
     # Пробный период выдаётся автоматически при первом /start — отдельной кнопки нет.
 
-    # Ряд 1: «Подключиться» — на всю ширину (акцентная). Открывает Mini App.
+    # Ряд 1: Mini App — основная точка входа.
     # web_app-кнопке нужен HTTPS-URL; берём из SUBSCRIPTION_URL + /app.
     from aiogram.types import WebAppInfo
     from config import SUBSCRIPTION_URL
     webapp_url = f"{SUBSCRIPTION_URL.rstrip('/')}/app"
-    builder.row(InlineKeyboardButton(text="🚀 Подключиться", web_app=WebAppInfo(url=webapp_url), style="primary"))
+    builder.row(InlineKeyboardButton(text="Открыть ArcVPN", web_app=WebAppInfo(url=webapp_url), style="primary"))
 
-    # Ряд 2: «Подписка» (= Мои подписки) + «Пригласить»
-    row2 = [InlineKeyboardButton(text="💳 Подписка", callback_data="my_keys")]
-    if show_referral:
-        row2.append(InlineKeyboardButton(text="👥 Пригласить", callback_data="referral_system"))
-    builder.row(*row2)
-
-    # Ряд 3: «О сервисе» + «Поддержка»
-    from database.requests import get_setting as _get_setting
-    support_link = _get_setting('support_channel_link', 'https://t.me/ArcVPN_support')
-    if not support_link or not support_link.startswith(('http://', 'https://')):
-        support_link = 'https://t.me/ArcVPN_support'
+    # Самые частые резервные действия держим в первом ряду.
     builder.row(
-        InlineKeyboardButton(text="ℹ️ О сервисе", callback_data="help"),
-        InlineKeyboardButton(text="💬 Поддержка", url=support_link),
+        InlineKeyboardButton(text="Подключить VPN", callback_data="bot_connect"),
+        InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"),
     )
 
-    # Ряд 4: «Продлить подписку» — на всю ширину (акцентная).
+    # Покупка/продление остаётся отдельной заметной кнопкой.
     # Если подписки ещё нет — продлевать нечего, показываем «Купить».
     if has_subscription and primary_key_id:
-        builder.row(InlineKeyboardButton(text="⚡ Продлить подписку", callback_data=f"key_renew:{primary_key_id}", style="primary"))
+        builder.row(InlineKeyboardButton(text="Продлить подписку", callback_data=f"key_renew:{primary_key_id}", style="primary"))
     else:
-        builder.row(InlineKeyboardButton(text="💳 Купить подписку", callback_data="buy_key", style="primary"))
+        builder.row(InlineKeyboardButton(text="Выбрать тариф", callback_data="buy_key", style="primary"))
+
+    secondary = []
+    if show_referral:
+        secondary.append(InlineKeyboardButton(text="Пригласить друга", callback_data="referral_system"))
+    secondary.append(InlineKeyboardButton(text="Помощь", callback_data="bot_help"))
+    builder.row(*secondary)
 
     # Админ-панель (если админ)
     if is_admin:
-        builder.row(InlineKeyboardButton(text="⚙️ Админ-панель", callback_data="admin_panel"))
+        builder.row(InlineKeyboardButton(text="Админ-панель", callback_data="admin_panel"))
 
     return builder.as_markup()
 
@@ -393,7 +468,8 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
 
     from database.requests import get_user_primary_key
     primary_key = get_user_primary_key(user_id)
-    (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=primary_key)
+    text = build_fallback_home_text(user, primary_key)
+    welcome_photo = None
 
     show_referral = is_referral_enabled()
     has_subscription, primary_key_id = _get_subscription_state(user_id)
@@ -402,6 +478,100 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
         has_subscription=has_subscription, primary_key_id=primary_key_id,
     )
     await safe_edit_or_send(callback.message, text, reply_markup=kb, photo=welcome_photo)
+    await callback.answer()
+
+
+def _fallback_back_kb(*, primary_label: str, primary_callback: str) -> InlineKeyboardMarkup:
+    from aiogram.types import WebAppInfo
+    from config import SUBSCRIPTION_URL
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="Открыть ArcVPN",
+        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app"),
+        style="primary",
+    ))
+    builder.row(InlineKeyboardButton(text=primary_label, callback_data=primary_callback))
+    builder.row(InlineKeyboardButton(text="На главную", callback_data="start"))
+    return builder.as_markup()
+
+
+@router.callback_query(F.data == "bot_connect")
+async def fallback_connect_handler(callback: CallbackQuery):
+    text = (
+        "<b>Подключение VPN</b>\n\n"
+        "1. Установите приложение Happ.\n"
+        "2. Импортируйте подписку.\n"
+        "3. Выберите сервер и включите VPN.\n\n"
+        "<blockquote>Если приложение уже установлено, нажмите «Импортировать подписку».</blockquote>"
+    )
+    await safe_edit_or_send(
+        callback.message,
+        text,
+        reply_markup=_fallback_back_kb(
+            primary_label="Импортировать подписку",
+            primary_callback="show_subscription",
+        ),
+    )
+    await callback.answer()
+
+
+FAQ_ANSWERS = {
+    "connect": (
+        "<b>VPN не подключается</b>\n\n"
+        "Обновите подписку в Happ и попробуйте другой сервер. "
+        "Если подключения нет, выключите другие VPN и перезапустите Happ."
+    ),
+    "lte": (
+        "<b>Обход блокировок</b>\n\n"
+        "Для мобильного интернета выберите сервер с названием "
+        "«Обход глушилок (LTE)». Он предназначен для сетей с белыми списками."
+    ),
+    "speed": (
+        "<b>Низкая скорость</b>\n\n"
+        "Выберите сервер со значком скорости, закройте фоновые загрузки "
+        "и сравните результат по Wi‑Fi и мобильной сети."
+    ),
+    "payment": (
+        "<b>Оплата или подписка</b>\n\n"
+        "После успешной оплаты подписка обновляется автоматически. "
+        "Если статус не изменился, откройте ArcVPN заново через несколько секунд."
+    ),
+}
+
+
+@router.callback_query(F.data == "bot_help")
+async def fallback_help_handler(callback: CallbackQuery):
+    from database.requests import get_setting as _get_setting
+    support_link = _get_setting("support_channel_link", "https://t.me/ArcVPN_support")
+    if not support_link or not support_link.startswith(("http://", "https://")):
+        support_link = "https://t.me/ArcVPN_support"
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text="VPN не подключается", callback_data="bot_faq:connect"))
+    builder.row(InlineKeyboardButton(text="Как настроить обход", callback_data="bot_faq:lte"))
+    builder.row(InlineKeyboardButton(text="Низкая скорость", callback_data="bot_faq:speed"))
+    builder.row(InlineKeyboardButton(text="Оплата и подписка", callback_data="bot_faq:payment"))
+    builder.row(InlineKeyboardButton(text="Написать в поддержку", url=support_link, style="primary"))
+    builder.row(InlineKeyboardButton(text="На главную", callback_data="start"))
+    await safe_edit_or_send(
+        callback.message,
+        "<b>Помощь ArcVPN</b>\n\nВыберите тему — ответ откроется прямо здесь.",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith("bot_faq:"))
+async def fallback_faq_handler(callback: CallbackQuery):
+    topic = callback.data.partition(":")[2]
+    answer = FAQ_ANSWERS.get(topic)
+    if not answer:
+        await callback.answer("Раздел не найден", show_alert=True)
+        return
+    await safe_edit_or_send(
+        callback.message,
+        answer,
+        reply_markup=_fallback_back_kb(primary_label="Другие вопросы", primary_callback="bot_help"),
+    )
     await callback.answer()
 
 @router.message(Command('help'))
