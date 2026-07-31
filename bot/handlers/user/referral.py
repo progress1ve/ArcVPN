@@ -69,36 +69,18 @@ async def show_referral_system(callback: CallbackQuery):
 
     # Размеры бонусов (настройки)
     try:
-        trial_bonus = int(get_setting('referral_trial_bonus_days', '0'))
-    except (TypeError, ValueError):
-        trial_bonus = 0
-    try:
         purchase_bonus = int(get_setting('referral_purchase_bonus_days', '15'))
     except (TypeError, ValueError):
         purchase_bonus = 15
 
-    # Весь текст в HTML с blockquote
-    text_lines = [
-        "🤝 <b>Партнёрская программа</b>",
-        "",
-        "<b>Приглашай друзей — получай дни подписки!</b>",
-        "<blockquote>"
-        f"🎁 <b>+{trial_bonus} дня</b> — когда друг запустит бота по твоей ссылке\n"
-        f"🚀 <b>+{purchase_bonus} дней</b> тебе И <b>+{purchase_bonus} дней</b> другу — за его первую покупку"
-        "</blockquote>",
-        "",
-        "📊 <b>Ваша статистика:</b>",
-        f"<blockquote>Приглашено: {escape_html(str(total_invited))}",
-        f"Заработано дней: {escape_html(str(earned_days))}</blockquote>",
-        "",
-        "🔗 <b>Ваша ссылка:</b>",
-        f"<code>{escape_html(referral_link)}</code>",
-    ]
-
-    # В актуальной модели награда выдаётся только за первую покупку друга.
-    # Отсекаем сохранённую строку старого условия, не меняя остальную разметку.
-    text_lines = [line for line in text_lines if "когда друг запустит" not in line]
-    text = "\n".join(text_lines)
+    text = (
+        "<b>Пригласить друга</b>\n\n"
+        f"После первой покупки друга вы оба получите <b>+{purchase_bonus} дней</b> подписки.\n\n"
+        f"<blockquote>Приглашено: <b>{escape_html(str(total_invited))}</b>\n"
+        f"Получено: <b>{escape_html(str(earned_days))} дней</b></blockquote>\n\n"
+        "Ваша персональная ссылка:\n"
+        f"<code>{escape_html(referral_link)}</code>"
+    )
 
     # Создаем клавиатуру с кнопками
     from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -109,14 +91,14 @@ async def show_referral_system(callback: CallbackQuery):
     # Кнопка "Пригласить друзей" с share
     builder.row(
         InlineKeyboardButton(
-            text="👥 Пригласить друзей",
+            text="Поделиться ссылкой",
             url=f"https://t.me/share/url?url={referral_link}&text=Присоединяйся к ArcVPN!"
         )
     )
 
     # Кнопка "Личный кабинет" (возврат на главную)
     builder.row(
-        InlineKeyboardButton(text="🏠На главную", callback_data="start")
+        InlineKeyboardButton(text="На главную", callback_data="start")
     )
     
     await safe_edit_or_send(callback.message, 

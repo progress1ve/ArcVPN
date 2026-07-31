@@ -20,7 +20,7 @@ def main_menu_kb(is_admin: bool = False, show_trial: bool = False, show_referral
     
     # Первая строка: Мои подписки
     builder.row(
-        InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys")
+        InlineKeyboardButton(text="Моя подписка", callback_data="my_keys")
     )
     
     # Вторая строка: Купить подписку
@@ -616,7 +616,7 @@ def key_manage_kb(key_id: int, is_unconfigured: bool = False, is_active: bool = 
     
     # Последний ряд: Мои подписки и На главную
     builder.row(
-        InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"),
+        InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
@@ -1062,7 +1062,7 @@ def key_issued_kb() -> InlineKeyboardMarkup:
     # Первый ряд
     builder.row(
         InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"),
-        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys")
+        InlineKeyboardButton(text="Моя подписка", callback_data="my_keys")
     )
     
     # Второй ряд
@@ -1086,17 +1086,17 @@ def device_instructions_kb() -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     
     builder.row(
-        InlineKeyboardButton(text="🍎 Apple", callback_data="instruction_apple")
+        InlineKeyboardButton(text="Apple", callback_data="instruction_apple")
     )
     builder.row(
-        InlineKeyboardButton(text="🤖 Android", callback_data="instruction_android")
+        InlineKeyboardButton(text="Android", callback_data="instruction_android")
     )
     builder.row(
-        InlineKeyboardButton(text="💻 Windows", callback_data="instruction_windows")
+        InlineKeyboardButton(text="Windows", callback_data="instruction_windows")
     )
     builder.row(
-        InlineKeyboardButton(text="⬅️ Назад", callback_data="my_keys"),
-        InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+        InlineKeyboardButton(text="Назад", callback_data="my_keys"),
+        InlineKeyboardButton(text="На главную", callback_data="start")
     )
     
     return builder.as_markup()

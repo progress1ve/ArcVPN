@@ -205,7 +205,7 @@ async def send_subscription_link(
             builder = InlineKeyboardBuilder()
             builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
             builder.row(
-                InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"),
+                InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"),
                 InlineKeyboardButton(text="🏠 На главную", callback_data="start")
             )
             key_manage_markup = builder.as_markup()

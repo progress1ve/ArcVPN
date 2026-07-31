@@ -48,7 +48,7 @@ async def start_new_key_config(message: Message, state: FSMContext, order_id: st
     builder.row(InlineKeyboardButton(text="📥 Показать подписку", callback_data="show_subscription"))
     builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
     builder.row(
-        InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
+        InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     

@@ -26,54 +26,110 @@ async def cmd_mykeys(message: Message, state: FSMContext):
     await state.clear()
     await show_my_keys(message.from_user.id, message)
 
-async def show_my_keys(telegram_id: int, message, is_callback: bool = True):
-    """
-    Общая логика для показа списка подписок.
-    
-    Args:
-        telegram_id: ID пользователя в Telegram
-        message: Сообщение (Message) для отправки/редактирования
-        is_callback: True если вызвано из callback (редактируем), False если из команды (отправляем новое)
-    """
-    from database.requests import get_user_keys_for_display, is_traffic_exhausted
-    from bot.keyboards.user import my_keys_list_kb
-    from bot.keyboards.admin import home_only_kb
-    from bot.services.vpn_api import get_client, format_traffic
-    keys = get_user_keys_for_display(telegram_id)
-    if not keys:
-        if is_callback:
-            await safe_edit_or_send(message, '🔑 <b>Мои подписки</b>\n\nУ вас пока нет VPN-подписок.\n\nНажмите «Купить подписку» на главной, чтобы приобрести доступ! 🚀', reply_markup=home_only_kb())
-        else:
-            await safe_edit_or_send(message, '🔑 <b>Мои подписки</b>\n\nУ вас пока нет VPN-подписок.\n\nНажмите «Купить подписку» на главной, чтобы приобрести доступ! 🚀', reply_markup=home_only_kb(), force_new=True)
+async def show_my_keys(
+    telegram_id: int,
+    message,
+    is_callback: bool = True,
+    prepend_text: str = "",
+):
+    """Показывает единственную подписку сразу, без устаревшего выбора ключа."""
+    from aiogram.types import InlineKeyboardButton, WebAppInfo
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from config import SUBSCRIPTION_URL
+    from database.requests import (
+        get_user_devices,
+        get_user_entitlements,
+        get_user_primary_key,
+        is_traffic_exhausted,
+    )
+    from bot.handlers.user.start import _days_left, _format_bytes, _plural_days
+
+    primary = get_user_primary_key(telegram_id)
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="Открыть ArcVPN",
+        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app"),
+        style="primary",
+    ))
+
+    if not primary:
+        builder.row(InlineKeyboardButton(
+            text="Выбрать тариф",
+            callback_data="buy_key",
+            style="primary",
+        ))
+        builder.row(InlineKeyboardButton(text="На главную", callback_data="start"))
+        text = (
+            "<b>Моя подписка</b>\n\n"
+            "Подписка ещё не оформлена.\n"
+            "Выберите тариф — доступ появится автоматически после оплаты."
+        )
+        if prepend_text:
+            text = f"{prepend_text}\n\n{text}"
+        await safe_edit_or_send(
+            message,
+            text,
+            reply_markup=builder.as_markup(),
+            force_new=not is_callback,
+        )
         return
-    lines = ['🔑 <b>Мои подписки</b>\n']
-    for key in keys:
-        if key['is_active'] and (not is_traffic_exhausted(key)):
-            status_emoji = '🟢'
-        else:
-            status_emoji = '🔴'
-        traffic_used = key.get('traffic_used', 0) or 0
-        traffic_limit = key.get('traffic_limit', 0) or 0
-        used_str = format_traffic(traffic_used)
-        limit_str = format_traffic(traffic_limit) if traffic_limit > 0 else '∞'
-        traffic_text = f'{used_str} / {limit_str}'
-        
-        # Форматируем дату в формате ДД-ММ-ГГГГ (московское время)
-        if key['expires_at']:
-            from bot.utils.datetime_utils import format_date
-            expires = format_date(key['expires_at'])
-        else:
-            expires = '—'
-        
-        # Показываем только название, трафик и дату (без сервера и протокола)
-        lines.append(f"{status_emoji} <b>{escape_html(key['display_name'])}</b> - {traffic_text} - до {expires}")
-        lines.append('')
-    lines.append('Выберите подписку для управления:')
-    text = '\n'.join(lines)
-    if is_callback:
-        await safe_edit_or_send(message, text, reply_markup=my_keys_list_kb(keys))
+
+    traffic_used = int(primary.get("traffic_used") or 0)
+    traffic_limit = int(primary.get("traffic_limit") or 0)
+    exhausted = is_traffic_exhausted(primary)
+    active = bool(primary.get("is_active")) and not exhausted
+    days = _days_left(primary.get("expires_at"))
+    if traffic_limit > 0:
+        traffic = f"{_format_bytes(max(0, traffic_limit - traffic_used))} осталось"
     else:
-        await safe_edit_or_send(message, text, reply_markup=my_keys_list_kb(keys), force_new=True)
+        traffic = "без ограничений"
+
+    entitlements = get_user_entitlements(telegram_id)
+    devices = get_user_devices(telegram_id)
+    device_limit = int(entitlements.get("device_limit") or 2)
+    device_count = len(devices)
+
+    if active:
+        status = "● <b>Активна</b>"
+        access = f"Осталось: <b>{_plural_days(days)}</b>"
+    elif exhausted:
+        status = "○ <b>Трафик закончился</b>"
+        access = "Продлите подписку, чтобы восстановить доступ"
+    else:
+        status = "○ <b>Срок закончился</b>"
+        access = "Продлите подписку, чтобы восстановить доступ"
+
+    text = (
+        "<b>Моя подписка</b>\n\n"
+        f"{status}\n"
+        f"{access}\n\n"
+        f"<blockquote>Трафик: <b>{traffic}</b>\n"
+        f"Устройства: <b>{device_count} из {device_limit}</b></blockquote>"
+    )
+    if prepend_text:
+        text = f"{prepend_text}\n\n{text}"
+
+    if active:
+        builder.row(InlineKeyboardButton(
+            text="Импортировать подписку",
+            callback_data="show_subscription",
+        ))
+    builder.row(InlineKeyboardButton(
+        text="Продлить подписку",
+        callback_data=f"key_renew:{primary['id']}",
+        style="primary",
+    ))
+    builder.row(
+        InlineKeyboardButton(text="Инструкция", callback_data="device_instructions"),
+        InlineKeyboardButton(text="На главную", callback_data="start"),
+    )
+
+    await safe_edit_or_send(
+        message,
+        text,
+        reply_markup=builder.as_markup(),
+        force_new=not is_callback,
+    )
 
 @router.callback_query(F.data == 'my_keys')
 async def my_keys_handler(callback: CallbackQuery):
@@ -83,97 +139,13 @@ async def my_keys_handler(callback: CallbackQuery):
     await callback.answer()
 
 async def show_key_details(telegram_id: int, key_id: int, message, is_callback: bool = True, prepend_text: str=''):
-    """Общая логика для показа деталей подписки."""
-    from database.requests import get_key_details_for_user, get_key_payments_history, is_key_active, is_traffic_exhausted
-    from bot.keyboards.user import key_manage_kb
-    from bot.services.vpn_api import format_traffic
-    import logging
-    logger = logging.getLogger(__name__)
-    key = get_key_details_for_user(key_id, telegram_id)
-    if not key:
-        if is_callback:
-            await safe_edit_or_send(message, '❌ Подписка не найдена или вы не являетесь её владельцем.')
-        else:
-            await safe_edit_or_send(message, '❌ Подписка не найдена или вы не являетесь её владельцем.', force_new=True)
-        return
-    traffic_exhausted = is_traffic_exhausted(key)
-    key_active = is_key_active(key)
-    if traffic_exhausted:
-        status = '🔴 Трафик исчерпан'
-    elif key_active:
-        status = '🟢 Активен'
-    else:
-        status = '🔴 Истёк'
-    inbound_name = '—'
-    protocol = '—'
-    is_unconfigured = not key.get('server_id')
-    traffic_used = key.get('traffic_used', 0) or 0
-    traffic_limit = key.get('traffic_limit', 0) or 0
-    if is_unconfigured:
-        traffic_info = '⚠️ Требует настройки'
-    elif traffic_limit > 0:
-        used_str = format_traffic(traffic_used)
-        limit_str = format_traffic(traffic_limit)
-        percent = traffic_used / traffic_limit * 100 if traffic_limit > 0 else 0
-        traffic_info = f'{used_str} из {limit_str} ({percent:.1f}%)'
-    elif traffic_used > 0:
-        traffic_info = f'{format_traffic(traffic_used)} (безлимит)'
-    else:
-        traffic_info = 'Безлимит'
-    if key.get('server_active') and key.get('panel_email'):
-        try:
-            from bot.services.vpn_api import get_client
-            client = await get_client(key['server_id'])
-            stats = await client.get_client_stats(key['panel_email'])
-            if stats:
-                protocol = stats.get('protocol', 'vless').upper()
-                inbound_name = stats.get('remark', 'VPN') or 'VPN'
-        except Exception as e:
-            logger.warning(f'Ошибка получения протокола: {e}')
-    # Форматируем дату в формате ДД-ММ-ГГГГ (московское время)
-    if key['expires_at']:
-        from bot.utils.datetime_utils import format_date
-        expires = format_date(key['expires_at'])
-    else:
-        expires = '—'
-    server = key.get('server_name') or 'Не выбран'
-    # Устройства (онлайн-IP), лимит из конфига. Данные обновляет планировщик каждые ~5 мин.
-    device_limit = getattr(__import__('config'), 'DEFAULT_LIMIT_IP', 2)
-    online_devices = key.get('online_devices', 0) or 0
-    lines = []
-    if prepend_text:
-        lines.append(prepend_text)
-        lines.append('')
-    lines.extend([f"🔑 <b>{escape_html(key['display_name'])}</b>\n", f'<b>Статус:</b> {status}', f'<b>Сервер:</b> {escape_html(server)}', f'<b>Протокол:</b> {escape_html(inbound_name)} ({escape_html(protocol)})', f'<b>Трафик:</b> {traffic_info}', f'<b>Устройства:</b> {online_devices}/{device_limit}', f'<b>Действует до:</b> {expires}', ''])
-    payments = get_key_payments_history(key_id)
-    if payments:
-        lines.append('📜 <b>История операций:</b>')
-        for p in payments:
-            # Форматируем дату и время в формате ДД-ММ-ГГГГ ЧЧ:ММ (московское время)
-            if p['paid_at']:
-                from bot.utils.datetime_utils import format_datetime
-                date = format_datetime(p['paid_at'], format_str="%d-%m-%Y %H:%M")
-            else:
-                date = '—'
-            tariff = escape_html(p.get('tariff_name') or 'Тариф')
-            
-            # Показываем цену в рублях если есть, иначе в долларах
-            if p['payment_type'] == 'stars':
-                amount = f"{p['amount_stars']} ⭐"
-            elif p.get('amount_rub') and p['amount_rub'] > 0:
-                amount = f"{p['amount_rub']} ₽"
-            else:
-                amount_val = p['amount_cents'] / 100
-                amount_str = f'{amount_val:g}'.replace('.', ',')
-                amount = f'${amount_str}'
-            
-            lines.append(f'   • {date}: {tariff} ({amount})')
-    msg_text = '\n'.join(lines)
-    kb = key_manage_kb(key_id, is_unconfigured=is_unconfigured, is_active=key_active, is_traffic_exhausted=traffic_exhausted)
-    if is_callback:
-        await safe_edit_or_send(message, msg_text, reply_markup=kb)
-    else:
-        await safe_edit_or_send(message, msg_text, reply_markup=kb, force_new=True)
+    """Совместимость с платёжными сценариями старого интерфейса."""
+    await show_my_keys(
+        telegram_id,
+        message,
+        is_callback=is_callback,
+        prepend_text=prepend_text,
+    )
 
 @router.callback_query(F.data.startswith('key_delete:'))
 async def key_delete_handler(callback: CallbackQuery):
@@ -207,103 +179,8 @@ async def key_delete_handler(callback: CallbackQuery):
 
 @router.callback_query(F.data.startswith('key:'))
 async def key_details_handler(callback: CallbackQuery):
-    """Показывает подписку с QR-кодом и краткой информацией."""
-    from database.requests import get_key_details_for_user, is_key_active, is_traffic_exhausted
-    from bot.services.vpn_api import format_traffic
-    from bot.utils.key_sender import send_key_with_qr
-    from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
-    
-    key_id = int(callback.data.split(':')[1])
-    telegram_id = callback.from_user.id
-    
-    key = get_key_details_for_user(key_id, telegram_id)
-    if not key:
-        await callback.answer('❌ Подписка не найдена', show_alert=True)
-        return
-    
-    # Проверяем статус
-    traffic_exhausted = is_traffic_exhausted(key)
-    key_active = is_key_active(key)
-    
-    # Для активных ключей показываем subscription ссылку с QR
-    if key_active and not traffic_exhausted:
-        # Показываем subscription ссылку с QR-кодом
-        from bot.utils.key_sender import send_subscription_link
-        from bot.keyboards.user import InlineKeyboardBuilder, InlineKeyboardButton
-        from config import SUBSCRIPTION_URL
-        from database.requests import get_vpn_key_by_id
-        
-        # Получаем sub_id для формирования ссылки импорта
-        key_data = get_vpn_key_by_id(key_id)
-        sub_id = key_data.get('sub_id') if key_data else None
-        
-        # Создаем клавиатуру с кнопками
-        builder = InlineKeyboardBuilder()
-        
-        builder.row(InlineKeyboardButton(text="📄 Инструкция", callback_data="device_instructions"))
-        builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
-        builder.row(
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="my_keys"),
-            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-        )
-        
-        await send_subscription_link(callback, key_id, builder.as_markup())
-    else:
-        # Для неактивных ключей показываем краткую информацию
-        lines = [f"🔑 <b>{escape_html(key['display_name'])}</b>\n"]
-        
-        # Статус
-        if traffic_exhausted:
-            lines.append('🔴 <b>Трафик исчерпан</b>')
-        elif key_active:
-            lines.append('🟢 <b>Активен</b>')
-        else:
-            lines.append('🔴 <b>Срок истёк</b>')
-        
-        # Трафик
-        traffic_used = key.get('traffic_used', 0) or 0
-        traffic_limit = key.get('traffic_limit', 0) or 0
-        if traffic_limit > 0:
-            used_str = format_traffic(traffic_used)
-            limit_str = format_traffic(traffic_limit)
-            percent = traffic_used / traffic_limit * 100 if traffic_limit > 0 else 0
-            lines.append(f'📊 <b>Трафик:</b> {used_str} из {limit_str} ({percent:.1f}%)')
-        else:
-            lines.append(f'📊 <b>Трафик:</b> Безлимит')
-        
-        # Срок действия (в московском времени, как и в остальных экранах)
-        if key['expires_at']:
-            from bot.utils.datetime_utils import format_date
-            expires = format_date(key['expires_at'])
-        else:
-            expires = '—'
-        lines.append(f'📅 <b>Действует до:</b> {expires}')
-        lines.append('\n⚠️ <i>Продлите подписку, чтобы получить доступ</i>')
-
-        # Подсказка о резервном (аварийном) Telegram-доступе, если он настроен.
-        try:
-            from config import RESERVE_ACCESS_ENABLED
-            from bot.services.reserve import get_reserve_client_info
-            if RESERVE_ACCESS_ENABLED and get_reserve_client_info():
-                lines.append(
-                    '\n🟡 <i>Действует резервный доступ (только Telegram). '
-                    'Продлите подписку для полной скорости и доступа ко всему.</i>'
-                )
-        except Exception:
-            pass
-
-        text = '\n'.join(lines)
-
-        # Клавиатура
-        builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="📈 Продлить", callback_data=f"key_renew:{key_id}"))
-        builder.row(
-            InlineKeyboardButton(text="🔑 Мои ключи", callback_data="my_keys"),
-            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
-        )
-        
-        await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
-    
+    """Совместимость со старыми сообщениями: сразу открывает новую подписку."""
+    await show_my_keys(callback.from_user.id, callback.message)
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_show:'))
@@ -326,9 +203,9 @@ async def device_instructions_handler(callback: CallbackQuery):
     from bot.keyboards.user import device_instructions_kb
     
     text = (
-        "📱 <b>Выберите ваше устройство</b>\n\n"
-        "Мы используем самый скрытный и надежный протокол VLESS Reality.\n\n"
-        "Для подключения нужно скачать приложение Happ и импортировать подписку."
+        "<b>Подключить VPN</b>\n\n"
+        "Выберите устройство. Покажем только нужные шаги для установки Happ "
+        "и импорта вашей подписки."
     )
     
     try:
@@ -342,49 +219,37 @@ async def device_instructions_handler(callback: CallbackQuery):
 # Конфигурация инструкций по устройствам: текст + ссылка на загрузку Happ.
 # Единый обработчик ниже устраняет дублирование трёх почти одинаковых хендлеров.
 _HAPP_FOOTER = (
-    "💡 <i>Подписка обновляется автоматически каждые 24 часа</i>\n"
-    "🔀 <i>Российские сайты автоматически работают напрямую (без VPN)</i>"
+    "<blockquote>Подписка обновляется автоматически каждый час.\n"
+    "Российские сервисы продолжают работать с включённым VPN.</blockquote>"
 )
 INSTRUCTION_DEVICES = {
     "instruction_apple": {
         "download_url": "https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973",
         "text": (
-            "🍎 <b>Инструкция для Apple (iOS/macOS)</b>\n\n"
-            "<b>Шаг 1:</b> Скачайте приложение Happ\n"
-            "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-            "<b>Шаг 2:</b> Импортируйте подписку\n"
-            "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
-            "Подписка автоматически добавится в приложение\n\n"
-            "<b>Шаг 3:</b> Подключитесь\n"
-            "В приложении Happ нажмите кнопку подключения ▶️\n\n"
+            "<b>Apple · iPhone, iPad, Mac</b>\n\n"
+            "<b>1.</b> Установите Happ.\n"
+            "<b>2.</b> Нажмите «Импортировать подписку».\n"
+            "<b>3.</b> Разрешите добавление и включите VPN в Happ.\n\n"
             + _HAPP_FOOTER
         ),
     },
     "instruction_android": {
         "download_url": "https://play.google.com/store/apps/details?id=com.happproxy&hl=ru",
         "text": (
-            "🤖 <b>Инструкция для Android</b>\n\n"
-            "<b>Шаг 1:</b> Скачайте приложение Happ\n"
-            "Нажмите кнопку «📥 Скачать Happ» ниже\n\n"
-            "<b>Шаг 2:</b> Импортируйте подписку\n"
-            "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
-            "Подписка автоматически добавится в приложение\n\n"
-            "<b>Шаг 3:</b> Подключитесь\n"
-            "В приложении Happ нажмите кнопку подключения ▶️\n\n"
+            "<b>Android</b>\n\n"
+            "<b>1.</b> Установите Happ.\n"
+            "<b>2.</b> Нажмите «Импортировать подписку».\n"
+            "<b>3.</b> Разрешите добавление и включите VPN в Happ.\n\n"
             + _HAPP_FOOTER
         ),
     },
     "instruction_windows": {
         "download_url": "https://github.com/Happ-proxy/happ-desktop/releases/tag/2.9.1",
         "text": (
-            "🪟 <b>Инструкция для Windows</b>\n\n"
-            "<b>Шаг 1:</b> Скачайте приложение Happ\n"
-            "Нажмите кнопку ниже и скачайте версию для Windows\n\n"
-            "<b>Шаг 2:</b> Импортируйте подписку\n"
-            "Нажмите кнопку «📲 Импортировать в Happ» ниже\n"
-            "Подписка автоматически добавится в приложение\n\n"
-            "<b>Шаг 3:</b> Подключитесь\n"
-            "Нажмите кнопку подключения в приложении"
+            "<b>Windows</b>\n\n"
+            "<b>1.</b> Установите Happ.\n"
+            "<b>2.</b> Нажмите «Импортировать подписку».\n"
+            "<b>3.</b> Разрешите добавление и включите VPN в Happ."
         ),
     },
 }
@@ -416,11 +281,11 @@ async def instruction_device_handler(callback: CallbackQuery):
         import_url = f"{SUBSCRIPTION_URL}/import/{key_data['sub_id']}"
 
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="📥 Скачать Happ", url=cfg["download_url"]))
-        builder.row(InlineKeyboardButton(text="📲 Импортировать в Happ", url=import_url))
+        builder.row(InlineKeyboardButton(text="Скачать Happ", url=cfg["download_url"]))
+        builder.row(InlineKeyboardButton(text="Импортировать подписку", url=import_url, style="primary"))
         builder.row(
-            InlineKeyboardButton(text="⬅️ Назад", callback_data="device_instructions"),
-            InlineKeyboardButton(text="🏠 На главную", callback_data="start")
+            InlineKeyboardButton(text="Назад", callback_data="device_instructions"),
+            InlineKeyboardButton(text="На главную", callback_data="start")
         )
 
         await safe_edit_or_send(callback.message, cfg["text"], reply_markup=builder.as_markup())

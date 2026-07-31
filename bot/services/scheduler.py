@@ -369,7 +369,7 @@ def _pluralize_days(n: int) -> str:
 def _expired_keyboard(vpn_key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
-    builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"))
     builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
     return builder.as_markup()
 
@@ -419,7 +419,7 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
         )
 
         builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="🔑 Мои подписки", callback_data="my_keys"))
+        builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"))
         builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
         expiring_kb = builder.as_markup()
 
