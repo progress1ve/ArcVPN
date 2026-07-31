@@ -485,7 +485,8 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
     from database.requests import get_user_primary_key
     primary_key = get_user_primary_key(user_id)
     text = build_fallback_home_text(user, primary_key)
-    welcome_photo = None
+    cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v6.png"
+    welcome_photo = FSInputFile(cabinet_banner) if cabinet_banner.exists() else None
 
     show_referral = is_referral_enabled()
     has_subscription, primary_key_id = _get_subscription_state(user_id)

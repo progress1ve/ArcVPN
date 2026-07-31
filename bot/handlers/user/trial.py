@@ -33,8 +33,8 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
         создать ни одного ключа.
     """
     from database.requests import (
-        mark_trial_used, create_vpn_key_admin, create_pending_order,
-        complete_order, get_trial_days, get_trial_traffic_gb, get_active_servers,
+        mark_trial_used, create_vpn_key_admin,
+        get_trial_days, get_trial_traffic_gb, get_active_servers,
     )
     from bot.services.vpn_api import get_client_from_server_data, VPNAPIError
 
@@ -91,15 +91,8 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
         return None
 
     first_key_id = created_keys[0]['key_id']
+    # Trial — бесплатная выдача доступа, а не покупка или платёж на 0 ₽.
     order_id = None
-    try:
-        (_, order_id) = create_pending_order(
-            user_id=internal_user_id, tariff_id=None,
-            payment_type='trial', vpn_key_id=first_key_id,
-        )
-        complete_order(order_id)
-    except Exception as e:
-        logger.error('Триал: ошибка создания ордера: %s', e)
 
     if mark_used:
         mark_trial_used(internal_user_id)

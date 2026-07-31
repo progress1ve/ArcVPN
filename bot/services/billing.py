@@ -653,6 +653,7 @@ async def create_yookassa_qr_payment(
     bot_name: str,
     metadata: Optional[Dict[str, Any]] = None,
     return_url: str = "https://t.me",
+    save_payment_method: bool = False,
 ) -> Dict[str, Any]:
     """
     Создаёт платёж в ЮКасса REST API с подтверждением через QR-код.
@@ -695,6 +696,7 @@ async def create_yookassa_qr_payment(
             "currency": "RUB"
         },
         "capture": True,
+        "save_payment_method": bool(save_payment_method),
         "payment_method_data": {
             "type": "sbp"
         },

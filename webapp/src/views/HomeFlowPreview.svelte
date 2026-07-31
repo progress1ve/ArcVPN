@@ -88,7 +88,8 @@
   let paymentPoll = null
   let paymentMethodOpen = false
   let selectedPaymentMethod = 'sbp'
-  let autoRenew = false
+  let autoRenew = true
+  let promoCode = ''
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
@@ -296,7 +297,7 @@
     paymentBusy = true
     paymentMessage = ''
     try {
-      const result = await createSbpPayment(plan.id, purchaseDevices, purchaseLteGb)
+      const result = await createSbpPayment(plan.id, purchaseDevices, purchaseLteGb, promoCode.trim(), autoRenew)
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -775,11 +776,12 @@
               <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" on:click|stopPropagation transition:fly={{y:28,duration:220,easing:cubicOut}}>
                 <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
                 <div class="payment-options">
-                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i>СБП</i><span><b>СБП</b><small>Быстро через приложение банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
-                  <button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i>▰</i><span><b>Картой</b><small>Перейдём к оплате в Telegram</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
-                  <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i>₿</i><span><b>Криптовалютой</b><small>Откроем доступные способы в боте</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><ArcIcon name="pulse" size={22}/></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><ArcIcon name="wallet" size={22}/></i><span><b>Картой</b><small>Visa, Mastercard и Мир</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i><ArcIcon name="signal" size={22}/></i><span><b>Криптовалютой</b><small>USDT и другие валюты</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
                 </div>
-                <button class="autorenew" disabled aria-disabled="true" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>✓</i><span><b>Автопродление</b><small>Скоро — после подключения безопасных recurrent-платежей</small></span></button>
+                <label class="promo-field"><ArcIcon name="gift" size={20}/><input bind:value={promoCode} maxlength="32" placeholder="Промокод" autocomplete="off"/><span>Применить</span></label>
+                <button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>✓</i><span><b>Автопродление</b><small>Включено по умолчанию</small></span></button>
                 <button class="method-confirm" on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':selectedPaymentMethod==='card'?'картой':'криптовалютой'} · {rub(purchaseTotalRub)}</button>
                 <p>Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a></p>
               </section>
@@ -1582,6 +1584,7 @@
     .connect-sheet { max-width: 620px; }
     .inner-screen { width: min(100%, 620px); }
   }
+  .promo-field{box-sizing:border-box;display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;min-height:56px;margin:4px 0 10px;padding:0 16px;border:1px solid rgba(174,211,241,.1);border-radius:18px;background:rgba(255,255,255,.025);color:#92cfee}.promo-field input{min-width:0;border:0;outline:0;background:transparent;color:#fff;font:inherit;font-weight:700;text-transform:uppercase}.promo-field input::placeholder{color:#70869a;text-transform:none}.promo-field span{font-size:11px;font-weight:800;color:#9bd9ff}.payment-method-sheet{overflow:hidden}.payment-options>button{cursor:pointer}.payment-options>button.active em{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#9bd9ff;color:#07111b}.method-confirm{box-shadow:inset 0 1px rgba(255,255,255,.5),0 16px 36px rgba(65,158,214,.18)}
   /* Soft-capsule scale pass: larger touch geometry and a distinct ArcVPN silhouette. */
   .home-screen { padding-inline: 16px; }
   .days strong { font-size: 66px; }

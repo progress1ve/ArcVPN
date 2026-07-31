@@ -180,8 +180,8 @@ export const registerImportDevice = (subId, device) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, device_name: device?.model || device?.platform || 'Устройство' })
     : post(`/api/device/import/${encodeURIComponent(subId)}`, device, { keepalive: true }))
-export const createSbpPayment = (tariffId, devices = 2, lteGb = 20) =>
-  post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb })
+export const createSbpPayment = (tariffId, devices = 2, lteGb = 20, promocode = '', autoRenew = true) =>
+  post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
 export const fetchSbpPayment = (orderId) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, status: 'succeeded', applied: true })

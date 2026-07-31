@@ -164,7 +164,7 @@ async def renew_invoice_cancel_handler(callback: CallbackQuery):
         return
 
     crypto_configured = is_crypto_configured()
-    stars_enabled = is_stars_enabled()
+    stars_enabled = False  # Stars убраны из пользовательского UI ArcVPN.
     cards_enabled = is_cards_enabled()
     yookassa_qr_enabled = is_yookassa_qr_configured()
     demo_enabled = is_demo_payment_enabled()

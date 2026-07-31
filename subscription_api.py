@@ -1900,13 +1900,21 @@ def api_create_sbp_payment():
     months = max(1, round(int(tariff.get("duration_days") or 30) / 30))
     total_rub = price_rub
     total_rub += max(0, devices - 2) * 25 * months
+    promocode = None
+    promo_code = str(payload.get("promocode") or "").strip().upper()
+    if promo_code:
+        from database.db_promocodes import is_promocode_valid, compute_discount_rub
+        valid, promo_error, promocode = is_promocode_valid(promo_code, user_id)
+        if not valid:
+            return _api_error(promo_error or "invalid_promocode", 400)
+        total_rub = max(1, total_rub - int(compute_discount_rub(promocode, total_rub) or 0))
     # LTE add-on charging is enabled only after the weighted meter is active.
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
     order = prepare_payment_order(
         user_id=user_id, tariff_id=tariff_id, payment_type="yookassa_qr",
         vpn_key_id=key_id, amount_cents=total_rub * 100,
-        operation_type="renew" if key_id else "new",
+        operation_type="renew" if key_id else "new", promocode_id=promocode.get("id") if promocode else None,
     )
     if not set_payment_requested_entitlements(order["order_id"], devices, lte_gb):
         logger.error("Не удалось сохранить add-ons заказа %s", order["order_id"])
@@ -1919,6 +1927,7 @@ def api_create_sbp_payment():
             bot_name=_get_bot_username(),
             metadata={"telegram_id": str(telegram_id), "source": "webapp"},
             return_url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/?payment={order['order_id']}",
+            save_payment_method=bool(payload.get("auto_renew", True)),
         ), timeout=45)
         save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
     except Exception:
@@ -2349,7 +2358,7 @@ def api_admin_overview():
                    EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active,
                    COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id), 0) AS online_devices,
                    (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
-                   COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded')), 0) AS paid_cents,
+                   COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'), 0) AS paid_cents,
                    (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at
             FROM users u
             ORDER BY paid_cents DESC, u.created_at DESC LIMIT 200
@@ -2360,6 +2369,7 @@ def api_admin_overview():
                    CASE WHEN p.amount_cents < 1000 AND t.price_rub >= 100 THEN 1 ELSE 0 END AS legacy_price
             FROM payments p JOIN users u ON u.id=p.user_id
             LEFT JOIN tariffs t ON t.id=p.tariff_id
+            WHERE COALESCE(p.payment_type,'') != 'trial'
             ORDER BY p.id DESC LIMIT 200
         """).fetchall()]
 
