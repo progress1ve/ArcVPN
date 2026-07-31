@@ -16,7 +16,12 @@ from config import BOT_TOKEN
 from database.migrations import run_migrations
 
 from bot.services.vpn_api import close_all_clients
-from bot.services.scheduler import run_daily_tasks, run_update_check_scheduler, run_traffic_sync_scheduler
+from bot.services.scheduler import (
+    run_daily_tasks,
+    run_update_check_scheduler,
+    run_traffic_sync_scheduler,
+    run_yookassa_reconciliation_scheduler,
+)
 
 # Импорт роутеров
 from bot.handlers.user import router as user_router
@@ -144,6 +149,9 @@ async def main():
     update_tasks = asyncio.create_task(run_update_check_scheduler(bot))
     # Запускаем планировщик синхронизации трафика (каждые 5 мин)
     traffic_tasks = asyncio.create_task(run_traffic_sync_scheduler(bot))
+    payment_reconciliation_tasks = asyncio.create_task(
+        run_yookassa_reconciliation_scheduler(bot)
+    )
     
     try:
         await dp.start_polling(bot)
@@ -151,6 +159,7 @@ async def main():
         daily_tasks.cancel()
         update_tasks.cancel()
         traffic_tasks.cancel()
+        payment_reconciliation_tasks.cancel()
         await bot.session.close()
 
 

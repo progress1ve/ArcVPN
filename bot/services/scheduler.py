@@ -656,6 +656,78 @@ async def run_update_check_scheduler(bot: Bot) -> None:
 # ============================================================================
 
 # Пороги уведомлений о трафике (% оставшегося трафика)
+async def reconcile_yookassa_payments(bot: Bot) -> None:
+    """
+    Re-check recent unfinished SBP payments with YooKassa and apply successful
+    orders. This is an idempotent fallback for delayed or missing webhooks.
+    """
+    from bot.services.billing import (
+        check_yookassa_payment_status,
+        process_payment_order,
+    )
+    from database.requests import (
+        get_reconcilable_yookassa_orders,
+        get_user_by_id,
+    )
+
+    orders = get_reconcilable_yookassa_orders(lookback_hours=48, limit=50)
+    for order in orders:
+        order_id = str(order.get("order_id") or "")
+        provider_id = str(order.get("yookassa_payment_id") or "")
+        if not order_id or not provider_id:
+            continue
+
+        try:
+            if order.get("status") == "pending":
+                provider_status = await check_yookassa_payment_status(provider_id)
+                if provider_status != "succeeded":
+                    continue
+
+            success, message, applied_order = await process_payment_order(order_id)
+            if not success:
+                logger.warning(
+                    "YooKassa reconciliation did not apply order %s: %s",
+                    order_id,
+                    message,
+                )
+                continue
+
+            if (applied_order or {}).get("fulfillment_status") != "applied":
+                continue
+
+            user = get_user_by_id(int(order["user_id"]))
+            telegram_id = (user or {}).get("telegram_id")
+            if telegram_id:
+                await send_to_user(
+                    bot,
+                    int(telegram_id),
+                    (
+                        "✅ <b>Оплата получена</b>\n\n"
+                        "Подписка и выбранные лимиты обновлены. "
+                        "Обновите подписку в VPN-приложении."
+                    ),
+                )
+            logger.info("YooKassa order %s reconciled successfully", order_id)
+        except Exception:
+            logger.exception("YooKassa reconciliation failed for order %s", order_id)
+
+
+async def run_yookassa_reconciliation_scheduler(bot: Bot) -> None:
+    """Continuously recover YooKassa orders when a webhook was delayed."""
+    logger.info("YooKassa reconciliation scheduler started (every 2 minutes)")
+    await asyncio.sleep(20)
+    while True:
+        try:
+            await reconcile_yookassa_payments(bot)
+            await asyncio.sleep(120)
+        except asyncio.CancelledError:
+            logger.info("YooKassa reconciliation scheduler stopped")
+            break
+        except Exception:
+            logger.exception("YooKassa reconciliation scheduler iteration failed")
+            await asyncio.sleep(120)
+
+
 TRAFFIC_THRESHOLDS = [10, 5, 3, 2, 1, 0]
 
 

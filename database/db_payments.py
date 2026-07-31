@@ -16,6 +16,7 @@ from .db_settings import get_setting, set_setting
 __all__ = [
     'save_yookassa_payment_id',
     'find_order_by_yookassa_id',
+    'get_reconcilable_yookassa_orders',
     'get_user_payments_stats',
     'get_daily_payments_stats',
     'get_key_payments_history',
@@ -113,6 +114,40 @@ def find_order_by_yookassa_id(yookassa_payment_id: str) -> Optional[Dict[str, An
         )
         row = cursor.fetchone()
         return dict(row) if row else None
+
+
+def get_reconcilable_yookassa_orders(
+    lookback_hours: int = 48,
+    limit: int = 50,
+) -> List[Dict[str, Any]]:
+    """Return recent YooKassa orders that still need verification or delivery."""
+    safe_hours = max(1, min(int(lookback_hours), 168))
+    safe_limit = max(1, min(int(limit), 200))
+    with get_db() as conn:
+        cursor = conn.execute(
+            """
+            SELECT *
+            FROM payments
+            WHERE payment_type = 'yookassa_qr'
+              AND yookassa_payment_id IS NOT NULL
+              AND yookassa_payment_id != ''
+              AND datetime(COALESCE(paid_at, CURRENT_TIMESTAMP))
+                    >= datetime('now', ?)
+              AND (
+                    status = 'pending'
+                    OR (
+                        status = 'paid'
+                        AND COALESCE(fulfillment_status, 'pending')
+                            IN ('pending', 'failed')
+                        AND COALESCE(attempt_count, 0) < 5
+                    )
+              )
+            ORDER BY id ASC
+            LIMIT ?
+            """,
+            (f"-{safe_hours} hours", safe_limit),
+        )
+        return [dict(row) for row in cursor.fetchall()]
 
 def get_user_payments_stats(user_id: int) -> Dict[str, Any]:
     """
