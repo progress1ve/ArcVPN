@@ -53,6 +53,8 @@ from database.requests import (
     get_notification_preferences,
     update_notification_preferences,
     get_user_devices,
+    rename_user_device,
+    revoke_user_device,
     register_import_device,
     import_device_is_allowed,
     get_user_entitlements,
@@ -2067,6 +2069,29 @@ def api_devices():
         **entitlements,
     })
     return _api_no_store(response)
+
+
+@app.route('/api/devices/<int:device_id>', methods=['PATCH', 'DELETE'])
+def api_manage_device(device_id: int):
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    if request.method == 'DELETE':
+        if not revoke_user_device(telegram_id, device_id):
+            return _api_error("device_not_found", 404)
+        return _api_no_store(jsonify({"ok": True, "released": True}))
+
+    payload = request.get_json(silent=True) or {}
+    display_name = _clean_text(payload.get("display_name"), 60)
+    if len(display_name) < 2:
+        return _api_error("invalid_device_name", 400)
+    if not rename_user_device(telegram_id, device_id, display_name):
+        return _api_error("device_not_found", 404)
+    return _api_no_store(jsonify({
+        "ok": True,
+        "device_id": device_id,
+        "display_name": display_name,
+    }))
 
 
 @app.route('/api/support/messages', methods=['GET', 'POST'])

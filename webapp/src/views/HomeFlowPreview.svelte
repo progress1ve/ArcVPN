@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -56,6 +56,11 @@
   let preferences = { expiry: true, traffic: true, connection: true }
   let registeredDevices = []
   let deviceOnlineTotal = 0
+  let deviceLimit = 2
+  let editingDeviceId = null
+  let deviceNameDraft = ''
+  let releaseConfirmId = null
+  let deviceActionBusy = false
   let accountLoading = true
   let settingsError = ''
   let emailInput = ''
@@ -93,6 +98,7 @@
     if (deviceResult.status === 'fulfilled') {
       registeredDevices = deviceResult.value.devices || []
       deviceOnlineTotal = Number(deviceResult.value.online_total || 0)
+      deviceLimit = Math.max(2, Number(deviceResult.value.device_limit || 2))
       purchaseDevices = Math.max(2, Number(deviceResult.value.device_limit || 2))
       purchaseLteGb = Math.max(20, Number(deviceResult.value.lte_quota_gb || 20))
     }
@@ -175,6 +181,7 @@
       const result = await fetchDevices()
       registeredDevices = result.devices || []
       deviceOnlineTotal = Number(result.online_total || 0)
+      deviceLimit = Math.max(2, Number(result.device_limit || 2))
     } catch (_) {
       settingsError = 'Не удалось обновить список устройств'
     }
@@ -299,6 +306,49 @@
           ? 'Покупка дополнительного LTE-трафика появится после запуска точного счётчика.'
           : 'Не удалось создать платёж. Попробуйте ещё раз.'
     } finally { paymentBusy = false }
+  }
+
+  function startDeviceRename(device) {
+    editingDeviceId = device.id
+    deviceNameDraft = device.display_name || device.model || 'Моё устройство'
+    releaseConfirmId = null
+  }
+
+  async function saveDeviceName(deviceId) {
+    const name = deviceNameDraft.trim()
+    if (name.length < 2 || deviceActionBusy) return
+    deviceActionBusy = true
+    settingsError = ''
+    try {
+      await renameDevice(deviceId, name)
+      registeredDevices = registeredDevices.map((item) =>
+        item.id === deviceId ? { ...item, display_name: name } : item
+      )
+      editingDeviceId = null
+      haptic('success')
+    } catch (_) {
+      settingsError = 'Не удалось переименовать устройство.'
+    } finally { deviceActionBusy = false }
+  }
+
+  async function confirmReleaseDevice(deviceId) {
+    if (releaseConfirmId !== deviceId) {
+      releaseConfirmId = deviceId
+      editingDeviceId = null
+      haptic('warning')
+      return
+    }
+    if (deviceActionBusy) return
+    deviceActionBusy = true
+    settingsError = ''
+    try {
+      await releaseDevice(deviceId)
+      registeredDevices = registeredDevices.filter((item) => item.id !== deviceId)
+      releaseConfirmId = null
+      haptic('success')
+    } catch (_) {
+      settingsError = 'Не удалось освободить слот устройства.'
+    } finally { deviceActionBusy = false }
   }
 
   function deviceToken() {
@@ -860,7 +910,7 @@
 
             <section class="settings-group">
               <h2>Подписка</h2>
-              <button class="setting-row" on:click={() => openSettingsPage('devices')}><i><ArcIcon name="devices" size={21} weight="duotone" /></i><span><b>Устройства</b><small>{deviceOnlineTotal || onlineDevices} активно · {registeredDevices.length} импортировано</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
+              <button class="setting-row" on:click={() => openSettingsPage('devices')}><i><ArcIcon name="devices" size={21} weight="duotone" /></i><span><b>Устройства</b><small>{deviceOnlineTotal || onlineDevices} активно · {registeredDevices.length} из {deviceLimit} слотов</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
               <button class="setting-row" on:click={() => openSettingsPage('notifications')}><i><ArcIcon name="bell" size={21} weight="duotone" /></i><span><b>Уведомления</b><small>Срок, трафик и новые подключения</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
             </section>
 
@@ -876,14 +926,29 @@
             </section>
           {:else if settingsPage === 'devices'}
             <p class="subpage-intro">Устройство появляется сразу после импорта в Happ. Модель определяем автоматически, когда браузер разрешает передать её; иначе показываем платформу и размер экрана.</p>
-            <div class="device-summary"><strong>{deviceOnlineTotal || onlineDevices}</strong><span>активно сейчас</span><small>{registeredDevices.length} импортировано</small></div>
+            <div class="device-summary"><strong>{deviceOnlineTotal || onlineDevices}</strong><span>активно сейчас</span><small>{registeredDevices.length} из {deviceLimit} слотов</small></div>
             <section class="device-list">
               {#if registeredDevices.length}
                 {#each registeredDevices as device}
                   <article class="registered-device">
                     <i><DeviceIcon name={deviceIcon(device.platform)} size={25} /></i>
-                    <span><b>{device.display_name || device.model || 'Устройство'}</b><small>{[device.model && device.model !== device.display_name ? device.model : '', device.screen_size, device.browser].filter(Boolean).join(' · ') || 'Данные платформы скрыты системой'}</small></span>
-                    <em>{device.last_seen_at ? 'видели недавно' : 'импортировано'}</em>
+                    <span>
+                      {#if editingDeviceId === device.id}
+                        <input class="device-name-input" maxlength="60" bind:value={deviceNameDraft} on:keydown={(event) => event.key === 'Enter' && saveDeviceName(device.id)} />
+                      {:else}
+                        <b>{device.display_name || device.model || 'Устройство'}</b>
+                      {/if}
+                      <small>{[device.model && device.model !== device.display_name ? device.model : '', device.screen_size, device.browser].filter(Boolean).join(' · ') || 'Данные платформы скрыты системой'}</small>
+                    </span>
+                    <div class="device-actions">
+                      {#if editingDeviceId === device.id}
+                        <button disabled={deviceActionBusy || deviceNameDraft.trim().length < 2} on:click={() => saveDeviceName(device.id)}>Сохранить</button>
+                        <button on:click={() => editingDeviceId = null}>Отмена</button>
+                      {:else}
+                        <button on:click={() => startDeviceRename(device)}>Название</button>
+                        <button class:confirm={releaseConfirmId === device.id} disabled={deviceActionBusy} on:click={() => confirmReleaseDevice(device.id)}>{releaseConfirmId === device.id ? 'Подтвердить' : 'Освободить'}</button>
+                      {/if}
+                    </div>
                   </article>
                 {/each}
               {:else if accountLoading}<p class="empty-state">Загружаем устройства…</p>
@@ -1240,12 +1305,17 @@
   .device-summary span { color: #c8d2dd; font-size: 11px; font-weight: 700; }
   .device-summary small { color: var(--muted); font-size: 9.5px; }
   .device-list { display: grid; gap: 8px; margin-top: 12px; }
-  .registered-device { display: flex; align-items: center; gap: 11px; min-height: 70px; padding: 12px; border-radius: 20px; background: var(--surface); }
+  .registered-device { display: grid; grid-template-columns: 42px minmax(0,1fr); align-items: center; gap: 10px 11px; min-height: 70px; padding: 12px; border-radius: 22px; background: var(--surface); }
   .registered-device > i { width: 42px; height: 42px; display: grid; flex: none; place-items: center; border-radius: 10px; color: #9dd9fb; background: #142538; }
   .registered-device > span { min-width: 0; display: flex; flex: 1; flex-direction: column; }
   .registered-device b { font-size: 12px; }
   .registered-device small { margin-top: 3px; overflow: hidden; color: var(--muted); font-size: 9.5px; text-overflow: ellipsis; white-space: nowrap; }
-  .registered-device em { max-width: 64px; color: #7392ab; font-size: 8px; font-style: normal; line-height: 1.25; text-align: right; }
+  .device-name-input { width: 100%; height: 34px; padding: 0 11px; border-radius: 12px; outline: none; color: var(--text); background: rgba(146,211,248,.08); font: inherit; font-size: 11px; }
+  .device-name-input:focus { box-shadow: 0 0 0 2px rgba(145,215,251,.18); }
+  .device-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+  .device-actions button { min-height: 32px; padding: 0 12px; border-radius: 14px; color: #acd9f3; background: rgba(135,202,240,.07); font-size: 8.5px; font-weight: 750; }
+  .device-actions button:last-child { color: #aab9c7; background: rgba(255,255,255,.035); }
+  .device-actions button.confirm { color: #ffc0c0; background: rgba(241,125,125,.1); }
   .empty-state { padding: 28px 18px; border-radius: 20px; color: var(--muted); background: var(--surface); font-size: 11px; text-align: center; }
   .subpage-primary { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; border-radius: 17px; color: #07131e; background: linear-gradient(128deg,#b4e5ff,#69bff0); font-size: 12px; font-weight: 800; }
   .preference-list { display: grid; gap: 8px; }

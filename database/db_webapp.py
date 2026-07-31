@@ -85,6 +85,13 @@ def register_import_device(
                    display_name = excluded.display_name,
                    browser = excluded.browser,
                    screen_size = excluded.screen_size,
+                   first_seen_at = CASE
+                       WHEN COALESCE(user_devices.is_active, 1) = 0
+                       THEN CURRENT_TIMESTAMP
+                       ELSE user_devices.first_seen_at
+                   END,
+                   is_active = 1,
+                   revoked_at = NULL,
                    last_seen_at = CURRENT_TIMESTAMP,
                    imported_at = CURRENT_TIMESTAMP""",
             (
@@ -110,10 +117,18 @@ def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Opti
         ).fetchone()
         if not owner:
             return None
+        target = conn.execute(
+            """SELECT COALESCE(is_active, 1) is_active
+               FROM user_devices
+               WHERE user_id = ? AND device_token_hash = ?""",
+            (owner["user_id"], token_hash),
+        ).fetchone()
+        if target and not bool(target["is_active"]):
+            return False
         rows = conn.execute(
             """SELECT device_token_hash
                FROM user_devices
-               WHERE user_id = ?
+               WHERE user_id = ? AND COALESCE(is_active, 1) = 1
                ORDER BY COALESCE(first_seen_at, imported_at) ASC, id ASC""",
             (owner["user_id"],),
         ).fetchall()
@@ -245,11 +260,40 @@ def get_user_devices(telegram_id: int) -> List[Dict[str, Any]]:
                FROM user_devices d
                JOIN users u ON u.id = d.user_id
                LEFT JOIN vpn_keys k ON k.id = d.vpn_key_id
-               WHERE u.telegram_id = ?
+               WHERE u.telegram_id = ? AND COALESCE(d.is_active, 1) = 1
                ORDER BY COALESCE(d.imported_at, d.last_seen_at) DESC""",
             (telegram_id,),
         ).fetchall()
         return [dict(row) for row in rows]
+
+
+def rename_user_device(telegram_id: int, device_id: int, display_name: str) -> bool:
+    name = " ".join(str(display_name or "").split()).strip()[:60]
+    if len(name) < 2:
+        return False
+    with get_db() as conn:
+        cur = conn.execute(
+            """UPDATE user_devices
+               SET display_name = ?
+               WHERE id = ? AND COALESCE(is_active, 1) = 1
+                 AND user_id = (SELECT id FROM users WHERE telegram_id = ?)""",
+            (name, int(device_id), int(telegram_id)),
+        )
+        return cur.rowcount > 0
+
+
+def revoke_user_device(telegram_id: int, device_id: int) -> bool:
+    """Release a slot while keeping a tombstone that blocks the old token."""
+    with get_db() as conn:
+        cur = conn.execute(
+            """UPDATE user_devices
+               SET is_active = 0, revoked_at = CURRENT_TIMESTAMP,
+                   last_seen_at = CURRENT_TIMESTAMP
+               WHERE id = ? AND COALESCE(is_active, 1) = 1
+                 AND user_id = (SELECT id FROM users WHERE telegram_id = ?)""",
+            (int(device_id), int(telegram_id)),
+        )
+        return cur.rowcount > 0
 
 
 def save_email_code(user_id: int, email: str, purpose: str, code_hash: str) -> None:

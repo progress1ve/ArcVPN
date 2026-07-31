@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 31
+LATEST_VERSION = 32
 
 
 def get_current_version() -> int:
@@ -1695,6 +1695,21 @@ def migration_31(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v31 применена")
 
 
+def migration_32(conn: sqlite3.Connection) -> None:
+    """Revocable and renameable WebApp device slots."""
+    logger.info("Применение миграции v32 (управление слотами устройств)...")
+    _add_column(conn, "user_devices", "is_active INTEGER NOT NULL DEFAULT 1")
+    _add_column(conn, "user_devices", "revoked_at DATETIME")
+    conn.execute(
+        "UPDATE user_devices SET is_active = 1 WHERE is_active IS NULL"
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_user_devices_active "
+        "ON user_devices(user_id, is_active, first_seen_at)"
+    )
+    logger.info("Миграция v32 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1727,6 +1742,7 @@ MIGRATIONS = {
     29: migration_29,
     30: migration_30,
     31: migration_31,
+    32: migration_32,
 }
 
 

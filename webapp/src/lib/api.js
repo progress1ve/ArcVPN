@@ -32,6 +32,20 @@ async function post(path, payload = {}, options = {}) {
   return res.json()
 }
 
+async function mutate(path, method, payload) {
+  const res = await fetch(path, {
+    method,
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': getInitData(),
+    },
+    body: payload === undefined ? undefined : JSON.stringify(payload),
+  })
+  if (!res.ok) throw await apiError(res)
+  return res.json()
+}
+
 async function apiError(res) {
   let payload = {}
   try { payload = await res.json() } catch (_) { /* empty response */ }
@@ -136,6 +150,14 @@ export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))
 export const fetchPreferences = () => (import.meta.env.DEV ? mock('preferences') : get('/api/preferences'))
 export const fetchDevices = () => (import.meta.env.DEV ? mock('devices') : get('/api/devices'))
+export const renameDevice = (deviceId, displayName) =>
+  (import.meta.env.DEV
+    ? Promise.resolve({ ok: true, device_id: deviceId, display_name: displayName })
+    : mutate(`/api/devices/${encodeURIComponent(deviceId)}`, 'PATCH', { display_name: displayName }))
+export const releaseDevice = (deviceId) =>
+  (import.meta.env.DEV
+    ? Promise.resolve({ ok: true, released: true })
+    : mutate(`/api/devices/${encodeURIComponent(deviceId)}`, 'DELETE'))
 export const registerImportDevice = (subId, device) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, device_name: device?.model || device?.platform || 'Устройство' })
