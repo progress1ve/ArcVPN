@@ -1,5 +1,5 @@
 <script>
-  import { onDestroy } from 'svelte'
+  import { onDestroy, onMount } from 'svelte'
   import { fade, fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
@@ -75,8 +75,12 @@
   let purchaseDevices = 2
   let purchaseLteGb = 20
   let paymentBusy = false
+  let paymentChecking = false
   let paymentOrderId = ''
+  let paymentConfirmationUrl = ''
+  let paymentState = 'idle'
   let paymentMessage = ''
+  let paymentPoll = null
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
@@ -277,21 +281,23 @@
 
   async function buy(plan = preferredPlan) {
     if (!plan || paymentBusy) return
-    if (purchaseDevices !== 2 || purchaseLteGb !== 20) {
-      paymentMessage = 'Дополнительные лимиты скоро появятся. Для оплаты выберите 2 устройства и 20 ГБ LTE.'
-      return
-    }
     paymentBusy = true
     paymentMessage = ''
     try {
       const result = await createSbpPayment(plan.id, purchaseDevices, purchaseLteGb)
       paymentOrderId = result.order_id
+      paymentConfirmationUrl = result.confirmation_url
+      paymentState = 'awaiting'
+      savePendingPayment()
       openPayment(result.confirmation_url)
-      paymentMessage = 'Оплатите в приложении банка, вернитесь сюда и проверьте оплату.'
+      paymentMessage = 'Ожидаем подтверждение банка. Обычно это занимает несколько секунд.'
+      startPaymentPolling()
     } catch (error) {
       paymentMessage = error.reason === 'payment_provider_unavailable'
         ? 'СБП временно недоступна. Попробуйте через минуту.'
-        : 'Не удалось создать платёж. Попробуйте ещё раз.'
+        : error.reason === 'lte_addons_not_available'
+          ? 'Покупка дополнительного LTE-трафика появится после запуска точного счётчика.'
+          : 'Не удалось создать платёж. Попробуйте ещё раз.'
     } finally { paymentBusy = false }
   }
 
@@ -347,20 +353,79 @@
     openExternal(deviceImportUrl)
   }
 
-  async function checkPayment() {
-    if (!paymentOrderId || paymentBusy) return
-    paymentBusy = true
+  function savePendingPayment() {
+    if (!paymentOrderId) return
+    localStorage.setItem('arcvpn-pending-payment', JSON.stringify({
+      orderId: paymentOrderId,
+      confirmationUrl: paymentConfirmationUrl,
+      savedAt: Date.now(),
+    }))
+  }
+
+  function clearPendingPayment() {
+    localStorage.removeItem('arcvpn-pending-payment')
+    const url = new URL(window.location.href)
+    if (url.searchParams.has('payment')) {
+      url.searchParams.delete('payment')
+      history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
+    }
+  }
+
+  function startPaymentPolling(runImmediately = false) {
+    clearInterval(paymentPoll)
+    if (!paymentOrderId || ['success', 'canceled'].includes(paymentState)) return
+    if (runImmediately) checkPayment(true)
+    paymentPoll = setInterval(() => checkPayment(true), 4000)
+  }
+
+  function reopenPayment() {
+    if (paymentConfirmationUrl) openPayment(paymentConfirmationUrl)
+    startPaymentPolling(true)
+  }
+
+  async function checkPayment(silent = false) {
+    if (!paymentOrderId || paymentChecking) return
+    paymentChecking = true
+    if (!silent) paymentMessage = 'Проверяем платёж…'
     try {
       const result = await fetchSbpPayment(paymentOrderId)
       if (result.applied) {
-        paymentMessage = 'Оплата получена. Подписка обновлена.'
+        paymentState = 'success'
+        paymentMessage = 'Подписка обновлена и уже готова к работе.'
+        clearInterval(paymentPoll)
+        clearPendingPayment()
         haptic('success')
-        await loadStatus()
+        await Promise.all([loadStatus({ force: true }), refreshDevices()])
       } else {
-        paymentMessage = result.status === 'canceled' ? 'Платёж отменён.' : 'Платёж пока не найден. Проверьте через несколько секунд.'
+        paymentState = result.status === 'canceled' ? 'canceled' : 'awaiting'
+        paymentMessage = result.status === 'canceled'
+          ? 'Банк отменил платёж. Можно создать новый.'
+          : 'Ожидаем подтверждение банка. Оставьте этот экран открытым.'
+        if (paymentState === 'canceled') {
+          clearInterval(paymentPoll)
+          clearPendingPayment()
+        }
       }
-    } catch (_) { paymentMessage = 'Не удалось проверить платёж. Попробуйте ещё раз.' }
-    finally { paymentBusy = false }
+    } catch (_) {
+      paymentState = 'awaiting'
+      paymentMessage = 'Связь с банком задерживается. Проверка продолжится автоматически.'
+    } finally { paymentChecking = false }
+  }
+
+  function resetPayment() {
+    clearInterval(paymentPoll)
+    clearPendingPayment()
+    paymentOrderId = ''
+    paymentConfirmationUrl = ''
+    paymentState = 'idle'
+    paymentMessage = ''
+  }
+
+  function purchaseAction() {
+    if (paymentState === 'success') return closePurchase()
+    if (paymentState === 'awaiting') return reopenPayment()
+    if (paymentState === 'canceled') resetPayment()
+    return buy(selectedPlan)
   }
 
   function openPurchase() {
@@ -503,7 +568,41 @@
 
   onDestroy(() => {
     clearInterval(supportPoll)
+    clearInterval(paymentPoll)
+    window.removeEventListener('focus', handlePaymentResume)
+    document.removeEventListener('visibilitychange', handlePaymentResume)
     setNativeBackHandler(null)
+  })
+
+  function handlePaymentResume() {
+    if (document.visibilityState === 'hidden' || !paymentOrderId) return
+    checkPayment(true)
+    startPaymentPolling()
+  }
+
+  onMount(() => {
+    const returnedOrderId = new URL(window.location.href).searchParams.get('payment')
+    let saved = null
+    try {
+      saved = JSON.parse(localStorage.getItem('arcvpn-pending-payment') || 'null')
+    } catch (_) {
+      localStorage.removeItem('arcvpn-pending-payment')
+    }
+    if (saved?.savedAt && Date.now() - Number(saved.savedAt) > 48 * 60 * 60 * 1000) {
+      localStorage.removeItem('arcvpn-pending-payment')
+      saved = null
+    }
+    const restoredOrderId = returnedOrderId || saved?.orderId
+    if (restoredOrderId) {
+      paymentOrderId = restoredOrderId
+      paymentConfirmationUrl = saved?.confirmationUrl || ''
+      paymentState = 'awaiting'
+      paymentMessage = 'Проверяем подтверждение банка…'
+      purchaseOpen = true
+      startPaymentPolling(true)
+    }
+    window.addEventListener('focus', handlePaymentResume)
+    document.addEventListener('visibilitychange', handlePaymentResume)
   })
 </script>
 
@@ -570,9 +669,25 @@
             <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
             <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} устройства</span><small>{purchaseDeviceRub ? `+${rub(purchaseDeviceRub)}` : 'включено'}</small></div>
             <div class="total-row"><span><ArcIcon name="lte" size={19} />LTE {purchaseLteGb} ГБ</span><small>{purchaseLteRub ? `+${rub(purchaseLteRub)}` : '20 ГБ включено'}</small></div>
-            <button disabled={!selectedPlan || paymentBusy} on:click={() => buy(selectedPlan)}><span>{paymentBusy ? 'Подождите…' : 'Оплатить через СБП'}</span><strong>{rub(purchaseTotalRub)}</strong></button>
-            {#if paymentOrderId}<button class="payment-check" disabled={paymentBusy} on:click={checkPayment}>Проверить оплату</button>{/if}
-            {#if paymentMessage}<p class="payment-message">{paymentMessage}</p>{/if}
+            {#if paymentState !== 'idle'}
+              <div class="payment-state" class:success={paymentState === 'success'} class:canceled={paymentState === 'canceled'} role="status" aria-live="polite">
+                <span class="payment-state-icon">
+                  {#if paymentState === 'success'}<ArcIcon name="check" size={19} weight="bold" />
+                  {:else if paymentState === 'canceled'}<b aria-hidden="true">×</b>
+                  {:else}<i class="payment-spinner"></i>{/if}
+                </span>
+                <div>
+                  <strong>{paymentState === 'success' ? 'Оплата получена' : paymentState === 'canceled' ? 'Платёж отменён' : 'Ожидаем оплату'}</strong>
+                  <p>{paymentMessage}</p>
+                </div>
+              </div>
+            {/if}
+            <button disabled={!selectedPlan || paymentBusy || paymentChecking} on:click={purchaseAction}>
+              <span>{paymentBusy || paymentChecking ? 'Подождите…' : paymentState === 'success' ? 'Вернуться в ArcVPN' : paymentState === 'awaiting' ? 'Открыть СБП снова' : paymentState === 'canceled' ? 'Создать новый платёж' : 'Оплатить через СБП'}</span>
+              {#if paymentState === 'idle' || paymentState === 'canceled'}<strong>{rub(purchaseTotalRub)}</strong>{/if}
+            </button>
+            {#if paymentOrderId && paymentState === 'awaiting'}<button class="payment-check" disabled={paymentChecking} on:click={() => checkPayment(false)}>Проверить сейчас</button>{/if}
+            {#if paymentState === 'idle' && paymentMessage}<p class="purchase-error" role="alert">{paymentMessage}</p>{/if}
             <p>{rub(purchaseMonthlyRub)} в месяц · настройки сохранятся для выбранной подписки</p>
           </section>
         </section>
@@ -1224,8 +1339,19 @@
   .purchase-total > button span { font-size: 12px; font-weight: 800; }
   .purchase-total > button strong { font-size: 16px; }
   .purchase-total > p { margin: 9px 2px 0; color: #7790a6; font-size: 8.5px; text-align: center; }
+  .purchase-total > p.purchase-error { color: #f0aaaa; font-size: 9.5px; line-height: 1.45; }
   .purchase-total > button.payment-check { justify-content: center; min-height: 46px; color: #b9e2fb; background: var(--surface-raised); box-shadow: none; }
-  .purchase-total > p.payment-message { color: #b7c6d6; font-size: 10px; line-height: 1.45; }
+  .payment-state { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 12px; align-items: center; margin-top: 13px; padding: 12px; border-radius: 18px; color: #dceaf5; background: rgba(116,194,239,.08); }
+  .payment-state.success { background: rgba(93,208,163,.09); }
+  .payment-state.canceled { background: rgba(241,131,131,.08); }
+  .payment-state-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 50%; color: #8fd7fb; background: rgba(128,207,249,.11); }
+  .payment-state.success .payment-state-icon { color: #8ce0bd; background: rgba(99,214,169,.12); }
+  .payment-state.canceled .payment-state-icon { color: #f0a2a2; background: rgba(240,134,134,.11); }
+  .payment-state-icon b { font-size: 23px; font-weight: 500; line-height: 1; }
+  .payment-state > div strong { display: block; font-size: 11px; }
+  .payment-state > div p { margin: 4px 0 0; color: #91a7ba; font-size: 9px; line-height: 1.4; }
+  .payment-spinner { width: 18px; height: 18px; border: 2px solid rgba(143,215,251,.2); border-top-color: #8fd7fb; border-radius: 50%; animation: payment-spin .8s linear infinite; }
+  @keyframes payment-spin { to { transform: rotate(360deg); } }
   @media (max-width: 360px) {
     .screen { padding-inline: 16px; }
     .home-screen { padding-top: calc(var(--safe-top-flow) + 96px); }
