@@ -23,7 +23,7 @@ def _subscription_urls(sub_id: str) -> tuple[str, str]:
     from config import SUBSCRIPTION_URL
 
     base = SUBSCRIPTION_URL.rstrip("/")
-    subscription_url = f"{base}/sub/{sub_id}?format=plain"
+    subscription_url = f"{base}/sub/{sub_id}"
     return subscription_url, f"{base}/import/{sub_id}"
 
 @router.message(Command('mykeys'))
@@ -118,7 +118,7 @@ async def show_my_keys(
     sub_id = str(primary.get("sub_id") or "")
     if sub_id:
         subscription_url, _ = _subscription_urls(sub_id)
-        text += f'\n\n🔗 <a href="{subscription_url}">Ссылка на подписку</a>'
+        text += f'\n\n🔗 <b>Ссылка на подписку</b>\n<code>{escape_html(subscription_url)}</code>\nНажмите на ссылку, чтобы скопировать.'
     if prepend_text:
         text = f"{prepend_text}\n\n{text}"
 

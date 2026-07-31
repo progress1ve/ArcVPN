@@ -86,6 +86,9 @@
   let paymentState = 'idle'
   let paymentMessage = ''
   let paymentPoll = null
+  let paymentMethodOpen = false
+  let selectedPaymentMethod = 'sbp'
+  let autoRenew = false
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
@@ -146,7 +149,7 @@
     settingsPage
     connectOpen
     setNativeBackHandler(
-      purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen
+      purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen || paymentMethodOpen
         ? handleNativeBack
         : null,
     )
@@ -154,6 +157,7 @@
 
   function handleNativeBack() {
     haptic('light')
+    if (paymentMethodOpen) { paymentMethodOpen = false; return }
     if (connectOpen) return closeConnect()
     if (purchaseOpen) return closePurchase()
     if (supportChatOpen) return closeSupportChat()
@@ -486,7 +490,19 @@
     }
     if (paymentState === 'awaiting') return reopenPayment()
     if (paymentState === 'canceled') resetPayment()
-    return buy(selectedPlan)
+    paymentMethodOpen = true
+    selectedPaymentMethod = 'sbp'
+    haptic('light')
+  }
+
+  function confirmPaymentMethod() {
+    if (selectedPaymentMethod === 'sbp') {
+      paymentMethodOpen = false
+      return buy(selectedPlan)
+    }
+    const botUrl = links.bot_url || 'https://t.me/arcvpnnbot'
+    paymentMethodOpen = false
+    openTelegram(`${botUrl}?start=buy_${selectedPlan?.id || ''}`)
   }
 
   function openPurchase() {
@@ -499,6 +515,7 @@
   function closePurchase() {
     haptic('light')
     purchaseOpen = false
+    paymentMethodOpen = false
   }
 
   function choosePlan(id) {
@@ -745,13 +762,29 @@
               </div>
             {/if}
             <button disabled={!selectedPlan || paymentBusy || paymentChecking} on:click={purchaseAction}>
-              <span>{paymentBusy || paymentChecking ? 'Подождите…' : paymentState === 'success' ? 'Вернуться в ArcVPN' : paymentState === 'review' ? 'Написать в поддержку' : paymentState === 'awaiting' ? 'Открыть СБП снова' : paymentState === 'canceled' ? 'Создать новый платёж' : 'Оплатить через СБП'}</span>
+              <span>{paymentBusy || paymentChecking ? 'Подождите…' : paymentState === 'success' ? 'Вернуться в ArcVPN' : paymentState === 'review' ? 'Написать в поддержку' : paymentState === 'awaiting' ? 'Открыть СБП снова' : paymentState === 'canceled' ? 'Создать новый платёж' : 'Выбрать способ оплаты'}</span>
               {#if paymentState === 'idle' || paymentState === 'canceled'}<strong>{rub(purchaseTotalRub)}</strong>{/if}
             </button>
             {#if paymentOrderId && paymentState === 'awaiting'}<button class="payment-check" disabled={paymentChecking} on:click={() => checkPayment(false)}>Проверить сейчас</button>{/if}
             {#if paymentState === 'idle' && paymentMessage}<p class="purchase-error" role="alert">{paymentMessage}</p>{/if}
             <p>{rub(purchaseMonthlyRub)} в месяц · настройки сохранятся для выбранной подписки</p>
           </section>
+
+          {#if paymentMethodOpen}
+            <div class="payment-method-backdrop" role="presentation" on:click={() => paymentMethodOpen = false} transition:fade={{duration:140}}>
+              <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" on:click|stopPropagation transition:fly={{y:28,duration:220,easing:cubicOut}}>
+                <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
+                <div class="payment-options">
+                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i>СБП</i><span><b>СБП</b><small>Быстро через приложение банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i>▰</i><span><b>Картой</b><small>Перейдём к оплате в Telegram</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i>₿</i><span><b>Криптовалютой</b><small>Откроем доступные способы в боте</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
+                </div>
+                <button class="autorenew" disabled aria-disabled="true" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>✓</i><span><b>Автопродление</b><small>Скоро — после подключения безопасных recurrent-платежей</small></span></button>
+                <button class="method-confirm" on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':selectedPaymentMethod==='card'?'картой':'криптовалютой'} · {rub(purchaseTotalRub)}</button>
+                <p>Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a></p>
+              </section>
+            </div>
+          {/if}
         </section>
       {:else if $status.error === 'unauthorized'}
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
@@ -1434,6 +1467,7 @@
   .purchase-total > p { margin: 9px 2px 0; color: #7790a6; font-size: 8.5px; text-align: center; }
   .purchase-total > p.purchase-error { color: #f0aaaa; font-size: 9.5px; line-height: 1.45; }
   .purchase-total > button.payment-check { justify-content: center; min-height: 46px; color: #b9e2fb; background: var(--surface-raised); box-shadow: none; }
+  .payment-method-backdrop{position:fixed;z-index:80;inset:0;display:grid;place-items:end center;padding:16px;background:rgba(1,6,12,.68);backdrop-filter:blur(12px)}.payment-method-sheet{box-sizing:border-box;width:min(100%,540px);padding:24px;border:1px solid rgba(180,220,250,.1);border-radius:32px;background:linear-gradient(155deg,#101923,#0a111a 68%);box-shadow:0 30px 100px rgba(0,0,0,.55)}.payment-method-sheet header{display:flex;align-items:center;justify-content:space-between}.payment-method-sheet h2{margin:0;color:#fff;font-size:24px;letter-spacing:-.035em}.payment-method-sheet header button{display:grid;place-items:center;width:44px;height:44px;border:0;border-radius:50%;background:rgba(255,255,255,.06);color:#c1cedb;font-size:25px}.payment-options{display:grid;gap:11px;margin:24px 0 18px}.payment-options>button{display:grid;grid-template-columns:52px 1fr 24px;align-items:center;gap:12px;min-height:78px;padding:12px 16px;border:1px solid rgba(174,211,241,.1);border-radius:24px;background:rgba(255,255,255,.025);color:#fff;text-align:left;transition:.2s}.payment-options>button.active{border-color:#83cdf7;background:rgba(105,191,240,.08);box-shadow:inset 0 0 0 1px rgba(131,205,247,.08)}.payment-options>button>i{display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:rgba(159,213,248,.09);color:#a9dcfb;font-size:14px;font-style:normal;font-weight:900}.payment-options span{display:flex;flex-direction:column;gap:4px}.payment-options b{font-size:16px}.payment-options small,.autorenew small{color:#778da1;font-size:10px}.payment-options em{color:#8ed5ff;font-style:normal;font-weight:900}.autorenew{width:100%;display:flex;align-items:center;gap:12px;padding:8px 5px;border:0;background:transparent;color:#fff;text-align:left;opacity:.66}.autorenew>i{display:grid;place-items:center;width:30px;height:30px;border-radius:10px;background:#192634;color:transparent;font-style:normal}.autorenew>i.checked{background:#8ed5ff;color:#07111b}.autorenew span{display:flex;flex-direction:column;gap:3px}.method-confirm{width:100%;min-height:58px;margin-top:20px;border:0;border-radius:20px;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);color:#07131d;font-size:14px;font-weight:900}.payment-method-sheet>p{margin:14px 12px 0;color:#71869a;font-size:9px;line-height:1.5;text-align:center}.payment-method-sheet a{color:#9bd9ff}
   .payment-state { display: grid; grid-template-columns: 42px minmax(0,1fr); gap: 12px; align-items: center; margin-top: 13px; padding: 12px; border-radius: 18px; color: #dceaf5; background: rgba(116,194,239,.08); }
   .payment-state.success { background: rgba(93,208,163,.09); }
   .payment-state.canceled { background: rgba(241,131,131,.08); }
@@ -1987,6 +2021,10 @@
       width: 76px;
       min-height: 76px;
     }
+  }
+  @media (min-width: 900px) {
+    .payment-method-backdrop { place-items: center; }
+    .payment-method-sheet { padding: 30px; }
   }
   @media (prefers-reduced-motion: reduce) {
     .aurora-blob, .flow-preview::before { animation: none; }

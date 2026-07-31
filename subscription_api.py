@@ -1834,7 +1834,7 @@ def api_status():
             "online_devices": int(key.get("online_devices") or 0),
             "has_sub": bool(sub_id),
             "import_url": _import_url_for(sub_id),
-            "sub_url": f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain" if sub_id else None,
+            "sub_url": f"{SUBSCRIPTION_URL}/sub/{sub_id}" if sub_id else None,
         })
 
     response = jsonify({

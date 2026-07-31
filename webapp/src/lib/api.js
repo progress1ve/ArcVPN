@@ -74,7 +74,7 @@ const MOCK = {
         online_devices: 2,
         has_sub: true,
         import_url: 'happ://add/https://sub.arccnet.space/sub/demo?format=plain',
-        sub_url: 'https://sub.arccnet.space/sub/demo?format=plain',
+        sub_url: 'https://sub.arccnet.space/sub/demo',
       },
     ],
     links: {

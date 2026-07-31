@@ -221,18 +221,30 @@ def payment_method_kb(
     """
     builder = InlineKeyboardBuilder()
 
-    # USDT
+    # Единый порядок с WebApp: СБП → карта → криптовалюта.
+    if yookassa_qr_enabled:
+        builder.row(InlineKeyboardButton(
+            text="⚡ СБП",
+            callback_data=f"pay_qr_tariff:{tariff_id}:{order_id}",
+        ))
+
+    if cards_enabled:
+        builder.row(InlineKeyboardButton(
+            text="💳 Картой",
+            callback_data=f"pay_cards_tariff:{tariff_id}:{order_id}",
+        ))
+
     if crypto_configured:
         if crypto_mode == 'simple':
             builder.row(
                 InlineKeyboardButton(
-                    text="🪙 Оплатить USDT", 
+                    text="₿ Криптовалютой",
                     callback_data=f"pay_crypto_tariff:{tariff_id}:{order_id}"
                 )
             )
         elif crypto_url:
             builder.row(
-                InlineKeyboardButton(text="🪙 Оплатить USDT", url=crypto_url)
+                InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
 
     # Stars
@@ -241,24 +253,6 @@ def payment_method_kb(
             InlineKeyboardButton(
                 text="⭐ Оплатить звёздами",
                 callback_data=f"pay_stars_tariff:{tariff_id}:{order_id}"
-            )
-        )
-
-    # Карты (Telegram Payments)
-    if cards_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="💳 Оплатить картой",
-                callback_data=f"pay_cards_tariff:{tariff_id}:{order_id}"
-            )
-        )
-
-    # QR ЮКасса
-    if yookassa_qr_enabled:
-        builder.row(
-            InlineKeyboardButton(
-                text="⚡ Оплатить через СБП",
-                callback_data=f"pay_qr_tariff:{tariff_id}:{order_id}"
             )
         )
 
@@ -782,20 +776,28 @@ def renew_payment_method_kb(
     """
     builder = InlineKeyboardBuilder()
 
-    # USDT
+    # Единый порядок с WebApp: СБП → карта → криптовалюта.
+    if yookassa_qr_enabled:
+        callback_data = (f"renew_pay_qr:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}") if tariff_id else f"renew_qr_tariff:{key_id}"
+        builder.row(InlineKeyboardButton(text="⚡ СБП", callback_data=callback_data))
+
+    if cards_enabled:
+        callback_data = (f"renew_pay_cards:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_cards:{key_id}:{tariff_id}") if tariff_id else f"renew_cards_tariff:{key_id}"
+        builder.row(InlineKeyboardButton(text="💳 Картой", callback_data=callback_data))
+
     if crypto_configured:
         if crypto_mode == 'simple':
             if tariff_id:
                 builder.row(
-                    InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_pay_crypto:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_crypto:{key_id}:{tariff_id}")
+                    InlineKeyboardButton(text="₿ Криптовалютой", callback_data=f"renew_pay_crypto:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_crypto:{key_id}:{tariff_id}")
                 )
             else:
                 builder.row(
-                    InlineKeyboardButton(text="🪙 Оплатить USDT", callback_data=f"renew_crypto_tariff:{key_id}")
+                    InlineKeyboardButton(text="₿ Криптовалютой", callback_data=f"renew_crypto_tariff:{key_id}")
                 )
         elif crypto_url:
             builder.row(
-                InlineKeyboardButton(text="🪙 Оплатить USDT", url=crypto_url)
+                InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
 
     # Stars
@@ -812,40 +814,6 @@ def renew_payment_method_kb(
                 InlineKeyboardButton(
                     text="⭐ Оплатить звёздами",
                     callback_data=f"renew_stars_tariff:{key_id}"
-                )
-            )
-
-    # Карты
-    if cards_enabled:
-        if tariff_id:
-            builder.row(
-                InlineKeyboardButton(
-                    text="💳 Оплатить картой",
-                    callback_data=f"renew_pay_cards:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_cards:{key_id}:{tariff_id}"
-                )
-            )
-        else:
-            builder.row(
-                InlineKeyboardButton(
-                    text="💳 Оплатить картой",
-                    callback_data=f"renew_cards_tariff:{key_id}"
-                )
-            )
-
-    # QR ЮКасса
-    if yookassa_qr_enabled:
-        if tariff_id:
-            builder.row(
-                InlineKeyboardButton(
-                    text="📱 QR-оплата (Карта/СБП)",
-                    callback_data=f"renew_pay_qr:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}"
-                )
-            )
-        else:
-            builder.row(
-                InlineKeyboardButton(
-                    text="📱 QR-оплата (Карта/СБП)",
-                    callback_data=f"renew_qr_tariff:{key_id}"
                 )
             )
 
