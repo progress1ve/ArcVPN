@@ -439,7 +439,7 @@ def create_main_menu_kb(
         secondary.append(InlineKeyboardButton(text="🎁 Пригласить друга", callback_data="referral_system"))
     secondary.append(InlineKeyboardButton(text="💬 Помощь", callback_data="bot_help"))
     builder.row(*secondary)
-    builder.row(InlineKeyboardButton(text="⚙️ Настройки", callback_data="bot_settings"))
+    builder.row(InlineKeyboardButton(text="🔁 Автопродление", callback_data="bot_recurring_settings"))
 
     # Админ-панель (если админ)
     if is_admin:
@@ -512,7 +512,7 @@ def _fallback_back_kb(*, primary_label: str, primary_callback: str) -> InlineKey
     return builder.as_markup()
 
 
-def _bot_settings_keyboard(user_internal_id: int) -> InlineKeyboardMarkup:
+def _bot_settings_keyboard(user_internal_id: int, *, is_admin: bool = False) -> InlineKeyboardMarkup:
     """Compact bot fallback settings, matching the WebApp billing controls."""
     from database.db_recurring import get_active_recurring_method
 
@@ -521,7 +521,11 @@ def _bot_settings_keyboard(user_internal_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     if method:
         builder.row(InlineKeyboardButton(
-            text="🛑 Отключить автопродление",
+            text="☑️ Банковская карта привязана",
+            callback_data="noop",
+        ))
+        builder.row(InlineKeyboardButton(
+            text="🗑 Удалить карту и отключить",
             callback_data="bot_recurring_disable",
         ))
     elif recurring_available:
@@ -532,14 +536,19 @@ def _bot_settings_keyboard(user_internal_id: int) -> InlineKeyboardMarkup:
         ))
     else:
         builder.row(InlineKeyboardButton(
-            text="⏳ Автопродление подключается",
+            text="☐ Банковская карта не привязана",
             callback_data="bot_recurring_unavailable",
         ))
+        if is_admin:
+            builder.row(InlineKeyboardButton(
+                text="👁 Предпросмотр отвязки карты",
+                callback_data="bot_recurring_preview",
+            ))
     builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
     return builder.as_markup()
 
 
-@router.callback_query(F.data == "bot_settings")
+@router.callback_query(F.data.in_({"bot_settings", "bot_recurring_settings"}))
 async def bot_settings_handler(callback: CallbackQuery, answer: bool = True):
     from database.db_recurring import get_active_recurring_method
     from database.requests import get_user_internal_id
@@ -558,14 +567,61 @@ async def bot_settings_handler(callback: CallbackQuery, answer: bool = True):
         detail = "Интерфейс уже готов. Как только ЮKassa включит рекуррентные платежи, настройка станет доступна без обновления бота."
     await safe_edit_or_send(
         callback.message,
-        "⚙️ <b>Настройки</b>\n\n"
-        f"🔁 Автопродление: {status}\n\n"
+        "<b>ArcVPN</b>\n\n"
+        "🔁 <b>Автопродление</b>\n\n"
+        f"Статус: {status}\n\n"
         f"<blockquote>{detail}</blockquote>\n\n"
         "Вы всегда управляете автопродлением сами — обращение в поддержку не требуется.",
-        reply_markup=_bot_settings_keyboard(user_internal_id or 0),
+        reply_markup=_bot_settings_keyboard(
+            user_internal_id or 0,
+            is_admin=callback.from_user.id in ADMIN_IDS,
+        ),
     )
     if answer:
         await callback.answer()
+
+
+@router.callback_query(F.data == "bot_recurring_preview")
+async def bot_recurring_preview_handler(callback: CallbackQuery):
+    """Admin-only review screen for YooKassa recurring-payment approval."""
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("Недоступно", show_alert=True)
+        return
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="☑️ Банковская карта привязана",
+        callback_data="noop",
+    ))
+    builder.row(InlineKeyboardButton(
+        text="🗑 Удалить карту и отключить автопродление",
+        callback_data="bot_recurring_preview_delete",
+    ))
+    builder.row(InlineKeyboardButton(
+        text="← Назад",
+        callback_data="bot_recurring_settings",
+    ))
+    await safe_edit_or_send(
+        callback.message,
+        "<b>ArcVPN</b>\n\n"
+        "🔁 <b>Автопродление</b>\n\n"
+        "Статус: ✅ <b>Включено</b>\n\n"
+        "<blockquote>Банковская карта сохранена в ЮKassa. "
+        "Вы можете в любой момент самостоятельно удалить её и отключить автопродление.</blockquote>",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "bot_recurring_preview_delete")
+async def bot_recurring_preview_delete_handler(callback: CallbackQuery):
+    if callback.from_user.id not in ADMIN_IDS:
+        await callback.answer("Недоступно", show_alert=True)
+        return
+    await callback.answer(
+        "В рабочем сценарии эта кнопка сразу удаляет сохранённый способ оплаты в ArcVPN.",
+        show_alert=True,
+    )
 
 
 @router.callback_query(F.data == "bot_recurring_disable")
@@ -610,7 +666,11 @@ async def fallback_connect_handler(callback: CallbackQuery):
     if primary and primary.get("sub_id"):
         from bot.handlers.user.keys import _subscription_urls
         subscription_url, _ = _subscription_urls(str(primary["sub_id"]))
-        subscription_line = f'\n\n🔗 <a href="{subscription_url}">Ссылка на вашу подписку</a>'
+        subscription_line = (
+            f'\n\n🔗 <b>Ссылка на подписку</b>\n\n'
+            f'<code>{escape_html(subscription_url)}</code>\n\n'
+            '👆 Нажмите на ссылку, чтобы скопировать.'
+        )
     text = (
         "📱 <b>Подключить VPN</b>\n\n"
         "1. Установите приложение Happ.\n"

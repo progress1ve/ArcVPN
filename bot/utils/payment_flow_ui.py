@@ -20,6 +20,8 @@ def _format_payment_context_text(
     key: Optional[Dict[str, Any]] = None,
     discount_rub: int = 0,
     intro_text: Optional[str] = None,
+    auto_renew: bool = False,
+    recurring_available: bool = False,
 ) -> str:
     is_renew = key is not None
     title = "⚡ <b>Продление подписки</b>" if is_renew else "💳 <b>Оплата подписки</b>"
@@ -58,6 +60,15 @@ def _format_payment_context_text(
         "⚡ Оплата откроется сразу в приложении банка через СБП.\n"
         "После оплаты подписка продлится автоматически.",
     ])
+    if recurring_available:
+        recurring_text = (
+            "✅ <b>С автопродлением.</b> Нажмите переключатель ниже, если хотите оплатить один раз."
+            if auto_renew else
+            "○ <b>Без автопродления.</b> Нажмите переключатель ниже, если хотите сохранить карту."
+        )
+        text += f"\n\n{recurring_text}"
+    else:
+        text += "\n\n<blockquote>🔁 Автопродление появится после согласования функции с ЮKassa.</blockquote>"
     if intro_text:
         return intro_text.strip() + "\n\n" + text
     return text
@@ -228,6 +239,8 @@ async def show_payment_method_selection_screen(
         key=key,
         discount_rub=discount_rub,
         intro_text=intro_text,
+        auto_renew=auto_renew,
+        recurring_available=recurring_available,
     )
 
     photo_file_id = None

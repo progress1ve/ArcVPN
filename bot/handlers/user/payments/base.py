@@ -43,6 +43,26 @@ async def toggle_payment_recurring(callback: CallbackQuery):
     )
     await callback.answer('Автопродление включено' if enabled else 'Автопродление отключено')
 
+
+@router.callback_query(F.data.startswith('payment_return:'))
+async def return_to_payment_methods(callback: CallbackQuery):
+    """Return from provider QR to the modern payment-method screen."""
+    from bot.utils.payment_flow_ui import show_payment_method_selection_screen
+
+    parts = callback.data.split(':')
+    if len(parts) != 4:
+        await callback.answer('Не удалось вернуться к оплате', show_alert=True)
+        return
+    _, key_id_raw, tariff_id_raw, order_id = parts
+    await show_payment_method_selection_screen(
+        callback.message,
+        callback.from_user.id,
+        int(tariff_id_raw),
+        key_id=int(key_id_raw) or None,
+        order_id=order_id,
+    )
+    await callback.answer()
+
 def _format_price_compact(cents: int) -> str:
     """Форматирование цены в компактном виде."""
     if cents >= 10000:

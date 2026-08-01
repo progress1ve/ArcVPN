@@ -335,7 +335,11 @@ async def pay_qr_handler(callback: CallbackQuery):
                 callback.message,
                 text,
                 photo=photo,
-                reply_markup=yookassa_qr_kb(order_id, back_callback=f'pay_qr:{order_id}', qr_url=qr_url),
+                reply_markup=yookassa_qr_kb(
+                    order_id,
+                    back_callback=f'payment_return:0:{tariff_id}:{order_id}',
+                    qr_url=qr_url,
+                ),
                 force_new=True
             )
             await callback.answer()
@@ -345,23 +349,12 @@ async def pay_qr_handler(callback: CallbackQuery):
             await callback.answer(f'❌ Ошибка создания платежа: {e}', show_alert=True)
 
     else:
-        # Старая логика - показываем выбор тарифа
-        tariffs = get_all_tariffs(include_hidden=False)
-        rub_tariffs = [t for t in tariffs if t.get('price_rub') and t['price_rub'] > 0]
-        
-        if not rub_tariffs:
-            await safe_edit_or_send(
-                callback.message,
-                '📱 <b>QR-оплата</b>\n\n😔 Для QR-оплаты не настроены цены в рублях.\nОбратитесь к администратору.',
-                reply_markup=home_only_kb()
-            )
-            await callback.answer()
-            return
-        
-        await safe_edit_or_send(
+        # Совместимость со старыми сообщениями: сразу открываем новый выбор тарифа.
+        from bot.utils.payment_flow_ui import show_tariff_selection_screen
+        await show_tariff_selection_screen(
             callback.message,
-            '📱 <b>QR-оплата (Карта/СБП)</b>\n\nВыберите тариф:\n\n<i>Оплата через ЮКассу — поддерживает банковские карты и СБП.</i>',
-            reply_markup=tariff_select_kb(rub_tariffs, order_id=existing_order_id, is_qr=True)
+            callback.from_user.id,
+            order_id=existing_order_id,
         )
         await callback.answer()
 
@@ -423,7 +416,17 @@ async def qr_pay_create(callback: CallbackQuery):
             )
         from aiogram.types import BufferedInputFile
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
-        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'pay_qr:{order_id}', qr_url=qr_url), force_new=True)
+        await safe_edit_or_send(
+            callback.message,
+            text,
+            photo=photo,
+            reply_markup=yookassa_qr_kb(
+                order_id,
+                back_callback=f'payment_return:0:{tariff_id}:{order_id}',
+                qr_url=qr_url,
+            ),
+            force_new=True,
+        )
     except Exception as e:
         logger.exception(f'Ошибка создания QR ЮКасса: {e}')
         await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.', reply_markup=home_only_kb())
@@ -494,10 +497,9 @@ async def check_yookassa_payment(callback: CallbackQuery, state: FSMContext):
 
 @router.callback_query(F.data.startswith('renew_qr_tariff:'))
 async def renew_qr_select_tariff(callback: CallbackQuery):
-    """Выбор тарифа для QR-оплаты при продлении ключа."""
-    from database.requests import get_key_details_for_user
-    from bot.keyboards.user import renew_tariff_select_kb
-    from bot.utils.groups import get_tariffs_for_renewal
+    """Compatibility route: old QR buttons now open the modern payment screen."""
+    from database.requests import find_order_by_order_id, get_key_details_for_user
+    from bot.utils.payment_flow_ui import show_payment_method_selection_screen, show_tariff_selection_screen
     parts = callback.data.split(':')
     key_id = int(parts[1])
     order_id = parts[2] if len(parts) > 2 else None
@@ -505,12 +507,17 @@ async def renew_qr_select_tariff(callback: CallbackQuery):
     if not key:
         await callback.answer('❌ Ключ не найден', show_alert=True)
         return
-    tariffs = get_tariffs_for_renewal(key.get('tariff_id', 0))
-    rub_tariffs = [t for t in tariffs if t.get('price_rub') and t['price_rub'] > 0]
-    if not rub_tariffs:
-        await callback.answer('😔 Нет тарифов с ценой в рублях', show_alert=True)
-        return
-    await safe_edit_or_send(callback.message, f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n🔑 Ключ: <b>{escape_html(key['display_name'])}</b>\n\nВыберите тариф для продления:", reply_markup=renew_tariff_select_kb(rub_tariffs, key_id, order_id=order_id, is_qr=True))
+    order = find_order_by_order_id(order_id) if order_id else None
+    if order and order.get('tariff_id'):
+        await show_payment_method_selection_screen(
+            callback.message,
+            callback.from_user.id,
+            int(order['tariff_id']),
+            key_id=key_id,
+            order_id=order_id,
+        )
+    else:
+        await show_tariff_selection_screen(callback.message, callback.from_user.id, key_id=key_id)
     await callback.answer()
 
 @router.callback_query(F.data.startswith('renew_pay_qr:'))
@@ -574,7 +581,17 @@ async def renew_qr_create(callback: CallbackQuery):
             )
         from aiogram.types import BufferedInputFile
         photo = BufferedInputFile(qr_image_data, filename='qr.png')
-        await safe_edit_or_send(callback.message, text, photo=photo, reply_markup=yookassa_qr_kb(order_id, back_callback=f'renew_qr_tariff:{key_id}:{order_id}', qr_url=qr_url), force_new=True)
+        await safe_edit_or_send(
+            callback.message,
+            text,
+            photo=photo,
+            reply_markup=yookassa_qr_kb(
+                order_id,
+                back_callback=f'payment_return:{key_id}:{tariff_id}:{order_id}',
+                qr_url=qr_url,
+            ),
+            force_new=True,
+        )
     except Exception as e:
         logger.exception(f'Ошибка QR ЮКасса (продление): {e}')
         await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>', reply_markup=home_only_kb())

@@ -118,7 +118,11 @@ async def show_my_keys(
     sub_id = str(primary.get("sub_id") or "")
     if sub_id:
         subscription_url, _ = _subscription_urls(sub_id)
-        text += f'\n\n🔗 <b>Ссылка на подписку</b>\n<code>{escape_html(subscription_url)}</code>\nНажмите на ссылку, чтобы скопировать.'
+        text += (
+            f'\n\n🔗 <b>Ссылка на подписку</b>\n\n'
+            f'<code>{escape_html(subscription_url)}</code>\n\n'
+            '👆 Нажмите на ссылку, чтобы скопировать.'
+        )
     if prepend_text:
         text = f"{prepend_text}\n\n{text}"
 
@@ -339,7 +343,9 @@ async def show_subscription_handler(callback: CallbackQuery):
     text = (
         "📲 <b>Подключить VPN</b>\n\n"
         "Нажмите кнопку ниже — Happ откроется и добавит подписку.\n\n"
-        f'🔗 <a href="{subscription_url}">Открыть или скопировать ссылку подписки</a>\n\n'
+        f'🔗 <b>Ссылка на подписку</b>\n\n'
+        f'<code>{escape_html(subscription_url)}</code>\n\n'
+        '👆 Нажмите на ссылку, чтобы скопировать.\n\n'
         "<blockquote>Подписка обновляется автоматически каждый час.</blockquote>"
     )
     await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())

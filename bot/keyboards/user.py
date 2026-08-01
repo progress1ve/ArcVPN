@@ -249,8 +249,8 @@ def payment_method_kb(
                 InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
 
-    recurring_label = "✅ Автопродление включено" if auto_renew else (
-        "○ Оплатить с автопродлением" if recurring_available else "🔒 Автопродление подключается"
+    recurring_label = "✅ С автопродлением · изменить" if auto_renew else (
+        "○ Без автопродления · изменить" if recurring_available else "🔒 Автопродление ожидает ЮKassa"
     )
     builder.row(InlineKeyboardButton(
         text=recurring_label,
@@ -812,8 +812,8 @@ def renew_payment_method_kb(
                 InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
 
-    recurring_label = "✅ Автопродление включено" if auto_renew else (
-        "○ Оплатить с автопродлением" if recurring_available else "🔒 Автопродление подключается"
+    recurring_label = "✅ С автопродлением · изменить" if auto_renew else (
+        "○ Без автопродления · изменить" if recurring_available else "🔒 Автопродление ожидает ЮKassa"
     )
     builder.row(InlineKeyboardButton(
         text=recurring_label,
