@@ -313,7 +313,9 @@ async def disable_key_on_panel(key_id: int) -> bool:
         
         if not target_client:
             logger.warning(f'disable_key_on_panel: клиент {email} не найден на панели')
-            return False
+            # Desired state is already reached. Treat it as idempotent success so
+            # the scheduler does not retry the same historical key every minute.
+            return True
         
         # Проверяем, не отключён ли уже
         if not target_client.get('enable', True):

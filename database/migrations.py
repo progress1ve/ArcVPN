@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 37
+LATEST_VERSION = 38
 
 
 def get_current_version() -> int:
@@ -1790,6 +1790,16 @@ def migration_37(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v37 применена")
 
 
+def migration_38(conn: sqlite3.Connection) -> None:
+    """Remember completed panel expiry actions to avoid retrying them every minute."""
+    logger.info("Применение миграции v38 (идемпотентное отключение истёкших ключей)...")
+    _add_column(conn, "vpn_keys", "panel_disabled_at DATETIME")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_vpn_keys_panel_disable ON vpn_keys(expires_at, panel_disabled_at)"
+    )
+    logger.info("Миграция v38 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1828,6 +1838,7 @@ MIGRATIONS = {
     35: migration_35,
     36: migration_36,
     37: migration_37,
+    38: migration_38,
 }
 
 

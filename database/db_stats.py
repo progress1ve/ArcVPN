@@ -179,8 +179,19 @@ def get_all_expired_keys() -> List[Dict[str, Any]]:
             WHERE vk.expires_at <= datetime('now')
             AND vk.server_id IS NOT NULL
             AND vk.panel_email IS NOT NULL
+            AND vk.panel_disabled_at IS NULL
         """)
         return [dict(row) for row in cursor.fetchall()]
+
+
+def mark_key_panel_disabled(vpn_key_id: int) -> bool:
+    """Mark the desired expired/disabled state as reconciled on the panel."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "UPDATE vpn_keys SET panel_disabled_at=CURRENT_TIMESTAMP WHERE id=?",
+            (vpn_key_id,),
+        )
+        return cursor.rowcount > 0
 
 def is_notification_sent_today(vpn_key_id: int) -> bool:
     """

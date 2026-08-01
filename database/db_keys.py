@@ -124,7 +124,7 @@ def extend_vpn_key(key_id: int, days: int) -> bool:
                     ELSE datetime('now')
                 END, 
                 '+' || ? || ' days'
-            )
+            ), panel_disabled_at = NULL
             WHERE id = ?
         """, (days, key_id))
         success = cursor.rowcount > 0
@@ -775,7 +775,8 @@ def add_days_to_first_active_key(user_id: int, days: int) -> bool:
         key_id = row['id']
         conn.execute("""
             UPDATE vpn_keys 
-            SET expires_at = datetime(expires_at, '+' || ? || ' days')
+            SET expires_at = datetime(expires_at, '+' || ? || ' days'),
+                panel_disabled_at = NULL
             WHERE id = ?
         """, (days, key_id))
         

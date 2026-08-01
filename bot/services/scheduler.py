@@ -983,7 +983,12 @@ async def sync_traffic_stats(bot: Bot) -> None:
         get_all_active_keys_with_server, bulk_update_traffic,
         update_key_notified_pct, get_setting
     )
-    from database.db_stats import get_all_expired_keys, is_notification_sent_today, log_notification_sent
+    from database.db_stats import (
+        get_all_expired_keys,
+        is_notification_sent_today,
+        log_notification_sent,
+        mark_key_panel_disabled,
+    )
     from bot.services.vpn_api import disable_key_on_panel
     
     keys = get_all_active_keys_with_server()
@@ -1207,6 +1212,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
             if key.get('server_id') and key.get('panel_email'):
                 try:
                     if await disable_key_on_panel(key['id']):
+                        mark_key_panel_disabled(key['id'])
                         disabled_count += 1
                 except Exception as e:
                     logger.error(f"Ошибка отключения ключа {key['id']}: {e}")
