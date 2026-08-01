@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 35
+LATEST_VERSION = 36
 
 
 def get_current_version() -> int:
@@ -1749,6 +1749,22 @@ def migration_35(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v35 применена")
 
 
+def migration_36(conn: sqlite3.Connection) -> None:
+    """Make 500 GiB the single monthly allowance for paid subscriptions."""
+    logger.info("Применение миграции v36 (единый лимит 500 ГБ)...")
+    limit_bytes = 500 * 1024 * 1024 * 1024
+    conn.execute("UPDATE tariffs SET traffic_limit_gb = 500 WHERE COALESCE(traffic_limit_gb, 0) != 500")
+    conn.execute(
+        """UPDATE vpn_keys SET traffic_limit = ?
+           WHERE tariff_id IS NOT NULL AND COALESCE(traffic_limit, 0) != ?""",
+        (limit_bytes, limit_bytes),
+    )
+    conn.execute(
+        "UPDATE users SET traffic_monthly_limit_gb = 500 WHERE COALESCE(traffic_monthly_limit_gb, 0) != 500"
+    )
+    logger.info("Миграция v36 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1785,6 +1801,7 @@ MIGRATIONS = {
     33: migration_33,
     34: migration_34,
     35: migration_35,
+    36: migration_36,
 }
 
 

@@ -35,6 +35,7 @@ XUI_DB = Path(os.getenv("ARCVPN_XUI_DB", "/etc/x-ui/x-ui.db"))
 BACKUP_DIR = Path(os.getenv("ARCVPN_XUI_BACKUP_DIR", "/root/ArcVPN/backup/xui-guard"))
 BASELINE_DB = BACKUP_DIR / "last-known-good.db"
 LOCK_FILE = Path(os.getenv("ARCVPN_XUI_GUARD_LOCK", "/run/arcvpn-xui-health.lock"))
+STATE_FILE = Path(os.getenv("ARCVPN_XUI_GUARD_STATE", "/run/arcvpn-xui-health-state.json"))
 PROTECTED_SERVER_ID = int(os.getenv("ARCVPN_PROTECTED_SERVER_ID", "10"))
 EXPECTED_INBOUND_IDS = {
     int(item)
@@ -46,6 +47,27 @@ GIB = 1024**3
 
 class GuardError(RuntimeError):
     pass
+
+
+def _read_guard_state() -> dict[str, Any]:
+    try:
+        return json.loads(STATE_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError, TypeError):
+        return {"status": "unknown", "consecutive_failures": 0}
+
+
+def _write_guard_state(status: str, failures: int, error: str = "") -> None:
+    payload = {
+        "status": status,
+        "consecutive_failures": max(0, int(failures)),
+        "last_checked_at": datetime.now(timezone.utc).isoformat(),
+        "last_error": error[:500],
+    }
+    if status == "healthy":
+        payload["last_success_at"] = payload["last_checked_at"]
+    temporary = STATE_FILE.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    os.replace(temporary, STATE_FILE)
 
 
 def _notify_admins(text: str) -> None:
@@ -436,12 +458,27 @@ def main() -> int:
             LOGGER.info("Another health guard run is still active")
             return 0
 
+        previous_state = _read_guard_state()
         try:
             changes = asyncio.run(_guard_once())
         except Exception as exc:
             LOGGER.exception("ArcVPN x-ui health guard failed")
-            _notify_admins(f"🚨 ArcVPN: проверка x-ui не пройдена\n{type(exc).__name__}: {exc}")
+            failures = int(previous_state.get("consecutive_failures") or 0) + 1
+            _write_guard_state("degraded", failures, f"{type(exc).__name__}: {exc}")
+            # Один краткий сбой сети/авторизации ещё не означает падение VPN.
+            # Тревога отправляется после трёх последовательных неудач, затем
+            # повторяется редко, чтобы бот не засыпал владельца одинаковым спамом.
+            if failures == 3 or failures % 30 == 0:
+                _notify_admins(
+                    "🚨 ArcVPN: x-ui недоступен три проверки подряд\n"
+                    f"{type(exc).__name__}: {exc}"
+                )
             return 1
+
+        recovered_failures = int(previous_state.get("consecutive_failures") or 0)
+        _write_guard_state("healthy", 0)
+        if recovered_failures >= 3:
+            _notify_admins("✅ ArcVPN: связь с x-ui восстановлена, Xray и inbound проверены")
 
     if changes:
         summary = ", ".join(changes)

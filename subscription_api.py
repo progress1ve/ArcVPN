@@ -19,6 +19,7 @@ import re
 import secrets
 import smtplib
 import sqlite3
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -161,8 +162,8 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Германия #1",
     "Финляндия #2⚡",
     "Германия #2⚡",
-    "Обход глушилок (LTE) #1",
-    "Обход глушилок (LTE) #2",
+    "Обход глушилок (LTE, трафик ×10) #1",
+    "Обход глушилок (LTE, трафик ×10) #2",
 ])
 _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
     name: index for index, name in enumerate(SUBSCRIPTION_INBOUND_ORDER)
@@ -176,9 +177,18 @@ def _subscription_inbound_order(name: str) -> int:
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
+    normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
     return _SUBSCRIPTION_INBOUND_ORDER_INDEX.get(
         normalized, len(_SUBSCRIPTION_INBOUND_ORDER_INDEX)
     )
+
+
+def _subscription_display_name(name: str) -> str:
+    """Keep the expensive LTE route explicit in every client UI."""
+    value = str(name or "")
+    if "Обход глушилок" in value and "×10" not in value:
+        return value.replace("(LTE)", "(LTE, трафик ×10)")
+    return value
 
 
 # Настройка логирования
@@ -1139,6 +1149,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     display_name = override
                 else:
                     display_name = config.get("inbound_name") or f"ArcVPN - {key.tariff_name} ({server.name})"
+                display_name = _subscription_display_name(display_name)
             link_payload["server_name"] = display_name
             link_payload["remark"] = display_name
 
@@ -2392,36 +2403,96 @@ def api_admin_overview():
         local_panel["detail"] = type(exc).__name__
 
     server_stats = get_servers_stats()
+    inbound_health = []
+    panel_online_total = None
+    node_online_total = 0
+    panel_api_healthy = False
     try:
-        master = get_server_by_id(int(server_stats[0]["id"])) if server_stats else None
-        async def _node_stats():
+        master_row = next((item for item in server_stats if str(item.get("host")) == "2.26.84.210"), None)
+        master = get_server_by_id(int(master_row["id"])) if master_row else None
+
+        async def _panel_telemetry():
             client = get_client_from_server_data(master)
             try:
-                return await client._request("GET", "/panel/api/nodes/list", retry=False, log_error=False)
+                nodes = await client._request("GET", "/panel/api/nodes/list", retry=False, log_error=False)
+                online = await client.get_online_emails()
+                inbounds = await client.get_inbounds()
+                return nodes, online, inbounds
             finally:
                 await client.close()
-        node_response = ASYNC_EXECUTOR.run(_node_stats(), timeout=8) if master else {}
+
+        node_response, online_emails, panel_inbounds = (
+            ASYNC_EXECUTOR.run(_panel_telemetry(), timeout=10) if master else ({}, set(), [])
+        )
+        panel_api_healthy = True
+        panel_online_total = len(online_emails)
         for node in (node_response.get("obj") or []):
             host = str(node.get("address") or "")
             existing = next((item for item in server_stats if str(item.get("host")) == host), None)
+            node_online = int(node.get("onlineCount") or 0)
+            node_online_total += node_online
             values = {
                 "id": f"node-{node.get('id')}", "name": node.get("name") or host, "host": host,
                 "is_active": int(node.get("status") == "online" and node.get("xrayState") == "running"),
-                "clients_count": int(node.get("clientCount") or 0), "active_clients": int(node.get("onlineCount") or 0),
+                "clients_count": int(node.get("clientCount") or 0), "active_clients": node_online,
                 "total_traffic_gb": 0, "managed_externally": True, "latency_ms": int(node.get("latencyMs") or 0),
                 "cpu_pct": round(float(node.get("cpuPct") or 0), 1), "mem_pct": round(float(node.get("memPct") or 0), 1),
                 "inbound_count": int(node.get("inboundCount") or 0), "telemetry_available": True,
+                "xray_state": node.get("xrayState") or "unknown", "source": "3x-ui node telemetry",
             }
             if existing:
                 existing.update(values)
             else:
                 server_stats.append(values)
+
+        local_client_emails = set()
+        for inbound in panel_inbounds:
+            node_id = inbound.get("nodeId")
+            stats = inbound.get("clientStats") or []
+            if node_id in (None, 0, "", "0"):
+                local_client_emails.update(str(item.get("email")) for item in stats if item.get("email"))
+            inbound_health.append({
+                "id": int(inbound.get("id") or 0),
+                "name": inbound.get("remark") or inbound.get("tag") or "Inbound",
+                "location": "Финляндия" if node_id not in (None, 0, "", "0") else "Германия",
+                "protocol": str(inbound.get("protocol") or "").upper(),
+                "port": int(inbound.get("port") or 0),
+                "enabled": bool(inbound.get("enable", True)),
+                "clients": len(stats),
+                "online": None,
+            })
+
+        if master_row is not None:
+            master_row.update({
+                "is_active": 1,
+                "active_clients": max(0, panel_online_total - node_online_total),
+                "clients_count": len(local_client_emails),
+                "telemetry_available": True,
+                "inbound_count": sum(1 for item in inbound_health if item["location"] == "Германия"),
+                "xray_state": "running",
+                "source": "global online − node online",
+            })
     except Exception:
         logger.exception("Не удалось получить телеметрию 3x-ui nodes")
     if not any(str(node.get("host")) == "195.226.92.37" for node in server_stats):
         server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 0,
                              "clients_count": None, "active_clients": None, "total_traffic_gb": 0,
                              "managed_externally": True, "telemetry_available": False})
+
+    def _service_active(service: str) -> bool:
+        try:
+            return subprocess.run(
+                ["systemctl", "is-active", "--quiet", service], timeout=3, check=False
+            ).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+
+    guard_state = {}
+    try:
+        with open("/run/arcvpn-xui-health-state.json", "r", encoding="utf-8") as stream:
+            guard_state = json.load(stream)
+    except (OSError, ValueError):
+        pass
 
     return _api_no_store(jsonify({
         "ok": True,
@@ -2435,7 +2506,15 @@ def api_admin_overview():
         "operations": {
             "open_support_threads": int(support_open),
             "pending_payments": int(pending_payments),
+            "panel_api_healthy": panel_api_healthy,
+            "panel_online_total": panel_online_total,
+            "xui_service": _service_active("x-ui.service"),
+            "bot_service": _service_active("arcvpn-bot.service"),
+            "subscription_service": _service_active("arcvpn-subscription.service"),
+            "hysteria_service": _service_active("arcvpn-hysteria.service"),
+            "guard": guard_state,
         },
+        "inbounds": inbound_health,
         "recent_users": recent_users,
         "recent_payments": recent_payments,
         "local_panel": local_panel,
