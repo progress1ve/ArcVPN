@@ -647,6 +647,21 @@ class XUIClient(BaseVPNClient):
             f"/panel/api/clients/{enc}/attach", {"inboundIds": list(inbound_ids)}
         )
 
+    async def _v3_detach(self, email: str, inbound_ids: List[int]) -> None:
+        """Отвязывает клиента от inbound штатным API 3x-ui v3.
+
+        Используется для безопасного разделения обычного и LTE-трафика. В
+        отличие от прямой правки SQLite, endpoint синхронно обновляет master,
+        node и запущенный Xray и поэтому не требует останавливать x-ui.
+        """
+        if not inbound_ids:
+            return
+        import urllib.parse
+        enc = urllib.parse.quote(email, safe='')
+        await self._v3_post_client(
+            f"/panel/api/clients/{enc}/detach", {"inboundIds": list(inbound_ids)}
+        )
+
     async def _v3_email_for_secret(self, secret: str) -> Optional[str]:
         """Находит email клиента по секрету (id/password) через inbounds/list."""
         try:
