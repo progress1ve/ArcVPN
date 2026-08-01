@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -90,13 +90,16 @@
   let selectedPaymentMethod = 'sbp'
   let autoRenew = true
   let promoCode = ''
+  let recurring = { enabled: false, method: null, provider_ready: false }
+  let recurringBusy = false
+  let recurringConfirm = false
   const extraDeviceMonthlyRub = 25
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
   const stableDeviceToken = deviceToken()
   const deviceMetadataPromise = collectDeviceMetadata()
 
-  Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices()]).then(([accountResult, preferenceResult, deviceResult]) => {
+  Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices(), fetchRecurringPayment()]).then(([accountResult, preferenceResult, deviceResult, recurringResult]) => {
     if (accountResult.status === 'fulfilled') account = accountResult.value
     if (preferenceResult.status === 'fulfilled') preferences = preferenceResult.value.notifications
     if (deviceResult.status === 'fulfilled') {
@@ -106,6 +109,7 @@
       purchaseDevices = Math.max(2, Number(deviceResult.value.device_limit || 2))
       purchaseLteGb = Math.max(20, Number(deviceResult.value.lte_quota_gb || 20))
     }
+    if (recurringResult.status === 'fulfilled') recurring = recurringResult.value
     accountLoading = false
   })
 
@@ -180,6 +184,24 @@
     settingsError = ''
     settingsPage = page
     if (page === 'devices') refreshDevices()
+    if (page === 'billing') refreshRecurring()
+  }
+
+  async function refreshRecurring() {
+    try { recurring = await fetchRecurringPayment() }
+    catch (_) { settingsError = 'Не удалось загрузить настройки автопродления' }
+  }
+
+  async function removeRecurring() {
+    if (!recurringConfirm) { recurringConfirm = true; return }
+    recurringBusy = true
+    try {
+      await disableRecurringPayment()
+      recurring = { ...recurring, enabled: false, method: null }
+      recurringConfirm = false
+      settingsError = ''
+    } catch (_) { settingsError = 'Не удалось отключить автопродление. Попробуйте ещё раз.' }
+    finally { recurringBusy = false }
   }
 
   async function refreshDevices() {
@@ -940,7 +962,7 @@
       {:else}
         <section class="screen inner-screen settings-screen" aria-label="Настройки">
           <header class="section-head subpage-head" class:native-back-head={settingsPage !== 'main'}>
-            <div><h1>{settingsPage === 'main' ? 'Настройки' : settingsPage === 'devices' ? 'Устройства' : settingsPage === 'notifications' ? 'Уведомления' : settingsPage === 'email' ? 'Email' : 'Соглашение'}</h1></div>
+            <div><h1>{settingsPage === 'main' ? 'Настройки' : settingsPage === 'devices' ? 'Устройства' : settingsPage === 'notifications' ? 'Уведомления' : settingsPage === 'email' ? 'Email' : settingsPage === 'billing' ? 'Автопродление' : 'Соглашение'}</h1></div>
           </header>
 
           {#if settingsError}<p class="settings-error">{settingsError}</p>{/if}
@@ -955,6 +977,7 @@
               <h2>Подписка</h2>
               <button class="setting-row" on:click={() => openSettingsPage('devices')}><i><ArcIcon name="devices" size={21} weight="duotone" /></i><span><b>Устройства</b><small>{deviceOnlineTotal || onlineDevices} активно · {registeredDevices.length} из {deviceLimit} слотов</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
               <button class="setting-row" on:click={() => openSettingsPage('notifications')}><i><ArcIcon name="bell" size={21} weight="duotone" /></i><span><b>Уведомления</b><small>Срок, трафик и новые подключения</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
+              <button class="setting-row" on:click={() => openSettingsPage('billing')}><i><ArcIcon name="wallet" size={21} weight="duotone" /></i><span><b>Автопродление</b><small>{recurring.enabled ? (recurring.method?.display_title || 'Способ оплаты привязан') : recurring.provider_ready ? 'Не подключено' : 'Ожидает согласования YooKassa'}</small></span>{#if recurring.enabled}<em class="connected"><ArcIcon name="check" size={17} weight="bold" /></em>{:else}<ArcIcon name="caret" size={17} weight="bold" />{/if}</button>
             </section>
 
             <section class="settings-group">
@@ -1018,6 +1041,19 @@
               </section>
             {/if}
             {#if emailMessage}<p class="form-message">{emailMessage}</p>{/if}
+          {:else if settingsPage === 'billing'}
+            <p class="subpage-intro">Здесь можно самостоятельно управлять сохранённым способом оплаты. После отключения ArcVPN больше не сможет выполнять автоматические списания.</p>
+            <section class="recurring-card" class:enabled={recurring.enabled}>
+              <i><ArcIcon name="wallet" size={26} weight="duotone" /></i>
+              <span><small>{recurring.enabled ? 'Автопродление включено' : 'Автопродление не подключено'}</small><b>{recurring.enabled ? (recurring.method?.display_title || 'Сохранённый способ оплаты') : recurring.provider_ready ? 'Способ оплаты не привязан' : 'Ожидаем подключение опции YooKassa'}</b></span>
+              {#if recurring.enabled}<em><ArcIcon name="check" size={17} weight="bold" /></em>{/if}
+            </section>
+            {#if recurring.enabled}
+              <div class="recurring-note"><b>Что произойдёт после отключения</b><p>Сохранённый идентификатор способа оплаты будет удалён из ArcVPN. Текущая подписка продолжит работать до своей даты окончания.</p></div>
+              <button class="danger-action" class:confirm={recurringConfirm} disabled={recurringBusy} on:click={removeRecurring}>{recurringBusy ? 'Отключаем…' : recurringConfirm ? 'Подтвердить отключение' : 'Отключить и отвязать способ оплаты'}</button>
+            {:else}
+              <div class="recurring-note"><b>Как подключить</b><p>После согласования с YooKassa включите галочку «Автопродление» при оплате. Привязанный способ появится здесь автоматически.</p></div>
+            {/if}
           {:else}
             <article class="agreement">
               <div class="agreement-meta"><span>Пользовательское соглашение ArcVPN</span><small>Обновлено 29 июля 2026</small></div>
@@ -1208,6 +1244,7 @@
   .profile-card span { margin-top: 3px; color: var(--muted); font-size: 10px; }
   .settings-group { margin-top: 22px; overflow: hidden; border: 1px solid var(--border); border-radius: 22px; background: rgba(7,13,23,.7); }
   .settings-group h2 { padding: 14px 16px 8px; color: #647287; font-size: 9px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+  .recurring-card{display:flex;align-items:center;gap:13px;margin-top:20px;padding:17px;border:1px solid var(--border);border-radius:23px;background:rgba(7,13,23,.72)}.recurring-card>i{display:grid;place-items:center;width:48px;height:48px;flex:none;border-radius:50%;color:#94d5f9;background:rgba(80,174,232,.12)}.recurring-card>span{min-width:0;display:flex;flex:1;flex-direction:column;gap:5px}.recurring-card small{color:#7f91a4;font-size:10px}.recurring-card b{font-size:13px}.recurring-card>em{display:grid;place-items:center;width:28px;height:28px;border-radius:50%;color:#082016;background:#72d3a3}.recurring-card.enabled{background:linear-gradient(135deg,rgba(61,150,207,.13),rgba(7,13,23,.72))}.recurring-note{margin-top:12px;padding:17px 18px;border-radius:21px;background:rgba(255,255,255,.035)}.recurring-note b{font-size:11px}.recurring-note p{margin:7px 0 0;color:#8292a5;font-size:10px;line-height:1.55}.danger-action.confirm{color:#fff;background:rgba(224,91,101,.22)}
   .setting-row { width: 100%; min-height: 58px; display: flex; align-items: center; gap: 11px; padding: 9px 15px; color: #7e8da0; text-align: left; }
   .setting-row + .setting-row { border-top: 1px solid rgba(255,255,255,.06); }
   .setting-row > i { width: 34px; height: 34px; display: grid; flex: none; place-items: center; border-radius: 12px; color: #83cdf7; background: rgba(80,174,232,.12); }

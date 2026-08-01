@@ -807,6 +807,18 @@ async def check_yookassa_payment_status(yookassa_payment_id: str) -> str:
     return status
 
 
+async def get_yookassa_payment_details(yookassa_payment_id: str) -> Dict[str, Any]:
+    """Return the verified payment object including saved payment metadata."""
+    shop_id, secret_key = get_yookassa_credentials()
+    if not shop_id or not secret_key:
+        raise ValueError("ЮKassa: не настроены shop_id или secret_key")
+    credentials = base64.b64encode(f"{shop_id}:{secret_key}".encode()).decode()
+    return await _yookassa_get(
+        f"{YOOKASSA_API_URL}/{yookassa_payment_id}",
+        {"Authorization": f"Basic {credentials}", "Content-Type": "application/json"},
+    )
+
+
 def convert_to_rub_cents(amount_raw: int, payment_type: str, usd_rub_rate: int) -> int:
     """
     Конвертировать сырую сумму в копейки рублей.

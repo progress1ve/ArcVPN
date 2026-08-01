@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 36
+LATEST_VERSION = 37
 
 
 def get_current_version() -> int:
@@ -1765,6 +1765,31 @@ def migration_36(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v36 применена")
 
 
+def migration_37(conn: sqlite3.Connection) -> None:
+    """Stored YooKassa methods with self-service recurring cancellation."""
+    logger.info("Применение миграции v37 (управление автопродлением)...")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_payment_methods (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            provider TEXT NOT NULL DEFAULT 'yookassa',
+            payment_method_id TEXT NOT NULL,
+            method_type TEXT NOT NULL DEFAULT 'bank_card',
+            display_title TEXT,
+            active INTEGER NOT NULL DEFAULT 1,
+            consent_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            disabled_at DATETIME,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(provider, payment_method_id),
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_recurring_user_active ON recurring_payment_methods(user_id, active)")
+    _add_column(conn, "payments", "auto_renew_requested INTEGER NOT NULL DEFAULT 0")
+    logger.info("Миграция v37 применена")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1802,6 +1827,7 @@ MIGRATIONS = {
     34: migration_34,
     35: migration_35,
     36: migration_36,
+    37: migration_37,
 }
 
 

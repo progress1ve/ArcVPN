@@ -17,6 +17,7 @@ import logging
 import os
 import re
 import secrets
+import shutil
 import smtplib
 import sqlite3
 import subprocess
@@ -88,7 +89,8 @@ from database.requests import (
     save_yookassa_payment_id,
 )
 from database.db_support import get_support_thread, add_admin_support_message
-from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, process_payment_order
+from database.db_recurring import disable_recurring_methods, get_active_recurring_method, get_recurring_summary, save_recurring_method
+from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, get_yookassa_payment_details, process_payment_order
 from bot.services.vpn_api import get_client_from_server_data
 from bot.services.reserve import get_reserve_client_info
 from subscription_pages import render_import_page, render_user_agreement
@@ -1929,6 +1931,9 @@ def api_create_sbp_payment():
         vpn_key_id=key_id, amount_cents=total_rub * 100,
         operation_type="renew" if key_id else "new", promocode_id=promocode.get("id") if promocode else None,
     )
+    if payload.get("auto_renew", True):
+        with get_db() as conn:
+            conn.execute("UPDATE payments SET auto_renew_requested=1 WHERE order_id=?", (order["order_id"],))
     if not set_payment_requested_entitlements(order["order_id"], devices, lte_gb):
         logger.error("Не удалось сохранить add-ons заказа %s", order["order_id"])
         return _api_error("payment_initialization_failed", 500)
@@ -1977,10 +1982,8 @@ def api_yookassa_webhook():
         and order.get("fulfillment_status") == "applied"
     )
     try:
-        verified_status = ASYNC_EXECUTOR.run(
-            check_yookassa_payment_status(provider_id),
-            timeout=45,
-        )
+        payment_details = ASYNC_EXECUTOR.run(get_yookassa_payment_details(provider_id), timeout=45)
+        verified_status = str(payment_details.get("status") or "pending")
         if verified_status != "succeeded":
             logger.warning(
                 "YooKassa webhook status mismatch: payment=%s api=%s",
@@ -1988,6 +1991,16 @@ def api_yookassa_webhook():
                 verified_status,
             )
             return _api_error("payment_not_confirmed", 409)
+        payment_method = payment_details.get("payment_method") or {}
+        if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0):
+            method_type = str(payment_method.get("type") or "bank_card")
+            card = payment_method.get("card") or {}
+            title = (
+                f"Карта •••• {card.get('last4')}" if card.get("last4")
+                else "СБП" if method_type == "sbp"
+                else "Сохранённый способ оплаты"
+            )
+            save_recurring_method(int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title)
         success, message, updated = ASYNC_EXECUTOR.run(
             process_payment_order(order["order_id"]),
             timeout=60,
@@ -2030,10 +2043,17 @@ def api_sbp_payment_status(order_id: str):
     if not provider_id:
         return _api_error("payment_not_initialized", 409)
     try:
-        status = ASYNC_EXECUTOR.run(check_yookassa_payment_status(provider_id), timeout=45)
+        payment_details = ASYNC_EXECUTOR.run(get_yookassa_payment_details(provider_id), timeout=45)
+        status = str(payment_details.get("status") or "pending")
         applied = False
         fulfillment_status = order.get("fulfillment_status") or "pending"
         if status == "succeeded":
+            payment_method = payment_details.get("payment_method") or {}
+            if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0):
+                method_type = str(payment_method.get("type") or "bank_card")
+                card = payment_method.get("card") or {}
+                title = f"Карта •••• {card.get('last4')}" if card.get("last4") else "СБП" if method_type == "sbp" else "Сохранённый способ оплаты"
+                save_recurring_method(int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title)
             success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id), timeout=45)
             applied = bool(success and updated and updated.get("fulfillment_status") == "applied")
             fulfillment_status = (updated or {}).get("fulfillment_status") or fulfillment_status
@@ -2047,6 +2067,28 @@ def api_sbp_payment_status(order_id: str):
     except Exception:
         logger.exception("Не удалось проверить СБП-платёж %s", order_id)
         return _api_error("payment_status_unavailable", 503)
+
+
+@app.route('/api/billing/recurring', methods=['GET', 'DELETE'])
+def api_recurring_payment_method():
+    """Show or revoke a saved method without a support request."""
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    account = get_webapp_account(telegram_id)
+    if not account:
+        return _api_error("account_not_found", 404)
+    user_id = int(account["id"])
+    if request.method == 'DELETE':
+        disabled = disable_recurring_methods(user_id)
+        return _api_no_store(jsonify({"ok": True, "disabled": bool(disabled)}))
+    method = get_active_recurring_method(user_id)
+    return _api_no_store(jsonify({
+        "ok": True,
+        "enabled": bool(method),
+        "method": method,
+        "provider_ready": bool(get_setting("yookassa_recurring_enabled", "0") == "1"),
+    }))
 
 
 @app.route('/api/referral')
@@ -2494,6 +2536,15 @@ def api_admin_overview():
     except (OSError, ValueError):
         pass
 
+    disk = shutil.disk_usage("/")
+    db_integrity = "unknown"
+    try:
+        with get_db() as conn:
+            row = conn.execute("PRAGMA quick_check").fetchone()
+            db_integrity = str(row[0] if row else "unknown")
+    except Exception:
+        logger.exception("Admin health: database quick_check failed")
+
     return _api_no_store(jsonify({
         "ok": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -2514,9 +2565,19 @@ def api_admin_overview():
             "hysteria_service": _service_active("arcvpn-hysteria.service"),
             "guard": guard_state,
         },
+        "system": {
+            "disk_total_gb": round(disk.total / 1024 ** 3, 1),
+            "disk_used_gb": round(disk.used / 1024 ** 3, 1),
+            "disk_used_pct": round(disk.used / max(1, disk.total) * 100, 1),
+            "database_integrity": db_integrity,
+        },
         "inbounds": inbound_health,
         "recent_users": recent_users,
         "recent_payments": recent_payments,
+        "recurring": {
+            **get_recurring_summary(),
+            "provider_ready": bool(get_setting("yookassa_recurring_enabled", "0") == "1"),
+        },
         "local_panel": local_panel,
     }))
 

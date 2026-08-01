@@ -189,6 +189,14 @@ export const fetchSbpPayment = (orderId) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, status: 'succeeded', applied: true })
     : get(`/api/payments/sbp/${encodeURIComponent(orderId)}`))
+export const fetchRecurringPayment = () =>
+  (import.meta.env.DEV
+    ? Promise.resolve({ ok: true, enabled: false, method: null, provider_ready: false })
+    : get('/api/billing/recurring'))
+export const disableRecurringPayment = () =>
+  (import.meta.env.DEV
+    ? Promise.resolve({ ok: true, disabled: true })
+    : mutate('/api/billing/recurring', 'DELETE'))
 export const fetchSupportMessages = (after = 0) => (import.meta.env.DEV ? mock('support') : get(`/api/support/messages?after=${encodeURIComponent(after)}`))
 
 export async function sendSupportMessage(body) {
