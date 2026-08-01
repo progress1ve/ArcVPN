@@ -561,6 +561,16 @@ def update_payment_type(order_id: str, payment_type: str) -> bool:
              logger.info(f"Order {order_id} тип оплаты обновлен на {payment_type}")
         return success
 
+
+def set_order_auto_renew(order_id: str, enabled: bool) -> bool:
+    """Persist the customer's explicit recurring-payment choice for an order."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            "UPDATE payments SET auto_renew_requested = ? WHERE order_id = ? AND status = 'pending'",
+            (1 if enabled else 0, order_id),
+        )
+        return cursor.rowcount > 0
+
 def update_payment_key_id(order_id: str, vpn_key_id: int) -> bool:
     """
     Привязывает созданный VPN-ключ к платежу.

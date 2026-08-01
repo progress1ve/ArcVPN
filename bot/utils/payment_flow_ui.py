@@ -221,6 +221,8 @@ async def show_payment_method_selection_screen(
     show_balance_button = False
 
     discount_rub = (prepared_order or {}).get('discount_rub', 0) or 0
+    auto_renew = bool((prepared_order or {}).get('auto_renew_requested'))
+    recurring_available = get_setting('yookassa_recurring_enabled', '0') == '1'
     payment_text = _format_payment_context_text(
         tariff=tariff,
         key=key,
@@ -246,6 +248,8 @@ async def show_payment_method_selection_screen(
             show_balance_button=show_balance_button,
             demo_enabled=demo_enabled,
             has_promocode=has_promocode or discount_rub > 0,
+            auto_renew=auto_renew,
+            recurring_available=recurring_available,
         )
     else:
         kb = renew_payment_method_kb(
@@ -261,6 +265,8 @@ async def show_payment_method_selection_screen(
             demo_enabled=demo_enabled,
             order_id=order_id,
             has_promocode=has_promocode or discount_rub > 0,
+            auto_renew=auto_renew,
+            recurring_available=recurring_available,
         )
 
     await safe_edit_or_send(message, payment_text, photo=photo_file_id, reply_markup=kb)

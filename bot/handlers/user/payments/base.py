@@ -10,6 +10,39 @@ from config import ADMIN_IDS
 logger = logging.getLogger(__name__)
 router = Router()
 
+
+@router.callback_query(F.data.startswith('payment_recurring:'))
+async def toggle_payment_recurring(callback: CallbackQuery):
+    """Toggle explicit recurring consent on the prepared payment order."""
+    from database.requests import get_setting, set_order_auto_renew
+    from bot.utils.payment_flow_ui import show_payment_method_selection_screen
+
+    parts = callback.data.split(':')
+    if len(parts) != 5:
+        await callback.answer('Не удалось обновить настройку', show_alert=True)
+        return
+    _, order_id, enabled_raw, key_id_raw, tariff_id_raw = parts
+    enabled = enabled_raw == '1'
+    if enabled and get_setting('yookassa_recurring_enabled', '0') != '1':
+        await callback.answer(
+            'ЮKassa ещё не включила автоплатежи для магазина. Выберите оплату без автопродления.',
+            show_alert=True,
+        )
+        return
+    if not set_order_auto_renew(order_id, enabled):
+        await callback.answer('Заказ уже завершён или не найден', show_alert=True)
+        return
+    key_id = int(key_id_raw) or None
+    tariff_id = int(tariff_id_raw)
+    await show_payment_method_selection_screen(
+        callback.message,
+        callback.from_user.id,
+        tariff_id,
+        key_id=key_id,
+        order_id=order_id,
+    )
+    await callback.answer('Автопродление включено' if enabled else 'Автопродление отключено')
+
 def _format_price_compact(cents: int) -> str:
     """Форматирование цены в компактном виде."""
     if cents >= 10000:

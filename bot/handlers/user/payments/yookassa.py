@@ -12,6 +12,12 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+
+def _can_save_payment_method(order: dict) -> bool:
+    """Only request provider-side saving after YooKassa enables recurring payments."""
+    from database.requests import get_setting
+    return bool(order.get('auto_renew_requested')) and get_setting('yookassa_recurring_enabled', '0') == '1'
+
 @router.callback_query(F.data.startswith('pay_cards'))
 async def pay_cards_handler(callback: CallbackQuery):
     """Обработчик оплаты картой - создает инвойс напрямую если тариф уже выбран."""
@@ -299,7 +305,8 @@ async def pay_qr_handler(callback: CallbackQuery):
                 amount_rub=price_rub,
                 order_id=order_id,
                 description=f"Тариф {tariff['name']}",
-                bot_name=bot_name
+                bot_name=bot_name,
+                save_payment_method=_can_save_payment_method(prepared_order),
             )
             
             payment_id = result['yookassa_payment_id']
@@ -395,7 +402,13 @@ async def qr_pay_create(callback: CallbackQuery):
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.username
         description = f"Покупка «{tariff['name']}» — {tariff['duration_days']} дней"
-        result = await create_yookassa_qr_payment(amount_rub=price_rub, order_id=order_id, description=description, bot_name=bot_name)
+        result = await create_yookassa_qr_payment(
+            amount_rub=price_rub,
+            order_id=order_id,
+            description=description,
+            bot_name=bot_name,
+            save_payment_method=_can_save_payment_method(prepared_order),
+        )
         save_yookassa_payment_id(order_id, result['yookassa_payment_id'])
         qr_image_data = result.get('qr_image_data')
         qr_url = result.get('qr_url', '')
@@ -540,7 +553,13 @@ async def renew_qr_create(callback: CallbackQuery):
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.username
         description = f"Продление Ключа «{key['display_name']}»: «{tariff['name']}» ({tariff['duration_days']} дн.)"
-        result = await create_yookassa_qr_payment(amount_rub=price_rub, order_id=order_id, description=description, bot_name=bot_name)
+        result = await create_yookassa_qr_payment(
+            amount_rub=price_rub,
+            order_id=order_id,
+            description=description,
+            bot_name=bot_name,
+            save_payment_method=_can_save_payment_method(prepared_order),
+        )
         save_yookassa_payment_id(order_id, result['yookassa_payment_id'])
         qr_image_data = result.get('qr_image_data')
         qr_url = result.get('qr_url', '')

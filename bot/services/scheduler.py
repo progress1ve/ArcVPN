@@ -752,7 +752,9 @@ async def reconcile_yookassa_payments(bot: Bot) -> None:
         get_user_by_id,
     )
 
-    orders = get_reconcilable_yookassa_orders(lookback_hours=48, limit=50)
+    # Webhook is the primary path. The poller is only a small fallback batch;
+    # it must never monopolize the bot when YooKassa has a network incident.
+    orders = get_reconcilable_yookassa_orders(lookback_hours=24, limit=10)
     for order in orders:
         order_id = str(order.get("order_id") or "")
         provider_id = str(order.get("yookassa_payment_id") or "")
@@ -790,6 +792,9 @@ async def reconcile_yookassa_payments(bot: Bot) -> None:
                     ),
                 )
             logger.info("YooKassa order %s reconciled successfully", order_id)
+        except RuntimeError as exc:
+            logger.warning("YooKassa reconciliation paused after network error: %s", exc)
+            break
         except Exception:
             logger.exception("YooKassa reconciliation failed for order %s", order_id)
 

@@ -201,7 +201,9 @@ def payment_method_kb(
     order_id: str = None,
     show_balance_button: bool = False,
     demo_enabled: bool = False,
-    has_promocode: bool = False
+    has_promocode: bool = False,
+    auto_renew: bool = False,
+    recurring_available: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора способа оплаты для конкретного тарифа.
@@ -246,6 +248,14 @@ def payment_method_kb(
             builder.row(
                 InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
+
+    recurring_label = "✅ Автопродление включено" if auto_renew else (
+        "○ Оплатить с автопродлением" if recurring_available else "🔒 Автопродление подключается"
+    )
+    builder.row(InlineKeyboardButton(
+        text=recurring_label,
+        callback_data=f"payment_recurring:{order_id}:{0 if auto_renew else 1}:0:{tariff_id}",
+    ))
 
     # Stars
     if stars_enabled:
@@ -755,7 +765,9 @@ def renew_payment_method_kb(
     show_balance_button: bool = False,
     demo_enabled: bool = False,
     order_id: str = None,
-    has_promocode: bool = False
+    has_promocode: bool = False,
+    auto_renew: bool = False,
+    recurring_available: bool = False,
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура выбора способа оплаты для продления.
@@ -799,6 +811,14 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
+
+    recurring_label = "✅ Автопродление включено" if auto_renew else (
+        "○ Оплатить с автопродлением" if recurring_available else "🔒 Автопродление подключается"
+    )
+    builder.row(InlineKeyboardButton(
+        text=recurring_label,
+        callback_data=f"payment_recurring:{order_id}:{0 if auto_renew else 1}:{key_id}:{tariff_id or 0}",
+    ))
 
     # Stars
     if stars_enabled:

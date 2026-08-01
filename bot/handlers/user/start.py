@@ -361,7 +361,6 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
 
     # Создаем клавиатуру с кнопкой пробного периода если нужно
     if is_new:
-        from aiogram.types import FSInputFile
         text = trial_welcome_text(user, trial_result)
         kb = create_onboarding_kb()
         cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-welcome-v1.png"
@@ -440,6 +439,7 @@ def create_main_menu_kb(
         secondary.append(InlineKeyboardButton(text="🎁 Пригласить друга", callback_data="referral_system"))
     secondary.append(InlineKeyboardButton(text="💬 Помощь", callback_data="bot_help"))
     builder.row(*secondary)
+    builder.row(InlineKeyboardButton(text="⚙️ Настройки", callback_data="bot_settings"))
 
     # Админ-панель (если админ)
     if is_admin:
@@ -510,6 +510,95 @@ def _fallback_back_kb(*, primary_label: str, primary_callback: str) -> InlineKey
     builder.row(InlineKeyboardButton(text=primary_label, callback_data=primary_callback))
     builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
     return builder.as_markup()
+
+
+def _bot_settings_keyboard(user_internal_id: int) -> InlineKeyboardMarkup:
+    """Compact bot fallback settings, matching the WebApp billing controls."""
+    from database.db_recurring import get_active_recurring_method
+
+    method = get_active_recurring_method(user_internal_id) if user_internal_id else None
+    recurring_available = get_setting("yookassa_recurring_enabled", "0") == "1"
+    builder = InlineKeyboardBuilder()
+    if method:
+        builder.row(InlineKeyboardButton(
+            text="🛑 Отключить автопродление",
+            callback_data="bot_recurring_disable",
+        ))
+    elif recurring_available:
+        builder.row(InlineKeyboardButton(
+            text="💳 Подключить при следующей оплате",
+            callback_data="bot_recurring_setup",
+            style="primary",
+        ))
+    else:
+        builder.row(InlineKeyboardButton(
+            text="⏳ Автопродление подключается",
+            callback_data="bot_recurring_unavailable",
+        ))
+    builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+    return builder.as_markup()
+
+
+@router.callback_query(F.data == "bot_settings")
+async def bot_settings_handler(callback: CallbackQuery, answer: bool = True):
+    from database.db_recurring import get_active_recurring_method
+    from database.requests import get_user_internal_id
+
+    user_internal_id = get_user_internal_id(callback.from_user.id)
+    method = get_active_recurring_method(user_internal_id) if user_internal_id else None
+    recurring_available = get_setting("yookassa_recurring_enabled", "0") == "1"
+    if method:
+        status = "✅ <b>Включено</b>"
+        detail = "Способ оплаты сохранён безопасно в ЮKassa. Отключить его можно самостоятельно ниже."
+    elif recurring_available:
+        status = "○ <b>Не подключено</b>"
+        detail = "Выберите автопродление при следующей оплате — после подтверждения способ оплаты появится здесь."
+    else:
+        status = "⏳ <b>Ожидает подключения ЮKassa</b>"
+        detail = "Интерфейс уже готов. Как только ЮKassa включит рекуррентные платежи, настройка станет доступна без обновления бота."
+    await safe_edit_or_send(
+        callback.message,
+        "⚙️ <b>Настройки</b>\n\n"
+        f"🔁 Автопродление: {status}\n\n"
+        f"<blockquote>{detail}</blockquote>\n\n"
+        "Вы всегда управляете автопродлением сами — обращение в поддержку не требуется.",
+        reply_markup=_bot_settings_keyboard(user_internal_id or 0),
+    )
+    if answer:
+        await callback.answer()
+
+
+@router.callback_query(F.data == "bot_recurring_disable")
+async def bot_recurring_disable_handler(callback: CallbackQuery):
+    from database.db_recurring import disable_recurring_methods
+    from database.requests import get_user_internal_id
+
+    user_internal_id = get_user_internal_id(callback.from_user.id)
+    disabled = disable_recurring_methods(user_internal_id) if user_internal_id else 0
+    await callback.answer("Автопродление отключено" if disabled else "Автопродление уже отключено", show_alert=True)
+    await bot_settings_handler(callback, answer=False)
+
+
+@router.callback_query(F.data == "bot_recurring_unavailable")
+async def bot_recurring_unavailable_handler(callback: CallbackQuery):
+    await callback.answer(
+        "ЮKassa ещё согласовывает автоплатежи. Оплата без автопродления работает как обычно.",
+        show_alert=True,
+    )
+
+
+@router.callback_query(F.data == "bot_recurring_setup")
+async def bot_recurring_setup_handler(callback: CallbackQuery):
+    from database.requests import get_user_primary_key
+    from bot.utils.payment_flow_ui import show_tariff_selection_screen
+
+    primary = get_user_primary_key(callback.from_user.id)
+    await show_tariff_selection_screen(
+        callback.message,
+        callback.from_user.id,
+        key_id=primary.get("id") if primary else None,
+    )
+    await callback.answer()
 
 
 @router.callback_query(F.data == "bot_connect")
