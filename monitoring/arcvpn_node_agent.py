@@ -37,7 +37,8 @@ def _service_active(name: str) -> bool:
 
 def _cpu_totals():
     values = [int(value) for value in _read("/proc/stat").splitlines()[0].split()[1:]]
-    return sum(values), values[3] + (values[4] if len(values) > 4 else 0)
+    steal = values[7] if len(values) > 7 else 0
+    return sum(values), values[3] + (values[4] if len(values) > 4 else 0), steal
 
 
 def _network_totals():
@@ -73,7 +74,7 @@ def _tcp_established():
 
 def collect():
     now = time.time()
-    cpu_total, cpu_idle = _cpu_totals()
+    cpu_total, cpu_idle, cpu_steal = _cpu_totals()
     net_rx, net_tx = _network_totals()
     previous = {}
     try:
@@ -83,12 +84,14 @@ def collect():
     elapsed = max(0.001, now - float(previous.get("time", now)))
     cpu_delta = cpu_total - int(previous.get("cpu_total", cpu_total))
     idle_delta = cpu_idle - int(previous.get("cpu_idle", cpu_idle))
+    steal_delta = cpu_steal - int(previous.get("cpu_steal", cpu_steal))
     cpu_pct = round((1 - idle_delta / cpu_delta) * 100, 2) if cpu_delta > 0 else None
+    cpu_steal_pct = round(steal_delta / cpu_delta * 100, 2) if cpu_delta > 0 else None
     rx_bps = max(0, net_rx - int(previous.get("net_rx", net_rx))) * 8 / elapsed
     tx_bps = max(0, net_tx - int(previous.get("net_tx", net_tx))) * 8 / elapsed
     STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
     STATE_PATH.write_text(json.dumps({
-        "time": now, "cpu_total": cpu_total, "cpu_idle": cpu_idle,
+        "time": now, "cpu_total": cpu_total, "cpu_idle": cpu_idle, "cpu_steal": cpu_steal,
         "net_rx": net_rx, "net_tx": net_tx,
     }), encoding="utf-8")
     disk = shutil.disk_usage("/")
@@ -98,6 +101,7 @@ def collect():
         "host": PUBLIC_HOST,
         "name": NODE_NAME,
         "cpu_pct": cpu_pct,
+        "cpu_steal_pct": cpu_steal_pct,
         "mem_pct": _memory_pct(),
         "load_1m": round(os.getloadavg()[0], 3),
         "disk_used_pct": round(disk.used / max(1, disk.total) * 100, 2),

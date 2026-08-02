@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 42
+LATEST_VERSION = 43
 
 
 def get_current_version() -> int:
@@ -1900,6 +1900,13 @@ def migration_42(conn: sqlite3.Connection) -> None:
     logger.info("Migration v42 applied")
 
 
+def migration_43(conn: sqlite3.Connection) -> None:
+    """Track hypervisor CPU contention on inexpensive VPS nodes."""
+    logger.info("Applying migration v43 (CPU steal telemetry)...")
+    _add_column(conn, "server_health_samples", "cpu_steal_pct REAL")
+    logger.info("Migration v43 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1943,6 +1950,7 @@ MIGRATIONS = {
     40: migration_40,
     41: migration_41,
     42: migration_42,
+    43: migration_43,
 }
 
 

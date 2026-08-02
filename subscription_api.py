@@ -2540,14 +2540,14 @@ def api_internal_node_metrics():
             INSERT INTO server_health_samples(
               server_id,host,state,cpu_pct,mem_pct,xray_state,telemetry_available,
               source,load_1m,disk_used_pct,net_rx_bps,net_tx_bps,tcp_established,
-              uptime_seconds,xui_active,hysteria_active,boot_id
-            ) VALUES (?,?,?,?,?,?,1,'agent',?,?,?,?,?,?,?,?,?)
+              uptime_seconds,xui_active,hysteria_active,boot_id,cpu_steal_pct
+            ) VALUES (?,?,?,?,?,?,1,'agent',?,?,?,?,?,?,?,?,?,?)
         """, (
             server_id, host, state, number("cpu_pct", 0, 100), number("mem_pct", 0, 100), xray_state,
             number("load_1m"), number("disk_used_pct", 0, 100), number("net_rx_bps"), number("net_tx_bps"),
             int(number("tcp_established", 0, 10_000_000) or 0),
             int(number("uptime_seconds", 0) or 0), int(xui_active), int(bool(payload.get("hysteria_active"))),
-            _clean_text(payload.get("boot_id"), 64),
+            _clean_text(payload.get("boot_id"), 64), number("cpu_steal_pct", 0, 100),
         ))
         if server_id is not None:
             conn.execute("UPDATE servers SET lifecycle_state=? WHERE id=?", (state, server_id))
@@ -2728,6 +2728,7 @@ def api_admin_overview():
                 "agent_online": True,
                 "agent_last_seen": agent.get("sampled_at"),
                 "cpu_pct": agent.get("cpu_pct"),
+                "cpu_steal_pct": agent.get("cpu_steal_pct"),
                 "mem_pct": agent.get("mem_pct"),
                 "load_1m": agent.get("load_1m"),
                 "disk_used_pct": agent.get("disk_used_pct"),
