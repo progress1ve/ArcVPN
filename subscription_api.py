@@ -2573,6 +2573,14 @@ def api_admin_overview():
         local_panel["detail"] = type(exc).__name__
 
     server_stats = get_servers_stats()
+    node_inventory = {
+        "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
+        "195.226.92.37": {"provider": "rdp-onedash.ru", "location": "Финляндия", "monthly_cost_rub": 365, "capacity_mbps": 1000},
+    }
+    for server in server_stats:
+        for key, value in node_inventory.get(str(server.get("host") or ""), {}).items():
+            if server.get(key) in (None, ""):
+                server[key] = value
     inbound_health = []
     panel_online_total = None
     node_online_total = 0
@@ -2609,6 +2617,7 @@ def api_admin_overview():
                 "cpu_pct": round(float(node.get("cpuPct") or 0), 1), "mem_pct": round(float(node.get("memPct") or 0), 1),
                 "inbound_count": int(node.get("inboundCount") or 0), "telemetry_available": True,
                 "xray_state": node.get("xrayState") or "unknown", "source": "3x-ui node telemetry",
+                **node_inventory.get(host, {}),
             }
             if existing:
                 existing.update(values)
@@ -2647,7 +2656,8 @@ def api_admin_overview():
     if not any(str(node.get("host")) == "195.226.92.37" for node in server_stats):
         server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 0,
                              "clients_count": None, "active_clients": None, "total_traffic_gb": 0,
-                             "managed_externally": True, "telemetry_available": False})
+                             "managed_externally": True, "telemetry_available": False,
+                             **node_inventory["195.226.92.37"]})
 
     # Keep a bounded history for provider comparison and incident analysis.
     # Observability is best-effort and must never break the admin overview.
