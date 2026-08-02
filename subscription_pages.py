@@ -59,10 +59,17 @@ def render_silent_import_page(
     target.pathname = `${{target.pathname.replace(/[/]$/, '')}}/${{encodeURIComponent(deviceToken())}}`;
     return `happ://add/${{target.toString()}}`;
   }}
-  register();
-  const openHapp = () => {{ window.location.href = deeplink(); }};
+  const registration = register();
+  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  let opening = false;
+  const openHapp = async () => {{
+    if (opening) return;
+    opening = true;
+    await Promise.race([registration, wait(1800)]);
+    window.location.href = deeplink();
+  }};
   document.addEventListener('click', openHapp);
-  setTimeout(openHapp, 80);
+  setTimeout(openHapp, 120);
 </script>
 </body>
 </html>"""
