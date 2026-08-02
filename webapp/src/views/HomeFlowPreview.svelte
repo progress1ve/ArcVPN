@@ -1009,7 +1009,7 @@
                       {#if editingDeviceId === device.id}
                         <input class="device-name-input" maxlength="60" bind:value={deviceNameDraft} on:keydown={(event) => event.key === 'Enter' && saveDeviceName(device.id)} />
                       {:else}
-                        <b>{device.display_name || device.model || 'Устройство'}</b>
+                        <b>{device.platform === 'unknown' ? 'Устройство Happ' : (device.display_name || device.model || 'Устройство')}</b>
                       {/if}
                       <small>{[device.model && device.model !== device.display_name ? device.model : '', device.screen_size, device.browser].filter(Boolean).join(' · ') || 'Данные платформы скрыты системой'}</small>
                     </span>

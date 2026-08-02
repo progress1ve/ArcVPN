@@ -1520,7 +1520,7 @@ def subscription(sub_id: str, path_device_token: str = ''):
                     recovery_token,
                     "unknown",
                     "",
-                    "Подключение по ссылке",
+                    "Устройство Happ",
                     client_family,
                     "",
                 )
