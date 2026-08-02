@@ -1848,19 +1848,9 @@ def _api_error(message: str, status: int) -> Response:
 def _import_url_for(sub_id: Optional[str]) -> Optional[str]:
     if not sub_id:
         return None
-    cookie_token = (request.cookies.get("arcvpn_device_token") or "").strip()
-    if not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", cookie_token):
-        cookie_token = secrets.token_urlsafe(24)
-    platform, model, display_name, browser = _device_identity(
-        {}, request.headers.get("User-Agent", "")
-    )
-    device_sub_id = register_import_device(
-        sub_id, cookie_token, platform, model, display_name, browser, ""
-    )
-    if not device_sub_id:
-        return _subscription_not_available()
-
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=plain"
+    # Pure URL construction only. Registering here used to create a new ghost
+    # device on every /api/status refresh, before the user clicked Import.
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
     return f"happ://add/{subscription_url}"
 
 
