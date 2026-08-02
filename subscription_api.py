@@ -1452,6 +1452,11 @@ def subscription(sub_id: str, path_device_token: str = ''):
                 return _response_from_prepared(
                     _prepare_device_limit_subscription(key, output_format, access_state)
                 )
+            if access_state is None:
+                logger.warning("Unknown device token rejected for %s", masked_sub_id)
+                return _response_from_prepared(
+                    _prepare_device_limit_subscription(key, output_format, "legacy")
+                )
         elif subscription_requires_device_token(sub_id):
             logger.info("Legacy token-less refresh blocked for %s", masked_sub_id)
             return _response_from_prepared(
