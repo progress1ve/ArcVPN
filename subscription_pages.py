@@ -10,6 +10,7 @@ import html
 def render_silent_import_page(
     js_subscription_url: str,
     js_device_registration_url: str,
+    js_server_device_token: str = "null",
 ) -> str:
     """Blank HTTPS bridge that registers the browser and immediately opens Happ."""
     return f"""<!doctype html>
@@ -25,7 +26,12 @@ def render_silent_import_page(
 <script>
   const subscriptionUrl = {js_subscription_url};
   const registrationUrl = {js_device_registration_url};
+  const serverDeviceToken = {js_server_device_token};
   function deviceToken() {{
+    if (serverDeviceToken) {{
+      localStorage.setItem('arcvpn_device_token', serverDeviceToken);
+      return serverDeviceToken;
+    }}
     let token = localStorage.getItem('arcvpn_device_token');
     if (!token) {{
       const bytes = new Uint8Array(24);

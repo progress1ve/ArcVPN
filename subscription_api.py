@@ -1558,6 +1558,7 @@ def import_to_happ(sub_id: str):
     html_page = render_silent_import_page(
         js_subscription_url=js_subscription_url,
         js_device_registration_url=json.dumps(f"{SUBSCRIPTION_URL}/api/device/import/{sub_id}"),
+        js_server_device_token=json.dumps(cookie_token),
     )
     response = Response(html_page, mimetype='text/html')
     response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
@@ -1565,6 +1566,10 @@ def import_to_happ(sub_id: str):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "DENY"
+    response.set_cookie(
+        "arcvpn_device_token", cookie_token, max_age=31536000,
+        secure=True, httponly=True, samesite="Lax", path="/",
+    )
     return response
 
 
@@ -1832,6 +1837,17 @@ def _api_error(message: str, status: int) -> Response:
 def _import_url_for(sub_id: Optional[str]) -> Optional[str]:
     if not sub_id:
         return None
+    cookie_token = (request.cookies.get("arcvpn_device_token") or "").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_-]{20,128}", cookie_token):
+        cookie_token = secrets.token_urlsafe(24)
+    platform, model, display_name, browser = _device_identity(
+        {}, request.headers.get("User-Agent", "")
+    )
+    if not register_import_device(
+        sub_id, cookie_token, platform, model, display_name, browser, ""
+    ):
+        return _subscription_not_available()
+
     subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
     return f"happ://add/{subscription_url}"
 
