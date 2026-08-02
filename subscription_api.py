@@ -144,7 +144,6 @@ PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {})
 SUBSCRIPTION_INFO_LINES = [
     "#",
     "# ❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.",
-    "#",
     "# 🔥РФ сервисы РАБОТАЮТ с VPN",
     "#",
     "# 🎁 Приглашайте друзей",
@@ -224,7 +223,7 @@ VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 PROFILE_TITLE = "ArcVPN"
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
 SUBSCRIPTION_ANNOUNCE = (
-    "❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.\n\n"
+    "❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.\n"
     "🔥РФ сервисы РАБОТАЮТ с VPN\n\n"
     "🎁 Приглашайте друзей\n"
     "+5 дней — за вход друга в бот\n"
