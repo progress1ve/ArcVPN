@@ -114,6 +114,7 @@ def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict
     with get_db() as conn:
         target = conn.execute(
             """SELECT d.id, d.user_id, COALESCE(d.is_active,1) is_active, k.sub_id,
+                      d.display_name, d.platform,
                       COALESCE(u.device_limit, ?) device_limit
                FROM user_devices d JOIN vpn_keys k ON k.id=d.vpn_key_id
                JOIN users u ON u.id=d.user_id
@@ -135,7 +136,12 @@ def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict
             ).fetchall()
             allowed_ids = [int(row["id"]) for row in rows[:max(1, int(target["device_limit"]))]]
             state = "allowed" if int(target["id"]) in allowed_ids else "limit"
-        return {"sub_id": str(target["sub_id"]), "state": state}
+        return {
+            "sub_id": str(target["sub_id"]),
+            "state": state,
+            "display_name": str(target["display_name"] or ""),
+            "platform": str(target["platform"] or ""),
+        }
 
 
 def get_import_device_access_state(sub_id: str, device_token: str, limit: int) -> Optional[str]:

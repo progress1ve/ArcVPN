@@ -986,9 +986,15 @@ def _subscription_temporarily_unavailable() -> Response:
     return Response("Subscription temporarily unavailable", status=503, mimetype="text/plain")
 
 
-def _response_from_prepared(prepared: PreparedSubscription) -> Response:
+def _response_from_prepared(
+    prepared: PreparedSubscription,
+    profile_title: str = PROFILE_TITLE,
+) -> Response:
+    profile_title = re.sub(r"[\r\n\x00-\x1f]", "", str(profile_title or PROFILE_TITLE)).strip()
+    profile_title = profile_title[:80] or PROFILE_TITLE
+    encoded_profile_title = base64.b64encode(profile_title.encode("utf-8")).decode("ascii")
     response = Response(prepared.body)
-    filename = f"{PROFILE_TITLE}.txt"
+    filename = f"{profile_title}.txt"
     response.headers["Content-Type"] = prepared.content_type
     response.headers["Content-Disposition"] = (
         f"inline; filename={json.dumps(filename)}; "
@@ -998,7 +1004,7 @@ def _response_from_prepared(prepared: PreparedSubscription) -> Response:
     response.headers["Pragma"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["profile-update-interval"] = str(PROFILE_UPDATE_INTERVAL_HOURS)
-    response.headers["profile-title"] = f"base64:{PROFILE_TITLE_BASE64}"
+    response.headers["profile-title"] = f"base64:{encoded_profile_title}"
     response.headers["announce"] = f"base64:{SUBSCRIPTION_ANNOUNCE_BASE64}"
     response.headers["support-url"] = SUPPORT_URL
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
@@ -1408,8 +1414,23 @@ def subscription(sub_id: str, path_device_token: str = ''):
 
         default_limit = int(getattr(config, "DEFAULT_LIMIT_IP", 2) or 2)
         device_alias = resolve_device_subscription(sub_id, default_limit)
+        profile_title = PROFILE_TITLE
         if device_alias:
             sub_id = device_alias["sub_id"]
+            platform_names = {
+                "iphone": "iPhone / iPad",
+                "ios": "iPhone / iPad",
+                "android": "Android",
+                "windows": "Windows",
+                "macos": "Mac",
+                "linux": "Linux",
+            }
+            device_name = (
+                device_alias.get("display_name")
+                or platform_names.get(str(device_alias.get("platform", "")).lower())
+                or "Устройство"
+            )
+            profile_title = f"{PROFILE_TITLE} • {device_name}"
 
         client_family = _detect_client_family(request.headers.get("User-Agent", ""))
         client_ip = _extract_client_ip()
@@ -1446,8 +1467,14 @@ def subscription(sub_id: str, path_device_token: str = ''):
 
         device_token = (path_device_token or request.args.get("device") or "").strip()
         if device_alias and device_alias["state"] in {"revoked", "limit"}:
+            blocked_title = (
+                f"{PROFILE_TITLE} • УСТРОЙСТВО УДАЛЕНО"
+                if device_alias["state"] == "revoked"
+                else f"{PROFILE_TITLE} • ЛИМИТ УСТРОЙСТВ"
+            )
             return _response_from_prepared(
-                _prepare_device_limit_subscription(key, output_format, device_alias["state"])
+                _prepare_device_limit_subscription(key, output_format, device_alias["state"]),
+                blocked_title,
             )
         if device_alias:
             pass
@@ -1463,12 +1490,16 @@ def subscription(sub_id: str, path_device_token: str = ''):
             if access_state in {"revoked", "limit"}:
                 logger.info("Device access %s for %s", access_state, masked_sub_id)
                 return _response_from_prepared(
-                    _prepare_device_limit_subscription(key, output_format, access_state)
+                    _prepare_device_limit_subscription(key, output_format, access_state),
+                    f"{PROFILE_TITLE} • " + (
+                        "УСТРОЙСТВО УДАЛЕНО" if access_state == "revoked" else "ЛИМИТ УСТРОЙСТВ"
+                    ),
                 )
             if access_state is None:
                 logger.warning("Unknown device token rejected for %s", masked_sub_id)
                 return _response_from_prepared(
-                    _prepare_device_limit_subscription(key, output_format, "legacy")
+                    _prepare_device_limit_subscription(key, output_format, "legacy"),
+                    f"{PROFILE_TITLE} • СТАРАЯ ПОДПИСКА",
                 )
         elif subscription_requires_device_token(sub_id):
             logger.info("Legacy token-less refresh blocked for %s", masked_sub_id)
@@ -1476,7 +1507,12 @@ def subscription(sub_id: str, path_device_token: str = ''):
                 _prepare_device_limit_subscription(
                     key, output_format,
                     "limit" if subscription_device_slots_full(sub_id) else "legacy",
-                )
+                ),
+                f"{PROFILE_TITLE} • " + (
+                    "ЛИМИТ УСТРОЙСТВ"
+                    if subscription_device_slots_full(sub_id)
+                    else "СТАРАЯ ПОДПИСКА"
+                ),
             )
 
         if request.method == "HEAD":
@@ -1487,7 +1523,7 @@ def subscription(sub_id: str, path_device_token: str = ''):
                 client_family,
                 output_format,
             )
-            return _response_from_prepared(prepared)
+            return _response_from_prepared(prepared, profile_title)
 
         links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
         link = _select_links(links, output_format)
@@ -1502,7 +1538,7 @@ def subscription(sub_id: str, path_device_token: str = ''):
             client_family,
             output_format,
         )
-        return _response_from_prepared(prepared)
+        return _response_from_prepared(prepared, profile_title)
 
     except Exception:
         logger.exception("Ошибка генерации подписки для %s", masked_sub_id)
