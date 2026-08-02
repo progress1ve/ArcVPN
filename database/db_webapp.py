@@ -102,7 +102,7 @@ def register_import_device(
         return True
 
 
-def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Optional[bool]:
+def get_import_device_access_state(sub_id: str, device_token: str, limit: int) -> Optional[str]:
     """Return whether this stable WebApp device belongs to the allowed device slots.
 
     Devices are ranked by their first import, so importing one extra phone never
@@ -124,7 +124,7 @@ def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Opti
             (owner["user_id"], token_hash),
         ).fetchone()
         if target and not bool(target["is_active"]):
-            return False
+            return "revoked"
         rows = conn.execute(
             """SELECT device_token_hash
                FROM user_devices
@@ -135,7 +135,25 @@ def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Opti
         hashes = [row["device_token_hash"] for row in rows]
         if token_hash not in hashes:
             return None
-        return hashes.index(token_hash) < max(1, int(limit))
+        return "allowed" if hashes.index(token_hash) < max(1, int(limit)) else "limit"
+
+
+def import_device_is_allowed(sub_id: str, device_token: str, limit: int) -> Optional[bool]:
+    """Backward-compatible boolean wrapper around the richer access state."""
+    state = get_import_device_access_state(sub_id, device_token, limit)
+    return None if state is None else state == "allowed"
+
+
+def subscription_requires_device_token(sub_id: str) -> bool:
+    """Whether legacy token-less refreshes must be replaced by a bound import."""
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(u.enforce_device_tokens, 0) enforce_device_tokens
+               FROM vpn_keys k JOIN users u ON u.id = k.user_id
+               WHERE k.sub_id = ?""",
+            (sub_id,),
+        ).fetchone()
+        return bool(row and row["enforce_device_tokens"])
 
 
 def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
@@ -293,7 +311,13 @@ def revoke_user_device(telegram_id: int, device_id: int) -> bool:
                  AND user_id = (SELECT id FROM users WHERE telegram_id = ?)""",
             (int(device_id), int(telegram_id)),
         )
-        return cur.rowcount > 0
+        if cur.rowcount > 0:
+            conn.execute(
+                "UPDATE users SET enforce_device_tokens = 1 WHERE telegram_id = ?",
+                (int(telegram_id),),
+            )
+            return True
+        return False
 
 
 def save_email_code(user_id: int, email: str, purpose: str, code_hash: str) -> None:

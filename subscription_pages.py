@@ -55,8 +55,9 @@ def render_silent_import_page(
     }} catch (_) {{}}
   }}
   function deeplink() {{
-    const separator = subscriptionUrl.includes('?') ? '&' : '?';
-    return `happ://add/${{subscriptionUrl}}${{separator}}device=${{encodeURIComponent(deviceToken())}}`;
+    const target = new URL(subscriptionUrl);
+    target.pathname = `${{target.pathname.replace(/[/]$/, '')}}/${{encodeURIComponent(deviceToken())}}`;
+    return `happ://add/${{target.toString()}}`;
   }}
   register();
   const openHapp = () => {{ window.location.href = deeplink(); }};

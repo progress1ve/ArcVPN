@@ -68,6 +68,8 @@ from database.requests import (
     revoke_user_device,
     register_import_device,
     import_device_is_allowed,
+    get_import_device_access_state,
+    subscription_requires_device_token,
     get_user_entitlements,
     get_subscription_device_limit,
     set_payment_requested_entitlements,
@@ -921,12 +923,27 @@ def _prepare_subscription(
 def _prepare_device_limit_subscription(
     key: ActiveKeyRecord,
     output_format: str,
+    reason: str = "limit",
 ) -> PreparedSubscription:
-    """A visible two-row profile for devices beyond the purchased limit."""
-    notices = (
-        "❗ Превышен лимит устройств",
-        "➕ Докупите устройство в ArcVPN",
-    )
+    """A visible three-row profile explaining why this device is blocked."""
+    variants = {
+        "revoked": (
+            "⛔ Подписка удалена на этом устройстве",
+            "📱 Подключите устройство заново в ArcVPN",
+            "💬 Если это ошибка — напишите в поддержку",
+        ),
+        "legacy": (
+            "🔄 Требуется обновить подключение",
+            "📱 Импортируйте подписку заново",
+            "⚙️ ArcVPN → Настройки → Устройства",
+        ),
+        "limit": (
+            "⛔ Превышен лимит устройств",
+            "➕ Докупите дополнительное устройство",
+            "⚙️ ArcVPN → Настройки → Устройства",
+        ),
+    }
+    notices = variants.get(reason, variants["limit"])
     links = [
         (
             "vless://00000000-0000-4000-8000-00000000000"
@@ -941,7 +958,7 @@ def _prepare_device_limit_subscription(
         body = json.dumps(
             {
                 "remarks": PROFILE_TITLE,
-                "message": "Превышен лимит устройств. Докупите устройство в ArcVPN.",
+                "message": " ".join(notices),
                 "outbounds": [],
             },
             ensure_ascii=False,
@@ -1366,8 +1383,9 @@ def _build_reserve_response(sub_id: str, output_format: str, is_head: bool) -> O
     return _response_from_prepared(prepared)
 
 
-@app.route('/sub/<sub_id>', methods=['GET', 'HEAD'])
-def subscription(sub_id: str):
+@app.route('/sub/<sub_id>', defaults={'path_device_token': ''}, methods=['GET', 'HEAD'])
+@app.route('/sub/<sub_id>/<path_device_token>', methods=['GET', 'HEAD'])
+def subscription(sub_id: str, path_device_token: str = ''):
     """
     Endpoint для получения subscription по уникальному sub_id ключа.
     
@@ -1419,9 +1437,9 @@ def subscription(sub_id: str):
             logger.info("Подписка недоступна: %s", masked_sub_id)
             return _subscription_not_available()
 
-        device_token = (request.args.get("device") or "").strip()
+        device_token = (path_device_token or request.args.get("device") or "").strip()
         if device_token and re.fullmatch(r"[A-Za-z0-9_-]{16,128}", device_token):
-            allowed = import_device_is_allowed(
+            access_state = get_import_device_access_state(
                 sub_id,
                 device_token,
                 get_subscription_device_limit(
@@ -1429,11 +1447,16 @@ def subscription(sub_id: str):
                     int(getattr(config, "DEFAULT_LIMIT_IP", 2) or 2),
                 ),
             )
-            if allowed is False:
-                logger.info("Лимит устройств превышен для %s", masked_sub_id)
+            if access_state in {"revoked", "limit"}:
+                logger.info("Device access %s for %s", access_state, masked_sub_id)
                 return _response_from_prepared(
-                    _prepare_device_limit_subscription(key, output_format)
+                    _prepare_device_limit_subscription(key, output_format, access_state)
                 )
+        elif subscription_requires_device_token(sub_id):
+            logger.info("Legacy token-less refresh blocked for %s", masked_sub_id)
+            return _response_from_prepared(
+                _prepare_device_limit_subscription(key, output_format, "legacy")
+            )
 
         if request.method == "HEAD":
             prepared = _prepare_headers_only_subscription(key, output_format)
@@ -2405,6 +2428,19 @@ def api_admin_overview():
         pending_payments = conn.execute(
             "SELECT COUNT(*) AS count FROM payments WHERE status IN ('pending', 'created')"
         ).fetchone()["count"]
+        device_security = dict(conn.execute("""
+            SELECT
+              (SELECT COUNT(*) FROM user_devices WHERE COALESCE(is_active,1)=1) AS active_devices,
+              (SELECT COUNT(*) FROM user_devices WHERE COALESCE(is_active,1)=0) AS revoked_devices,
+              (SELECT COUNT(*) FROM users WHERE COALESCE(enforce_device_tokens,0)=1) AS protected_users,
+              (SELECT COUNT(*) FROM users u WHERE
+                 (SELECT COUNT(*) FROM user_devices d
+                  WHERE d.user_id=u.id AND COALESCE(d.is_active,1)=1) > COALESCE(u.device_limit,2)
+               ) AS users_over_limit,
+              (SELECT COUNT(*) FROM users u WHERE COALESCE(u.enforce_device_tokens,0)=1 AND
+                 NOT EXISTS(SELECT 1 FROM user_devices d WHERE d.user_id=u.id AND COALESCE(d.is_active,1)=1)
+               ) AS awaiting_reimport
+        """).fetchone())
         recent_users = [dict(row) for row in conn.execute("""
             SELECT u.telegram_id, u.username, u.first_name, u.created_at,
                    EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active,
@@ -2562,6 +2598,7 @@ def api_admin_overview():
             "hysteria_service": _service_active("arcvpn-hysteria.service"),
             "guard": guard_state,
         },
+        "device_security": device_security,
         "system": {
             "disk_total_gb": round(disk.total / 1024 ** 3, 1),
             "disk_used_gb": round(disk.used / 1024 ** 3, 1),

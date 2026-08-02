@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 38
+LATEST_VERSION = 39
 
 
 def get_current_version() -> int:
@@ -1800,6 +1800,24 @@ def migration_38(conn: sqlite3.Connection) -> None:
     logger.info("Миграция v38 применена")
 
 
+def migration_39(conn: sqlite3.Connection) -> None:
+    """Enforce path-bound subscriptions after a device has been released."""
+    logger.info("Applying migration v39 (device-bound subscription paths)...")
+    _add_column(conn, "users", "enforce_device_tokens INTEGER NOT NULL DEFAULT 0")
+    conn.execute(
+        """UPDATE users SET enforce_device_tokens = 1
+           WHERE id IN (
+               SELECT DISTINCT user_id FROM user_devices
+               WHERE COALESCE(is_active, 1) = 0
+           )"""
+    )
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_users_device_enforcement "
+        "ON users(enforce_device_tokens)"
+    )
+    logger.info("Migration v39 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1839,6 +1857,7 @@ MIGRATIONS = {
     36: migration_36,
     37: migration_37,
     38: migration_38,
+    39: migration_39,
 }
 
 
