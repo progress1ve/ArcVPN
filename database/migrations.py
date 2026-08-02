@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 40
+LATEST_VERSION = 41
 
 
 def get_current_version() -> int:
@@ -1833,6 +1833,53 @@ def migration_40(conn: sqlite3.Connection) -> None:
     logger.info("Migration v40 applied")
 
 
+def migration_41(conn: sqlite3.Connection) -> None:
+    """Store server inventory and time-series health samples for Business Console."""
+    logger.info("Applying migration v41 (server inventory and health history)...")
+    _add_column(conn, "servers", "provider TEXT")
+    _add_column(conn, "servers", "location TEXT")
+    _add_column(conn, "servers", "monthly_cost_rub INTEGER")
+    _add_column(conn, "servers", "capacity_mbps INTEGER")
+    _add_column(conn, "servers", "lifecycle_state TEXT NOT NULL DEFAULT 'unknown'")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS server_health_samples (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            server_id INTEGER,
+            host TEXT NOT NULL,
+            sampled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            state TEXT NOT NULL,
+            online_count INTEGER,
+            clients_count INTEGER,
+            latency_ms REAL,
+            cpu_pct REAL,
+            mem_pct REAL,
+            inbound_count INTEGER,
+            xray_state TEXT,
+            telemetry_available INTEGER NOT NULL DEFAULT 0,
+            FOREIGN KEY(server_id) REFERENCES servers(id) ON DELETE SET NULL
+        )
+    """)
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_server_health_host_time "
+        "ON server_health_samples(host, sampled_at DESC)"
+    )
+    conn.execute("""
+        UPDATE servers SET
+          provider=CASE host WHEN '2.26.84.210' THEN 'Play2Go'
+                             WHEN '195.226.92.37' THEN 'rdp-onedash.ru'
+                             ELSE provider END,
+          location=CASE host WHEN '2.26.84.210' THEN 'Германия'
+                             WHEN '195.226.92.37' THEN 'Финляндия'
+                             ELSE location END,
+          monthly_cost_rub=CASE host WHEN '2.26.84.210' THEN 340
+                                     WHEN '195.226.92.37' THEN 365
+                                     ELSE monthly_cost_rub END,
+          capacity_mbps=COALESCE(capacity_mbps, 1000)
+        WHERE host IN ('2.26.84.210', '195.226.92.37')
+    """)
+    logger.info("Migration v41 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1874,6 +1921,7 @@ MIGRATIONS = {
     38: migration_38,
     39: migration_39,
     40: migration_40,
+    41: migration_41,
 }
 
 

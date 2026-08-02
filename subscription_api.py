@@ -2649,6 +2649,59 @@ def api_admin_overview():
                              "clients_count": None, "active_clients": None, "total_traffic_gb": 0,
                              "managed_externally": True, "telemetry_available": False})
 
+    # Keep a bounded history for provider comparison and incident analysis.
+    # Observability is best-effort and must never break the admin overview.
+    health_history = {}
+    try:
+        with get_db() as conn:
+            for server in server_stats:
+                host = str(server.get("host") or "")
+                if not host:
+                    continue
+                telemetry = server.get("telemetry_available") is not False
+                xray_state = str(server.get("xray_state") or "unknown")
+                is_up = bool(server.get("is_active")) and xray_state in {"running", "unknown"}
+                state = "healthy" if telemetry and is_up else ("degraded" if is_up else "offline")
+                server["health_state"] = state
+                server_id = server.get("id") if isinstance(server.get("id"), int) else None
+                conn.execute("""
+                    INSERT INTO server_health_samples(
+                      server_id,host,state,online_count,clients_count,latency_ms,
+                      cpu_pct,mem_pct,inbound_count,xray_state,telemetry_available
+                    )
+                    SELECT ?,?,?,?,?,?,?,?,?,?,?
+                    WHERE NOT EXISTS (
+                      SELECT 1 FROM server_health_samples
+                      WHERE host=? AND sampled_at >= datetime('now','-1 minute')
+                    )
+                """, (
+                    server_id, host, state, server.get("active_clients"), server.get("clients_count"),
+                    server.get("latency_ms"), server.get("cpu_pct"), server.get("mem_pct"),
+                    server.get("inbound_count"), xray_state, int(telemetry), host,
+                ))
+                if server_id is not None:
+                    conn.execute("UPDATE servers SET lifecycle_state=? WHERE id=?", (state, server_id))
+            conn.execute("DELETE FROM server_health_samples WHERE sampled_at < datetime('now','-30 days')")
+            rows = conn.execute("""
+                SELECT host, COUNT(*) samples,
+                       ROUND(AVG(latency_ms),1) avg_latency_ms,
+                       ROUND(MAX(latency_ms),1) max_latency_ms,
+                       ROUND(AVG(cpu_pct),1) avg_cpu_pct,
+                       ROUND(MAX(cpu_pct),1) max_cpu_pct,
+                       ROUND(AVG(mem_pct),1) avg_mem_pct,
+                       SUM(CASE WHEN state='healthy' THEN 1 ELSE 0 END) healthy_samples
+                FROM server_health_samples
+                WHERE sampled_at >= datetime('now','-24 hours')
+                GROUP BY host
+            """).fetchall()
+            for row in rows:
+                item = dict(row)
+                count = max(1, int(item.get("samples") or 0))
+                item["availability_pct"] = round(int(item.get("healthy_samples") or 0) / count * 100, 2)
+                health_history[str(item["host"])] = item
+    except sqlite3.Error:
+        logger.exception("Admin health history persistence failed")
+
     def _service_active(service: str) -> bool:
         try:
             return subprocess.run(
@@ -2682,6 +2735,7 @@ def api_admin_overview():
         "conversion": get_conversion_stats(),
         "activity": get_usage_activity_stats(),
         "servers": server_stats,
+        "server_health_24h": health_history,
         "operations": {
             "open_support_threads": int(support_open),
             "pending_payments": int(pending_payments),

@@ -479,7 +479,8 @@ def get_servers_stats() -> List[Dict[str, Any]]:
         # Один запрос с LEFT JOIN + агрегацией вместо N+1 (3 запроса на сервер).
         rows = conn.execute("""
             SELECT
-                s.id, s.name, s.host, s.is_active,
+                s.id, s.name, s.host, s.is_active, s.provider, s.location,
+                s.monthly_cost_rub, s.capacity_mbps, s.lifecycle_state,
                 COUNT(vk.id) AS clients_count,
                 COALESCE(SUM(CASE WHEN vk.expires_at > datetime('now') THEN 1 ELSE 0 END), 0) AS active_clients,
                 COALESCE(SUM(vk.traffic_used), 0) AS total_traffic
@@ -494,6 +495,11 @@ def get_servers_stats() -> List[Dict[str, Any]]:
             'name': r['name'],
             'host': r['host'],
             'is_active': r['is_active'],
+            'provider': r['provider'],
+            'location': r['location'],
+            'monthly_cost_rub': r['monthly_cost_rub'],
+            'capacity_mbps': r['capacity_mbps'],
+            'lifecycle_state': r['lifecycle_state'],
             'clients_count': r['clients_count'],
             'active_clients': r['active_clients'],
             'total_traffic_gb': r['total_traffic'] / (1024**3),
