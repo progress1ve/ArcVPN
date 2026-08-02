@@ -418,18 +418,12 @@
   async function importToHapp() {
     if (!subKey?.import_url) return
     const subId = subscriptionId(subKey.sub_url || subKey.import_url)
-    const prefix = 'happ://add/'
     let deviceImportUrl = subKey.import_url
-    try {
-      const rawTarget = deviceImportUrl.startsWith(prefix) ? deviceImportUrl.slice(prefix.length) : deviceImportUrl
-      const target = new URL(rawTarget)
-      target.pathname = `${target.pathname.replace(/\/$/, '')}/${encodeURIComponent(stableDeviceToken)}`
-      deviceImportUrl = `${prefix}${target.toString()}`
-    } catch (_) { /* Keep the original URL only for malformed legacy data. */ }
     if (subId) {
       try {
         const metadata = await deviceMetadataPromise
-        await registerImportDevice(subId, { ...metadata, platform: selectedDevice })
+        const registration = await registerImportDevice(subId, { ...metadata, platform: selectedDevice })
+        if (registration?.import_url) deviceImportUrl = registration.import_url
         setTimeout(refreshDevices, 500)
       } catch (_) { /* Import remains available if telemetry registration is unavailable. */ }
     }

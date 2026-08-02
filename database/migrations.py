@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 39
+LATEST_VERSION = 40
 
 
 def get_current_version() -> int:
@@ -1818,6 +1818,21 @@ def migration_39(conn: sqlite3.Connection) -> None:
     logger.info("Migration v39 applied")
 
 
+def migration_40(conn: sqlite3.Connection) -> None:
+    """Give every imported device a standalone one-segment subscription id."""
+    logger.info("Applying migration v40 (per-device subscription ids)...")
+    _add_column(conn, "user_devices", "device_sub_id TEXT")
+    conn.execute(
+        "UPDATE user_devices SET device_sub_id=lower(hex(randomblob(16))) "
+        "WHERE device_sub_id IS NULL OR device_sub_id=''"
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_user_devices_sub_id "
+        "ON user_devices(device_sub_id)"
+    )
+    logger.info("Migration v40 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1858,6 +1873,7 @@ MIGRATIONS = {
     37: migration_37,
     38: migration_38,
     39: migration_39,
+    40: migration_40,
 }
 
 

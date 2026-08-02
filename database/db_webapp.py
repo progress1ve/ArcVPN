@@ -1,6 +1,7 @@
 """Запросы WebApp: устройства, настройки уведомлений, email и web-сессии."""
 
 import hashlib
+import secrets
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
@@ -64,7 +65,7 @@ def register_import_device(
     display_name: str,
     browser: str = "",
     screen_size: str = "",
-) -> bool:
+) -> Optional[str]:
     token_hash = hashlib.sha256(device_token.encode("utf-8")).hexdigest()
     with get_db() as conn:
         owner = conn.execute(
@@ -73,11 +74,16 @@ def register_import_device(
         ).fetchone()
         if not owner:
             return False
+        existing = conn.execute(
+            "SELECT device_sub_id FROM user_devices WHERE user_id = ? AND device_token_hash = ?",
+            (owner["user_id"], token_hash),
+        ).fetchone()
+        device_sub_id = (str(existing["device_sub_id"] or "") if existing else "") or secrets.token_urlsafe(24)
         conn.execute(
             """INSERT INTO user_devices
                    (user_id, vpn_key_id, device_token_hash, platform, model,
-                    display_name, browser, screen_size, imported_at)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    display_name, browser, screen_size, device_sub_id, imported_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                ON CONFLICT(user_id, device_token_hash) DO UPDATE SET
                    vpn_key_id = excluded.vpn_key_id,
                    platform = excluded.platform,
@@ -96,10 +102,37 @@ def register_import_device(
                    imported_at = CURRENT_TIMESTAMP""",
             (
                 owner["user_id"], owner["id"], token_hash, platform, model or None,
-                display_name, browser or None, screen_size or None,
+                display_name, browser or None, screen_size or None, device_sub_id,
             ),
         )
-        return True
+        return device_sub_id
+
+
+def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict[str, str]]:
+    """Resolve a standalone device subscription id and calculate its access state."""
+    with get_db() as conn:
+        target = conn.execute(
+            """SELECT d.id, d.user_id, COALESCE(d.is_active,1) is_active, k.sub_id,
+                      COALESCE(u.device_limit, ?) device_limit
+               FROM user_devices d JOIN vpn_keys k ON k.id=d.vpn_key_id
+               JOIN users u ON u.id=d.user_id
+               WHERE d.device_sub_id=?""",
+            (limit, device_sub_id),
+        ).fetchone()
+        if not target:
+            return None
+        if not bool(target["is_active"]):
+            state = "revoked"
+        else:
+            rows = conn.execute(
+                """SELECT id FROM user_devices
+                   WHERE user_id=? AND COALESCE(is_active,1)=1
+                   ORDER BY COALESCE(first_seen_at, imported_at) ASC, id ASC""",
+                (target["user_id"],),
+            ).fetchall()
+            allowed_ids = [int(row["id"]) for row in rows[:max(1, int(target["device_limit"]))]]
+            state = "allowed" if int(target["id"]) in allowed_ids else "limit"
+        return {"sub_id": str(target["sub_id"]), "state": state}
 
 
 def get_import_device_access_state(sub_id: str, device_token: str, limit: int) -> Optional[str]:
@@ -207,7 +240,7 @@ def set_payment_requested_entitlements(
     order_id: str,
     device_limit: int,
     lte_quota_gb: int,
-) -> bool:
+) -> Optional[str]:
     with get_db() as conn:
         cur = conn.execute(
             """UPDATE payments

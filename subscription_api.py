@@ -69,6 +69,7 @@ from database.requests import (
     register_import_device,
     import_device_is_allowed,
     get_import_device_access_state,
+    resolve_device_subscription,
     subscription_requires_device_token,
     get_user_entitlements,
     get_subscription_device_limit,
@@ -1404,6 +1405,11 @@ def subscription(sub_id: str, path_device_token: str = ''):
             logger.warning("Отклонен subscription-запрос с некорректным ID: %s", masked_sub_id)
             return _subscription_not_available()
 
+        default_limit = int(getattr(config, "DEFAULT_LIMIT_IP", 2) or 2)
+        device_alias = resolve_device_subscription(sub_id, default_limit)
+        if device_alias:
+            sub_id = device_alias["sub_id"]
+
         client_family = _detect_client_family(request.headers.get("User-Agent", ""))
         client_ip = _extract_client_ip()
 
@@ -1438,7 +1444,13 @@ def subscription(sub_id: str, path_device_token: str = ''):
             return _subscription_not_available()
 
         device_token = (path_device_token or request.args.get("device") or "").strip()
-        if device_token and re.fullmatch(r"[A-Za-z0-9_-]{16,128}", device_token):
+        if device_alias and device_alias["state"] in {"revoked", "limit"}:
+            return _response_from_prepared(
+                _prepare_device_limit_subscription(key, output_format, device_alias["state"])
+            )
+        if device_alias:
+            pass
+        elif device_token and re.fullmatch(r"[A-Za-z0-9_-]{16,128}", device_token):
             access_state = get_import_device_access_state(
                 sub_id,
                 device_token,
@@ -1843,12 +1855,13 @@ def _import_url_for(sub_id: Optional[str]) -> Optional[str]:
     platform, model, display_name, browser = _device_identity(
         {}, request.headers.get("User-Agent", "")
     )
-    if not register_import_device(
+    device_sub_id = register_import_device(
         sub_id, cookie_token, platform, model, display_name, browser, ""
-    ):
+    )
+    if not device_sub_id:
         return _subscription_not_available()
 
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=plain"
     return f"happ://add/{subscription_url}"
 
 
@@ -2304,11 +2317,17 @@ def api_register_import_device(sub_id: str):
         payload, request.headers.get("User-Agent", "")
     )
     screen_size = _clean_text(payload.get("screen_size"), 30)
-    if not register_import_device(
+    device_sub_id = register_import_device(
         sub_id, device_token, platform, model, display_name, browser, screen_size
-    ):
+    )
+    if not device_sub_id:
         return _api_error("subscription_not_found", 404)
-    return _api_no_store(jsonify({"ok": True, "device_name": display_name}))
+    return _api_no_store(jsonify({
+        "ok": True,
+        "device_name": display_name,
+        "device_sub_id": device_sub_id,
+        "import_url": f"happ://add/{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=plain",
+    }))
 
 
 @app.route('/api/auth/email/request', methods=['POST'])

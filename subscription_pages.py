@@ -61,9 +61,7 @@ def render_silent_import_page(
     }} catch (_) {{}}
   }}
   function deeplink() {{
-    const target = new URL(subscriptionUrl);
-    target.pathname = `${{target.pathname.replace(/[/]$/, '')}}/${{encodeURIComponent(deviceToken())}}`;
-    return `happ://add/${{target.toString()}}`;
+    return `happ://add/${{subscriptionUrl}}`;
   }}
   const registration = register();
   const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
