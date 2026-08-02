@@ -281,7 +281,7 @@
     if (platform === 'ios' || platform === 'macos') return 'apple'
     if (platform === 'android') return 'android'
     if (platform === 'windows') return 'windows'
-    return 'devices'
+    return 'happ'
   }
 
   function chatTime(value) {

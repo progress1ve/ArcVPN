@@ -141,16 +141,17 @@ PORT_OVERRIDES = getattr(config, "PORT_OVERRIDES", {})
 
 # Информационные строки в подписке — отображаются как комментарии в VPN-клиенте.
 # Каждая строка — отдельный #-комментарий. Переопределяется в config.py.
-SUBSCRIPTION_INFO_LINES = getattr(config, "SUBSCRIPTION_INFO_LINES", [
+SUBSCRIPTION_INFO_LINES = [
     "#",
     "# ❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.",
     "#",
     "# 🔥РФ сервисы РАБОТАЮТ с VPN",
-    "#\u26a1 \u2014 скорость",
-    "#\u2b50 \u2014 надёжность",
-    "# LTE \u2014 обход глушилок (белые списки)",
     "#",
-])
+    "# 🎁 Приглашайте друзей",
+    "# +5 дней — за вход друга в бот",
+    "# +15 дней каждому — когда друг продлит подписку",
+    "#",
+]
 
 # Переопределение имён inbound для серверов, где remark нельзя менять
 # через панель мастера (ноды 3x-ui синхронизируют remark обратно).
@@ -222,10 +223,12 @@ VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 # Брендинг можно переопределить в config.py; по умолчанию — текущие значения ArcVPN.
 PROFILE_TITLE = "ArcVPN"
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
-SUBSCRIPTION_ANNOUNCE = getattr(
-    config,
-    "SUBSCRIPTION_ANNOUNCE",
-    "❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.\n\n🔥РФ сервисы РАБОТАЮТ с VPN\n⚡ — скорость\n⭐ — надёжность\nLTE — обход глушилок (белые списки)",
+SUBSCRIPTION_ANNOUNCE = (
+    "❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.\n\n"
+    "🔥РФ сервисы РАБОТАЮТ с VPN\n\n"
+    "🎁 Приглашайте друзей\n"
+    "+5 дней — за вход друга в бот\n"
+    "+15 дней каждому — когда друг продлит подписку"
 )
 SUBSCRIPTION_ANNOUNCE_BASE64 = base64.b64encode(
     SUBSCRIPTION_ANNOUNCE.encode("utf-8")
