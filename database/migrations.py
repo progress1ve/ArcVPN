@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 41
+LATEST_VERSION = 42
 
 
 def get_current_version() -> int:
@@ -1880,6 +1880,26 @@ def migration_41(conn: sqlite3.Connection) -> None:
     logger.info("Migration v41 applied")
 
 
+def migration_42(conn: sqlite3.Connection) -> None:
+    """Independent node-agent metrics, separate from 3x-ui telemetry."""
+    logger.info("Applying migration v42 (independent node agent metrics)...")
+    _add_column(conn, "server_health_samples", "source TEXT NOT NULL DEFAULT 'panel'")
+    _add_column(conn, "server_health_samples", "load_1m REAL")
+    _add_column(conn, "server_health_samples", "disk_used_pct REAL")
+    _add_column(conn, "server_health_samples", "net_rx_bps REAL")
+    _add_column(conn, "server_health_samples", "net_tx_bps REAL")
+    _add_column(conn, "server_health_samples", "tcp_established INTEGER")
+    _add_column(conn, "server_health_samples", "uptime_seconds INTEGER")
+    _add_column(conn, "server_health_samples", "xui_active INTEGER")
+    _add_column(conn, "server_health_samples", "hysteria_active INTEGER")
+    _add_column(conn, "server_health_samples", "boot_id TEXT")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_server_health_source_time "
+        "ON server_health_samples(source, sampled_at DESC)"
+    )
+    logger.info("Migration v42 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1922,6 +1942,7 @@ MIGRATIONS = {
     39: migration_39,
     40: migration_40,
     41: migration_41,
+    42: migration_42,
 }
 
 

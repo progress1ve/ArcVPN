@@ -215,6 +215,11 @@ SUBSCRIPTION_RATE_LIMIT_PER_IP = 120
 # VPN-клиенты обновляют подписку раз в час; на сервере можно переопределить
 # PROFILE_UPDATE_INTERVAL_HOURS через config.py без изменения кода.
 PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOURS", 1))
+NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
+NODE_INVENTORY = {
+    "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
+    "195.226.92.37": {"provider": "rdp-onedash.ru", "location": "Финляндия", "monthly_cost_rub": 365, "capacity_mbps": 10000},
+}
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
 RATE_LIMITER_MAX_KEYS = 10000
@@ -2503,6 +2508,52 @@ def api_admin_login():
     return _api_no_store(response)
 
 
+@app.route('/api/internal/node-metrics', methods=['POST'])
+def api_internal_node_metrics():
+    """Receive authenticated host telemetry without depending on x-ui."""
+    supplied = request.headers.get("Authorization", "")
+    expected = f"Bearer {NODE_METRICS_TOKEN}" if NODE_METRICS_TOKEN else ""
+    if not expected or not secrets.compare_digest(supplied, expected):
+        return _api_error("unauthorized", 401)
+    payload = request.get_json(silent=True) or {}
+    host = _clean_text(payload.get("host"), 255)
+    if host not in NODE_INVENTORY:
+        return _api_error("unknown_node", 400)
+
+    def number(name, low=0.0, high=1_000_000_000_000.0):
+        value = payload.get(name)
+        if value is None:
+            return None
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            return None
+        return round(min(high, max(low, value)), 3)
+
+    xui_active = bool(payload.get("xui_active"))
+    xray_state = _clean_text(payload.get("xray_state"), 32) or ("running" if xui_active else "unknown")
+    state = "healthy" if xui_active else "degraded"
+    with get_db() as conn:
+        server = conn.execute("SELECT id FROM servers WHERE host=?", (host,)).fetchone()
+        server_id = int(server["id"]) if server else None
+        conn.execute("""
+            INSERT INTO server_health_samples(
+              server_id,host,state,cpu_pct,mem_pct,xray_state,telemetry_available,
+              source,load_1m,disk_used_pct,net_rx_bps,net_tx_bps,tcp_established,
+              uptime_seconds,xui_active,hysteria_active,boot_id
+            ) VALUES (?,?,?,?,?,?,1,'agent',?,?,?,?,?,?,?,?,?)
+        """, (
+            server_id, host, state, number("cpu_pct", 0, 100), number("mem_pct", 0, 100), xray_state,
+            number("load_1m"), number("disk_used_pct", 0, 100), number("net_rx_bps"), number("net_tx_bps"),
+            int(number("tcp_established", 0, 10_000_000) or 0),
+            int(number("uptime_seconds", 0) or 0), int(xui_active), int(bool(payload.get("hysteria_active"))),
+            _clean_text(payload.get("boot_id"), 64),
+        ))
+        if server_id is not None:
+            conn.execute("UPDATE servers SET lifecycle_state=? WHERE id=?", (state, server_id))
+    return _api_no_store(jsonify({"ok": True}))
+
+
 @app.route('/api/admin/logout', methods=['POST'])
 def api_admin_logout():
     response = jsonify({"ok": True})
@@ -2573,12 +2624,8 @@ def api_admin_overview():
         local_panel["detail"] = type(exc).__name__
 
     server_stats = get_servers_stats()
-    node_inventory = {
-        "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
-        "195.226.92.37": {"provider": "rdp-onedash.ru", "location": "Финляндия", "monthly_cost_rub": 365, "capacity_mbps": 1000},
-    }
     for server in server_stats:
-        for key, value in node_inventory.get(str(server.get("host") or ""), {}).items():
+        for key, value in NODE_INVENTORY.get(str(server.get("host") or ""), {}).items():
             if server.get(key) in (None, ""):
                 server[key] = value
     inbound_health = []
@@ -2617,7 +2664,7 @@ def api_admin_overview():
                 "cpu_pct": round(float(node.get("cpuPct") or 0), 1), "mem_pct": round(float(node.get("memPct") or 0), 1),
                 "inbound_count": int(node.get("inboundCount") or 0), "telemetry_available": True,
                 "xray_state": node.get("xrayState") or "unknown", "source": "3x-ui node telemetry",
-                **node_inventory.get(host, {}),
+                **NODE_INVENTORY.get(host, {}),
             }
             if existing:
                 existing.update(values)
@@ -2657,7 +2704,43 @@ def api_admin_overview():
         server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 0,
                              "clients_count": None, "active_clients": None, "total_traffic_gb": 0,
                              "managed_externally": True, "telemetry_available": False,
-                             **node_inventory["195.226.92.37"]})
+                             **NODE_INVENTORY["195.226.92.37"]})
+
+    # Prefer fresh independent agent data for host resources. Panel telemetry
+    # remains the source for clients/inbounds and a fallback if an agent is stale.
+    try:
+        with get_db() as conn:
+            latest_agents = conn.execute("""
+                SELECT s.* FROM server_health_samples s
+                JOIN (
+                  SELECT host, MAX(id) id FROM server_health_samples
+                  WHERE source='agent' GROUP BY host
+                ) latest ON latest.id=s.id
+                WHERE s.sampled_at >= datetime('now','-3 minutes')
+            """).fetchall()
+        by_host = {str(row["host"]): dict(row) for row in latest_agents}
+        for server in server_stats:
+            agent = by_host.get(str(server.get("host") or ""))
+            if not agent:
+                server["agent_online"] = False
+                continue
+            server.update({
+                "agent_online": True,
+                "agent_last_seen": agent.get("sampled_at"),
+                "cpu_pct": agent.get("cpu_pct"),
+                "mem_pct": agent.get("mem_pct"),
+                "load_1m": agent.get("load_1m"),
+                "disk_used_pct": agent.get("disk_used_pct"),
+                "net_rx_bps": agent.get("net_rx_bps"),
+                "net_tx_bps": agent.get("net_tx_bps"),
+                "tcp_established": agent.get("tcp_established"),
+                "uptime_seconds": agent.get("uptime_seconds"),
+                "xui_active": bool(agent.get("xui_active")),
+                "hysteria_active": bool(agent.get("hysteria_active")),
+                "boot_id": agent.get("boot_id"),
+            })
+    except sqlite3.Error:
+        logger.exception("Admin latest node-agent metrics failed")
 
     # Keep a bounded history for provider comparison and incident analysis.
     # Observability is best-effort and must never break the admin overview.
@@ -2677,9 +2760,9 @@ def api_admin_overview():
                 conn.execute("""
                     INSERT INTO server_health_samples(
                       server_id,host,state,online_count,clients_count,latency_ms,
-                      cpu_pct,mem_pct,inbound_count,xray_state,telemetry_available
+                      cpu_pct,mem_pct,inbound_count,xray_state,telemetry_available,source
                     )
-                    SELECT ?,?,?,?,?,?,?,?,?,?,?
+                    SELECT ?,?,?,?,?,?,?,?,?,?,?,'panel'
                     WHERE NOT EXISTS (
                       SELECT 1 FROM server_health_samples
                       WHERE host=? AND sampled_at >= datetime('now','-1 minute')
@@ -2702,6 +2785,7 @@ def api_admin_overview():
                        SUM(CASE WHEN state='healthy' THEN 1 ELSE 0 END) healthy_samples
                 FROM server_health_samples
                 WHERE sampled_at >= datetime('now','-24 hours')
+                  AND source='agent'
                 GROUP BY host
             """).fetchall()
             for row in rows:

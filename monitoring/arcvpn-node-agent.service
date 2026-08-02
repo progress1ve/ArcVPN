@@ -1,0 +1,18 @@
+[Unit]
+Description=ArcVPN independent node telemetry agent
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/arcvpn/node-agent.env
+ExecStart=/usr/local/lib/arcvpn/arcvpn_node_agent.py
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/arcvpn-node-agent
+
+[Install]
+WantedBy=multi-user.target
