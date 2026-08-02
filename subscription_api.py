@@ -1502,18 +1502,45 @@ def subscription(sub_id: str, path_device_token: str = ''):
                     f"{PROFILE_TITLE} • СТАРАЯ ПОДПИСКА",
                 )
         elif subscription_requires_device_token(sub_id):
-            logger.info("Legacy token-less refresh blocked for %s", masked_sub_id)
-            return _response_from_prepared(
-                _prepare_device_limit_subscription(
-                    key, output_format,
-                    "limit" if subscription_device_slots_full(sub_id) else "legacy",
-                ),
-                f"{PROFILE_TITLE} • " + (
-                    "ЛИМИТ УСТРОЙСТВ"
-                    if subscription_device_slots_full(sub_id)
-                    else "СТАРАЯ ПОДПИСКА"
-                ),
+            # The public subscription URL is also the recovery path when Telegram/WebApp
+            # is unavailable. Reserve one deterministic managed slot for direct imports
+            # instead of trapping the user in a WebApp-only bootstrap loop.
+            recovery_token = hashlib.sha256(
+                f"arcvpn-direct-import-v1:{sub_id}".encode("utf-8")
+            ).hexdigest()
+            recovery_state = get_import_device_access_state(
+                sub_id,
+                recovery_token,
+                get_subscription_device_limit(sub_id, default_limit),
             )
+            if recovery_state is None and not subscription_device_slots_full(sub_id):
+                register_import_device(
+                    sub_id,
+                    recovery_token,
+                    "unknown",
+                    "",
+                    "Подключение по ссылке",
+                    client_family,
+                    "",
+                )
+                recovery_state = get_import_device_access_state(
+                    sub_id,
+                    recovery_token,
+                    get_subscription_device_limit(sub_id, default_limit),
+                )
+
+            if recovery_state != "allowed":
+                reason = "revoked" if recovery_state == "revoked" else "limit"
+                logger.info("Direct subscription access %s for %s", reason, masked_sub_id)
+                return _response_from_prepared(
+                    _prepare_device_limit_subscription(key, output_format, reason),
+                    f"{PROFILE_TITLE} • " + (
+                        "УСТРОЙСТВО УДАЛЕНО" if reason == "revoked" else "ЛИМИТ УСТРОЙСТВ"
+                    ),
+                )
+
+            profile_title = f"{PROFILE_TITLE} • Подключение по ссылке"
+            logger.info("Direct recovery subscription issued for %s", masked_sub_id)
 
         if request.method == "HEAD":
             prepared = _prepare_headers_only_subscription(key, output_format)
