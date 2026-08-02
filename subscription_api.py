@@ -220,7 +220,7 @@ ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
 RATE_LIMITER_MAX_KEYS = 10000
 VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 # Брендинг можно переопределить в config.py; по умолчанию — текущие значения ArcVPN.
-PROFILE_TITLE = getattr(config, "PROFILE_TITLE", "ArcVPN \u2728")
+PROFILE_TITLE = "ArcVPN"
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
 SUBSCRIPTION_ANNOUNCE = getattr(
     config,
@@ -990,8 +990,9 @@ def _response_from_prepared(
     prepared: PreparedSubscription,
     profile_title: str = PROFILE_TITLE,
 ) -> Response:
-    profile_title = re.sub(r"[\r\n\x00-\x1f]", "", str(profile_title or PROFILE_TITLE)).strip()
-    profile_title = profile_title[:80] or PROFILE_TITLE
+    # One stable product name in every client. Access state is expressed by the
+    # generated inbound remarks, not by renaming the whole subscription.
+    profile_title = PROFILE_TITLE
     encoded_profile_title = base64.b64encode(profile_title.encode("utf-8")).decode("ascii")
     response = Response(prepared.body)
     filename = f"{profile_title}.txt"
@@ -1513,7 +1514,7 @@ def subscription(sub_id: str, path_device_token: str = ''):
                 recovery_token,
                 get_subscription_device_limit(sub_id, default_limit),
             )
-            if recovery_state is None and not subscription_device_slots_full(sub_id):
+            if recovery_state in {None, "revoked"} and not subscription_device_slots_full(sub_id):
                 register_import_device(
                     sub_id,
                     recovery_token,
@@ -1539,7 +1540,7 @@ def subscription(sub_id: str, path_device_token: str = ''):
                     ),
                 )
 
-            profile_title = f"{PROFILE_TITLE} • Подключение по ссылке"
+            profile_title = PROFILE_TITLE
             logger.info("Direct recovery subscription issued for %s", masked_sub_id)
 
         if request.method == "HEAD":

@@ -16,6 +16,8 @@
   let supportMessages = []
   let replyBody = ''
   let sendingReply = false
+  let refreshTimer = null
+  let lastUpdated = null
   const nav = [
     ['overview', 'home', 'Обзор'], ['users', 'users', 'Пользователи'],
     ['payments', 'wallet', 'Платежи'], ['network', 'signal', 'Инфраструктура'],
@@ -26,11 +28,12 @@
   $: visibleUsers = (data?.recent_users || []).filter((u) => userFilter === 'all' || (userFilter === 'online' ? Number(u.online_devices) > 0 : userFilter === 'inactive' ? !u.active : true)).sort((a,b) => userFilter === 'top' ? Number(b.paid_cents)-Number(a.paid_cents) : 0)
   $: visiblePayments = (data?.recent_payments || []).filter((p) => paymentFilter === 'all' || (paymentFilter === 'paid' ? ['paid','succeeded'].includes(p.status) : !['paid','succeeded'].includes(p.status)))
 
-  async function load() {
-    loading = true; error = ''
+  async function load(silent = false) {
+    if (!silent) loading = true
+    error = ''
     try { data = await fetchAdminOverview() }
     catch (e) { error = e.code === 403 ? 'auth' : 'Данные временно недоступны' }
-    finally { loading = false }
+    finally { loading = false; if (data) lastUpdated = new Date() }
   }
   async function signIn() {
     if (!password || signingIn) return
@@ -49,8 +52,12 @@
   onMount(() => {
     document.body.classList.add('admin-console-open')
     load()
+    refreshTimer = setInterval(() => load(true), 30000)
   })
-  onDestroy(() => document.body.classList.remove('admin-console-open'))
+  onDestroy(() => {
+    document.body.classList.remove('admin-console-open')
+    if (refreshTimer) clearInterval(refreshTimer)
+  })
 </script>
 
 <svelte:head><title>ArcVPN Business Console</title></svelte:head>
@@ -63,7 +70,7 @@
   </aside>
 
   <main>
-    <header><div><span class="eyebrow">Бизнес в реальном времени</span><h1>Всё под контролем.</h1></div><button class="refresh" on:click={load}><ArcIcon name="pulse" size={18} />Обновить</button></header>
+    <header><div><span class="eyebrow">Бизнес в реальном времени</span><h1>Всё под контролем.</h1></div><div class="live-tools"><span class="telemetry-fresh"><i></i>{lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Подключаем телеметрию'}</span><button class="refresh" on:click={() => load(true)}><ArcIcon name="pulse" size={18} />Обновить</button></div></header>
     {#if loading}
       <section class="state"><i class="loader"></i><p>Собираем показатели ArcVPN…</p></section>
     {:else if error}
@@ -147,6 +154,7 @@
   aside{position:sticky;top:0;height:100vh;box-sizing:border-box;display:flex;flex-direction:column;padding:28px 20px;border-right:1px solid var(--line);background:rgba(5,10,18,.76);backdrop-filter:blur(20px)}.brand{display:flex;align-items:center;gap:12px;padding:0 10px 28px;color:#fff;text-decoration:none;font-weight:800}.brand img{width:34px}.brand span,.owner span{display:flex;flex-direction:column}.brand small,.owner small{margin-top:2px;color:#70859a;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
   nav{display:grid;gap:8px}nav button{display:flex;align-items:center;gap:13px;min-height:48px;padding:0 15px;border:0;border-radius:16px;color:#8499ad;background:transparent;font-weight:700;cursor:pointer;transition:.2s}nav button:hover{color:#dceeff;background:rgba(126,194,241,.06);transform:translateX(2px)}nav button.active{color:#08111d;background:#9bd9ff;box-shadow:0 10px 30px rgba(89,174,230,.18)}.owner{margin-top:auto;display:flex;align-items:center;gap:11px;padding:13px;border-radius:18px;background:#0b1420}.owner>i{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#17314a;color:#9bd9ff;font-style:normal;font-weight:800}
   main{width:min(1320px,calc(100% - 64px));margin:0 auto;padding:48px 0 72px}header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:32px}h1{margin:8px 0 0;font-size:clamp(34px,4vw,60px);line-height:.98;letter-spacing:-.055em}.eyebrow,.panel-head span{color:#6f879d;font-size:11px;font-weight:800;letter-spacing:.11em;text-transform:uppercase}.refresh{display:flex;align-items:center;gap:8px;min-height:44px;padding:0 18px;border:1px solid var(--line);border-radius:22px;background:#0b1420;color:#bcd0e2;font-weight:700;cursor:pointer}
+  .live-tools{display:flex;align-items:center;gap:12px}.telemetry-fresh{display:flex;align-items:center;gap:8px;color:#7890a5;font-size:11px;font-weight:700}.telemetry-fresh i{width:7px;height:7px;border-radius:50%;background:#61d8a5;box-shadow:0 0 0 6px rgba(97,216,165,.07)}
   .health{display:flex;align-items:center;gap:14px;padding:18px 22px;border:1px solid rgba(109,213,170,.12);border-radius:22px;background:linear-gradient(90deg,rgba(49,140,108,.13),rgba(12,21,34,.88))}.health>i{width:10px;height:10px;border-radius:50%;background:#61d8a5;box-shadow:0 0 0 7px rgba(97,216,165,.08)}.health div{display:flex;flex:1;flex-direction:column;gap:3px}.health span{color:#8096aa;font-size:12px}.health>strong{padding:8px 12px;border-radius:14px;background:rgba(97,216,165,.09);color:#78e1b4;font-size:12px}.health.alert>i{background:#ff7979}
   .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:16px 0}.metrics article,.panel{border:1px solid var(--line);background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96))}.metrics article{min-height:120px;padding:22px;border-radius:24px;display:flex;flex-direction:column}.metrics span,.metrics small{color:#7890a5;font-size:12px}.metrics strong{margin:auto 0 5px;font-size:30px;letter-spacing:-.045em}.metrics small{color:#9bd9ff}
   .grid{display:grid;grid-template-columns:1.35fr 1fr;gap:16px}.panel{padding:24px;border-radius:28px}.panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px}h2{margin:6px 0 0;font-size:21px}.panel-head button{display:flex;align-items:center;gap:6px;border:0;background:transparent;color:#8fcdf5;cursor:pointer}.nodes{display:grid;grid-template-columns:1fr 1fr;gap:12px}.nodes article{padding:18px;border-radius:20px;background:rgba(4,10,18,.56)}.node-name{display:flex;align-items:center;gap:9px}.node-name>i{width:8px;height:8px;border-radius:50%;background:#60d7a4}.node-name>i.offline{background:#ff7474}.node-name div{display:flex;flex-direction:column}.node-name span,.nodes small{color:#6f8497;font-size:11px}.nodes article>strong{display:block;margin-top:24px;font-size:27px}.bar{height:4px;margin-top:14px;border-radius:2px;background:#162534;overflow:hidden}.bar i{display:block;height:100%;background:#91d6ff}

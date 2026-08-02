@@ -280,7 +280,8 @@
   function deviceIcon(platform) {
     if (platform === 'ios' || platform === 'macos') return 'apple'
     if (platform === 'android') return 'android'
-    return 'windows'
+    if (platform === 'windows') return 'windows'
+    return 'devices'
   }
 
   function chatTime(value) {
