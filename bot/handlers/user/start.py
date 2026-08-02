@@ -445,7 +445,7 @@ def create_main_menu_kb(
     if is_admin:
         builder.row(InlineKeyboardButton(
             text="📊 Business Console",
-            web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/admin"),
+            web_app=WebAppInfo(url="https://panel.arccnet.space/"),
             style="primary",
         ))
         builder.row(InlineKeyboardButton(text="⚙️ Старая админка", callback_data="admin_panel"))
@@ -536,7 +536,7 @@ def _bot_settings_keyboard(user_internal_id: int, *, is_admin: bool = False) -> 
         ))
     else:
         builder.row(InlineKeyboardButton(
-            text="☐ Банковская карта не привязана",
+            text="💳 Банковская карта не привязана",
             callback_data="bot_recurring_unavailable",
         ))
         if is_admin:

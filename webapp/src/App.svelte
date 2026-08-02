@@ -28,7 +28,7 @@
     ? new URLSearchParams(location.search).get('design')
     : null
   const isAdminConsole = typeof location !== 'undefined'
-    && (location.pathname.startsWith('/admin') || location.pathname.startsWith('/app/admin'))
+    && (location.hostname === 'panel.arccnet.space' || location.pathname.startsWith('/admin') || location.pathname.startsWith('/app/admin'))
 </script>
 
 {#if isAdminConsole}

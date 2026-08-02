@@ -93,7 +93,7 @@ from database.db_recurring import disable_recurring_methods, get_active_recurrin
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, get_yookassa_payment_details, process_payment_order
 from bot.services.vpn_api import get_client_from_server_data
 from bot.services.reserve import get_reserve_client_info
-from subscription_pages import render_import_page, render_user_agreement
+from subscription_pages import render_import_page, render_silent_import_page, render_user_agreement
 
 # Конфиг читаем через getattr с дефолтами: устаревший config.py (а он не
 # версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
@@ -1527,12 +1527,9 @@ def import_to_happ(sub_id: str):
     safe_happ_deeplink = html.escape(happ_deeplink, quote=True)
 
     # HTML страница с новым дизайном на основе референса
-    html_page = render_import_page(
-        safe_happ_deeplink=safe_happ_deeplink,
-        safe_subscription_url=safe_subscription_url,
+    html_page = render_silent_import_page(
         js_subscription_url=js_subscription_url,
         js_device_registration_url=json.dumps(f"{SUBSCRIPTION_URL}/api/device/import/{sub_id}"),
-        profile_title=PROFILE_TITLE,
     )
     response = Response(html_page, mimetype='text/html')
     response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"

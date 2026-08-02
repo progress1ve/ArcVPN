@@ -7,6 +7,66 @@
 import html
 
 
+def render_silent_import_page(
+    js_subscription_url: str,
+    js_device_registration_url: str,
+) -> str:
+    """Blank HTTPS bridge that registers the browser and immediately opens Happ."""
+    return f"""<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <title></title>
+  <style>html,body{{width:100%;height:100%;margin:0;background:#02060c;overflow:hidden}}</style>
+</head>
+<body aria-label="Открытие Happ">
+<script>
+  const subscriptionUrl = {js_subscription_url};
+  const registrationUrl = {js_device_registration_url};
+  function deviceToken() {{
+    let token = localStorage.getItem('arcvpn_device_token');
+    if (!token) {{
+      const bytes = new Uint8Array(24);
+      crypto.getRandomValues(bytes);
+      token = btoa(String.fromCharCode(...bytes)).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48);
+      localStorage.setItem('arcvpn_device_token', token);
+    }}
+    return token;
+  }}
+  async function register() {{
+    let model = '';
+    let platform = navigator.userAgentData?.platform || navigator.platform || '';
+    let browser = navigator.userAgentData?.brands?.map(item => item.brand).join(', ') || '';
+    try {{
+      const hints = await navigator.userAgentData?.getHighEntropyValues?.(['model', 'platformVersion']);
+      model = hints?.model || '';
+    }} catch (_) {{}}
+    const payload = {{
+      device_token: deviceToken(), platform, model, browser,
+      screen_size: `${{screen.width}}x${{screen.height}}`,
+    }};
+    try {{
+      await fetch(registrationUrl, {{
+        method:'POST', headers:{{'Content-Type':'application/json'}},
+        body:JSON.stringify(payload), credentials:'omit', keepalive:true,
+      }});
+    }} catch (_) {{}}
+  }}
+  function deeplink() {{
+    const separator = subscriptionUrl.includes('?') ? '&' : '?';
+    return `happ://add/${{subscriptionUrl}}${{separator}}device=${{encodeURIComponent(deviceToken())}}`;
+  }}
+  register();
+  const openHapp = () => {{ window.location.href = deeplink(); }};
+  document.addEventListener('click', openHapp);
+  setTimeout(openHapp, 80);
+</script>
+</body>
+</html>"""
+
+
 def render_import_page(
     safe_happ_deeplink: str,
     safe_subscription_url: str,
