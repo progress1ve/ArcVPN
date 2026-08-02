@@ -282,6 +282,7 @@ def render_import_page(
 
     <script>
         const registrationUrl = {js_device_registration_url};
+        const subscriptionUrl = {js_subscription_url};
 
         function getDeviceToken() {{
             let token = localStorage.getItem('arcvpn_device_token');
@@ -329,9 +330,15 @@ def render_import_page(
 
         const registration = registerDevice();
 
+        function happDeepLink() {{
+            const separator = subscriptionUrl.includes('?') ? '&' : '?';
+            const deviceUrl = `${{subscriptionUrl}}${{separator}}device=${{encodeURIComponent(getDeviceToken())}}`;
+            return `happ://add/${{deviceUrl}}`;
+        }}
+
         function openHapp(event) {{
             event.preventDefault();
-            const href = event.currentTarget.href;
+            const href = happDeepLink();
             // Deep-link должен открыться внутри исходного пользовательского клика.
             // Фоновая регистрация уже стартовала при загрузке страницы; beacon
             // лишь дублирует её без задержки перехода в Happ.
@@ -342,6 +349,15 @@ def render_import_page(
             }});
             window.location.href = href;
         }}
+
+        // Telegram допускает в inline-кнопках только HTTPS. Мост сразу пытается
+        // открыть Happ; кнопка остаётся fallback для браузеров, запрещающих
+        // custom scheme без дополнительного касания.
+        const primaryButton = document.querySelector('.btn-primary');
+        if (primaryButton) primaryButton.href = happDeepLink();
+        setTimeout(() => {{
+            window.location.href = happDeepLink();
+        }}, 120);
 
         function copyUrl() {{
             const url = {js_subscription_url};

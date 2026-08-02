@@ -682,7 +682,13 @@
   }
 
   onMount(() => {
-    const returnedOrderId = new URL(window.location.href).searchParams.get('payment')
+    const pageUrl = new URL(window.location.href)
+    const returnedOrderId = pageUrl.searchParams.get('payment')
+    const requestedScreen = pageUrl.searchParams.get('screen')
+    if (requestedScreen === 'devices' || requestedScreen === 'billing') {
+      active = 'settings'
+      openSettingsPage(requestedScreen)
+    }
     let saved = null
     try {
       saved = JSON.parse(localStorage.getItem('arcvpn-pending-payment') || 'null')

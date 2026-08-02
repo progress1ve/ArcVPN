@@ -227,7 +227,7 @@ def payment_method_kb(
     if yookassa_qr_enabled:
         builder.row(InlineKeyboardButton(
             text="⚡ СБП",
-            callback_data=f"pay_qr_tariff:{tariff_id}:{order_id}",
+            callback_data=f"sc:0:{tariff_id}:{order_id}",
         ))
 
     if cards_enabled:
@@ -248,14 +248,6 @@ def payment_method_kb(
             builder.row(
                 InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
-
-    recurring_label = "✅ С автопродлением · изменить" if auto_renew else (
-        "○ Без автопродления · изменить" if recurring_available else "🔒 Автопродление ожидает ЮKassa"
-    )
-    builder.row(InlineKeyboardButton(
-        text=recurring_label,
-        callback_data=f"payment_recurring:{order_id}:{0 if auto_renew else 1}:0:{tariff_id}",
-    ))
 
     # Stars
     if stars_enabled:
@@ -790,7 +782,7 @@ def renew_payment_method_kb(
 
     # Единый порядок с WebApp: СБП → карта → криптовалюта.
     if yookassa_qr_enabled:
-        callback_data = (f"renew_pay_qr:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}") if tariff_id else f"renew_qr_tariff:{key_id}"
+        callback_data = (f"sc:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}") if tariff_id else f"renew_qr_tariff:{key_id}"
         builder.row(InlineKeyboardButton(text="⚡ СБП", callback_data=callback_data))
 
     if cards_enabled:
@@ -811,14 +803,6 @@ def renew_payment_method_kb(
             builder.row(
                 InlineKeyboardButton(text="₿ Криптовалютой", url=crypto_url)
             )
-
-    recurring_label = "✅ С автопродлением · изменить" if auto_renew else (
-        "○ Без автопродления · изменить" if recurring_available else "🔒 Автопродление ожидает ЮKassa"
-    )
-    builder.row(InlineKeyboardButton(
-        text=recurring_label,
-        callback_data=f"payment_recurring:{order_id}:{0 if auto_renew else 1}:{key_id}:{tariff_id or 0}",
-    ))
 
     # Stars
     if stars_enabled:

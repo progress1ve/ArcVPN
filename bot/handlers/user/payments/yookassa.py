@@ -18,6 +18,86 @@ def _can_save_payment_method(order: dict) -> bool:
     from database.requests import get_setting
     return bool(order.get('auto_renew_requested')) and get_setting('yookassa_recurring_enabled', '0') == '1'
 
+
+@router.callback_query(F.data.startswith('sc:'))
+async def sbp_recurring_confirmation(callback: CallbackQuery):
+    """Ask for explicit recurring consent immediately before an SBP payment."""
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    from config import SUBSCRIPTION_URL
+
+    parts = callback.data.split(':')
+    if len(parts) != 4:
+        await callback.answer('Не удалось открыть подтверждение оплаты', show_alert=True)
+        return
+    _, key_id_raw, tariff_id_raw, order_id = parts
+    key_id = int(key_id_raw)
+    tariff_id = int(tariff_id_raw)
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text='✅ Продолжить с автопродлением',
+        callback_data=f'sr:1:{key_id}:{tariff_id}:{order_id}',
+        style='primary',
+    ))
+    builder.row(InlineKeyboardButton(
+        text='Отключить и оплатить один раз',
+        callback_data=f'sr:0:{key_id}:{tariff_id}:{order_id}',
+    ))
+    builder.row(InlineKeyboardButton(
+        text='📄 Пользовательское соглашение',
+        url=f"{SUBSCRIPTION_URL.rstrip('/')}/legal/user-agreement",
+    ))
+    builder.row(InlineKeyboardButton(
+        text='← Назад',
+        callback_data=f'payment_return:{key_id}:{tariff_id}:{order_id}',
+    ))
+    await safe_edit_or_send(
+        callback.message,
+        '<b>ArcVPN</b>\n\n'
+        '🔁 <b>Оставить автопродление?</b>\n\n'
+        'С автопродлением доступ не прервётся: следующий платёж будет списан автоматически перед окончанием подписки. '
+        'Отключить автопродление и удалить сохранённую карту можно самостоятельно в настройках ArcVPN.\n\n'
+        '<blockquote>Нажимая «Продолжить с автопродлением», вы поручаете ArcVPN выполнять регулярные списания '
+        'по выбранному тарифу и соглашаетесь с Пользовательским соглашением.</blockquote>',
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('sr:'))
+async def sbp_recurring_choice(callback: CallbackQuery):
+    """Persist consent and continue to the existing QR creation flow."""
+    from database.requests import get_setting, set_order_auto_renew
+
+    parts = callback.data.split(':')
+    if len(parts) != 5:
+        await callback.answer('Не удалось продолжить оплату', show_alert=True)
+        return
+    _, enabled_raw, key_id_raw, tariff_id_raw, order_id = parts
+    enabled = enabled_raw == '1'
+    if enabled and get_setting('yookassa_recurring_enabled', '0') != '1':
+        await callback.answer(
+            'ЮKassa ещё согласовывает автоплатежи для ArcVPN. Пока выберите «Оплатить один раз».',
+            show_alert=True,
+        )
+        return
+    if not set_order_auto_renew(order_id, enabled):
+        await callback.answer('Заказ уже завершён или не найден', show_alert=True)
+        return
+
+    key_id = int(key_id_raw)
+    tariff_id = int(tariff_id_raw)
+    next_data = (
+        f'renew_pay_qr:{key_id}:{tariff_id}:{order_id}'
+        if key_id else
+        f'pay_qr_tariff:{tariff_id}:{order_id}'
+    )
+    forwarded = callback.model_copy(update={'data': next_data})
+    if key_id:
+        await renew_qr_create(forwarded)
+    else:
+        await pay_qr_handler(forwarded)
+
 @router.callback_query(F.data.startswith('pay_cards'))
 async def pay_cards_handler(callback: CallbackQuery):
     """Обработчик оплаты картой - создает инвойс напрямую если тариф уже выбран."""

@@ -439,7 +439,7 @@ def create_main_menu_kb(
         secondary.append(InlineKeyboardButton(text="🎁 Пригласить друга", callback_data="referral_system"))
     secondary.append(InlineKeyboardButton(text="💬 Помощь", callback_data="bot_help"))
     builder.row(*secondary)
-    builder.row(InlineKeyboardButton(text="🔁 Автопродление", callback_data="bot_recurring_settings"))
+    builder.row(InlineKeyboardButton(text="⚙️ Настройки", callback_data="bot_settings"))
 
     # Админ-панель (если админ)
     if is_admin:
@@ -548,7 +548,32 @@ def _bot_settings_keyboard(user_internal_id: int, *, is_admin: bool = False) -> 
     return builder.as_markup()
 
 
-@router.callback_query(F.data.in_({"bot_settings", "bot_recurring_settings"}))
+@router.callback_query(F.data == "bot_settings")
+async def bot_settings_menu_handler(callback: CallbackQuery):
+    from aiogram.types import WebAppInfo
+    from config import SUBSCRIPTION_URL
+
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(
+        text="📱 Устройства",
+        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app?screen=devices"),
+    ))
+    builder.row(InlineKeyboardButton(
+        text="🔁 Автопродление",
+        callback_data="bot_recurring_settings",
+    ))
+    builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
+    await safe_edit_or_send(
+        callback.message,
+        "<b>ArcVPN</b>\n\n"
+        "⚙️ <b>Настройки</b>\n\n"
+        "Управляйте подключёнными устройствами и автопродлением подписки.",
+        reply_markup=builder.as_markup(),
+    )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "bot_recurring_settings")
 async def bot_settings_handler(callback: CallbackQuery, answer: bool = True):
     from database.db_recurring import get_active_recurring_method
     from database.requests import get_user_internal_id
