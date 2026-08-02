@@ -71,6 +71,7 @@ from database.requests import (
     get_import_device_access_state,
     resolve_device_subscription,
     subscription_requires_device_token,
+    subscription_device_slots_full,
     get_user_entitlements,
     get_subscription_device_limit,
     set_payment_requested_entitlements,
@@ -1472,7 +1473,10 @@ def subscription(sub_id: str, path_device_token: str = ''):
         elif subscription_requires_device_token(sub_id):
             logger.info("Legacy token-less refresh blocked for %s", masked_sub_id)
             return _response_from_prepared(
-                _prepare_device_limit_subscription(key, output_format, "legacy")
+                _prepare_device_limit_subscription(
+                    key, output_format,
+                    "limit" if subscription_device_slots_full(sub_id) else "legacy",
+                )
             )
 
         if request.method == "HEAD":
@@ -1570,7 +1574,6 @@ def import_to_happ(sub_id: str):
     html_page = render_silent_import_page(
         js_subscription_url=js_subscription_url,
         js_device_registration_url=json.dumps(f"{SUBSCRIPTION_URL}/api/device/import/{sub_id}"),
-        js_server_device_token=json.dumps(cookie_token),
     )
     response = Response(html_page, mimetype='text/html')
     response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
@@ -1578,10 +1581,6 @@ def import_to_happ(sub_id: str):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["Referrer-Policy"] = "no-referrer"
     response.headers["X-Frame-Options"] = "DENY"
-    response.set_cookie(
-        "arcvpn_device_token", cookie_token, max_age=31536000,
-        secure=True, httponly=True, samesite="Lax", path="/",
-    )
     return response
 
 

@@ -41,35 +41,31 @@ def render_silent_import_page(
     }}
     return token;
   }}
-  async function register() {{
+  function register() {{
     let model = '';
     let platform = navigator.userAgentData?.platform || navigator.platform || '';
     let browser = navigator.userAgentData?.brands?.map(item => item.brand).join(', ') || '';
-    try {{
-      const hints = await navigator.userAgentData?.getHighEntropyValues?.(['model', 'platformVersion']);
-      model = hints?.model || '';
-    }} catch (_) {{}}
     const payload = {{
       device_token: deviceToken(), platform, model, browser,
       screen_size: `${{screen.width}}x${{screen.height}}`,
     }};
     try {{
-      await fetch(registrationUrl, {{
-        method:'POST', headers:{{'Content-Type':'application/json'}},
-        body:JSON.stringify(payload), credentials:'omit', keepalive:true,
-      }});
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', registrationUrl, false);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.send(JSON.stringify(payload));
     }} catch (_) {{}}
   }}
   function deeplink() {{
-    return `happ://add/${{subscriptionUrl}}`;
+    const target = new URL(subscriptionUrl);
+    target.pathname = `/sub/${{encodeURIComponent(deviceToken())}}`;
+    return `happ://add/${{target.toString()}}`;
   }}
-  const registration = register();
-  const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
+  register();
   let opening = false;
-  const openHapp = async () => {{
+  const openHapp = () => {{
     if (opening) return;
     opening = true;
-    await Promise.race([registration, wait(1800)]);
     window.location.href = deeplink();
   }};
   document.addEventListener('click', openHapp);

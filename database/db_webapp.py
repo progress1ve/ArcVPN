@@ -110,14 +110,17 @@ def register_import_device(
 
 def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict[str, str]]:
     """Resolve a standalone device subscription id and calculate its access state."""
+    raw_token_hash = hashlib.sha256(device_sub_id.encode("utf-8")).hexdigest()
     with get_db() as conn:
         target = conn.execute(
             """SELECT d.id, d.user_id, COALESCE(d.is_active,1) is_active, k.sub_id,
                       COALESCE(u.device_limit, ?) device_limit
                FROM user_devices d JOIN vpn_keys k ON k.id=d.vpn_key_id
                JOIN users u ON u.id=d.user_id
-               WHERE d.device_sub_id=?""",
-            (limit, device_sub_id),
+               WHERE d.device_sub_id=? OR d.device_token_hash=?
+               ORDER BY CASE WHEN d.device_sub_id=? THEN 0 ELSE 1 END
+               LIMIT 1""",
+            (limit, device_sub_id, raw_token_hash, device_sub_id),
         ).fetchone()
         if not target:
             return None
@@ -187,6 +190,20 @@ def subscription_requires_device_token(sub_id: str) -> bool:
             (sub_id,),
         ).fetchone()
         return bool(row and row["enforce_device_tokens"])
+
+
+def subscription_device_slots_full(sub_id: str) -> bool:
+    """Return whether a legacy import is blocked because all paid slots are occupied."""
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT COALESCE(u.device_limit,2) device_limit,
+                      COUNT(d.id) active_devices
+               FROM vpn_keys k JOIN users u ON u.id=k.user_id
+               LEFT JOIN user_devices d ON d.user_id=u.id AND COALESCE(d.is_active,1)=1
+               WHERE k.sub_id=? GROUP BY u.id""",
+            (sub_id,),
+        ).fetchone()
+        return bool(row and int(row["active_devices"]) >= int(row["device_limit"]))
 
 
 def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
