@@ -102,7 +102,7 @@ async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, s
 
     Idempotence-Key в headers остаётся неизменным между попытками, поэтому
     повтор не создаёт дубль платежа — ЮКасса вернёт тот же объект.
-    HTTP-ответы (в т.ч. 4xx/5xx) считаются успешным ответом сети и не ретраятся.
+    Ошибки клиента 4xx возвращаются сразу, временные 429/5xx повторяются.
     """
     last_err: Optional[Exception] = None
     addresses = await _yookassa_ipv4_addresses()
@@ -115,6 +115,14 @@ async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, s
                     if response.status not in (200, 201):
                         error_desc = data.get('description', 'Неизвестная ошибка')
                         logger.error(f"ЮКасса API ошибка {response.status}: {error_desc}")
+                        if response.status == 429 or response.status >= 500:
+                            last_err = RuntimeError(
+                                f"ЮКасса временно недоступна ({response.status}): {error_desc}"
+                            )
+                            if attempt < _YK_MAX_ATTEMPTS:
+                                await asyncio.sleep(0.5 * attempt)
+                                continue
+                            raise last_err
                         raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
                     return data
         except (aiohttp.ClientConnectionError, aiohttp.ClientConnectorError,
@@ -124,7 +132,7 @@ async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, s
             if attempt < _YK_MAX_ATTEMPTS:
                 await asyncio.sleep(0.5 * attempt)
     raise RuntimeError(
-        "Не удалось связаться с ЮКассой (сеть недоступна). Попробуйте ещё раз через минуту."
+        "ЮКасса временно не ответила. Попробуйте создать оплату ещё раз."
     ) from last_err
 
 
@@ -141,6 +149,14 @@ async def _yookassa_get(url: str, headers: Dict[str, str]) -> Dict[str, Any]:
                     if response.status != 200:
                         error_desc = data.get('description', 'Неизвестная ошибка')
                         logger.error(f"ЮКасса статус ошибка {response.status}: {error_desc}")
+                        if response.status == 429 or response.status >= 500:
+                            last_err = RuntimeError(
+                                f"ЮКасса временно недоступна ({response.status}): {error_desc}"
+                            )
+                            if attempt < _YK_MAX_ATTEMPTS:
+                                await asyncio.sleep(0.5 * attempt)
+                                continue
+                            raise last_err
                         raise RuntimeError(f"ЮКасса API ошибка: {error_desc}")
                     return data
         except (aiohttp.ClientConnectionError, aiohttp.ClientConnectorError,
@@ -150,7 +166,7 @@ async def _yookassa_get(url: str, headers: Dict[str, str]) -> Dict[str, Any]:
             if attempt < _YK_MAX_ATTEMPTS:
                 await asyncio.sleep(0.5 * attempt)
     raise RuntimeError(
-        "Не удалось связаться с ЮКассой (сеть недоступна). Попробуйте ещё раз через минуту."
+        "ЮКасса временно не ответила. Попробуйте создать оплату ещё раз."
     ) from last_err
 
 
