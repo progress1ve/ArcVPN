@@ -21,6 +21,7 @@ from bot.services.scheduler import (
     run_update_check_scheduler,
     run_traffic_sync_scheduler,
     run_yookassa_reconciliation_scheduler,
+    run_recurring_payment_scheduler,
     run_lifecycle_scheduler,
 )
 
@@ -168,6 +169,7 @@ async def main():
     payment_reconciliation_tasks = asyncio.create_task(
         run_yookassa_reconciliation_scheduler(bot)
     )
+    recurring_payment_tasks = asyncio.create_task(run_recurring_payment_scheduler(bot))
     lifecycle_tasks = asyncio.create_task(run_lifecycle_scheduler(bot))
     
     try:
@@ -177,6 +179,7 @@ async def main():
         update_tasks.cancel()
         traffic_tasks.cancel()
         payment_reconciliation_tasks.cancel()
+        recurring_payment_tasks.cancel()
         lifecycle_tasks.cancel()
         await bot.session.close()
 

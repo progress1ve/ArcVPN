@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -87,7 +87,7 @@
   let paymentMessage = ''
   let paymentPoll = null
   let paymentMethodOpen = false
-  let selectedPaymentMethod = 'sbp'
+  let selectedPaymentMethod = 'card'
   let autoRenew = true
   let promoCode = ''
   let recurring = { enabled: false, method: null, provider_ready: false }
@@ -315,12 +315,13 @@
     openFaq = openFaq === index ? -1 : index
   }
 
-  async function buy(plan = preferredPlan) {
+  async function buy(plan = preferredPlan, method = 'sbp') {
     if (!plan || paymentBusy) return
     paymentBusy = true
     paymentMessage = ''
     try {
-      const result = await createSbpPayment(plan.id, purchaseDevices, purchaseLteGb, promoCode.trim(), autoRenew)
+      const createPayment = method === 'card' ? createCardPayment : createSbpPayment
+      const result = await createPayment(plan.id, purchaseDevices, purchaseLteGb, promoCode.trim(), method === 'card' && autoRenew)
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -331,6 +332,8 @@
     } catch (error) {
       paymentMessage = error.reason === 'payment_provider_unavailable'
         ? 'СБП временно недоступна. Попробуйте через минуту.'
+        : error.reason === 'recurring_method_not_enabled'
+          ? 'ЮKassa ещё подключает автопродление для выбранного способа. Выберите оплату картой или отключите автопродление.'
         : error.reason === 'lte_addons_not_available'
           ? 'Покупка дополнительного LTE-трафика появится после запуска точного счётчика.'
           : 'Не удалось создать платёж. Попробуйте ещё раз.'
@@ -515,14 +518,14 @@
     if (paymentState === 'awaiting') return reopenPayment()
     if (paymentState === 'canceled') resetPayment()
     paymentMethodOpen = true
-    selectedPaymentMethod = 'sbp'
+    selectedPaymentMethod = 'card'
     haptic('light')
   }
 
   function confirmPaymentMethod() {
-    if (selectedPaymentMethod === 'sbp') {
+    if (selectedPaymentMethod === 'sbp' || selectedPaymentMethod === 'card') {
       paymentMethodOpen = false
-      return buy(selectedPlan)
+      return buy(selectedPlan, selectedPaymentMethod)
     }
     const botUrl = links.bot_url || 'https://t.me/arcvpnnbot'
     paymentMethodOpen = false
@@ -806,11 +809,11 @@
                 <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
                 <div class="payment-options">
                   <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><svg class="pay-symbol" viewBox="0 0 32 32" aria-label="СБП"><path fill="#ee2a7b" d="M5 4l10 6-5 3-5-3z"/><path fill="#f7931e" d="M17 11l10 6-5 3-10-6z"/><path fill="#00a651" d="M5 12l10 6-5 3-5-3z"/><path fill="#00aeef" d="M17 19l10 6-5 3-10-6z"/><path fill="#8dc63f" d="M5 20l10 6-5 3-5-3z"/></svg></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
-                  <button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Visa, Mastercard и Мир</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='card'} on:click={() => { selectedPaymentMethod='card'; autoRenew=true }}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Мир, Visa и Mastercard · можно сохранить</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
                   <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i><span class="dollar">$</span></i><span><b>Криптовалютой</b><small>USDT и другие валюты</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
                 </div>
                 <label class="promo-field"><ArcIcon name="gift" size={20}/><input bind:value={promoCode} maxlength="32" placeholder="Промокод" autocomplete="off"/><span>Применить</span></label>
-                <button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>✓</i><span><b>Автопродление</b><small>Включено по умолчанию</small></span></button>
+                {#if selectedPaymentMethod!=='crypto'}<button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>✓</i><span><b>Автопродление</b><small>{autoRenew ? (selectedPaymentMethod==='sbp' ? 'Счёт СБП сохранится, отключить можно в настройках' : 'Карта сохранится, отключить можно в настройках') : 'Способ оплаты не будет сохранён'}</small></span></button>{/if}
                 <button class="method-confirm" on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':selectedPaymentMethod==='card'?'картой':'криптовалютой'} · {rub(purchaseTotalRub)}</button>
                 <p>Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a></p>
               </section>

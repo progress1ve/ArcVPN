@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 43
+LATEST_VERSION = 44
 
 
 def get_current_version() -> int:
@@ -1907,6 +1907,36 @@ def migration_43(conn: sqlite3.Connection) -> None:
     logger.info("Migration v43 applied")
 
 
+def migration_44(conn: sqlite3.Connection) -> None:
+    """Recurring-card renewal schedule with idempotent billing cycles."""
+    logger.info("Applying migration v44 (recurring renewal cycles)...")
+    for name, ddl in (
+        ("vpn_key_id", "INTEGER"), ("tariff_id", "INTEGER"),
+        ("amount_cents", "INTEGER"), ("period_days", "INTEGER"),
+        ("next_charge_at", "DATETIME"), ("last_charge_at", "DATETIME"),
+        ("failure_count", "INTEGER NOT NULL DEFAULT 0"), ("last_error", "TEXT"),
+    ):
+        _add_column(conn, "recurring_payment_methods", f"{name} {ddl}")
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS recurring_charge_cycles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recurring_method_id INTEGER NOT NULL,
+            vpn_key_id INTEGER NOT NULL,
+            due_key TEXT NOT NULL,
+            order_id TEXT,
+            yookassa_payment_id TEXT,
+            status TEXT NOT NULL DEFAULT 'claimed',
+            error TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(recurring_method_id, vpn_key_id, due_key),
+            FOREIGN KEY(recurring_method_id) REFERENCES recurring_payment_methods(id) ON DELETE CASCADE
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_recurring_cycle_status ON recurring_charge_cycles(status, created_at)")
+    logger.info("Migration v44 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1951,6 +1981,7 @@ MIGRATIONS = {
     41: migration_41,
     42: migration_42,
     43: migration_43,
+    44: migration_44,
 }
 
 

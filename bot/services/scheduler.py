@@ -815,6 +815,67 @@ async def run_yookassa_reconciliation_scheduler(bot: Bot) -> None:
             await asyncio.sleep(120)
 
 
+async def process_due_recurring_payments(bot: Bot) -> None:
+    """Create idempotent renewal charges for saved YooKassa cards/SBP accounts."""
+    from database.db_recurring import claim_due_recurring_cycles, update_recurring_cycle
+    from database.db_payments import prepare_payment_order, save_yookassa_payment_id
+    from bot.services.billing import create_yookassa_recurring_payment
+
+    card_ready = get_setting("yookassa_recurring_enabled", "0") == "1"
+    sbp_ready = get_setting("yookassa_sbp_recurring_enabled", "0") == "1"
+    if not card_ready and not sbp_ready:
+        return
+    cycles = claim_due_recurring_cycles(limit=20, include_card=card_ready, include_sbp=sbp_ready)
+    for item in cycles:
+        cycle_id = int(item["cycle_id"])
+        try:
+            order = prepare_payment_order(
+                user_id=int(item["user_id"]),
+                tariff_id=int(item["effective_tariff_id"]),
+                payment_type="yookassa_recurring",
+                vpn_key_id=int(item["effective_vpn_key_id"]),
+                amount_cents=int(item["effective_amount_cents"]),
+                operation_type="renew",
+            )
+            description = f"ArcVPN — автопродление на {int(item['effective_period_days'])} дней"
+            payment = await create_yookassa_recurring_payment(
+                amount_rub=int(item["effective_amount_cents"]) / 100,
+                order_id=order["order_id"],
+                payment_method_id=str(item["payment_method_id"]),
+                description=description,
+                metadata={"user_id": str(item["user_id"]), "cycle_id": str(cycle_id)},
+            )
+            provider_id = str(payment.get("id") or "")
+            if not provider_id:
+                raise RuntimeError("YooKassa did not return payment id")
+            save_yookassa_payment_id(order["order_id"], provider_id)
+            update_recurring_cycle(cycle_id, "submitted", order["order_id"], provider_id)
+            logger.info("Recurring cycle %s submitted as order %s", cycle_id, order["order_id"])
+        except Exception as exc:
+            update_recurring_cycle(cycle_id, "failed", error=str(exc))
+            logger.exception("Recurring cycle %s failed", cycle_id)
+            telegram_id = item.get("telegram_id")
+            if telegram_id:
+                await send_to_user(bot, int(telegram_id), (
+                    "⚠️ <b>Не удалось выполнить автопродление ArcVPN</b>\n\n"
+                    "Проверьте баланс выбранного способа оплаты или продлите подписку вручную. "
+                    "Повторного списания по этой попытке не будет."
+                ))
+
+
+async def run_recurring_payment_scheduler(bot: Bot) -> None:
+    """Check subscriptions due for renewal every hour."""
+    await asyncio.sleep(45)
+    while True:
+        try:
+            await process_due_recurring_payments(bot)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Recurring payment scheduler iteration failed")
+        await asyncio.sleep(3600)
+
+
 TRAFFIC_THRESHOLDS = [10, 5, 3, 2, 1, 0]
 
 

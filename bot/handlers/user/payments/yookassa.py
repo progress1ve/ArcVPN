@@ -16,7 +16,8 @@ router = Router()
 def _can_save_payment_method(order: dict) -> bool:
     """Only request provider-side saving after YooKassa enables recurring payments."""
     from database.requests import get_setting
-    return bool(order.get('auto_renew_requested')) and get_setting('yookassa_recurring_enabled', '0') == '1'
+    setting = 'yookassa_sbp_recurring_enabled' if order.get('payment_type') == 'yookassa_qr' else 'yookassa_recurring_enabled'
+    return bool(order.get('auto_renew_requested')) and get_setting(setting, '0') == '1'
 
 
 @router.callback_query(F.data.startswith('sc:'))
@@ -75,7 +76,7 @@ async def sbp_recurring_choice(callback: CallbackQuery):
         return
     _, enabled_raw, key_id_raw, tariff_id_raw, order_id = parts
     enabled = enabled_raw == '1'
-    if enabled and get_setting('yookassa_recurring_enabled', '0') != '1':
+    if enabled and get_setting('yookassa_sbp_recurring_enabled', '0') != '1':
         await callback.answer(
             'ЮKassa ещё согласовывает автоплатежи для ArcVPN. Пока выберите «Оплатить один раз».',
             show_alert=True,

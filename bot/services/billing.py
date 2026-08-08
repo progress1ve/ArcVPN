@@ -654,6 +654,7 @@ async def create_yookassa_qr_payment(
     metadata: Optional[Dict[str, Any]] = None,
     return_url: str = "https://t.me",
     save_payment_method: bool = False,
+    payment_method_type: str = "sbp",
 ) -> Dict[str, Any]:
     """
     Создаёт платёж в ЮКасса REST API с подтверждением через QR-код.
@@ -690,6 +691,9 @@ async def create_yookassa_qr_payment(
     # создаст дубль, если WebApp повторит запрос после сетевого таймаута.
     idempotence_key = f"sbp-{order_id}"
 
+    if payment_method_type not in {"sbp", "bank_card"}:
+        raise ValueError("Unsupported YooKassa payment method")
+
     payload = {
         "amount": {
             "value": f"{amount_rub:.2f}",
@@ -698,7 +702,7 @@ async def create_yookassa_qr_payment(
         "capture": True,
         "save_payment_method": bool(save_payment_method),
         "payment_method_data": {
-            "type": "sbp"
+            "type": payment_method_type
         },
         "confirmation": {
             "type": "redirect",
@@ -772,6 +776,46 @@ async def create_yookassa_qr_payment(
         'qr_url': qr_url,
         'status': data.get('status', 'pending')
     }
+
+
+async def create_yookassa_recurring_payment(
+    amount_rub: float,
+    order_id: str,
+    payment_method_id: str,
+    description: str,
+    metadata: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Charge a previously saved YooKassa bank card without user confirmation."""
+    shop_id, secret_key = get_yookassa_credentials()
+    if not shop_id or not secret_key:
+        raise ValueError("YooKassa credentials are not configured")
+    if not payment_method_id:
+        raise ValueError("Saved payment method is required")
+    credentials = base64.b64encode(f"{shop_id}:{secret_key}".encode()).decode()
+    payload = {
+        "amount": {"value": f"{amount_rub:.2f}", "currency": "RUB"},
+        "capture": True,
+        "payment_method_id": payment_method_id,
+        "description": description[:128],
+        "receipt": {
+            "customer": {"email": f"user_{order_id}@t.me"},
+            "items": [{
+                "description": description[:128], "quantity": "1.00",
+                "amount": {"value": f"{amount_rub:.2f}", "currency": "RUB"},
+                "vat_code": 1, "payment_mode": "full_prepayment", "payment_subject": "service",
+            }],
+        },
+        "metadata": {"order_id": order_id, "source": "recurring", **(metadata or {})},
+    }
+    return await _yookassa_post(
+        YOOKASSA_API_URL,
+        payload,
+        {
+            "Authorization": f"Basic {credentials}",
+            "Idempotence-Key": f"recurring-{order_id}",
+            "Content-Type": "application/json",
+        },
+    )
 
 
 async def check_yookassa_payment_status(yookassa_payment_id: str) -> str:

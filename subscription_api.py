@@ -2001,11 +2001,19 @@ def api_tariffs():
 
 
 @app.route('/api/payments/sbp', methods=['POST'])
+@app.route('/api/payments/card', methods=['POST'])
 def api_create_sbp_payment():
     telegram_id = _webapp_telegram_id()
     if telegram_id is None:
         return _api_error("unauthorized", 401)
     payload = request.get_json(silent=True) or {}
+    method_type = "bank_card" if request.path.endswith("/card") else "sbp"
+    recurring_requested = bool(payload.get("auto_renew", False))
+    recurring_setting = "yookassa_recurring_enabled" if method_type == "bank_card" else "yookassa_sbp_recurring_enabled"
+    recurring_ready = get_setting(recurring_setting, "0") == "1"
+    if recurring_requested and not recurring_ready:
+        return _api_error("recurring_method_not_enabled", 409)
+    wants_recurring = recurring_requested and recurring_ready
     try:
         tariff_id = int(payload.get("tariff_id"))
         devices = int(payload.get("devices") or 2)
@@ -2041,11 +2049,11 @@ def api_create_sbp_payment():
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
     order = prepare_payment_order(
-        user_id=user_id, tariff_id=tariff_id, payment_type="yookassa_qr",
+        user_id=user_id, tariff_id=tariff_id, payment_type="yookassa_card" if method_type == "bank_card" else "yookassa_qr",
         vpn_key_id=key_id, amount_cents=total_rub * 100,
         operation_type="renew" if key_id else "new", promocode_id=promocode.get("id") if promocode else None,
     )
-    if payload.get("auto_renew", True):
+    if wants_recurring:
         with get_db() as conn:
             conn.execute("UPDATE payments SET auto_renew_requested=1 WHERE order_id=?", (order["order_id"],))
     if not set_payment_requested_entitlements(order["order_id"], devices, lte_gb):
@@ -2059,7 +2067,8 @@ def api_create_sbp_payment():
             bot_name=_get_bot_username(),
             metadata={"telegram_id": str(telegram_id), "source": "webapp"},
             return_url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/?payment={order['order_id']}",
-            save_payment_method=bool(payload.get("auto_renew", True)),
+            save_payment_method=wants_recurring,
+            payment_method_type=method_type,
         ), timeout=45)
         save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
     except Exception:
@@ -2114,7 +2123,11 @@ def api_yookassa_webhook():
                 else "СБП" if method_type == "sbp"
                 else "Сохранённый способ оплаты"
             )
-            save_recurring_method(int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title)
+            save_recurring_method(
+                int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title,
+                vpn_key_id=order.get("vpn_key_id"), tariff_id=order.get("tariff_id"),
+                amount_cents=order.get("amount_cents"), period_days=order.get("period_days"),
+            )
         success, message, updated = ASYNC_EXECUTOR.run(
             process_payment_order(order["order_id"]),
             timeout=60,
@@ -2167,7 +2180,11 @@ def api_sbp_payment_status(order_id: str):
                 method_type = str(payment_method.get("type") or "bank_card")
                 card = payment_method.get("card") or {}
                 title = f"Карта •••• {card.get('last4')}" if card.get("last4") else "СБП" if method_type == "sbp" else "Сохранённый способ оплаты"
-                save_recurring_method(int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title)
+                save_recurring_method(
+                    int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title,
+                    vpn_key_id=order.get("vpn_key_id"), tariff_id=order.get("tariff_id"),
+                    amount_cents=order.get("amount_cents"), period_days=order.get("period_days"),
+                )
             success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id), timeout=45)
             applied = bool(success and updated and updated.get("fulfillment_status") == "applied")
             fulfillment_status = (updated or {}).get("fulfillment_status") or fulfillment_status

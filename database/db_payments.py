@@ -128,7 +128,7 @@ def get_reconcilable_yookassa_orders(
             """
             SELECT *
             FROM payments
-            WHERE payment_type = 'yookassa_qr'
+            WHERE payment_type IN ('yookassa_qr', 'yookassa_card', 'yookassa_recurring')
               AND yookassa_payment_id IS NOT NULL
               AND yookassa_payment_id != ''
               AND datetime(COALESCE(paid_at, CURRENT_TIMESTAMP))
