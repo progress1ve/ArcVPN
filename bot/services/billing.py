@@ -46,8 +46,12 @@ YOOKASSA_API_URL = "https://api.yookassa.ru/v3/payments"
 # Рабочий адрес отвечает за доли секунды, а один из A-адресов YooKassa
 # периодически зависает на TLS. Не ждём его 6 секунд: быстро переходим к
 # следующей попытке, сохраняя тот же Idempotence-Key.
-_YK_TIMEOUT = aiohttp.ClientTimeout(total=20, connect=5, sock_connect=5, sock_read=15)
+_YK_TIMEOUT = aiohttp.ClientTimeout(total=18, connect=4, sock_connect=4, sock_read=14)
 _YK_MAX_ATTEMPTS = 4
+# The provider DNS sometimes returns only one address on this host. These are
+# appended as fallbacks; normal DNS answers always remain first and TLS still
+# validates the api.yookassa.ru hostname. Review if YooKassa changes its edges.
+_YK_FALLBACK_IPV4 = ("185.71.78.133", "109.235.165.99")
 
 
 class _YooKassaAddressResolver(aiohttp.abc.AbstractResolver):
@@ -80,6 +84,9 @@ async def _yookassa_ipv4_addresses() -> list[str]:
     addresses: list[str] = []
     for info in infos:
         address = info[4][0]
+        if address not in addresses:
+            addresses.append(address)
+    for address in _YK_FALLBACK_IPV4:
         if address not in addresses:
             addresses.append(address)
     if not addresses:
@@ -128,7 +135,10 @@ async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, s
         except (aiohttp.ClientConnectionError, aiohttp.ClientConnectorError,
                 aiohttp.ServerTimeoutError, TimeoutError, asyncio.TimeoutError) as e:
             last_err = e
-            logger.warning(f"ЮКасса POST попытка {attempt}/{_YK_MAX_ATTEMPTS} — сетевой сбой: {e}")
+            logger.warning(
+                "ЮКасса POST попытка %s/%s через %s — сетевой сбой: %s",
+                attempt, _YK_MAX_ATTEMPTS, address, e,
+            )
             if attempt < _YK_MAX_ATTEMPTS:
                 await asyncio.sleep(0.5 * attempt)
     raise RuntimeError(
@@ -162,7 +172,10 @@ async def _yookassa_get(url: str, headers: Dict[str, str]) -> Dict[str, Any]:
         except (aiohttp.ClientConnectionError, aiohttp.ClientConnectorError,
                 aiohttp.ServerTimeoutError, TimeoutError, asyncio.TimeoutError) as e:
             last_err = e
-            logger.warning(f"ЮКасса GET попытка {attempt}/{_YK_MAX_ATTEMPTS} — сетевой сбой: {e}")
+            logger.warning(
+                "ЮКасса GET попытка %s/%s через %s — сетевой сбой: %s",
+                attempt, _YK_MAX_ATTEMPTS, address, e,
+            )
             if attempt < _YK_MAX_ATTEMPTS:
                 await asyncio.sleep(0.5 * attempt)
     raise RuntimeError(
