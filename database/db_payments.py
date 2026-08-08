@@ -29,6 +29,7 @@ __all__ = [
     'update_payment_type',
     'update_payment_key_id',
     'update_payment_yookassa_id',
+    'set_order_auto_renew',
     'update_order_fulfillment',
     'prepare_payment_order',
     'is_order_already_paid',
