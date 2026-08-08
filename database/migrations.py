@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 44
+LATEST_VERSION = 45
 
 
 def get_current_version() -> int:
@@ -1937,6 +1937,18 @@ def migration_44(conn: sqlite3.Connection) -> None:
     logger.info("Migration v44 applied")
 
 
+def migration_45(conn: sqlite3.Connection) -> None:
+    """Provider-quality probes for objective node and hosting comparisons."""
+    logger.info("Applying migration v45 (network quality probes)...")
+    for name, ddl in (
+        ("packet_loss_pct", "REAL"), ("jitter_ms", "REAL"),
+        ("dns_ms", "REAL"), ("https_ms", "REAL"),
+        ("download_mbps", "REAL"), ("probed_at", "INTEGER"),
+    ):
+        _add_column(conn, "server_health_samples", f"{name} {ddl}")
+    logger.info("Migration v45 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1982,6 +1994,7 @@ MIGRATIONS = {
     42: migration_42,
     43: migration_43,
     44: migration_44,
+    45: migration_45,
 }
 
 

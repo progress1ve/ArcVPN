@@ -2557,14 +2557,18 @@ def api_internal_node_metrics():
             INSERT INTO server_health_samples(
               server_id,host,state,cpu_pct,mem_pct,xray_state,telemetry_available,
               source,load_1m,disk_used_pct,net_rx_bps,net_tx_bps,tcp_established,
-              uptime_seconds,xui_active,hysteria_active,boot_id,cpu_steal_pct
-            ) VALUES (?,?,?,?,?,?,1,'agent',?,?,?,?,?,?,?,?,?,?)
+              uptime_seconds,xui_active,hysteria_active,boot_id,cpu_steal_pct,
+              packet_loss_pct,jitter_ms,dns_ms,https_ms,download_mbps,probed_at
+            ) VALUES (?,?,?,?,?,?,1,'agent',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             server_id, host, state, number("cpu_pct", 0, 100), number("mem_pct", 0, 100), xray_state,
             number("load_1m"), number("disk_used_pct", 0, 100), number("net_rx_bps"), number("net_tx_bps"),
             int(number("tcp_established", 0, 10_000_000) or 0),
             int(number("uptime_seconds", 0) or 0), int(xui_active), int(bool(payload.get("hysteria_active"))),
             _clean_text(payload.get("boot_id"), 64), number("cpu_steal_pct", 0, 100),
+            number("packet_loss_pct", 0, 100), number("jitter_ms", 0, 60_000),
+            number("dns_ms", 0, 60_000), number("https_ms", 0, 60_000),
+            number("download_mbps", 0, 100_000), int(number("probed_at", 0) or 0),
         ))
         if server_id is not None:
             conn.execute("UPDATE servers SET lifecycle_state=? WHERE id=?", (state, server_id))
@@ -2756,6 +2760,12 @@ def api_admin_overview():
                 "xui_active": bool(agent.get("xui_active")),
                 "hysteria_active": bool(agent.get("hysteria_active")),
                 "boot_id": agent.get("boot_id"),
+                "packet_loss_pct": agent.get("packet_loss_pct"),
+                "jitter_ms": agent.get("jitter_ms"),
+                "dns_ms": agent.get("dns_ms"),
+                "https_ms": agent.get("https_ms"),
+                "download_mbps": agent.get("download_mbps"),
+                "probed_at": agent.get("probed_at"),
             })
     except sqlite3.Error:
         logger.exception("Admin latest node-agent metrics failed")
@@ -2800,6 +2810,11 @@ def api_admin_overview():
                        ROUND(AVG(cpu_pct),1) avg_cpu_pct,
                        ROUND(MAX(cpu_pct),1) max_cpu_pct,
                        ROUND(AVG(mem_pct),1) avg_mem_pct,
+                       ROUND(AVG(packet_loss_pct),2) avg_packet_loss_pct,
+                       ROUND(AVG(jitter_ms),1) avg_jitter_ms,
+                       ROUND(AVG(dns_ms),1) avg_dns_ms,
+                       ROUND(AVG(https_ms),1) avg_https_ms,
+                       ROUND(AVG(download_mbps),1) avg_download_mbps,
                        SUM(CASE WHEN state='healthy' THEN 1 ELSE 0 END) healthy_samples
                 FROM server_health_samples
                 WHERE sampled_at >= datetime('now','-24 hours')
