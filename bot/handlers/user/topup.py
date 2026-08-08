@@ -294,7 +294,7 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
     await state.update_data(is_topup=True, topup_amount_cents=amount_cents)
     
     # Показываем сообщение о создании QR
-    await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
+    await safe_edit_or_send(callback.message, '⏳ Создаём оплату...')
     
     try:
         # Создаем QR-платеж
@@ -367,7 +367,7 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
         logger.error(f"Ошибка создания QR-платежа: {e}")
         await safe_edit_or_send(
             callback.message,
-            '❌ <b>Ошибка создания QR</b>\n\nПопробуйте другой способ оплаты.',
+            '❌ <b>Не удалось создать оплату</b>\n\nПопробуйте ещё раз.',
             force_new=True
         )
         await callback.answer("❌ Ошибка создания платежа", show_alert=True)

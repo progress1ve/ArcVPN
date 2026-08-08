@@ -15,6 +15,7 @@ import aiohttp
 import qrcode
 import io
 import math
+import socket
 from typing import Optional, Dict, Any, Tuple
 
 import config
@@ -45,8 +46,54 @@ YOOKASSA_API_URL = "https://api.yookassa.ru/v3/payments"
 # Рабочий адрес отвечает за доли секунды, а один из A-адресов YooKassa
 # периодически зависает на TLS. Не ждём его 6 секунд: быстро переходим к
 # следующей попытке, сохраняя тот же Idempotence-Key.
-_YK_TIMEOUT = aiohttp.ClientTimeout(total=18, connect=2.5, sock_connect=2.5, sock_read=15)
+_YK_TIMEOUT = aiohttp.ClientTimeout(total=20, connect=5, sock_connect=5, sock_read=15)
 _YK_MAX_ATTEMPTS = 4
+
+
+class _YooKassaAddressResolver(aiohttp.abc.AbstractResolver):
+    """Pin one YooKassa IPv4 route for a single retry attempt."""
+
+    def __init__(self, address: str):
+        self.address = address
+
+    async def resolve(self, host: str, port: int = 0, family: int = socket.AF_INET):
+        return [{
+            "hostname": host,
+            "host": self.address,
+            "port": port,
+            "family": socket.AF_INET,
+            "proto": socket.IPPROTO_TCP,
+            "flags": 0,
+        }]
+
+    async def close(self) -> None:
+        return None
+
+
+async def _yookassa_ipv4_addresses() -> list[str]:
+    loop = asyncio.get_running_loop()
+    infos = await loop.getaddrinfo(
+        "api.yookassa.ru", 443,
+        family=socket.AF_INET,
+        type=socket.SOCK_STREAM,
+    )
+    addresses: list[str] = []
+    for info in infos:
+        address = info[4][0]
+        if address not in addresses:
+            addresses.append(address)
+    if not addresses:
+        raise OSError("YooKassa IPv4 address was not resolved")
+    return addresses
+
+
+def _yookassa_session(address: str) -> aiohttp.ClientSession:
+    connector = aiohttp.TCPConnector(
+        resolver=_YooKassaAddressResolver(address),
+        family=socket.AF_INET,
+        use_dns_cache=False,
+    )
+    return aiohttp.ClientSession(timeout=_YK_TIMEOUT, connector=connector)
 
 
 async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
@@ -58,9 +105,11 @@ async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, s
     HTTP-ответы (в т.ч. 4xx/5xx) считаются успешным ответом сети и не ретраятся.
     """
     last_err: Optional[Exception] = None
+    addresses = await _yookassa_ipv4_addresses()
     for attempt in range(1, _YK_MAX_ATTEMPTS + 1):
+        address = addresses[(attempt - 1) % len(addresses)]
         try:
-            async with aiohttp.ClientSession(timeout=_YK_TIMEOUT) as session:
+            async with _yookassa_session(address) as session:
                 async with session.post(url, json=payload, headers=headers) as response:
                     data = await response.json()
                     if response.status not in (200, 201):
@@ -82,9 +131,11 @@ async def _yookassa_post(url: str, payload: Dict[str, Any], headers: Dict[str, s
 async def _yookassa_get(url: str, headers: Dict[str, str]) -> Dict[str, Any]:
     """GET к API ЮКассы с таймаутом и ретраями на сетевых сбоях."""
     last_err: Optional[Exception] = None
+    addresses = await _yookassa_ipv4_addresses()
     for attempt in range(1, _YK_MAX_ATTEMPTS + 1):
+        address = addresses[(attempt - 1) % len(addresses)]
         try:
-            async with aiohttp.ClientSession(timeout=_YK_TIMEOUT) as session:
+            async with _yookassa_session(address) as session:
                 async with session.get(url, headers=headers) as response:
                     data = await response.json()
                     if response.status != 200:

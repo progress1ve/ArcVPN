@@ -529,7 +529,7 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
     if existing_order_id:
         logger.info(f"Используем существующий заказ {order_id} с промокодом")
     
-    await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
+    await safe_edit_or_send(callback.message, '⏳ Создаём оплату...')
     
     try:
         bot_info = await callback.bot.get_me()
@@ -587,7 +587,7 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
         logger.exception(f'Ошибка создания QR ЮКасса: {e}')
         await safe_edit_or_send(
             callback.message,
-            f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.',
+            f'❌ <b>Не удалось создать оплату</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте ещё раз.',
             reply_markup=home_only_kb()
         )
     

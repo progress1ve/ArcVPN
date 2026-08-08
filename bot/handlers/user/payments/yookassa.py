@@ -397,10 +397,10 @@ async def pay_qr_handler(callback: CallbackQuery):
             save_yookassa_payment_id(order_id, payment_id)
             
             text = (
-                f"📱 <b>QR-оплата (Карта/СБП)</b>\n\n"
+                f"💳 <b>Оплата через СБП</b>\n\n"
                 f"📦 Тариф: <b>{escape_html(tariff['name'])}</b>\n"
                 f"💵 Сумма: <b>{price_rub} ₽</b>\n\n"
-                f"Отсканируйте QR-код камерой телефона или нажмите кнопку «Оплатить».\n\n"
+                f"Нажмите кнопку «Оплатить» или отсканируйте код банковским приложением.\n\n"
                 f"После оплаты нажмите «Я оплатил»."
             )
             if discount_rub > 0:
@@ -427,7 +427,7 @@ async def pay_qr_handler(callback: CallbackQuery):
             
         except Exception as e:
             logger.exception(f'Ошибка создания QR ЮКасса: {e}')
-            await callback.answer(f'❌ Ошибка создания платежа: {e}', show_alert=True)
+            await callback.answer(f'❌ Не удалось создать оплату: {e}', show_alert=True)
 
     else:
         # Совместимость со старыми сообщениями: сразу открываем новый выбор тарифа.
@@ -471,7 +471,7 @@ async def qr_pay_create(callback: CallbackQuery):
     discount_rub = prepared_order.get('discount_rub', 0) or 0
     if discount_rub > 0:
         price_rub = max(0, price_rub - discount_rub)
-    await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
+    await safe_edit_or_send(callback.message, '⏳ Создаём оплату...')
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.username
@@ -489,7 +489,7 @@ async def qr_pay_create(callback: CallbackQuery):
         if not qr_image_data or not qr_url:
             await safe_edit_or_send(callback.message, '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.', reply_markup=home_only_kb())
             return
-        text = f"📱 <b>QR-код для оплаты</b>\n\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {int(price_rub)} ₽\n⏳ <b>Срок:</b> {tariff['duration_days']} дней\n\nОтсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        text = f"💳 <b>Оплата через СБП</b>\n\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {int(price_rub)} ₽\n⏳ <b>Срок:</b> {tariff['duration_days']} дней\n\nОткройте оплату по кнопке ниже или отсканируйте код банковским приложением.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
         if discount_rub > 0:
             text = text.replace(
                 f"💰 <b>Сумма:</b> {int(price_rub)} ₽",
@@ -510,7 +510,7 @@ async def qr_pay_create(callback: CallbackQuery):
         )
     except Exception as e:
         logger.exception(f'Ошибка создания QR ЮКасса: {e}')
-        await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте другой способ оплаты.', reply_markup=home_only_kb())
+        await safe_edit_or_send(callback.message, f'❌ <b>Не удалось создать оплату</b>\n\n<i>{escape_html(str(e))}</i>\n\nПопробуйте ещё раз.', reply_markup=home_only_kb())
     await callback.answer()
 
 @router.callback_query(F.data.startswith('check_yookassa_qr:'))
@@ -636,7 +636,7 @@ async def renew_qr_create(callback: CallbackQuery):
     discount_rub = prepared_order.get('discount_rub', 0) or 0
     if discount_rub > 0:
         price_rub = max(0, price_rub - discount_rub)
-    await safe_edit_or_send(callback.message, '⏳ Создаём QR-код для оплаты...')
+    await safe_edit_or_send(callback.message, '⏳ Создаём оплату...')
     try:
         bot_info = await callback.bot.get_me()
         bot_name = bot_info.username
@@ -654,7 +654,7 @@ async def renew_qr_create(callback: CallbackQuery):
         if not qr_image_data or not qr_url:
             await safe_edit_or_send(callback.message, '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.', reply_markup=home_only_kb())
             return
-        text = f"📱 <b>QR-код для оплаты</b>\n\n🔑 <b>Ключ:</b> {escape_html(key['display_name'])}\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {int(price_rub)} ₽\n⏳ <b>Продление:</b> +{tariff['duration_days']} дней\n\nОтсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
+        text = f"💳 <b>Оплата через СБП</b>\n\n🔑 <b>Ключ:</b> {escape_html(key['display_name'])}\n💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n💰 <b>Сумма:</b> {int(price_rub)} ₽\n⏳ <b>Продление:</b> +{tariff['duration_days']} дней\n\nОткройте оплату по кнопке ниже или отсканируйте код банковским приложением.\n\n<i>После оплаты нажмите «✅ Я оплатил».</i>"
         if discount_rub > 0:
             text = text.replace(
                 f"💰 <b>Сумма:</b> {int(price_rub)} ₽",
@@ -675,5 +675,5 @@ async def renew_qr_create(callback: CallbackQuery):
         )
     except Exception as e:
         logger.exception(f'Ошибка QR ЮКасса (продление): {e}')
-        await safe_edit_or_send(callback.message, f'❌ <b>Ошибка создания QR</b>\n\n<i>{escape_html(str(e))}</i>', reply_markup=home_only_kb())
+        await safe_edit_or_send(callback.message, f'❌ <b>Не удалось создать оплату</b>\n\n<i>{escape_html(str(e))}</i>', reply_markup=home_only_kb())
     await callback.answer()
