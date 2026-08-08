@@ -112,7 +112,10 @@ def _network_probe():
     try:
         started = time.monotonic()
         size = 0
-        with urllib.request.urlopen(PROBE_DOWNLOAD_URL, timeout=20) as response:
+        download_request = urllib.request.Request(
+            PROBE_DOWNLOAD_URL, headers={"User-Agent": "ArcVPN-Monitor/1.0"}
+        )
+        with urllib.request.urlopen(download_request, timeout=20) as response:
             while True:
                 chunk = response.read(64 * 1024)
                 if not chunk:

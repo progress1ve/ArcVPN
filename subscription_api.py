@@ -2555,13 +2555,14 @@ def api_internal_node_metrics():
         server_id = int(server["id"]) if server else None
         conn.execute("""
             INSERT INTO server_health_samples(
-              server_id,host,state,cpu_pct,mem_pct,xray_state,telemetry_available,
+              server_id,host,state,cpu_pct,mem_pct,xray_state,telemetry_available,latency_ms,
               source,load_1m,disk_used_pct,net_rx_bps,net_tx_bps,tcp_established,
               uptime_seconds,xui_active,hysteria_active,boot_id,cpu_steal_pct,
               packet_loss_pct,jitter_ms,dns_ms,https_ms,download_mbps,probed_at
-            ) VALUES (?,?,?,?,?,?,1,'agent',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,1,?,'agent',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             server_id, host, state, number("cpu_pct", 0, 100), number("mem_pct", 0, 100), xray_state,
+            number("latency_ms", 0, 60_000),
             number("load_1m"), number("disk_used_pct", 0, 100), number("net_rx_bps"), number("net_tx_bps"),
             int(number("tcp_established", 0, 10_000_000) or 0),
             int(number("uptime_seconds", 0) or 0), int(xui_active), int(bool(payload.get("hysteria_active"))),
@@ -2748,6 +2749,7 @@ def api_admin_overview():
             server.update({
                 "agent_online": True,
                 "agent_last_seen": agent.get("sampled_at"),
+                "latency_ms": agent.get("latency_ms"),
                 "cpu_pct": agent.get("cpu_pct"),
                 "cpu_steal_pct": agent.get("cpu_steal_pct"),
                 "mem_pct": agent.get("mem_pct"),
