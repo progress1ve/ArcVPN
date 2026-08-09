@@ -1090,3 +1090,32 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Master URL нельзя блокировать WebApp-only сценарием: пользователь без работающего VPN может не открыть Telegram/WebApp. При прямом импорте master URL сервер создаёт детерминированный управляемый слот `Устройство Happ` и отдаёт рабочий профиль `ArcVPN`. Слот учитывается в общем лимите; после его освобождения повторный прямой импорт реактивирует слот. Модель телефона при вставке subscription URL неизвестна: Happ не передаёт модель, ОС и устойчивый device ID.
 - Для `platform=unknown` WebApp использует отдельную белую векторную иконку Happ, а не fallback Apple/Windows. Инфо-текст подписки сохраняет подсказку обновления и работу РФ-сервисов, а вместо расшифровки ⚡/⭐ показывает реферальную механику: +5 дней за вход друга и +15 дней каждому после продления другом.
 - Миграция v38 добавляет `vpn_keys.panel_disabled_at`: отключение истёкшего клиента на панели идемпотентно выполняется один раз. Уже отсутствующий на панели клиент считается достигшим требуемого состояния и больше не обходится каждую минуту.
+
+# Remnawave staging installation (2026-08-09)
+
+- The Remnawave control panel is installed on the existing Finland VPS at
+  `https://remna.arccnet.space` (`195.226.92.37`). This is a temporary staging
+  placement forced by the available infrastructure; it is not the recommended
+  long-term control-plane host.
+- Docker services `remnawave`, `remnawave-db`, and `remnawave-redis` are healthy.
+  A persistent 4 GiB swapfile and conservative container limits were added.
+  Existing `x-ui`, `nginx`, and `arcvpn-hysteria` services stayed active.
+- TLS is issued by Let's Encrypt and renews automatically. Host nginx proxies
+  only `remna.arccnet.space` to `127.0.0.1:3000`; metrics port 3001 is private.
+- Remnawave administrator credentials are stored only on the Finland server at
+  `/root/remnawave-admin-credentials` with mode `0600`. Do not commit them.
+- The `ArcVPN Staging Adapter` API token is stored only on the Germany server at
+  `/root/ArcVPN/.env.remnawave-staging` with mode `0600`. Production XUI remains
+  authoritative and no real ArcVPN user is written to Remnawave.
+- The wCloud France test node is registered as `wCloud France Staging`, address
+  `fr2.sfxu.ru`, control port `20139`, with TCP Reality `20140` and Hysteria2
+  `20141`. The panel is reachable through the ArcVPN adapter, but the node will
+  remain offline until its generated `SECRET_KEY` is pasted into wCloud.
+- The generated wCloud `SECRET_KEY` was copied to the operator clipboard on
+  2026-08-09. Never put it in Git or chat logs. Rotate the provided Reality
+  private key before any production rollout.
+- Staging readiness result before connecting the node:
+  `{"ready": true, "panel": true, "node_online": false}`.
+- Finland still shows high CPU steal and is unsuitable as the permanent panel
+  location. Before production migration, move the control plane to a separate
+  4 vCPU / 4 GiB VPS (minimum 2 vCPU / 2 GiB) and restore it from backup.

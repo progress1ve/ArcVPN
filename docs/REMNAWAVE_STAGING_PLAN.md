@@ -1,5 +1,26 @@
 # ArcVPN: безопасный staging Remnawave
 
+## Фактическое состояние стенда на 2026-08-09
+
+- [x] Панель установлена на временном control-plane `195.226.92.37` и доступна
+  по `https://remna.arccnet.space` с Let's Encrypt и автоматическим продлением.
+- [x] PostgreSQL, Redis и Remnawave Backend 3.2.1 healthy; API отвечает через
+  HTTPS. Метрики не опубликованы наружу.
+- [x] Созданы отдельный администратор и API-токен `ArcVPN Staging Adapter`.
+  Секреты хранятся только на серверах в файлах `0600`, не в Git.
+- [x] Создан профиль wCloud с TCP Reality `20140` и Hysteria2 `20141`.
+- [x] Создана нода `wCloud France Staging`, `fr2.sfxu.ru:20139`, профиль
+  привязан к обоим inbound.
+- [x] ArcVPN staging adapter успешно читает панель: `ready=true`,
+  `panel=true`; production XUI и реальные пользователи не затронуты.
+- [ ] Вставить сгенерированный `SECRET_KEY` в wCloud Console. До этого
+  `node_online=false` и `ECONNREFUSED` являются ожидаемым состоянием.
+- [ ] После подключения ноды создать staging host/internal squad, выполнить
+  synthetic lifecycle, клиентские тесты и начать 72-часовой мониторинг.
+- [ ] Перед production заменить тестовый Reality private key и перенести
+  control-plane с перегруженной Финляндии на отдельный VPS 4 vCPU / 4 GiB.
+
+
 ## Статус подготовки на 2026-08-09
 
 - [x] единая фабрика панелей: существующие записи без `panel_type` остаются на XUI;
