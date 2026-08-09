@@ -30,7 +30,9 @@ def get_all_servers() -> List[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve,
-                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state
+                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state,
+                   panel_type, panel_api_url, panel_api_token, panel_node_uuid, panel_squad_uuid, panel_shadow_enabled,
+                   panel_write_mode
             FROM servers
             ORDER BY id
         """)
@@ -49,7 +51,9 @@ def get_server_by_id(server_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve,
-                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state
+                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state,
+                   panel_type, panel_api_url, panel_api_token, panel_node_uuid, panel_squad_uuid, panel_shadow_enabled,
+                   panel_write_mode
             FROM servers
             WHERE id = ?
         """, (server_id,))
@@ -72,7 +76,9 @@ def get_active_servers() -> List[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve,
-                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state
+                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state,
+                   panel_type, panel_api_url, panel_api_token, panel_node_uuid, panel_squad_uuid, panel_shadow_enabled,
+                   panel_write_mode
             FROM servers
             WHERE is_active = 1 AND is_reserve = 0
             ORDER BY id
@@ -84,7 +90,9 @@ def get_active_servers() -> List[Dict[str, Any]]:
         # Нет нерезервных серверов — отдаём все активные (single-server setup).
         cursor = conn.execute("""
             SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve,
-                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state
+                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state,
+                   panel_type, panel_api_url, panel_api_token, panel_node_uuid, panel_squad_uuid, panel_shadow_enabled,
+                   panel_write_mode
             FROM servers
             WHERE is_active = 1
             ORDER BY id
@@ -101,7 +109,9 @@ def get_reserve_server() -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, host, port, web_base_path, login, password, is_active, protocol, is_reserve,
-                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state
+                   provider, location, monthly_cost_rub, capacity_mbps, lifecycle_state,
+                   panel_type, panel_api_url, panel_api_token, panel_node_uuid, panel_squad_uuid, panel_shadow_enabled,
+                   panel_write_mode
             FROM servers
             WHERE is_active = 1 AND is_reserve = 1
             ORDER BY id
@@ -164,7 +174,9 @@ def update_server(server_id: int, **fields) -> bool:
         True если обновление успешно
     """
     allowed_fields = {'name', 'host', 'port', 'web_base_path', 'login', 'password', 'is_active', 'protocol', 'is_reserve',
-                      'provider', 'location', 'monthly_cost_rub', 'capacity_mbps', 'lifecycle_state'}
+                      'provider', 'location', 'monthly_cost_rub', 'capacity_mbps', 'lifecycle_state',
+                      'panel_type', 'panel_api_url', 'panel_api_token', 'panel_node_uuid', 'panel_squad_uuid',
+                      'panel_shadow_enabled', 'panel_write_mode'}
     fields = {k: v for k, v in fields.items() if k in allowed_fields}
     
     if not fields:

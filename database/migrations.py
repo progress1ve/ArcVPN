@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 45
+LATEST_VERSION = 46
 
 
 def get_current_version() -> int:
@@ -1949,6 +1949,22 @@ def migration_45(conn: sqlite3.Connection) -> None:
     logger.info("Migration v45 applied")
 
 
+def migration_46(conn: sqlite3.Connection) -> None:
+    """Panel-neutral server metadata used by the Remnawave migration layer."""
+    logger.info("Applying migration v46 (panel abstraction and Remnawave staging)...")
+    for column in (
+        "panel_type TEXT NOT NULL DEFAULT 'xui'",
+        "panel_api_url TEXT",
+        "panel_api_token TEXT",
+        "panel_node_uuid TEXT",
+        "panel_squad_uuid TEXT",
+        "panel_shadow_enabled INTEGER NOT NULL DEFAULT 0",
+        "panel_write_mode TEXT NOT NULL DEFAULT 'disabled'",
+    ):
+        _add_column(conn, "servers", column)
+    logger.info("Migration v46 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -1995,6 +2011,7 @@ MIGRATIONS = {
     43: migration_43,
     44: migration_44,
     45: migration_45,
+    46: migration_46,
 }
 
 

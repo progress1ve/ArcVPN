@@ -6,37 +6,44 @@ from typing import Optional, Dict, Any, List
 import asyncio
 
 from .panels.base import VPNAPIError, BaseVPNClient
-from .panels.xui import XUIClient
-from .panels.marzban import MarzbanClient
+from .panels.factory import create_panel_client, panel_cache_key
 
 logger = logging.getLogger(__name__)
 
-_clients: Dict[int, BaseVPNClient] = {}
+_clients: Dict[tuple, BaseVPNClient] = {}
+
+
+def _server_data_from_key(key: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep panel connection metadata intact in all key-management operations."""
+    return {
+        'id': key.get('server_id'), 'name': key.get('server_name'),
+        'host': key.get('host'), 'port': key.get('port'),
+        'protocol': key.get('protocol', 'https'), 'web_base_path': key.get('web_base_path'),
+        'login': key.get('login'), 'password': key.get('password'),
+        'panel_type': key.get('panel_type', 'xui'), 'panel_api_url': key.get('panel_api_url'),
+        'panel_api_token': key.get('panel_api_token'), 'panel_node_uuid': key.get('panel_node_uuid'),
+        'panel_squad_uuid': key.get('panel_squad_uuid'), 'panel_write_mode': key.get('panel_write_mode', 'disabled'),
+    }
 
 def get_client_from_server_data(server: Dict[str, Any]) -> BaseVPNClient:
     """
     Создает или возвращает экземпляр клиента для API панели.
     """
-    server_id = server['id']
-    if server_id in _clients:
-        return _clients[server_id]
-        
-    pass_type = server.get('panel_type', 'xui')
-    if pass_type == 'marzban':
-        client = MarzbanClient(server)
-    else:
-        client = XUIClient(server)
-        
-    _clients[server_id] = client
+    key = panel_cache_key(server)
+    if key in _clients:
+        return _clients[key]
+    client = create_panel_client(server)
+    _clients[key] = client
     return client
 
 def invalidate_client_cache(server_id: int):
     """Инвалидирует сессию клиента."""
-    if server_id in _clients:
-        client = _clients[server_id]
+    keys = [key for key in _clients if key[0] == server_id]
+    for key in keys:
+        client = _clients[key]
         import asyncio
         asyncio.create_task(client.close())
-        del _clients[server_id]
+        del _clients[key]
         logger.debug(f'Кэш клиента {server_id} очищен')
 
 def format_traffic(bytes_count: int) -> str:
@@ -61,7 +68,7 @@ async def close_all_clients():
             logger.error(f"Ошибка при закрытии клиента: {e}")
     _clients.clear()
 
-async def get_client(server_id: int) -> XUIClient:
+async def get_client(server_id: int) -> BaseVPNClient:
     """
     Получает клиент для сервера по ID (из БД).
     
@@ -75,8 +82,6 @@ async def get_client(server_id: int) -> XUIClient:
         ValueError: Если сервер не найден
     """
     from database.requests import get_server_by_id
-    if server_id in _clients:
-        return _clients[server_id]
     server = get_server_by_id(server_id)
     if not server:
         raise ValueError(f'Сервер с ID {server_id} не найден')
@@ -95,7 +100,7 @@ async def test_server_connection(server_data: Dict[str, Any]) -> Dict[str, Any]:
         - message: Сообщение о результате
         - stats: Статистика (если успешно)
     """
-    client = XUIClient(server_data)
+    client = create_panel_client(server_data)
     try:
         await client.login()
         stats = await client.get_stats()
@@ -125,7 +130,7 @@ async def reset_key_traffic_if_active(key_id: int) -> bool:
     key = get_vpn_key_by_id(key_id)
     if not key or not key.get('server_active'):
         return False
-    server_data = {'id': key.get('server_id'), 'name': key.get('server_name'), 'host': key.get('host'), 'port': key.get('port'), 'web_base_path': key.get('web_base_path'), 'login': key.get('login'), 'password': key.get('password')}
+    server_data = _server_data_from_key(key)
     inbound_id = key.get('panel_inbound_id')
     email = key.get('panel_email')
     if not email:
@@ -158,7 +163,7 @@ async def extend_key_on_server(key_id: int, days: int) -> bool:
     key = get_vpn_key_by_id(key_id)
     if not key or not key.get('server_active'):
         return False
-    server_data = {'id': key.get('server_id'), 'name': key.get('server_name'), 'host': key.get('host'), 'port': key.get('port'), 'web_base_path': key.get('web_base_path'), 'login': key.get('login'), 'password': key.get('password')}
+    server_data = _server_data_from_key(key)
     inbound_id = key.get('panel_inbound_id')
     client_uuid = key.get('client_uuid')
     email = key.get('panel_email')
@@ -220,12 +225,7 @@ async def restore_key_traffic_limit(key_id: int) -> bool:
     # Обновляем totalGB на панели
     if key.get('server_active') and key.get('panel_email') and traffic_limit > 0:
         try:
-            server_data = {
-                'id': key.get('server_id'), 'name': key.get('server_name'),
-                'host': key.get('host'), 'port': key.get('port'),
-                'web_base_path': key.get('web_base_path'),
-                'login': key.get('login'), 'password': key.get('password')
-            }
+            server_data = _server_data_from_key(key)
             client = get_client_from_server_data(server_data)
             await client.update_client_limit(
                 inbound_id=key.get('panel_inbound_id'),
@@ -282,15 +282,7 @@ async def disable_key_on_panel(key_id: int) -> bool:
             return False
     
     try:
-        server_data = {
-            'id': key.get('server_id'),
-            'name': key.get('server_name'),
-            'host': key.get('host'),
-            'port': key.get('port'),
-            'web_base_path': key.get('web_base_path'),
-            'login': key.get('login'),
-            'password': key.get('password')
-        }
+        server_data = _server_data_from_key(key)
         client = get_client_from_server_data(server_data)
         
         # Получаем текущие данные клиента с панели
@@ -412,15 +404,7 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
     traffic_limit = key.get('traffic_limit', 0) or 0
     
     try:
-        server_data = {
-            'id': key.get('server_id'),
-            'name': key.get('server_name'),
-            'host': key.get('host'),
-            'port': key.get('port'),
-            'web_base_path': key.get('web_base_path'),
-            'login': key.get('login'),
-            'password': key.get('password')
-        }
+        server_data = _server_data_from_key(key)
         client = get_client_from_server_data(server_data)
         
         # Сброс счётчиков up/down на панели (если требуется)

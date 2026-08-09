@@ -93,7 +93,9 @@ def get_vpn_key_by_id(key_id: int) -> Optional[Dict[str, Any]]:
                 vk.*,
                 t.name as tariff_name, t.duration_days, t.price_cents,
                 s.name as server_name, s.host, s.port, s.web_base_path, 
-                s.login, s.password, s.is_active as server_active,
+                s.login, s.password, s.protocol, s.is_active as server_active,
+                s.panel_type, s.panel_api_url, s.panel_api_token,
+                s.panel_node_uuid, s.panel_squad_uuid, s.panel_write_mode,
                 u.telegram_id, u.username
             FROM vpn_keys vk
             LEFT JOIN tariffs t ON vk.tariff_id = t.id

@@ -1,5 +1,20 @@
 # ArcVPN: безопасный staging Remnawave
 
+## Статус подготовки на 2026-08-09
+
+- [x] единая фабрика панелей: существующие записи без `panel_type` остаются на XUI;
+- [x] миграция БД v46 для URL/token/node/squad и режима записи Remnawave;
+- [x] официальный Bearer API-клиент Remnawave для users, nodes, traffic, expiry и device limit;
+- [x] fail-closed запись: `disabled` по умолчанию, `shadow` только для `arc-staging-*`;
+- [x] автоматическая проверка `scripts/remnawave_staging_check.py`;
+- [x] контрактные тесты фабрики и защитного режима;
+- [ ] получить staging Panel URL, API token, internal squad UUID и RemnaNode UUID;
+- [ ] прогнать синтетический lifecycle и 72-часовой тест ноды;
+- [ ] canary 2–5 добровольцев; production cutover запрещён до прохождения критериев ниже.
+
+Откат до canary — оставить `panel_type=xui`. Во время canary — вернуть выбранным
+записям `panel_type=xui` и очистить кэш клиентов; публичные URL ArcVPN при этом не меняются.
+
 ## Главный контракт миграции
 
 Пользователь не должен повторно импортировать подписку. Публичный адрес
