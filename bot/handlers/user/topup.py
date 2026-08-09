@@ -271,7 +271,6 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
     """Пополнение баланса через QR-код (ЮКасса)"""
     from database.requests import prepare_payment_order, get_user_internal_id
     from bot.services.billing import create_yookassa_qr_payment
-    from aiogram.types import BufferedInputFile
     
     parts = callback.data.split(":")
     amount_cents = int(parts[1])
@@ -311,11 +310,9 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
         from database.requests import update_payment_yookassa_id
         update_payment_yookassa_id(order_id, payment_data['yookassa_payment_id'])
         
-        # Получаем QR-код
-        qr_image_data = payment_data.get('qr_image_data')
         qr_url = payment_data.get('qr_url', '')
         
-        if not qr_image_data or not qr_url:
+        if not qr_url:
             await safe_edit_or_send(
                 callback.message, 
                 '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.',
@@ -325,40 +322,28 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
         
         # Формируем текст
         text = (
-            f"📱 <b>QR-код для пополнения баланса</b>\n\n"
+            f"💳 <b>Пополнение баланса</b>\n\n"
             f"💰 <b>Сумма:</b> {amount_rub:.0f} ₽\n\n"
-            f"Отсканируйте QR-код банковским приложением (СБП) "
-            f"или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n"
-            f"<i>После оплаты нажмите «✅ Я оплатил».</i>"
+            "Нажмите кнопку ниже и подтвердите оплату в приложении банка.\n\n"
+            "<i>Баланс обновится автоматически сразу после оплаты.</i>"
         )
         
         # Создаем клавиатуру
         builder = InlineKeyboardBuilder()
         builder.row(
-            InlineKeyboardButton(text="✅ Я оплатил", callback_data=f"check_topup_qr:{order_id}")
+            InlineKeyboardButton(text=f"💳 Оплатить {amount_rub:.0f} ₽ через СБП", url=qr_url)
         )
         builder.row(
-            InlineKeyboardButton(text="🌐 Открыть в браузере", url=qr_url)
+            InlineKeyboardButton(text="▦ Показать QR-код", callback_data=f"show_yookassa_qr:{order_id}")
         )
         builder.row(
             InlineKeyboardButton(text="❌ Отмена", callback_data="topup_balance")
         )
         
-        # Отправляем QR-код как новое сообщение с фото
-        photo = BufferedInputFile(qr_image_data, filename='qr.png')
-        
-        # Удаляем предыдущее сообщение
-        try:
-            await callback.message.delete()
-        except Exception:
-            pass
-        
-        # Отправляем новое сообщение с QR
-        await callback.message.answer_photo(
-            photo=photo,
-            caption=text,
+        await safe_edit_or_send(
+            callback.message,
+            text,
             reply_markup=builder.as_markup(),
-            parse_mode="HTML"
         )
         
         await callback.answer()

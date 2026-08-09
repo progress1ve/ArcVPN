@@ -457,7 +457,6 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
     from bot.services.billing import create_yookassa_qr_payment
     from bot.keyboards.user import yookassa_qr_kb
     from bot.keyboards.admin import home_only_kb
-    from aiogram.types import BufferedInputFile
     
     data = await state.get_data()
     balance_to_deduct = data.get('balance_to_deduct', 0)
@@ -545,10 +544,9 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
         
         save_yookassa_payment_id(order_id, result['yookassa_payment_id'])
         
-        qr_image_data = result.get('qr_image_data')
         qr_url = result.get('qr_url', '')
         
-        if not qr_image_data or not qr_url:
+        if not qr_url:
             await safe_edit_or_send(
                 callback.message,
                 '❌ ЮКасса не вернула данные для оплаты. Попробуйте позже.',
@@ -557,30 +555,28 @@ async def pay_qr_balance_handler(callback: CallbackQuery, state: FSMContext):
             return
         
         text = (
-            f"📱 <b>QR-код для оплаты</b>\n\n"
-            f"💳 <b>Тариф:</b> {escape_html(tariff['name'])}\n"
-            f"💰 <b>Сумма:</b> {remaining_rub:.2f} ₽\n"
-            f"⏳ <b>Срок:</b> {tariff['duration_days']} дней\n\n"
-            f"Отсканируйте QR-код банковским приложением (СБП) или перейдите по <a href=\"{qr_url}\">ссылке на оплату</a>.\n\n"
-            f"<i>После оплаты нажмите «✅ Я оплатил».</i>"
+            f"💳 <b>Оплата подписки</b>\n\n"
+            f"<b>{escape_html(tariff['name'])}</b> · {remaining_rub:.2f} ₽\n"
+            f"Срок: {tariff['duration_days']} дней\n\n"
+            "Нажмите кнопку ниже и подтвердите оплату в приложении банка.\n\n"
+            "<i>Подписка обновится автоматически сразу после оплаты.</i>"
         )
         
         if discount_rub > 0:
             text = text.replace(
-                f"💰 <b>Сумма:</b> {remaining_rub:.2f} ₽",
+                f"<b>{escape_html(tariff['name'])}</b> · {remaining_rub:.2f} ₽",
                 f"💰 <b>Цена:</b> <s>{tariff['price_rub']:.2f} ₽</s> → {remaining_rub:.2f} ₽\n"
                 f"🎟️ <b>Скидка по промокоду:</b> {discount_rub} ₽"
             )
         
-        photo = BufferedInputFile(qr_image_data, filename='qr.png')
         back_cb = f'key_renew:{key_id}' if key_id else 'buy_key'
         
         await safe_edit_or_send(
             callback.message,
             text,
-            photo=photo,
-            reply_markup=yookassa_qr_kb(order_id, back_callback=back_cb, qr_url=qr_url),
-            force_new=True
+            reply_markup=yookassa_qr_kb(
+                order_id, back_callback=back_cb, qr_url=qr_url, amount_rub=remaining_rub
+            ),
         )
         
     except Exception as e:
