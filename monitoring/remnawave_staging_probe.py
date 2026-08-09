@@ -7,6 +7,7 @@ import json
 import os
 import sqlite3
 import subprocess
+import sys
 import tempfile
 import time
 import urllib.parse
@@ -14,10 +15,12 @@ from pathlib import Path
 
 import aiohttp
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
 from bot.services.panels.remnawave import RemnawaveClient
 
 
-ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = Path(os.getenv("ARCVPN_DB_PATH", ROOT / "database/vpn_bot.db"))
 XRAY_BIN = os.getenv("ARCVPN_XRAY_BIN", "/usr/local/x-ui/bin/xray-linux-amd64")
 CANARY_USERNAME = os.getenv("REMNAWAVE_CANARY_USERNAME", "arc-staging-canary")
