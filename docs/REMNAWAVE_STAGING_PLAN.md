@@ -1,5 +1,17 @@
 # ArcVPN: безопасный staging Remnawave
 
+## Проверка wCloud RemnaNode — 2026-08-09
+
+- [x] RemnaNode `wCloud France Staging` подключена к staging-панели и имеет статус online.
+- [x] Создан изолированный internal squad `ArcVPN Staging`; production-пользователи в него не входят.
+- [x] Созданы и включены staging hosts: `🇫🇷 Франция TCP ⭐` (`VLESS Reality`, TCP 20140) и `🇫🇷 Франция #2 ⚡` (`Hysteria2`, UDP 20141).
+- [x] Synthetic lifecycle через ArcVPN adapter прошёл: create → read → reset traffic → disable.
+- [x] Активная canary-подписка выдаёт ровно два ожидаемых подключения: `vless` и `hysteria2`.
+- [x] Оба подключения проверены настоящим Xray-клиентом: конфигурация валидна, HTTPS-трафик проходит, выходной IP принадлежит французской ноде, Cloudflare POP `CDG`.
+- [ ] Накопить 72 часа сетевой телеметрии и проверить вечерние провалы, packet loss, jitter, CPU steal и скорость медиа.
+- [ ] После успешного отчёта дать canary 2–5 добровольцам. Production XUI до этого не переключать.
+
+
 ## Фактическое состояние стенда на 2026-08-09
 
 - [x] Панель установлена на временном control-plane `195.226.92.37` и доступна

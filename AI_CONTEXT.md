@@ -1013,6 +1013,17 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Business Console получает список support threads, историю сообщений и может отправлять ответ пользователю одновременно в WebApp и Telegram.
 # Точный LTE ×10 и стабильность (2026-08-01)
 
+## Remnawave staging: фактическая проверка wCloud (2026-08-09)
+
+- Staging panel: `https://remna.arccnet.space`; production XUI остаётся источником реальных подписок до завершения 72-часового теста и canary.
+- Нода `wCloud France Staging` (`fr2.sfxu.ru`, control `20139`) подключена и online. Internal squad: `ArcVPN Staging`; в нём только staging-пользователи.
+- Staging hosts: TCP Reality `20140` и Hysteria2 UDP `20141`. Оба включены и выдаются canary-пользователю.
+- Проверен полный synthetic lifecycle через `scripts/remnawave_staging_check.py --write-synthetic`: create/read/reset/disable успешно.
+- Проверена реальная клиентская передача данных через Xray: VLESS Reality и Hysteria2 валидны, HTTPS проходит через французский IP, Cloudflare POP `CDG`.
+- Секреты панели, API token, Reality private key и subscription URL canary хранятся только на серверах в файлах `0600`; в Git их не добавлять.
+- Следующий gate: 72 часа телеметрии → canary 2–5 пользователей → поэтапный cutover. Новый импорт публичной ArcVPN-подписки пользователям не должен требоваться.
+
+
 ## Подготовка перехода XUI → Remnawave (2026-08-09)
 
 - Публичный URL подписки ArcVPN не меняется; существующие клиенты не должны импортировать подписки заново.
