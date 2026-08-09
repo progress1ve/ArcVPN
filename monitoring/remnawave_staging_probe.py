@@ -24,7 +24,7 @@ from bot.services.panels.remnawave import RemnawaveClient
 DB_PATH = Path(os.getenv("ARCVPN_DB_PATH", ROOT / "database/vpn_bot.db"))
 XRAY_BIN = os.getenv("ARCVPN_XRAY_BIN", "/usr/local/x-ui/bin/xray-linux-amd64")
 CANARY_USERNAME = os.getenv("REMNAWAVE_CANARY_USERNAME", "arc-staging-canary")
-DOWNLOAD_URL = os.getenv("REMNAWAVE_PROBE_URL", "https://speed.cloudflare.com/__down?bytes=524288")
+DOWNLOAD_URL = os.getenv("REMNAWAVE_PROBE_URL", "https://speed.cloudflare.com/__down?bytes=2097152")
 
 
 def panel_config():
@@ -76,7 +76,6 @@ def probe_link(link, socks_port):
     }
     path = None
     process = None
-    started = time.monotonic()
     try:
         with tempfile.NamedTemporaryFile("w", delete=False, suffix=".json") as handle:
             json.dump(config, handle)
@@ -90,14 +89,14 @@ def probe_link(link, socks_port):
         time.sleep(1.5)
         curl = subprocess.run([
             "curl", "-fsS", "--max-time", "20", "--socks5-hostname", f"127.0.0.1:{socks_port}",
-            "-o", "/dev/null", "-w", "%{size_download} %{time_total}", DOWNLOAD_URL,
+            "-o", "/dev/null", "-w", "%{size_download} %{time_starttransfer} %{time_total}", DOWNLOAD_URL,
         ], capture_output=True, text=True, timeout=24, check=False)
         if curl.returncode:
             return {"ok": False, "https_ms": None, "download_mbps": None}
-        size, elapsed = (float(value) for value in curl.stdout.split())
+        size, first_byte, elapsed = (float(value) for value in curl.stdout.split())
         return {
             "ok": True,
-            "https_ms": round((time.monotonic() - started) * 1000, 2),
+            "https_ms": round(first_byte * 1000, 2),
             "download_mbps": round(size * 8 / max(0.001, elapsed) / 1_000_000, 2),
         }
     finally:
