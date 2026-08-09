@@ -143,7 +143,7 @@ async def run():
                 int(node.get("usersOnline") or 0), 1, max((item["https_ms"] or 0) for item in probes),
                 None, round(memory_used / memory_total * 100, 2) if memory_total else None,
                 len(node.get("configProfile", {}).get("activeInbounds") or []),
-                "running" if node.get("isConnected") else "down", int(bool(node.get("isConnected"))),
+                "running" if node.get("isConnected") else "down",
                 float((stats.get("loadAvg") or [0])[0]), int(stats.get("uptime") or 0),
                 int(probes[0]["ok"] if probes else False),
                 int(probes[1]["ok"] if len(probes) > 1 else False),
