@@ -1021,6 +1021,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Запись в Remnawave по умолчанию закрыта (`panel_write_mode=disabled`). Режим `shadow` разрешает только синтетические имена `arc-staging-*`; реальные пользователи доступны лишь после явного `production` cutover.
 - Проверка до canary: `scripts/remnawave_staging_check.py`; критерии и откат описаны в `docs/REMNAWAVE_STAGING_PLAN.md`.
 - Production XUI остаётся источником конфигураций до успешного 72-часового теста RemnaNode и canary. Ноду нельзя подключать напрямую к реальным пользователям.
+- Получена тестовая wCloud RemnaNode `freetest` во Франции: `fr2.sfxu.ru`, control port `20139`, TCP Reality `20140`, Hysteria2 `20141`, аренда 3 дня. До ввода Secret Key control/TCP-порты извне закрыты — это ожидаемое неподключённое состояние.
+- Текущий DE production непригоден для Remnawave Panel: 1 vCPU/2 ГБ при официальном минимуме 2 vCPU/2 ГБ и рекомендуемых 4 vCPU/4 ГБ; на нём уже работают XUI/Xray/Hysteria/bot/API/nginx. Panel нужна на отдельном VPS.
+- Полученный профиль wCloud содержит TCP Reality и Hysteria2, но не XHTTP и LTE. Reality private key из переданного тестового JSON не переносить в production — сгенерировать новый.
+- Коэффициент трафика Remnawave задаётся для всей Node, а не отдельного inbound. Для строгого LTE ×10 нужна отдельная LTE Node (или отдельный внешний счётчик); смешивать обычный ×1 и LTE ×10 на одной Node нельзя.
 
 - Единый месячный лимит: 500 GiB. Трафик двух inbound «Обход глушилок» должен списываться строго с коэффициентом ×10.
 - Текущие глобальные clientStats 3x-ui не позволяют отделить LTE от остальных протоколов: один клиент прикреплён ко всем inbound и имеет общий счётчик.
