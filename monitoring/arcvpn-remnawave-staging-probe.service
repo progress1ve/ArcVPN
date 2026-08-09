@@ -1,0 +1,14 @@
+[Unit]
+Description=ArcVPN Remnawave staging end-to-end probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/ArcVPN
+EnvironmentFile=/root/ArcVPN/.env.remnawave-staging
+ExecStart=/root/ArcVPN/venv/bin/python monitoring/remnawave_staging_probe.py
+User=root
+NoNewPrivileges=true
+PrivateTmp=true
+

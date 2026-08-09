@@ -26,15 +26,15 @@ def percentile(values, fraction):
     return round(values[low] + (values[high] - values[low]) * (position - low), 2)
 
 
-def build_report(db_path: Path, hours: int):
+def build_report(db_path: Path, hours: int, source: str = "agent"):
     with sqlite3.connect(db_path) as conn:
         conn.row_factory = sqlite3.Row
         rows = conn.execute(
             f"""SELECT host,sampled_at,{','.join(METRICS)}
                 FROM server_health_samples
-                WHERE source='agent' AND sampled_at >= datetime('now', ?)
+                WHERE source=? AND sampled_at >= datetime('now', ?)
                 ORDER BY sampled_at""",
-            (f"-{hours} hours",),
+            (source, f"-{hours} hours"),
         ).fetchall()
     grouped = {}
     for row in rows:
@@ -69,9 +69,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--db", default="/root/ArcVPN/database/vpn_bot.db")
     parser.add_argument("--hours", type=int, default=72)
+    parser.add_argument("--source", default="agent")
     parser.add_argument("--output")
     args = parser.parse_args()
-    report = build_report(Path(args.db), max(1, args.hours))
+    report = build_report(Path(args.db), max(1, args.hours), args.source)
     rendered = json.dumps(report, ensure_ascii=False, indent=2)
     if args.output:
         Path(args.output).write_text(rendered + "\n", encoding="utf-8")
