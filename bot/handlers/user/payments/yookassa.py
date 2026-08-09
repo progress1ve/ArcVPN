@@ -25,7 +25,6 @@ async def sbp_recurring_confirmation(callback: CallbackQuery):
     """Ask for explicit recurring consent immediately before an SBP payment."""
     from aiogram.types import InlineKeyboardButton
     from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from config import SUBSCRIPTION_URL
 
     parts = callback.data.split(':')
     if len(parts) != 4:
@@ -43,10 +42,6 @@ async def sbp_recurring_confirmation(callback: CallbackQuery):
     builder.row(InlineKeyboardButton(
         text='Отключить и оплатить один раз',
         callback_data=f'sr:0:{key_id}:{tariff_id}:{order_id}',
-    ))
-    builder.row(InlineKeyboardButton(
-        text='📄 Пользовательское соглашение',
-        url=f"{SUBSCRIPTION_URL.rstrip('/')}/legal/user-agreement",
     ))
     builder.row(InlineKeyboardButton(
         text='← Назад',

@@ -334,9 +334,6 @@ async def topup_qr_handler(callback: CallbackQuery, state: FSMContext):
             InlineKeyboardButton(text=f"💳 Оплатить {amount_rub:.0f} ₽ через СБП", url=qr_url)
         )
         builder.row(
-            InlineKeyboardButton(text="▦ Показать QR-код", callback_data=f"show_yookassa_qr:{order_id}")
-        )
-        builder.row(
             InlineKeyboardButton(text="❌ Отмена", callback_data="topup_balance")
         )
         

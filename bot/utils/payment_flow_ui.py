@@ -27,9 +27,6 @@ def _format_payment_context_text(
     title = "⚡ <b>Продление подписки</b>" if is_renew else "💳 <b>Оплата подписки</b>"
     header_lines = [title]
 
-    traffic_gb = tariff.get('traffic_limit_gb', 0) or 0
-    traffic_text = f"{traffic_gb} ГБ" if traffic_gb > 0 else "Безлимит"
-
     if tariff.get('price_rub') and tariff['price_rub'] > 0:
         base_price = float(tariff['price_rub'])
         final_price = max(0, base_price - discount_rub)
@@ -49,7 +46,6 @@ def _format_payment_context_text(
     block_lines = [
         f"📅 Срок: <b>{months} мес.</b>",
         f"💳 К оплате: <b>{price_text}</b>{monthly}",
-        f"📶 Трафик: <b>{traffic_text}</b>",
     ]
 
     if discount_rub > 0 and tariff.get('price_rub'):

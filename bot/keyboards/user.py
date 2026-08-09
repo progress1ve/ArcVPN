@@ -1177,9 +1177,6 @@ def yookassa_qr_kb(
         builder.row(
             InlineKeyboardButton(text=f"💳 Оплатить{amount_label} через СБП", url=qr_url)
         )
-        builder.row(
-            InlineKeyboardButton(text="▦ Показать QR-код", callback_data=f"show_yookassa_qr:{order_id}")
-        )
     builder.row(
         InlineKeyboardButton(text="✕ Отменить", callback_data=back_callback),
     )
