@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, registerImportDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -97,7 +97,6 @@
   const includedLteGb = 20
   const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
   const stableDeviceToken = deviceToken()
-  const deviceMetadataPromise = collectDeviceMetadata()
 
   Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices(), fetchRecurringPayment()]).then(([accountResult, preferenceResult, deviceResult, recurringResult]) => {
     if (accountResult.status === 'fulfilled') account = accountResult.value
@@ -419,20 +418,10 @@
     return String(url || '').match(/\/sub\/([^/?#]+)/)?.[1] || ''
   }
 
-  async function importToHapp() {
+  function importToHapp() {
     if (!subKey?.import_url) return
-    const subId = subscriptionId(subKey.sub_url || subKey.import_url)
-    let deviceImportUrl = subKey.import_url
-    if (subId) {
-      try {
-        const metadata = await deviceMetadataPromise
-        const registration = await registerImportDevice(subId, { ...metadata, platform: selectedDevice })
-        if (registration?.import_url) deviceImportUrl = registration.import_url
-        setTimeout(refreshDevices, 500)
-      } catch (_) { /* Import remains available if telemetry registration is unavailable. */ }
-    }
     haptic('medium')
-    openExternal(deviceImportUrl)
+    openExternal(subKey.import_url)
   }
 
   function savePendingPayment() {
@@ -808,7 +797,7 @@
               <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" on:click|stopPropagation transition:fly={{y:28,duration:220,easing:cubicOut}}>
                 <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
                 <div class="payment-options">
-                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><svg class="pay-symbol" viewBox="0 0 32 32" aria-label="СБП"><path fill="#ee2a7b" d="M5 4l10 6-5 3-5-3z"/><path fill="#f7931e" d="M17 11l10 6-5 3-10-6z"/><path fill="#00a651" d="M5 12l10 6-5 3-5-3z"/><path fill="#00aeef" d="M17 19l10 6-5 3-10-6z"/><path fill="#8dc63f" d="M5 20l10 6-5 3-5-3z"/></svg></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
+                  <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{selectedPaymentMethod==='sbp'?'✓':''}</em></button>
                   <button class:active={selectedPaymentMethod==='card'} on:click={() => { selectedPaymentMethod='card'; autoRenew=true }}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Мир, Visa и Mastercard · можно сохранить</small></span><em>{selectedPaymentMethod==='card'?'✓':''}</em></button>
                   <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i><span class="dollar">$</span></i><span><b>Криптовалютой</b><small>USDT и другие валюты</small></span><em>{selectedPaymentMethod==='crypto'?'✓':''}</em></button>
                 </div>
@@ -2080,5 +2069,5 @@
     .aurora-blob, .flow-preview::before { animation: none; }
     button:active { transform: none; }
   }
-  .pay-symbol{width:28px;height:28px}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}.dollar{color:#fff;font-size:25px;font-weight:800;line-height:1}
+  .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}.dollar{color:#fff;font-size:25px;font-weight:800;line-height:1}
 </style>

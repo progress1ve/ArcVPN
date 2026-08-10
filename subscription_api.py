@@ -1921,8 +1921,10 @@ def _import_url_for(sub_id: Optional[str]) -> Optional[str]:
         return None
     # Pure URL construction only. Registering here used to create a new ghost
     # device on every /api/status refresh, before the user clicked Import.
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
-    return f"happ://add/{subscription_url}"
+    # Telegram WebView does not reliably allow custom happ:// navigation from
+    # an async handler.  Keep the WebApp link HTTPS; the import bridge registers
+    # the device and only then opens the device-scoped Happ subscription.
+    return f"{SUBSCRIPTION_URL.rstrip('/')}/import/{sub_id}"
 
 
 def _public_links() -> Dict[str, str]:
