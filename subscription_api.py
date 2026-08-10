@@ -1899,7 +1899,11 @@ def _device_identity(payload: Dict[str, Any], user_agent: str) -> tuple[str, str
     else:
         platform, fallback = "unknown", "Новое устройство"
 
-    display_name = model if model and model.lower() not in {"unknown", "not available"} else fallback
+    # Chromium's reduced Android UA/Client Hints often reports the placeholder
+    # model "K". Prefer a truthful platform label over a random one-letter name.
+    if len(model.strip()) < 2 or model.lower() in {"unknown", "not available", "generic"}:
+        model = ""
+    display_name = model or fallback
     return platform, model, display_name, browser
 
 
