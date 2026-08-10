@@ -1130,3 +1130,27 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Finland still shows high CPU steal and is unsuitable as the permanent panel
   location. Before production migration, move the control plane to a separate
   4 vCPU / 4 GiB VPS (minimum 2 vCPU / 2 GiB) and restore it from backup.
+
+## Import bridge and node purchasing decision (2026-08-10)
+
+- WebApp import must use the HTTPS `/import/<master_sub_id>` bridge. The bridge
+  registers exactly one device, waits for `/api/device/import/<master_sub_id>`,
+  and opens the returned one-level `/sub/<device_sub_id>?format=plain` Happ URL.
+  Never replace the master subscription path with the browser device token and
+  never pre-register the same click inside the Svelte WebApp.
+- Chromium's reduced Android Client Hints can report the fake model `K`.
+  One-character/generic models are normalized to the platform label `Android`.
+- Current paid infrastructure: Germany Play2Go 340 RUB/month and Finland
+  rdp-onedash 365 RUB/month (705 RUB/month total). On the last 24-hour window,
+  Germany showed p10/p50 download 54.28/78.41 Mbps and CPU steal p95 0.09%;
+  Finland showed 20.52/40.06 Mbps and CPU steal p50/p95 23.83/37.35%.
+- wCloud cloud-1 staging is a 200 Mbps tier, not evidence for cloud-2. Its first
+  15 hours produced p10/p50 download about 30.35/49.19 Mbps and HTTPS p95 about
+  792 ms. Do not buy three wCloud nodes from this result or place every node at
+  one provider.
+- Approved purchase gate: first request a 24-72 hour cloud-2 trial; if refused,
+  buy exactly one cloud-2 (200 RUB) as a paid canary. Keep Germany authoritative
+  and keep Finland during the test. Promote only after end-to-end client/video
+  tests and telemetry pass. A safe near-term target is Germany + two cloud-2
+  nodes in distinct locations (740 RUB/month); this costs only +35 RUB/month
+  versus today and retains a second provider for rollback.
