@@ -1200,3 +1200,34 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Target DNS after validation: `sub.arccnet.space`, `panel.arccnet.space`, and
   `remna.arccnet.space` A records all point to `217.60.33.38`. Certificate
   renewal must be checked after the DNS cutover.
+
+## Zero-downtime Remnawave subscription migration (2026-08-11)
+
+- Production is in a deliberate hybrid migration phase. Poland Remnawave is
+  the new identity/control-plane target, while the existing Germany/Finland
+  XUI profiles remain in the public subscription as rollback capacity. This is
+  required until the replacement Germany RemnaNode and the LTE/CDN topology
+  are ready; removing XUI earlier would silently remove working locations.
+- Active ArcVPN users are synchronized into Remnawave every five minutes by
+  `arcvpn-remnawave-user-sync.timer`. The synchronization preserves each
+  existing VLESS UUID, expiry, traffic quota, Telegram ID and device limit, so
+  users do not need to re-import their subscription.
+- The unchanged public `/sub/<id>` response now appends two profiles served by
+  the online wCloud France RemnaNode: `🇫🇷 Франция TCP ⭐` on port `20140` and
+  `🇫🇷 Франция #2 ⚡` (Hysteria2) on port `20141`. Existing Germany, Finland and
+  LTE profiles remain present. A production canary returned HTTP 200 and the
+  expected France profiles after deployment.
+- `sub.arccnet.space` and `panel.arccnet.space` were moved toward Poland
+  `217.60.33.38`. During DNS propagation both the old Germany IP and Poland IP
+  can be returned; Germany deliberately proxies to Poland. After at least 48
+  stable hours, remove the old `2.26.84.210` A records so traffic no longer
+  takes the compatibility hop.
+- `remna.arccnet.space` does not need to be exposed to VPN clients. The old
+  Finland nginx proxy currently forwards it to Poland and is sufficient for
+  the migration. Before retiring Finland, either point that name directly to
+  Poland or replace it with an explicitly private/internal panel endpoint and
+  verify certificate renewal.
+- Full Remnawave authority is complete only after all required replacement
+  nodes and hosts exist, every public profile is generated from Remnawave, and
+  XUI is retained through a measured rollback window. Never call the hybrid
+  phase a completed XUI retirement.
