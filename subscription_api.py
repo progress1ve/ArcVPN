@@ -778,6 +778,7 @@ def _build_plain_text_subscription(
         lines.extend([
             "#subscription-autoconnect: 1",
             "#subscription-autoconnect-type: lowestdelay",
+            "#subscription-ping-onopen-enabled: 1",
         ])
     if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
         lines.append(f"#providerid {HAPP_PROVIDER_ID}")
@@ -1105,6 +1106,7 @@ def _response_from_prepared(
     if HAPP_LOWEST_DELAY_AUTOCONNECT:
         response.headers["subscription-autoconnect"] = "1"
         response.headers["subscription-autoconnect-type"] = "lowestdelay"
+        response.headers["subscription-ping-onopen-enabled"] = "1"
     if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
         response.headers["providerid"] = HAPP_PROVIDER_ID
     if prepared.routing_link:
