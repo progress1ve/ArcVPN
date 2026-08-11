@@ -174,13 +174,17 @@ REMNAWAVE_FRANCE_SHORT_ID = str(getattr(config, "REMNAWAVE_FRANCE_SHORT_ID", "")
 # Remnawave profiles; subscription clients require the derived public keys.
 REMNAWAVE_PUBLIC_NODES = (
     {
-        "country": "DE",
-        "label": "Германия",
-        "host": "de2.sfxu.ru",
-        "tcp_port": 20037,
-        "hy2_port": 20038,
-        "public_key": "QHsirZWXL0LxuZjlBNe2Axhtnr7182Btc7dulwWhi2s",
-        "short_id": "461bba587f620ddd",
+        "enabled": bool(getattr(config, "REMNAWAVE_FRANCE2_ENABLED", False)),
+        "country": "FR",
+        "flag": "🇫🇷",
+        "label": "Франция",
+        "host": "fr2.sfxu.ru",
+        "tcp_port": 20086,
+        "hy2_port": 20087,
+        "public_key": "IRmahen2BbN-2-_exw4TNoeJBGAF0bvVSobxdBQ_Bn0",
+        "short_id": "ba5b0807589028e6",
+        "tcp_number": 1,
+        "hy2_number": 2,
     },
 )
 
@@ -1349,6 +1353,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
         if key.id != -1 and remnawave_uuid:
             credential = urllib.parse.quote(remnawave_uuid, safe="")
             for node in REMNAWAVE_PUBLIC_NODES:
+                if not node.get("enabled", True):
+                    continue
                 tcp_query = urllib.parse.urlencode({
                     "encryption": "none",
                     "flow": "xtls-rprx-vision",
@@ -1359,7 +1365,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     "pbk": node["public_key"],
                     "sid": node["short_id"],
                 })
-                tcp_name = urllib.parse.quote(f"🇩🇪 {node['label']} #1", safe="")
+                tcp_name = urllib.parse.quote(
+                    f"{node['flag']} {node['label']} #{node['tcp_number']}", safe=""
+                )
                 links.append(
                     f"vless://{credential}@{node['host']}:{node['tcp_port']}?"
                     f"{tcp_query}#{tcp_name}"
@@ -1372,7 +1380,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         separators=(",", ":"),
                     ),
                 })
-                hy2_name = urllib.parse.quote(f"🇩🇪 {node['label']} #2", safe="")
+                hy2_name = urllib.parse.quote(
+                    f"{node['flag']} {node['label']} #{node['hy2_number']}", safe=""
+                )
                 links.append(
                     f"hysteria2://{credential}@{node['host']}:{node['hy2_port']}?"
                     f"{hy2_query}#{hy2_name}"
@@ -1401,7 +1411,13 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 "pbk": REMNAWAVE_FRANCE_PUBLIC_KEY,
                 "sid": REMNAWAVE_FRANCE_SHORT_ID,
             })
-            tcp_name = urllib.parse.quote("🇫🇷 Франция #1", safe="")
+            france2_enabled = any(
+                node.get("enabled", True) and node.get("country") == "FR"
+                for node in REMNAWAVE_PUBLIC_NODES
+            )
+            tcp_name = urllib.parse.quote(
+                f"🇫🇷 Франция #{3 if france2_enabled else 1}", safe=""
+            )
             links.append(
                 f"vless://{credential}@{REMNAWAVE_FRANCE_HOST}:"
                 f"{REMNAWAVE_FRANCE_TCP_PORT}?{tcp_query}#{tcp_name}"
@@ -1414,7 +1430,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     separators=(",", ":"),
                 ),
             })
-            hy2_name = urllib.parse.quote("🇫🇷 Франция #2", safe="")
+            hy2_name = urllib.parse.quote(
+                f"🇫🇷 Франция #{4 if france2_enabled else 2}", safe=""
+            )
             links.append(
                 f"hysteria2://{credential}@{REMNAWAVE_FRANCE_HOST}:"
                 f"{REMNAWAVE_FRANCE_HY2_PORT}?{hy2_query}#{hy2_name}"
