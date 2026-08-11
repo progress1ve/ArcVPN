@@ -186,6 +186,40 @@ REMNAWAVE_PUBLIC_NODES = (
         "tcp_number": 1,
         "hy2_number": 2,
     },
+    {
+        "enabled": bool(getattr(config, "REMNAWAVE_FINLAND_ENABLED", False)),
+        "country": "FI",
+        "flag": "🇫🇮",
+        "label": "Финляндия",
+        "host": "fin.arccnet.space",
+        "reality_sni": "www.cloudflare.com",
+        "tcp_port": 22201,
+        "hy2_port": 22202,
+        "xhttp_port": 22203,
+        "xhttp_path": "/arc",
+        "public_key": "q0fq0bbIj61zgT2ybYQKqv5UxA1Y0d6uzc53R2CL-Ds",
+        "short_id": "41fb55d5b8ebefda",
+        "xhttp_number": 1,
+        "tcp_number": 2,
+        "hy2_number": 3,
+    },
+    {
+        "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)),
+        "country": "DE",
+        "flag": "🇩🇪",
+        "label": "Германия",
+        "host": "de.arccnet.space",
+        "reality_sni": "www.microsoft.com",
+        "tcp_port": 22101,
+        "hy2_port": 22102,
+        "xhttp_port": 22103,
+        "xhttp_path": "/arc",
+        "public_key": "n9XYMi3bet3VPNYabKCFB_qgTb2DDB9vPaRGnLmwM3E",
+        "short_id": "9c77d8e5531124d3",
+        "xhttp_number": 1,
+        "tcp_number": 2,
+        "hy2_number": 3,
+    },
 )
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
@@ -1194,6 +1228,11 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
         )
 
     links: list[str] = []
+    migrated_countries = {
+        str(node.get("country") or "").upper()
+        for node in REMNAWAVE_PUBLIC_NODES
+        if node.get("enabled", True)
+    }
     for key in ordered_keys:
         cache_key = _client_config_cache_key(key.server_id, key.panel_email)
         configs = CLIENT_CONFIG_CACHE.get(cache_key)
@@ -1241,6 +1280,16 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 network = str(stream.get("network") or "").lower()
                 protocol = str(config.get("protocol") or "").lower()
 
+                # Stop publishing legacy 3x-ui rows after the corresponding
+                # country has passed its Remnawave canary. The Finnish LTE
+                # origin remains legacy until its isolated x10 migration.
+                is_lte = "Обход глушилок" in display_name
+                if not is_lte and (
+                    ("Финляндия" in display_name and "FI" in migrated_countries)
+                    or ("Германия" in display_name and "DE" in migrated_countries)
+                ):
+                    continue
+
                 # The legacy German host is now only a disaster-recovery TCP
                 # Reality route.  Do not expose its XHTTP/Hysteria duplicates.
                 if "Германия" in display_name:
@@ -1250,7 +1299,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         and str(stream.get("security") or "").lower() == "reality"
                     ):
                         continue
-                    display_name = "🇩🇪 Германия (резерв)"
+                    display_name = "🇩🇪 Германия"
 
                 # Customer-facing names are deliberately protocol-agnostic.
                 elif "Финляндия" in display_name:
@@ -1360,7 +1409,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     "flow": "xtls-rprx-vision",
                     "type": "tcp",
                     "security": "reality",
-                    "sni": node["host"],
+                    "sni": node.get("reality_sni") or node["host"],
                     "fp": "firefox",
                     "pbk": node["public_key"],
                     "sid": node["short_id"],
@@ -1372,6 +1421,27 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     f"vless://{credential}@{node['host']}:{node['tcp_port']}?"
                     f"{tcp_query}#{tcp_name}"
                 )
+
+                if node.get("xhttp_port"):
+                    xhttp_query = urllib.parse.urlencode({
+                        "encryption": "none",
+                        "type": "xhttp",
+                        "path": node.get("xhttp_path") or "/arc",
+                        "mode": "auto",
+                        "security": "reality",
+                        "sni": node.get("reality_sni") or node["host"],
+                        "fp": "firefox",
+                        "pbk": node["public_key"],
+                        "sid": node["short_id"],
+                    })
+                    xhttp_name = urllib.parse.quote(
+                        f"{node['flag']} {node['label']} #{node['xhttp_number']}",
+                        safe="",
+                    )
+                    links.append(
+                        f"vless://{credential}@{node['host']}:{node['xhttp_port']}?"
+                        f"{xhttp_query}#{xhttp_name}"
+                    )
 
                 hy2_query = urllib.parse.urlencode({
                     "sni": node["host"],
@@ -1442,16 +1512,14 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
         number_match = re.search(r"#([1-9][0-9]*)", name)
         protocol_order = int(number_match.group(1)) if number_match else 99
-        if "Германия" in name and "резерв" not in name:
+        if "Франция" in name:
             country_order = 10
-        elif "Франция" in name:
-            country_order = 20
         elif "Финляндия" in name:
+            country_order = 20
+        elif "Германия" in name:
             country_order = 30
         elif "Польша" in name:
             country_order = 40
-        elif "Германия" in name and "резерв" in name:
-            country_order = 50
         elif "Обход глушилок" in name:
             country_order = 60
         else:
