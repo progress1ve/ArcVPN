@@ -35,6 +35,7 @@ from flask import Flask, Response, jsonify, redirect, request, send_from_directo
 
 from bot.services.panels.base import VPNAPIError
 from bot.services.panels.xui import XUIClient
+from bot.services.panels.remnawave import RemnawaveClient
 from bot.utils.key_generator import generate_link
 from bot.utils.telegram_webapp import get_telegram_id
 import config
@@ -203,8 +204,8 @@ def _subscription_inbound_order(name: str) -> int:
 def _subscription_display_name(name: str) -> str:
     """Keep the expensive LTE route explicit in every client UI."""
     value = str(name or "")
-    if "Обход глушилок" in value and "×10" not in value:
-        return value.replace("(LTE)", "(LTE, трафик ×10)")
+    if "Обход глушилок" in value:
+        return "🇷🇺 Обход глушилок (трафик ×10, LTE)"
     return value
 
 
@@ -1217,6 +1218,11 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             # прежний глобальный домен как fallback.
             inbound_cdn_domain = inbound_xhttp_settings.get("host") or CDN_DOMAIN
             if inbound_cdn_domain and config.get("port") in CDN_PORTS:
+                # The German CDN path is retired from the public catalogue.
+                # Keep only the Finnish LTE origin; it remains the tested
+                # fallback while the Remnawave LTE topology is prepared.
+                if inbound_cdn_domain != "cdn-fi.arccnet.space":
+                    continue
                 # Проверка лимита CDN-трафика
                 if _cdn_traffic_exceeded(key.panel_email):
                     logger.info("CDN-трафик превышен для %s — исключаем CDN-ссылку", _mask_email(key.panel_email))
@@ -2671,25 +2677,56 @@ def api_admin_overview():
                  NOT EXISTS(SELECT 1 FROM user_devices d WHERE d.user_id=u.id AND COALESCE(d.is_active,1)=1)
                ) AS awaiting_reimport
         """).fetchone())
-        recent_users = [dict(row) for row in conn.execute("""
+        # Historical YooKassa rows used amount_cents as RUB, while the current
+        # checkout stores kopecks.  Normalize both generations at the read
+        # boundary; never rewrite payment history because fulfilment is keyed
+        # to the original order values.
+        rub_amount_sql = """
+            CASE
+              WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
+                THEN CASE WHEN COALESCE(p.amount_cents,0) >= 10000
+                          THEN p.amount_cents / 100.0 ELSE COALESCE(p.amount_cents,0) END
+              ELSE 0
+            END
+        """
+        recent_users = [dict(row) for row in conn.execute(f"""
             SELECT u.telegram_id, u.username, u.first_name, u.created_at,
                    EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active,
                    COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id), 0) AS online_devices,
                    (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
-                   COALESCE((SELECT SUM(p.amount_cents) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'), 0) AS paid_cents,
+                   COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'), 0) AS paid_rub,
                    (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at
             FROM users u
-            ORDER BY paid_cents DESC, u.created_at DESC LIMIT 200
+            ORDER BY paid_rub DESC, u.created_at DESC LIMIT 200
         """).fetchall()]
-        recent_payments = [dict(row) for row in conn.execute("""
+        recent_payments = [dict(row) for row in conn.execute(f"""
             SELECT p.order_id, p.status, p.amount_cents, p.payment_type, p.paid_at,
                    u.telegram_id, u.username, t.name AS tariff_name, t.price_rub AS tariff_price_rub,
-                   CASE WHEN p.amount_cents < 1000 AND t.price_rub >= 100 THEN 1 ELSE 0 END AS legacy_price
+                   {rub_amount_sql} AS display_amount_rub,
+                   CASE WHEN COALESCE(p.payment_type,'')='crypto' THEN p.amount_cents / 100.0 ELSE 0 END AS display_amount_usd
             FROM payments p JOIN users u ON u.id=p.user_id
             LEFT JOIN tariffs t ON t.id=p.tariff_id
             WHERE COALESCE(p.payment_type,'') != 'trial'
             ORDER BY p.id DESC LIMIT 200
         """).fetchall()]
+        financials = dict(conn.execute(f"""
+            SELECT
+              SUM(CASE WHEN p.status IN ('paid','succeeded') THEN {rub_amount_sql} ELSE 0 END) AS lifetime_rub,
+              SUM(CASE WHEN p.status IN ('paid','succeeded') AND p.paid_at >= datetime('now','-30 days') THEN {rub_amount_sql} ELSE 0 END) AS month_rub,
+              SUM(CASE WHEN p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')='crypto' THEN p.amount_cents / 100.0 ELSE 0 END) AS lifetime_usd,
+              COUNT(DISTINCT CASE WHEN p.status IN ('paid','succeeded') AND (
+                {rub_amount_sql} > 0 OR
+                (COALESCE(p.payment_type,'')='crypto' AND COALESCE(p.amount_cents,0)>0) OR
+                (COALESCE(p.payment_type,'')='stars' AND COALESCE(p.amount_cents,0)>0)
+              ) THEN p.user_id END) AS paying_users,
+              COUNT(CASE WHEN p.status IN ('paid','succeeded') AND (
+                {rub_amount_sql} > 0 OR
+                (COALESCE(p.payment_type,'')='crypto' AND COALESCE(p.amount_cents,0)>0) OR
+                (COALESCE(p.payment_type,'')='stars' AND COALESCE(p.amount_cents,0)>0)
+              ) THEN 1 END) AS successful_orders
+            FROM payments p
+            WHERE COALESCE(p.payment_type,'') != 'trial'
+        """).fetchone())
 
     local_panel = {"healthy": False, "inbounds": 0, "detail": "unavailable"}
     try:
@@ -2917,6 +2954,65 @@ def api_admin_overview():
     except Exception:
         logger.exception("Admin health: database quick_check failed")
 
+    remnawave = {"healthy": False, "users": 0, "nodes": [], "detail": "not configured"}
+    try:
+        remna_env: Dict[str, str] = {}
+        env_path = os.path.join(os.path.dirname(__file__), ".env.remnawave-staging")
+        with open(env_path, "r", encoding="utf-8") as stream:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, value = line.split("=", 1)
+                remna_env[key.strip()] = value.strip()
+
+        async def _remnawave_telemetry():
+            client = RemnawaveClient({
+                "panel_api_url": remna_env.get("REMNAWAVE_PANEL_URL", ""),
+                "panel_api_token": remna_env.get("REMNAWAVE_API_TOKEN", ""),
+            })
+            try:
+                nodes = await client._request("GET", "/api/nodes")
+                users = await client._request("GET", "/api/users", params={"start": 0, "size": 1})
+                return nodes, users
+            finally:
+                await client.close()
+
+        remna_nodes, remna_users = ASYNC_EXECUTOR.run(_remnawave_telemetry(), timeout=12)
+        remnawave = {
+            "healthy": True,
+            "users": int((remna_users or {}).get("total") or 0),
+            "detail": "connected",
+            "nodes": [{
+                "uuid": node.get("uuid"),
+                "name": node.get("name") or node.get("address") or "RemnaNode",
+                "address": node.get("address"),
+                "country_code": node.get("countryCode"),
+                "connected": bool(node.get("isConnected")),
+                "disabled": bool(node.get("isDisabled")),
+                "users_online": int(node.get("usersOnline") or 0),
+                "traffic_used_gb": round(int(node.get("trafficUsedBytes") or 0) / 1024 ** 3, 2),
+                "xray_uptime_seconds": int(node.get("xrayUptime") or 0),
+                "memory_used_pct": round(
+                    int(((node.get("system") or {}).get("stats") or {}).get("memoryUsed") or 0)
+                    / max(1, int(((node.get("system") or {}).get("info") or {}).get("memoryTotal") or 0)) * 100,
+                    1,
+                ),
+                "load_1m": (((node.get("system") or {}).get("stats") or {}).get("loadAvg") or [None])[0],
+                "rx_bps": int(((((node.get("system") or {}).get("stats") or {}).get("interface") or {}).get("rxBytesPerSec")) or 0),
+                "tx_bps": int(((((node.get("system") or {}).get("stats") or {}).get("interface") or {}).get("txBytesPerSec")) or 0),
+                "inbounds": [{
+                    "tag": inbound.get("tag"),
+                    "type": inbound.get("type"),
+                    "network": inbound.get("network"),
+                    "port": inbound.get("port"),
+                } for inbound in ((node.get("configProfile") or {}).get("activeInbounds") or [])],
+            } for node in (remna_nodes or [])],
+        }
+    except Exception as exc:
+        remnawave["detail"] = type(exc).__name__
+        logger.exception("Admin Remnawave telemetry failed")
+
     return _api_no_store(jsonify({
         "ok": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -2948,6 +3044,8 @@ def api_admin_overview():
         "inbounds": inbound_health,
         "recent_users": recent_users,
         "recent_payments": recent_payments,
+        "financials": financials,
+        "remnawave": remnawave,
         "recurring": {
             **get_recurring_summary(),
             "provider_ready": bool(get_setting("yookassa_recurring_enabled", "0") == "1"),
