@@ -66,8 +66,38 @@ async def synchronize(apply: bool, db_path: Path) -> dict:
         "panel_squad_uuid": squad_uuid,
         "panel_write_mode": "production",
     })
-    result = {"apply": apply, "selected": 0, "created": 0, "updated": 0, "verified": 0, "errors": []}
+    result = {
+        "apply": apply,
+        "selected": 0,
+        "created": 0,
+        "updated": 0,
+        "verified": 0,
+        "squad_inbounds_verified": 0,
+        "errors": [],
+    }
     try:
+        # A Remnawave user only reaches inbounds attached to their internal
+        # squad. Keep this declarative so adding/restarting a node can never
+        # silently produce a valid-looking config with zero authorized users.
+        desired_inbounds = [
+            value.strip()
+            for value in os.environ.get("REMNAWAVE_SQUAD_INBOUND_UUIDS", "").split(",")
+            if value.strip()
+        ]
+        if apply and desired_inbounds:
+            await client._request(
+                "PATCH",
+                "/api/internal-squads",
+                json={"uuid": squad_uuid, "inbounds": desired_inbounds},
+            )
+            squad = await client._request("GET", "/api/internal-squads")
+            squads = squad.get("internalSquads", []) if isinstance(squad, dict) else []
+            current = next((item for item in squads if item.get("uuid") == squad_uuid), None)
+            current_ids = {item.get("uuid") for item in (current or {}).get("inbounds", [])}
+            if set(desired_inbounds) - current_ids:
+                raise RuntimeError("Remnawave squad inbound verification failed")
+            result["squad_inbounds_verified"] = len(desired_inbounds)
+
         for key in active_keys(db_path):
             result["selected"] += 1
             username = client._username(key["panel_email"])
