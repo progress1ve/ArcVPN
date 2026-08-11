@@ -1154,3 +1154,21 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   tests and telemetry pass. A safe near-term target is Germany + two cloud-2
   nodes in distinct locations (740 RUB/month); this costs only +35 RUB/month
   versus today and retains a second provider for rollback.
+
+## Payment UI and Remnawave colocation (2026-08-11)
+
+- The subscription purchase screen presents the approved unified 500 GB quota.
+  Do not expose the legacy 20 GB LTE add-on as a purchasable product: LTE usage
+  is already part of the unified quota with the x10 weight. Generic traffic
+  add-ons remain visibly unavailable until their billing and quota application
+  are implemented end to end.
+- Payment selection uses one consistent circular checked-state marker, while
+  promo code and recurring-payment rows retain readable contrast on the dark
+  ArcVPN surface. In Telegram payment keyboards, SBP is the primary/accented
+  method; card and crypto buttons are shown only when their providers are
+  actually configured.
+- Official Remnawave documentation permits installing RemnaNode on the Panel
+  server, but explicitly marks this topology as not recommended. It is suitable
+  only for a low-load bootstrap or emergency node. Production traffic nodes
+  should remain separate so Xray load or a network attack cannot take down the
+  control plane, database, bot, and every subscription operation together.

@@ -228,6 +228,7 @@ def payment_method_kb(
         builder.row(InlineKeyboardButton(
             text="⚡ СБП",
             callback_data=f"sc:0:{tariff_id}:{order_id}",
+            style="primary",
         ))
 
     if cards_enabled:
@@ -783,7 +784,7 @@ def renew_payment_method_kb(
     # Единый порядок с WebApp: СБП → карта → криптовалюта.
     if yookassa_qr_enabled:
         callback_data = (f"sc:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_qr:{key_id}:{tariff_id}") if tariff_id else f"renew_qr_tariff:{key_id}"
-        builder.row(InlineKeyboardButton(text="⚡ СБП", callback_data=callback_data))
+        builder.row(InlineKeyboardButton(text="⚡ СБП", callback_data=callback_data, style="primary"))
 
     if cards_enabled:
         callback_data = (f"renew_pay_cards:{key_id}:{tariff_id}:{order_id}" if order_id else f"renew_pay_cards:{key_id}:{tariff_id}") if tariff_id else f"renew_cards_tariff:{key_id}"
