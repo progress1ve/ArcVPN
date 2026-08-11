@@ -158,6 +158,17 @@ SUBSCRIPTION_INFO_LINES = [
 # Пустой = всегда берём remark из панели (рекомендуется).
 INBOUND_DISPLAY_OVERRIDES = getattr(config, "INBOUND_DISPLAY_OVERRIDES", {})
 
+# Zero-downtime Remnawave migration: the public ArcVPN subscription URL remains
+# stable while profiles managed by Remnawave are appended to the legacy XUI
+# profiles.  All values are public connection parameters; user credentials are
+# always taken from the existing ArcVPN VLESS UUID.
+REMNAWAVE_FRANCE_ENABLED = bool(getattr(config, "REMNAWAVE_FRANCE_ENABLED", False))
+REMNAWAVE_FRANCE_HOST = str(getattr(config, "REMNAWAVE_FRANCE_HOST", "")).strip()
+REMNAWAVE_FRANCE_TCP_PORT = int(getattr(config, "REMNAWAVE_FRANCE_TCP_PORT", 20140))
+REMNAWAVE_FRANCE_HY2_PORT = int(getattr(config, "REMNAWAVE_FRANCE_HY2_PORT", 20141))
+REMNAWAVE_FRANCE_PUBLIC_KEY = str(getattr(config, "REMNAWAVE_FRANCE_PUBLIC_KEY", "")).strip()
+REMNAWAVE_FRANCE_SHORT_ID = str(getattr(config, "REMNAWAVE_FRANCE_SHORT_ID", "")).strip()
+
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
 # известных конфигураций в подписке. Неизвестные конфиги идут после них.
@@ -1266,6 +1277,48 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 link_payload["port"] = PORT_OVERRIDES[_orig_port]
 
             links.append(generate_link(link_payload))
+
+        # France is the first production profile managed by Remnawave.  It is
+        # intentionally appended after the still-live XUI profiles: clients see
+        # two new rows after a normal subscription refresh, while every old row
+        # and UUID keeps working as a rollback path.
+        if (
+            key.id != -1
+            and REMNAWAVE_FRANCE_ENABLED
+            and REMNAWAVE_FRANCE_HOST
+            and REMNAWAVE_FRANCE_PUBLIC_KEY
+            and REMNAWAVE_FRANCE_SHORT_ID
+            and key.client_uuid
+        ):
+            credential = urllib.parse.quote(str(key.client_uuid), safe="")
+            tcp_query = urllib.parse.urlencode({
+                "encryption": "none",
+                "flow": "xtls-rprx-vision",
+                "type": "tcp",
+                "security": "reality",
+                "sni": REMNAWAVE_FRANCE_HOST,
+                "fp": "firefox",
+                "pbk": REMNAWAVE_FRANCE_PUBLIC_KEY,
+                "sid": REMNAWAVE_FRANCE_SHORT_ID,
+            })
+            tcp_name = urllib.parse.quote("🇫🇷 Франция TCP ⭐", safe="")
+            links.append(
+                f"vless://{credential}@{REMNAWAVE_FRANCE_HOST}:"
+                f"{REMNAWAVE_FRANCE_TCP_PORT}?{tcp_query}#{tcp_name}"
+            )
+
+            hy2_query = urllib.parse.urlencode({
+                "sni": REMNAWAVE_FRANCE_HOST,
+                "fm": json.dumps(
+                    {"quicParams": {"debug": False, "congestion": "bbr"}},
+                    separators=(",", ":"),
+                ),
+            })
+            hy2_name = urllib.parse.quote("🇫🇷 Франция #2 ⚡", safe="")
+            links.append(
+                f"hysteria2://{credential}@{REMNAWAVE_FRANCE_HOST}:"
+                f"{REMNAWAVE_FRANCE_HY2_PORT}?{hy2_query}#{hy2_name}"
+            )
 
     # Порядок ссылок = порядок inbound в панели 3x-ui.
     # Чтобы изменить порядок — меняй remark/порядок inbound в панели.

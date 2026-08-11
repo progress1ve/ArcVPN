@@ -1,0 +1,10 @@
+[Unit]
+Description=Synchronize active ArcVPN users to Remnawave
+After=network-online.target arcvpn-subscription.service
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/ArcVPN
+ExecStart=/usr/bin/flock -n /run/arcvpn-remnawave-sync.lock /root/ArcVPN/venv/bin/python /root/ArcVPN/scripts/sync_remnawave_users.py --apply
+
