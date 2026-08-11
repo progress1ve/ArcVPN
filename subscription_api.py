@@ -192,7 +192,7 @@ REMNAWAVE_PUBLIC_NODES = (
         "flag": "🇫🇮",
         "label": "Финляндия",
         "host": "fin.arccnet.space",
-        "reality_sni": "www.microsoft.com",
+        "reality_sni": "fin.arccnet.space",
         "tcp_port": 22201,
         "hy2_port": 22202,
         "xhttp_port": 22203,
@@ -209,7 +209,7 @@ REMNAWAVE_PUBLIC_NODES = (
         "flag": "🇩🇪",
         "label": "Германия",
         "host": "de.arccnet.space",
-        "reality_sni": "www.microsoft.com",
+        "reality_sni": "sub.arccnet.space",
         "tcp_port": 22101,
         "hy2_port": 22102,
         "xhttp_port": 22103,
@@ -1479,6 +1479,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         "scMaxBufferedPosts": 50,
                         "xPaddingObfsMode": True,
                         "xPaddingKey": "dc",
+                        "xPaddingBytes": "100-1000",
                         "xPaddingHeader": "X-Cache",
                         "xPaddingMethod": "tokenish",
                         "xPaddingPlacement": "queryInHeader",
@@ -1491,6 +1492,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     "path": "/api-test",
                     "host": REMNAWAVE_LTE_HOST,
                     "mode": "packet-up",
+                    "x_padding_bytes": "100-1000",
                     "security": "tls",
                     "sni": REMNAWAVE_LTE_HOST,
                     "alpn": "h2,http/1.1",
@@ -1504,10 +1506,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     f"{lte_query}#{lte_name}"
                 )
 
-        # France is the first production profile managed by Remnawave.  It is
-        # intentionally appended after the still-live XUI profiles: clients see
-        # two new rows after a normal subscription refresh, while every old row
-        # and UUID keeps working as a rollback path.
+        # Compatibility block for the first France canary. It stays disabled
+        # after the production France profile has moved into
+        # REMNAWAVE_PUBLIC_NODES, so the old node cannot reappear in catalogs.
         if (
             key.id != -1
             and REMNAWAVE_FRANCE_ENABLED
