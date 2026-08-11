@@ -192,7 +192,7 @@ REMNAWAVE_PUBLIC_NODES = (
         "flag": "🇫🇮",
         "label": "Финляндия",
         "host": "fin.arccnet.space",
-        "reality_sni": "www.cloudflare.com",
+        "reality_sni": "www.microsoft.com",
         "tcp_port": 22201,
         "hy2_port": 22202,
         "xhttp_port": 22203,
@@ -221,6 +221,8 @@ REMNAWAVE_PUBLIC_NODES = (
         "hy2_number": 3,
     },
 )
+REMNAWAVE_LTE_ENABLED = bool(getattr(config, "REMNAWAVE_LTE_ENABLED", False))
+REMNAWAVE_LTE_HOST = "cdn-fi.arccnet.space"
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -393,6 +395,7 @@ class ActiveKeyRecord:
     tariff_name: str
     telegram_id: int
     sub_id: Optional[str] = None
+    client_uuid: Optional[str] = None
 
     @property
     def traffic_exhausted(self) -> bool:
@@ -651,6 +654,7 @@ def _row_to_active_key(row: Any) -> ActiveKeyRecord:
         tariff_name=str(row["tariff_name"] or "Subscription"),
         telegram_id=int(row["telegram_id"]),
         sub_id=row["sub_id"],
+        client_uuid=row["client_uuid"] if "client_uuid" in row.keys() else None,
     )
 
 
@@ -1213,6 +1217,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
     }
     missing_by_server: Dict[int, set[str]] = defaultdict(set)
     for key in ordered_keys:
+        if REMNAWAVE_LTE_ENABLED and key.id != -1 and key.client_uuid:
+            continue
         if not servers_by_id.get(key.server_id):
             continue
         cache_key = _client_config_cache_key(key.server_id, key.panel_email)
@@ -1237,17 +1243,21 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
         cache_key = _client_config_cache_key(key.server_id, key.panel_email)
         configs = CLIENT_CONFIG_CACHE.get(cache_key)
         server = servers_by_id.get(key.server_id)
-        if not configs or not server:
+        remnawave_only = bool(
+            REMNAWAVE_LTE_ENABLED and key.id != -1 and key.client_uuid
+        )
+        if (not configs or not server) and not remnawave_only:
             logger.warning(
                 "Пропущен ключ %s: не удалось получить конфиг для %s",
                 key.id,
                 _mask_email(key.panel_email),
             )
             continue
+        configs = configs or []
 
         # В кэше — список конфигов (по одному на inbound сервера). Генерируем
         # отдельную ссылку на каждый inbound; имя берём из remark inbound.
-        remnawave_uuid = ""
+        remnawave_uuid = str(key.client_uuid or "").strip()
         for config in sorted(
             configs,
             key=lambda item: (
@@ -1284,6 +1294,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 # country has passed its Remnawave canary. The Finnish LTE
                 # origin remains legacy until its isolated x10 migration.
                 is_lte = "Обход глушилок" in display_name
+                if is_lte and REMNAWAVE_LTE_ENABLED:
+                    continue
                 if not is_lte and (
                     ("Финляндия" in display_name and "FI" in migrated_countries)
                     or ("Германия" in display_name and "DE" in migrated_countries)
@@ -1458,6 +1470,40 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     f"{hy2_query}#{hy2_name}"
                 )
 
+            if REMNAWAVE_LTE_ENABLED:
+                lte_extra = json.dumps(
+                    {
+                        "uplinkHTTPMethod": "OPTIONS",
+                        "scMaxEachPostBytes": 5000000,
+                        "scMinPostsIntervalMs": 10,
+                        "scMaxBufferedPosts": 50,
+                        "xPaddingObfsMode": True,
+                        "xPaddingKey": "dc",
+                        "xPaddingHeader": "X-Cache",
+                        "xPaddingMethod": "tokenish",
+                        "xPaddingPlacement": "queryInHeader",
+                    },
+                    separators=(",", ":"),
+                )
+                lte_query = urllib.parse.urlencode({
+                    "type": "xhttp",
+                    "encryption": "none",
+                    "path": "/api-test",
+                    "host": REMNAWAVE_LTE_HOST,
+                    "mode": "packet-up",
+                    "security": "tls",
+                    "sni": REMNAWAVE_LTE_HOST,
+                    "alpn": "h2,http/1.1",
+                    "extra": lte_extra,
+                })
+                lte_name = urllib.parse.quote(
+                    "🇷🇺 Обход глушилок (трафик ×10, LTE)", safe=""
+                )
+                links.append(
+                    f"vless://{credential}@{REMNAWAVE_LTE_HOST}:443?"
+                    f"{lte_query}#{lte_name}"
+                )
+
         # France is the first production profile managed by Remnawave.  It is
         # intentionally appended after the still-live XUI profiles: clients see
         # two new rows after a normal subscription refresh, while every old row
@@ -1568,7 +1614,7 @@ def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT 
-                vk.id, vk.panel_email, vk.server_id, vk.expires_at,
+                vk.id, vk.panel_email, vk.client_uuid, vk.server_id, vk.expires_at,
                 vk.traffic_limit, vk.traffic_used, vk.sub_id,
                 u.telegram_id,
                 COALESCE(vk.custom_name, t.name, 'Subscription') as tariff_name
@@ -1613,6 +1659,7 @@ def _build_reserve_active_key(reserve_info: Dict[str, Any]) -> ActiveKeyRecord:
         tariff_name=RESERVE_DISPLAY_NAME,
         telegram_id=0,
         sub_id=None,
+        client_uuid=None,
     )
 
 
