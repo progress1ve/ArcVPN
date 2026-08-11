@@ -284,7 +284,10 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # Happ only accepts subscription-wide automatic server selection for registered
 # providers.  The public eight-character provider id is configured separately
 # from the code, while the behaviour itself stays enabled by default.
-HAPP_PROVIDER_ID = str(getattr(config, "HAPP_PROVIDER_ID", "")).strip()
+HAPP_PROVIDER_ID = str(
+    os.getenv("HAPP_PROVIDER_ID")
+    or getattr(config, "HAPP_PROVIDER_ID", "O7YLTHgc")
+).strip()
 HAPP_LOWEST_DELAY_AUTOCONNECT = bool(
     getattr(config, "HAPP_LOWEST_DELAY_AUTOCONNECT", True)
 )
