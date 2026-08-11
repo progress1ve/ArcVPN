@@ -170,6 +170,20 @@ REMNAWAVE_FRANCE_HY2_PORT = int(getattr(config, "REMNAWAVE_FRANCE_HY2_PORT", 201
 REMNAWAVE_FRANCE_PUBLIC_KEY = str(getattr(config, "REMNAWAVE_FRANCE_PUBLIC_KEY", "")).strip()
 REMNAWAVE_FRANCE_SHORT_ID = str(getattr(config, "REMNAWAVE_FRANCE_SHORT_ID", "")).strip()
 
+# Public RemnaNode transport metadata. Private Reality keys stay only inside
+# Remnawave profiles; subscription clients require the derived public keys.
+REMNAWAVE_PUBLIC_NODES = (
+    {
+        "country": "DE",
+        "label": "Германия",
+        "host": "de2.sfxu.ru",
+        "tcp_port": 20037,
+        "hy2_port": 20038,
+        "public_key": "QHsirZWXL0LxuZjlBNe2Axhtnr7182Btc7dulwWhi2s",
+        "short_id": "461bba587f620ddd",
+    },
+)
+
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
 # известных конфигураций в подписке. Неизвестные конфиги идут после них.
@@ -1199,6 +1213,31 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     display_name = override
                 else:
                     display_name = config.get("inbound_name") or f"ArcVPN - {key.tariff_name} ({server.name})"
+
+                stream = config.get("stream_settings") or {}
+                network = str(stream.get("network") or "").lower()
+                protocol = str(config.get("protocol") or "").lower()
+
+                # The legacy German host is now only a disaster-recovery TCP
+                # Reality route.  Do not expose its XHTTP/Hysteria duplicates.
+                if "Германия" in display_name:
+                    if not (
+                        protocol == "vless"
+                        and network in {"tcp", "raw"}
+                        and str(stream.get("security") or "").lower() == "reality"
+                    ):
+                        continue
+                    display_name = "🇩🇪 Германия (резерв) · TCP Reality"
+
+                # Make protocol choices explicit instead of exposing the old
+                # panel numbering (#1/#2) to customers.
+                elif "Финляндия" in display_name:
+                    if network == "xhttp":
+                        display_name = "🇫🇮 Финляндия · XHTTP"
+                    elif network in {"tcp", "raw"}:
+                        display_name = "🇫🇮 Финляндия · TCP Reality"
+                    elif protocol in {"hysteria", "hysteria2"} or network == "hysteria":
+                        display_name = "🇫🇮 Финляндия · Hysteria2"
                 display_name = _subscription_display_name(display_name)
             link_payload["server_name"] = display_name
             link_payload["remark"] = display_name
@@ -1287,6 +1326,44 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
             links.append(generate_link(link_payload))
 
+        # Production RemnaNodes share the migrated VLESS UUID, so existing
+        # ArcVPN customers receive new countries on the same subscription URL.
+        if key.id != -1 and remnawave_uuid:
+            credential = urllib.parse.quote(remnawave_uuid, safe="")
+            for node in REMNAWAVE_PUBLIC_NODES:
+                tcp_query = urllib.parse.urlencode({
+                    "encryption": "none",
+                    "flow": "xtls-rprx-vision",
+                    "type": "tcp",
+                    "security": "reality",
+                    "sni": node["host"],
+                    "fp": "firefox",
+                    "pbk": node["public_key"],
+                    "sid": node["short_id"],
+                })
+                tcp_name = urllib.parse.quote(
+                    f"🇩🇪 {node['label']} · TCP Reality", safe=""
+                )
+                links.append(
+                    f"vless://{credential}@{node['host']}:{node['tcp_port']}?"
+                    f"{tcp_query}#{tcp_name}"
+                )
+
+                hy2_query = urllib.parse.urlencode({
+                    "sni": node["host"],
+                    "fm": json.dumps(
+                        {"quicParams": {"debug": False, "congestion": "bbr"}},
+                        separators=(",", ":"),
+                    ),
+                })
+                hy2_name = urllib.parse.quote(
+                    f"🇩🇪 {node['label']} · Hysteria2", safe=""
+                )
+                links.append(
+                    f"hysteria2://{credential}@{node['host']}:{node['hy2_port']}?"
+                    f"{hy2_query}#{hy2_name}"
+                )
+
         # France is the first production profile managed by Remnawave.  It is
         # intentionally appended after the still-live XUI profiles: clients see
         # two new rows after a normal subscription refresh, while every old row
@@ -1310,7 +1387,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 "pbk": REMNAWAVE_FRANCE_PUBLIC_KEY,
                 "sid": REMNAWAVE_FRANCE_SHORT_ID,
             })
-            tcp_name = urllib.parse.quote("🇫🇷 Франция TCP ⭐", safe="")
+            tcp_name = urllib.parse.quote("🇫🇷 Франция · TCP Reality", safe="")
             links.append(
                 f"vless://{credential}@{REMNAWAVE_FRANCE_HOST}:"
                 f"{REMNAWAVE_FRANCE_TCP_PORT}?{tcp_query}#{tcp_name}"
@@ -1323,15 +1400,32 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     separators=(",", ":"),
                 ),
             })
-            hy2_name = urllib.parse.quote("🇫🇷 Франция #2 ⚡", safe="")
+            hy2_name = urllib.parse.quote("🇫🇷 Франция · Hysteria2", safe="")
             links.append(
                 f"hysteria2://{credential}@{REMNAWAVE_FRANCE_HOST}:"
                 f"{REMNAWAVE_FRANCE_HY2_PORT}?{hy2_query}#{hy2_name}"
             )
 
-    # Порядок ссылок = порядок inbound в панели 3x-ui.
-    # Чтобы изменить порядок — меняй remark/порядок inbound в панели.
-    return links
+    def _catalog_order(link: str) -> tuple[int, int, str]:
+        name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
+        protocol_order = 0 if "XHTTP" in name else 1 if "TCP" in name else 2
+        if "Германия" in name and "резерв" not in name:
+            country_order = 10
+        elif "Франция" in name:
+            country_order = 20
+        elif "Финляндия" in name:
+            country_order = 30
+        elif "Польша" in name:
+            country_order = 40
+        elif "Германия" in name and "резерв" in name:
+            country_order = 50
+        elif "Обход глушилок" in name:
+            country_order = 60
+        else:
+            country_order = 45
+        return country_order, protocol_order, name
+
+    return sorted(links, key=_catalog_order)
 
 
 def _cdn_traffic_exceeded(email: str) -> bool:
