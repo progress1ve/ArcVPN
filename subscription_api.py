@@ -1170,6 +1170,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
         # В кэше — список конфигов (по одному на inbound сервера). Генерируем
         # отдельную ссылку на каждый inbound; имя берём из remark inbound.
+        remnawave_uuid = ""
         for config in sorted(
             configs,
             key=lambda item: (
@@ -1177,6 +1178,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 item.get("id", 0),
             ),
         ):
+            if not remnawave_uuid:
+                remnawave_uuid = str(config.get("uuid") or "").strip()
             link_payload = dict(config)
             if key.id == -1:
                 # Резервный (аварийный) ключ — призыв к действию вместо имени inbound.
@@ -1288,9 +1291,9 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             and REMNAWAVE_FRANCE_HOST
             and REMNAWAVE_FRANCE_PUBLIC_KEY
             and REMNAWAVE_FRANCE_SHORT_ID
-            and key.client_uuid
+            and remnawave_uuid
         ):
-            credential = urllib.parse.quote(str(key.client_uuid), safe="")
+            credential = urllib.parse.quote(remnawave_uuid, safe="")
             tcp_query = urllib.parse.urlencode({
                 "encryption": "none",
                 "flow": "xtls-rprx-vision",
