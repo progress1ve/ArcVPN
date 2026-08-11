@@ -1172,3 +1172,31 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   only for a low-load bootstrap or emergency node. Production traffic nodes
   should remain separate so Xray load or a network attack cannot take down the
   control plane, database, bot, and every subscription operation together.
+
+## Poland control-plane migration (2026-08-11)
+
+- The ArcVPN control plane was migrated from Germany/Finland to the dedicated
+  Poland VPS `217.60.33.38` (`Omega-Tiger-6K0CCiSO.expresshost.cloud`). Never
+  commit its SSH credentials; keep them only in the operator's secret storage.
+- Active services on Poland: `arcvpn-bot.service`,
+  `arcvpn-subscription.service`, nginx, and the Remnawave/PostgreSQL/Valkey
+  Docker stack. The authoritative SQLite database was transferred with an
+  integrity-checked final snapshot. Telegram polling and the public Mini App
+  now run from Poland.
+- Public subscription paths and user UUIDs did not change. Production VPN
+  traffic still uses the existing XUI nodes until the separate Remnawave canary
+  migration is approved; moving the control plane must never force users to
+  re-import subscriptions.
+- Germany `2.26.84.210` no longer runs the bot or subscription API. Its nginx
+  remains a rollback proxy for `sub.arccnet.space` and `panel.arccnet.space` so
+  clients with cached DNS continue reaching Poland.
+- The old Remnawave containers on Finland `195.226.92.37` are stopped. Finland
+  nginx remains a rollback proxy for `remna.arccnet.space`. The restored Poland
+  panel reports the wCloud France staging node online.
+- Migration backups are stored with mode `0600` under
+  `/root/migration-backups` on Poland and on the source servers. Keep the old
+  proxy origins for at least 48 hours after DNS changes, then retain them until
+  payment, bot, WebApp, admin, subscription and node telemetry are confirmed.
+- Target DNS after validation: `sub.arccnet.space`, `panel.arccnet.space`, and
+  `remna.arccnet.space` A records all point to `217.60.33.38`. Certificate
+  renewal must be checked after the DNS cutover.
