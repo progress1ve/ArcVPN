@@ -241,6 +241,13 @@ SUBSCRIPTION_RATE_LIMIT_PER_IP = 120
 # VPN-клиенты обновляют подписку раз в час; на сервере можно переопределить
 # PROFILE_UPDATE_INTERVAL_HOURS через config.py без изменения кода.
 PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOURS", 1))
+# Happ only accepts subscription-wide automatic server selection for registered
+# providers.  The public eight-character provider id is configured separately
+# from the code, while the behaviour itself stays enabled by default.
+HAPP_PROVIDER_ID = str(getattr(config, "HAPP_PROVIDER_ID", "")).strip()
+HAPP_LOWEST_DELAY_AUTOCONNECT = bool(
+    getattr(config, "HAPP_LOWEST_DELAY_AUTOCONNECT", True)
+)
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
@@ -722,6 +729,13 @@ def _build_plain_text_subscription(
         f"#support-url: {SUPPORT_URL}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
     ]
+    if HAPP_LOWEST_DELAY_AUTOCONNECT:
+        lines.extend([
+            "#subscription-autoconnect: 1",
+            "#subscription-autoconnect-type: lowestdelay",
+        ])
+    if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
+        lines.append(f"#providerid {HAPP_PROVIDER_ID}")
     # Информационный блок (как у конкурентов — подсказки для пользователей)
     if SUBSCRIPTION_INFO_LINES:
         lines.extend(SUBSCRIPTION_INFO_LINES)
@@ -1043,6 +1057,11 @@ def _response_from_prepared(
     response.headers["support-url"] = SUPPORT_URL
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
     response.headers["Subscription-Userinfo"] = prepared.userinfo_header
+    if HAPP_LOWEST_DELAY_AUTOCONNECT:
+        response.headers["subscription-autoconnect"] = "1"
+        response.headers["subscription-autoconnect-type"] = "lowestdelay"
+    if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
+        response.headers["providerid"] = HAPP_PROVIDER_ID
     if prepared.routing_link:
         response.headers["routing"] = prepared.routing_link
     return response
@@ -1227,17 +1246,16 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         and str(stream.get("security") or "").lower() == "reality"
                     ):
                         continue
-                    display_name = "🇩🇪 Германия (резерв) · TCP Reality"
+                    display_name = "🇩🇪 Германия (резерв)"
 
-                # Make protocol choices explicit instead of exposing the old
-                # panel numbering (#1/#2) to customers.
+                # Customer-facing names are deliberately protocol-agnostic.
                 elif "Финляндия" in display_name:
                     if network == "xhttp":
-                        display_name = "🇫🇮 Финляндия · XHTTP"
+                        display_name = "🇫🇮 Финляндия #1"
                     elif network in {"tcp", "raw"}:
-                        display_name = "🇫🇮 Финляндия · TCP Reality"
+                        display_name = "🇫🇮 Финляндия #2"
                     elif protocol in {"hysteria", "hysteria2"} or network == "hysteria":
-                        display_name = "🇫🇮 Финляндия · Hysteria2"
+                        display_name = "🇫🇮 Финляндия #3"
                 display_name = _subscription_display_name(display_name)
             link_payload["server_name"] = display_name
             link_payload["remark"] = display_name
@@ -1341,9 +1359,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     "pbk": node["public_key"],
                     "sid": node["short_id"],
                 })
-                tcp_name = urllib.parse.quote(
-                    f"🇩🇪 {node['label']} · TCP Reality", safe=""
-                )
+                tcp_name = urllib.parse.quote(f"🇩🇪 {node['label']} #1", safe="")
                 links.append(
                     f"vless://{credential}@{node['host']}:{node['tcp_port']}?"
                     f"{tcp_query}#{tcp_name}"
@@ -1356,9 +1372,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         separators=(",", ":"),
                     ),
                 })
-                hy2_name = urllib.parse.quote(
-                    f"🇩🇪 {node['label']} · Hysteria2", safe=""
-                )
+                hy2_name = urllib.parse.quote(f"🇩🇪 {node['label']} #2", safe="")
                 links.append(
                     f"hysteria2://{credential}@{node['host']}:{node['hy2_port']}?"
                     f"{hy2_query}#{hy2_name}"
@@ -1387,7 +1401,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 "pbk": REMNAWAVE_FRANCE_PUBLIC_KEY,
                 "sid": REMNAWAVE_FRANCE_SHORT_ID,
             })
-            tcp_name = urllib.parse.quote("🇫🇷 Франция · TCP Reality", safe="")
+            tcp_name = urllib.parse.quote("🇫🇷 Франция #1", safe="")
             links.append(
                 f"vless://{credential}@{REMNAWAVE_FRANCE_HOST}:"
                 f"{REMNAWAVE_FRANCE_TCP_PORT}?{tcp_query}#{tcp_name}"
@@ -1400,7 +1414,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     separators=(",", ":"),
                 ),
             })
-            hy2_name = urllib.parse.quote("🇫🇷 Франция · Hysteria2", safe="")
+            hy2_name = urllib.parse.quote("🇫🇷 Франция #2", safe="")
             links.append(
                 f"hysteria2://{credential}@{REMNAWAVE_FRANCE_HOST}:"
                 f"{REMNAWAVE_FRANCE_HY2_PORT}?{hy2_query}#{hy2_name}"
@@ -1408,7 +1422,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
     def _catalog_order(link: str) -> tuple[int, int, str]:
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
-        protocol_order = 0 if "XHTTP" in name else 1 if "TCP" in name else 2
+        number_match = re.search(r"#([1-9][0-9]*)", name)
+        protocol_order = int(number_match.group(1)) if number_match else 99
         if "Германия" in name and "резерв" not in name:
             country_order = 10
         elif "Франция" in name:
