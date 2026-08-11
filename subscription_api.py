@@ -983,6 +983,156 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
     return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
+def _json_outbound_from_share_link(link: str, tag: str) -> Optional[Dict[str, Any]]:
+    """Convert an ArcVPN share link into an Xray outbound for Happ JSON arrays."""
+    parsed = urllib.parse.urlparse(link)
+    params = urllib.parse.parse_qs(parsed.query)
+    host = parsed.hostname or ""
+    port = parsed.port or 443
+    credential = urllib.parse.unquote(parsed.username or "")
+
+    if parsed.scheme == "vless":
+        flow = params.get("flow", [""])[0]
+        network = params.get("type", ["tcp"])[0]
+        security = params.get("security", ["none"])[0]
+        stream: Dict[str, Any] = {"network": network, "security": security}
+        if security == "reality":
+            stream["realitySettings"] = {
+                "fingerprint": params.get("fp", ["firefox"])[0],
+                "publicKey": params.get("pbk", [""])[0],
+                "serverName": params.get("sni", [host])[0],
+                "shortId": params.get("sid", [""])[0],
+            }
+        elif security == "tls":
+            stream["tlsSettings"] = {
+                "alpn": [item for item in params.get("alpn", ["h2,http/1.1"])[0].split(",") if item],
+                "fingerprint": params.get("fp", ["firefox"])[0],
+                "serverName": params.get("sni", [host])[0],
+            }
+        if network == "tcp":
+            stream["tcpSettings"] = {}
+        elif network == "xhttp":
+            xhttp: Dict[str, Any] = {
+                "host": params.get("host", [""])[0],
+                "mode": params.get("mode", ["auto"])[0],
+                "path": params.get("path", ["/"])[0],
+            }
+            extra_raw = params.get("extra", [""])[0]
+            if extra_raw:
+                try:
+                    xhttp["extra"] = json.loads(extra_raw)
+                except (TypeError, ValueError):
+                    pass
+            stream["xhttpSettings"] = xhttp
+        return {
+            "protocol": "vless",
+            "settings": {"vnext": [{
+                "address": host,
+                "port": port,
+                "users": [{"encryption": "none", "flow": flow, "id": credential}],
+            }]},
+            "streamSettings": stream,
+            "tag": tag,
+        }
+
+    if parsed.scheme in {"hysteria2", "hy2"}:
+        return {
+            "protocol": "hysteria",
+            "settings": {"address": host, "port": port, "version": 2},
+            "streamSettings": {
+                "finalmask": {"quicParams": {"congestion": "bbr", "debug": False}},
+                "hysteriaSettings": {"auth": credential, "version": 2},
+                "network": "hysteria",
+                "security": "tls",
+                "tlsSettings": {
+                    "alpn": ["h3"],
+                    "fingerprint": "firefox",
+                    "serverName": params.get("sni", [host])[0],
+                },
+            },
+            "tag": tag,
+        }
+    return None
+
+
+def _json_local_inbounds(key: ActiveKeyRecord) -> list[Dict[str, Any]]:
+    password = hashlib.sha256(f"happ-http-{key.id}".encode()).hexdigest()[:16]
+    sniffing = {"destOverride": ["http", "tls", "quic"], "enabled": True, "routeOnly": False}
+    return [
+        {
+            "listen": "127.0.0.1", "port": 10808, "protocol": "socks",
+            "settings": {"auth": "noauth", "udp": True}, "sniffing": sniffing, "tag": "socks",
+        },
+        {
+            "listen": "127.0.0.1", "port": 10809, "protocol": "http",
+            "settings": {"accounts": [{"pass": password, "user": "happ-http"}], "allowTransparent": False},
+            "sniffing": sniffing, "tag": "http",
+        },
+    ]
+
+
+def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
+    """Return a Happ JSON array with a real least-load profile and regular rows."""
+    links = [item.strip() for item in links_text.splitlines() if item.strip()]
+    regular: list[Dict[str, Any]] = []
+    auto_outbounds: list[Dict[str, Any]] = []
+    for index, link in enumerate(links, start=1):
+        name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else f"ArcVPN #{index}"
+        outbound = _json_outbound_from_share_link(link, "proxy")
+        if outbound is None:
+            continue
+        regular.append({
+            "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
+            "inbounds": _json_local_inbounds(key),
+            "log": {"loglevel": "none"},
+            "meta": None,
+            "outbounds": [outbound, {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
+            "remarks": name,
+            "routing": {
+                "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+                "rules": [
+                    {"outboundTag": "direct", "protocol": ["bittorrent"], "type": "field"},
+                    {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
+                ],
+            },
+        })
+        if "Обход глушилок" not in name:
+            candidate = _json_outbound_from_share_link(link, "proxy" if not auto_outbounds else f"proxy-{len(auto_outbounds) + 1}")
+            if candidate is not None:
+                auto_outbounds.append(candidate)
+
+    if not auto_outbounds:
+        return json.dumps(regular, ensure_ascii=False, separators=(",", ":"))
+    auto_profile = {
+        "burstObservatory": {
+            "pingConfig": {
+                "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
+                "interval": "1m", "sampling": 1, "timeout": "3s",
+            },
+            "subjectSelector": ["proxy"],
+        },
+        "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
+        "inbounds": _json_local_inbounds(key),
+        "log": {"loglevel": "none"},
+        "meta": None,
+        "outbounds": [*auto_outbounds, {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
+        "remarks": "⚡ Автовыбор",
+        "routing": {
+            "balancers": [{
+                "fallbackTag": "direct", "selector": ["proxy"],
+                "strategy": {"settings": {"baselines": ["1s"], "expected": 2, "maxRTT": "1s", "tolerance": 0.01}, "type": "leastLoad"},
+                "tag": "Auto_Select",
+            }],
+            "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+            "rules": [
+                {"outboundTag": "direct", "protocol": ["bittorrent"], "type": "field"},
+                {"balancerTag": "Auto_Select", "network": "tcp,udp", "type": "field"},
+            ],
+        },
+    }
+    return json.dumps([auto_profile, *regular], ensure_ascii=False, separators=(",", ":"))
+
+
 def _prepare_subscription(
     key: ActiveKeyRecord,
     link: str,
@@ -994,7 +1144,7 @@ def _prepare_subscription(
 
     if output_format == "json":
         return PreparedSubscription(
-            body=_build_json_subscription(key, link),
+            body=_build_happ_json_subscription(key, link),
             content_type="application/json; charset=utf-8",
             userinfo_header=userinfo_header,
         )
@@ -1610,8 +1760,6 @@ def _select_links(links: list[str], output_format: str) -> str:
     """
     if not links:
         return ""
-    if output_format == "json":
-        return links[0]
     return "\n".join(links)
 
 
@@ -1943,7 +2091,7 @@ def import_to_happ(sub_id: str):
         subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format={output_format}"
         return redirect(subscription_url)
 
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=plain"
+    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=json"
     safe_subscription_url = html.escape(subscription_url, quote=True)
     js_subscription_url = json.dumps(subscription_url)
 
@@ -2719,7 +2867,7 @@ def api_register_import_device(sub_id: str):
         "ok": True,
         "device_name": display_name,
         "device_sub_id": device_sub_id,
-        "import_url": f"happ://add/{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=plain",
+        "import_url": f"happ://add/{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=json",
     }))
 
 
