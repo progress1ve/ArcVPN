@@ -3199,37 +3199,55 @@ def api_admin_overview():
                    COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id), 0) AS online_devices,
                    (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
                    COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'), 0) AS paid_rub,
-                   (SELECT COUNT(*) FROM users invited WHERE invited.referred_by=u.id) AS invited_count,
-                   (SELECT COUNT(DISTINCT invited.id) FROM users invited
-                    JOIN payments rp ON rp.user_id=invited.id
-                    WHERE invited.referred_by=u.id AND rp.status IN ('paid','succeeded')
+                   (SELECT COUNT(DISTINCT friend_id) FROM (
+                      SELECT invited.id AS friend_id FROM users invited WHERE invited.referred_by=u.id
+                      UNION SELECT rs.referral_id AS friend_id FROM referral_stats rs WHERE rs.referrer_id=u.id
+                    )) AS invited_count,
+                   (SELECT COUNT(DISTINCT rp.user_id) FROM payments rp
+                    WHERE rp.user_id IN (
+                      SELECT invited.id FROM users invited WHERE invited.referred_by=u.id
+                      UNION SELECT rs.referral_id FROM referral_stats rs WHERE rs.referrer_id=u.id
+                    ) AND rp.status IN ('paid','succeeded')
                       AND COALESCE(rp.payment_type,'') != 'trial') AS invited_paid_count,
                    (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at
             FROM users u
             ORDER BY u.created_at DESC LIMIT 500
         """).fetchall()]
         referral_summary = dict(conn.execute("""
+            WITH referral_edges AS (
+              SELECT referred_by AS referrer_id,id AS referral_id,created_at
+              FROM users WHERE referred_by IS NOT NULL
+              UNION
+              SELECT rs.referrer_id,rs.referral_id,u.created_at
+              FROM referral_stats rs JOIN users u ON u.id=rs.referral_id
+            )
             SELECT
               COUNT(*) AS total_invited,
               COUNT(CASE WHEN created_at >= datetime('now','-30 days') THEN 1 END) AS month_invited,
               COUNT(CASE WHEN created_at >= datetime('now','-1 day') THEN 1 END) AS day_invited,
               COUNT(DISTINCT CASE WHEN EXISTS(
-                SELECT 1 FROM payments p WHERE p.user_id=users.id
+                SELECT 1 FROM payments p WHERE p.user_id=referral_edges.referral_id
                   AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'
-              ) THEN id END) AS converted
-            FROM users WHERE referred_by IS NOT NULL
+              ) THEN referral_id END) AS converted
+            FROM referral_edges
         """).fetchone())
         referral_leaders = [dict(row) for row in conn.execute("""
+            WITH referral_edges AS (
+              SELECT referred_by AS referrer_id,id AS referral_id
+              FROM users WHERE referred_by IS NOT NULL
+              UNION
+              SELECT referrer_id,referral_id FROM referral_stats
+            )
             SELECT r.telegram_id,r.username,r.first_name,
-                   COUNT(i.id) AS invited_count,
+                   COUNT(e.referral_id) AS invited_count,
                    COUNT(DISTINCT CASE WHEN EXISTS(
-                     SELECT 1 FROM payments p WHERE p.user_id=i.id
+                     SELECT 1 FROM payments p WHERE p.user_id=e.referral_id
                        AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'
-                   ) THEN i.id END) AS converted_count,
+                   ) THEN e.referral_id END) AS converted_count,
                    COALESCE(SUM(rs.total_reward_days),0) AS earned_days
             FROM users r
-            JOIN users i ON i.referred_by=r.id
-            LEFT JOIN referral_stats rs ON rs.referrer_id=r.id AND rs.referral_id=i.id
+            JOIN referral_edges e ON e.referrer_id=r.id
+            LEFT JOIN referral_stats rs ON rs.referrer_id=r.id AND rs.referral_id=e.referral_id
             GROUP BY r.id
             ORDER BY invited_count DESC,converted_count DESC
             LIMIT 100
