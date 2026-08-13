@@ -108,6 +108,45 @@ def register_import_device(
         return device_sub_id
 
 
+def adopt_import_device_identity(
+    sub_id: str,
+    device_token: str,
+    platform: str,
+    model: str,
+) -> bool:
+    """Move one unambiguous legacy WebApp slot to Happ's stable HWID."""
+    if not model or not platform or platform == "unknown":
+        return False
+    token_hash = hashlib.sha256(device_token.encode("utf-8")).hexdigest()
+    with get_db() as conn:
+        owner = conn.execute(
+            "SELECT user_id FROM vpn_keys WHERE sub_id = ?", (sub_id,)
+        ).fetchone()
+        if not owner:
+            return False
+        if conn.execute(
+            "SELECT 1 FROM user_devices WHERE user_id=? AND device_token_hash=?",
+            (owner["user_id"], token_hash),
+        ).fetchone():
+            return True
+        candidates = conn.execute(
+            """SELECT id FROM user_devices
+               WHERE user_id=? AND lower(COALESCE(platform,''))=lower(?)
+                 AND lower(COALESCE(model,''))=lower(?)
+               ORDER BY COALESCE(last_seen_at, imported_at) DESC""",
+            (owner["user_id"], platform, model),
+        ).fetchall()
+        if len(candidates) != 1:
+            return False
+        conn.execute(
+            """UPDATE user_devices SET device_token_hash=?, is_active=1,
+                      revoked_at=NULL, last_seen_at=CURRENT_TIMESTAMP,
+                      imported_at=CURRENT_TIMESTAMP WHERE id=?""",
+            (token_hash, candidates[0]["id"]),
+        )
+        return True
+
+
 def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict[str, str]]:
     """Resolve a standalone device subscription id and calculate its access state."""
     raw_token_hash = hashlib.sha256(device_sub_id.encode("utf-8")).hexdigest()

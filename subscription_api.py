@@ -41,6 +41,7 @@ from bot.utils.key_generator import generate_link
 from bot.utils.telegram_webapp import get_telegram_id
 import config
 from database.connection import get_db
+from database.db_webapp import adopt_import_device_identity
 from database.db_servers import get_server_by_id
 from database.db_statistics import (
     get_new_users_stats,
@@ -1230,6 +1231,28 @@ def _subscription_temporarily_unavailable() -> Response:
     return Response("Subscription temporarily unavailable", status=503, mimetype="text/plain")
 
 
+def _happ_device_identity() -> Optional[Dict[str, str]]:
+    """Return the stable identity Happ sends while fetching a subscription."""
+    hwid = (request.headers.get("X-Hwid") or "").strip()
+    if not hwid or len(hwid) > 128 or not re.fullmatch(r"[A-Za-z0-9._:-]{6,128}", hwid):
+        return None
+    platform = _clean_text(request.headers.get("X-Device-Os"), 32).lower() or "unknown"
+    model = _clean_text(request.headers.get("X-Device-Model"), 96)
+    display_name = model or {
+        "ios": "iPhone / iPad",
+        "android": "Android",
+        "windows": "Windows",
+        "macos": "Mac",
+        "linux": "Linux",
+    }.get(platform, "Устройство Happ")
+    return {
+        "token": "happ-hwid-v1:" + hwid,
+        "platform": platform,
+        "model": model,
+        "display_name": display_name,
+    }
+
+
 def _response_from_prepared(
     prepared: PreparedSubscription,
     profile_title: str = PROFILE_TITLE,
@@ -1258,6 +1281,7 @@ def _response_from_prepared(
         response.headers["subscription-autoconnect"] = "1"
         response.headers["subscription-autoconnect-type"] = "lowestdelay"
         response.headers["subscription-ping-onopen-enabled"] = "1"
+    response.headers["subscription-always-hwid-enable"] = "1"
     if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
         response.headers["providerid"] = HAPP_PROVIDER_ID
     if prepared.routing_link:
@@ -1972,20 +1996,38 @@ def subscription(sub_id: str, path_device_token: str = ''):
             # The public subscription URL is also the recovery path when Telegram/WebApp
             # is unavailable. Reserve one deterministic managed slot for direct imports
             # instead of trapping the user in a WebApp-only bootstrap loop.
-            recovery_token = hashlib.sha256(
-                f"arcvpn-direct-import-v1:{sub_id}".encode("utf-8")
-            ).hexdigest()
+            happ_device = _happ_device_identity()
+            recovery_token = (
+                happ_device["token"] if happ_device else hashlib.sha256(
+                    f"arcvpn-direct-import-v1:{sub_id}".encode("utf-8")
+                ).hexdigest()
+            )
             recovery_state = get_import_device_access_state(
                 sub_id,
                 recovery_token,
                 get_subscription_device_limit(sub_id, default_limit),
             )
-            if recovery_state in {None, "revoked"} and not subscription_device_slots_full(sub_id):
+            if recovery_state is None and happ_device and adopt_import_device_identity(
+                sub_id,
+                recovery_token,
+                happ_device["platform"],
+                happ_device["model"],
+            ):
+                recovery_state = get_import_device_access_state(
+                    sub_id,
+                    recovery_token,
+                    get_subscription_device_limit(sub_id, default_limit),
+                )
+            can_reactivate_same_device = recovery_state == "revoked" and happ_device is not None
+            can_register_new_device = recovery_state is None and not subscription_device_slots_full(sub_id)
+            if can_reactivate_same_device or can_register_new_device:
+                import_platform = happ_device["platform"] if happ_device else "unknown"
+                import_model = happ_device["model"] if happ_device else ""
                 register_import_device(
                     sub_id,
                     recovery_token,
-                    "unknown",
-                    "",
+                    import_platform,
+                    import_model,
                     "Устройство Happ",
                     client_family,
                     "",
