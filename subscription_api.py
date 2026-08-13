@@ -3193,8 +3193,10 @@ def api_admin_overview():
     node_online_total = 0
     panel_api_healthy = False
     try:
-        master_row = next((item for item in server_stats if str(item.get("host")) == "2.26.84.210"), None)
-        master = get_server_by_id(int(master_row["id"])) if master_row else None
+        # Remnawave is authoritative after cutover. Do not poll the retired XUI
+        # master: it only produces noisy connector/login errors in admin logs.
+        master_row = None
+        master = None
 
         async def _panel_telemetry():
             client = get_client_from_server_data(master)
