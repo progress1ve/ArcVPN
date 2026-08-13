@@ -149,7 +149,6 @@ def adopt_import_device_identity(
 
 def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict[str, str]]:
     """Resolve a standalone device subscription id and calculate its access state."""
-    raw_token_hash = hashlib.sha256(device_sub_id.encode("utf-8")).hexdigest()
     with get_db() as conn:
         target = conn.execute(
             """SELECT d.id, d.user_id, COALESCE(d.is_active,1) is_active, k.sub_id,
@@ -157,10 +156,9 @@ def resolve_device_subscription(device_sub_id: str, limit: int) -> Optional[Dict
                       COALESCE(u.device_limit, ?) device_limit
                FROM user_devices d JOIN vpn_keys k ON k.id=d.vpn_key_id
                JOIN users u ON u.id=d.user_id
-               WHERE d.device_sub_id=? OR d.device_token_hash=?
-               ORDER BY CASE WHEN d.device_sub_id=? THEN 0 ELSE 1 END
+               WHERE d.device_sub_id=?
                LIMIT 1""",
-            (limit, device_sub_id, raw_token_hash, device_sub_id),
+            (limit, device_sub_id),
         ).fetchone()
         if not target:
             return None
