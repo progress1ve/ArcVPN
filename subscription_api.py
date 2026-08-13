@@ -3199,9 +3199,40 @@ def api_admin_overview():
                    COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id), 0) AS online_devices,
                    (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
                    COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'), 0) AS paid_rub,
+                   (SELECT COUNT(*) FROM users invited WHERE invited.referred_by=u.id) AS invited_count,
+                   (SELECT COUNT(DISTINCT invited.id) FROM users invited
+                    JOIN payments rp ON rp.user_id=invited.id
+                    WHERE invited.referred_by=u.id AND rp.status IN ('paid','succeeded')
+                      AND COALESCE(rp.payment_type,'') != 'trial') AS invited_paid_count,
                    (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at
             FROM users u
-            ORDER BY paid_rub DESC, u.created_at DESC LIMIT 200
+            ORDER BY u.created_at DESC LIMIT 500
+        """).fetchall()]
+        referral_summary = dict(conn.execute("""
+            SELECT
+              COUNT(*) AS total_invited,
+              COUNT(CASE WHEN created_at >= datetime('now','-30 days') THEN 1 END) AS month_invited,
+              COUNT(CASE WHEN created_at >= datetime('now','-1 day') THEN 1 END) AS day_invited,
+              COUNT(DISTINCT CASE WHEN EXISTS(
+                SELECT 1 FROM payments p WHERE p.user_id=users.id
+                  AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'
+              ) THEN id END) AS converted
+            FROM users WHERE referred_by IS NOT NULL
+        """).fetchone())
+        referral_leaders = [dict(row) for row in conn.execute("""
+            SELECT r.telegram_id,r.username,r.first_name,
+                   COUNT(i.id) AS invited_count,
+                   COUNT(DISTINCT CASE WHEN EXISTS(
+                     SELECT 1 FROM payments p WHERE p.user_id=i.id
+                       AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'') != 'trial'
+                   ) THEN i.id END) AS converted_count,
+                   COALESCE(SUM(rs.total_reward_days),0) AS earned_days
+            FROM users r
+            JOIN users i ON i.referred_by=r.id
+            LEFT JOIN referral_stats rs ON rs.referrer_id=r.id AND rs.referral_id=i.id
+            GROUP BY r.id
+            ORDER BY invited_count DESC,converted_count DESC
+            LIMIT 100
         """).fetchall()]
         recent_payments = [dict(row) for row in conn.execute(f"""
             SELECT p.order_id, p.status, p.amount_cents, p.payment_type, p.paid_at,
@@ -3634,6 +3665,14 @@ def api_admin_overview():
         "recent_users": recent_users,
         "recent_payments": recent_payments,
         "financials": financials,
+        "referrals": {
+            **referral_summary,
+            "conversion_rate": round(
+                int(referral_summary.get("converted") or 0)
+                / max(1, int(referral_summary.get("total_invited") or 0)) * 100, 1
+            ),
+            "leaders": referral_leaders,
+        },
         "remnawave": remnawave,
         "recurring": {
             **get_recurring_summary(),
