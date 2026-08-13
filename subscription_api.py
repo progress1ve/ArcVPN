@@ -1093,7 +1093,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         outbound = _json_outbound_from_share_link(link, "proxy")
         if outbound is None:
             continue
-        regular.append({
+        regular_profile = {
             "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
             "inbounds": _json_local_inbounds(key),
             "log": {"loglevel": "none"},
@@ -1107,10 +1107,14 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                     {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
                 ],
             },
-        })
+        }
         if LTE_NAME_MARKER in name and lte_fallback is None:
             lte_fallback = _json_outbound_from_share_link(link, "lte_backup")
         elif LTE_NAME_MARKER not in name:
+            # LTE is an internal emergency route of the automatic profile.  Do
+            # not expose it as a normal selectable row: otherwise a user can
+            # leave it enabled on an unrestricted network and burn CDN traffic.
+            regular.append(regular_profile)
             candidate = _json_outbound_from_share_link(link, "proxy" if not auto_outbounds else f"proxy-{len(auto_outbounds) + 1}")
             if candidate is not None:
                 auto_outbounds.append(candidate)
@@ -1121,7 +1125,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "burstObservatory": {
             "pingConfig": {
                 "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
-                "interval": "1m", "sampling": 1, "timeout": "3s",
+                "interval": "20s", "sampling": 2, "timeout": "3s",
             },
             "subjectSelector": ["proxy"],
         },
@@ -3552,6 +3556,33 @@ def api_admin_overview():
                 } for inbound in ((node.get("configProfile") or {}).get("activeInbounds") or [])],
             } for node in (remna_nodes or [])],
         }
+        node_distribution: Dict[str, int] = {}
+        for presence in online_users:
+            node_name = str(presence.get("node_name") or "Unknown")
+            node_distribution[node_name] = node_distribution.get(node_name, 0) + 1
+        remnawave["connection_schemes"] = [{
+            "id": "auto",
+            "name": "Автовыбор",
+            "kind": "client_balancer",
+            "probe_interval_seconds": 20,
+            "probe_samples": 2,
+            "probe_url": "http://www.gstatic.com/generate_204",
+            "failover": "LTE #1",
+            "selection_observable": False,
+            "online_distribution": node_distribution,
+            "members": [
+                {"name": node.get("name") or node.get("address"), "online": int(node.get("usersOnline") or 0), "connected": bool(node.get("isConnected"))}
+                for node in (remna_nodes or []) if not bool(node.get("isDisabled"))
+            ],
+        }, {
+            "id": "lte-1", "name": "Обход глушилок #1", "kind": "cdn_fallback",
+            "public_host": "cdn-fi.arccnet.space", "origin": "195.226.92.37", "traffic_factor": 10,
+            "active_only_as_fallback": True,
+        }, {
+            "id": "lte-2", "name": "Обход глушилок #2", "kind": "cdn_fallback",
+            "public_host": "cdn.arccnet.space", "origin": "195.226.92.37", "traffic_factor": 10,
+            "active_only_as_fallback": False, "standby": True,
+        }]
     except Exception as exc:
         remnawave["detail"] = type(exc).__name__
         logger.exception("Admin Remnawave telemetry failed")
