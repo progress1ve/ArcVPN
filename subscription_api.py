@@ -197,13 +197,10 @@ REMNAWAVE_PUBLIC_NODES = (
         "reality_sni": "fin.arccnet.space",
         "tcp_port": 22201,
         "hy2_port": 22202,
-        "xhttp_port": 22203,
-        "xhttp_path": "/arc",
         "public_key": "q0fq0bbIj61zgT2ybYQKqv5UxA1Y0d6uzc53R2CL-Ds",
         "short_id": "41fb55d5b8ebefda",
-        "xhttp_number": 1,
-        "tcp_number": 2,
-        "hy2_number": 3,
+        "tcp_number": 1,
+        "hy2_number": 2,
     },
     {
         "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)),
@@ -214,17 +211,16 @@ REMNAWAVE_PUBLIC_NODES = (
         "reality_sni": "sub.arccnet.space",
         "tcp_port": 22101,
         "hy2_port": 22102,
-        "xhttp_port": 22103,
-        "xhttp_path": "/arc",
         "public_key": "n9XYMi3bet3VPNYabKCFB_qgTb2DDB9vPaRGnLmwM3E",
         "short_id": "9c77d8e5531124d3",
-        "xhttp_number": 1,
-        "tcp_number": 2,
-        "hy2_number": 3,
+        "tcp_number": 1,
+        "hy2_number": 2,
     },
 )
 REMNAWAVE_LTE_ENABLED = bool(getattr(config, "REMNAWAVE_LTE_ENABLED", False))
 REMNAWAVE_LTE_HOST = "cdn-fi.arccnet.space"
+REMNAWAVE_LTE_GERMANY_HOST = "cdn.arccnet.space"
+LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a"
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -1099,9 +1095,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 ],
             },
         })
-        if "Обход глушилок" in name and lte_fallback is None:
+        if LTE_NAME_MARKER in name and lte_fallback is None:
             lte_fallback = _json_outbound_from_share_link(link, "lte_backup")
-        elif "Обход глушилок" not in name:
+        elif LTE_NAME_MARKER not in name:
             candidate = _json_outbound_from_share_link(link, "proxy" if not auto_outbounds else f"proxy-{len(auto_outbounds) + 1}")
             if candidate is not None:
                 auto_outbounds.append(candidate)
@@ -1121,7 +1117,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "log": {"loglevel": "none"},
         "meta": None,
         "outbounds": [*auto_outbounds, *([lte_fallback] if lte_fallback else []), {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
-        "remarks": "⚡ Автовыбор",
+        "remarks": "\u26a1 \u0410\u0432\u0442\u043e\u0432\u044b\u0431\u043e\u0440",
         "routing": {
             "balancers": [{
                 # LTE is excluded from observation/least-load and is used only
@@ -1656,40 +1652,25 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 )
 
             if REMNAWAVE_LTE_ENABLED:
-                lte_extra = json.dumps(
-                    {
-                        "uplinkHTTPMethod": "OPTIONS",
-                        "scMaxEachPostBytes": 5000000,
-                        "scMinPostsIntervalMs": 10,
-                        "scMaxBufferedPosts": 50,
-                        "xPaddingObfsMode": True,
-                        "xPaddingKey": "dc",
-                        "xPaddingBytes": "100-1000",
-                        "xPaddingHeader": "X-Cache",
-                        "xPaddingMethod": "tokenish",
-                        "xPaddingPlacement": "queryInHeader",
-                    },
-                    separators=(",", ":"),
-                )
-                lte_query = urllib.parse.urlencode({
-                    "type": "xhttp",
-                    "encryption": "none",
-                    "path": "/api-test",
-                    "host": REMNAWAVE_LTE_HOST,
-                    "mode": "packet-up",
-                    "x_padding_bytes": "100-1000",
-                    "security": "tls",
-                    "sni": REMNAWAVE_LTE_HOST,
-                    "alpn": "h2,http/1.1",
-                    "extra": lte_extra,
-                })
-                lte_name = urllib.parse.quote(
-                    "🇷🇺 Обход глушилок (трафик ×10, LTE)", safe=""
-                )
-                links.append(
-                    f"vless://{credential}@{REMNAWAVE_LTE_HOST}:443?"
-                    f"{lte_query}#{lte_name}"
-                )
+                lte_extra = json.dumps({
+                    "uplinkHTTPMethod": "OPTIONS", "scMaxEachPostBytes": 5000000,
+                    "scMinPostsIntervalMs": 10, "scMaxBufferedPosts": 50,
+                    "xPaddingObfsMode": True, "xPaddingKey": "dc",
+                    "xPaddingBytes": "100-1000", "xPaddingHeader": "X-Cache",
+                    "xPaddingMethod": "tokenish", "xPaddingPlacement": "queryInHeader",
+                }, separators=(",", ":"))
+                for lte_number, lte_host in enumerate(
+                    (REMNAWAVE_LTE_HOST, REMNAWAVE_LTE_GERMANY_HOST), start=1
+                ):
+                    lte_query = urllib.parse.urlencode({
+                        "type": "xhttp", "encryption": "none", "path": "/api-test",
+                        "host": lte_host, "mode": "packet-up", "x_padding_bytes": "100-1000",
+                        "security": "tls", "sni": lte_host, "alpn": "h2,http/1.1",
+                        "extra": lte_extra,
+                    })
+                    lte_label = LTE_NAME_MARKER + " (" + "\u0442\u0440\u0430\u0444\u0438\u043a \u00d710, LTE)"
+                    lte_name = urllib.parse.quote(f"{lte_label} #{lte_number}", safe="")
+                    links.append(f"vless://{credential}@{lte_host}:443?{lte_query}#{lte_name}")
 
         # Compatibility block for the first France canary. It stays disabled
         # after the production France profile has moved into
@@ -2023,7 +2004,11 @@ def subscription(sub_id: str, path_device_token: str = ''):
                     recovery_token,
                     get_subscription_device_limit(sub_id, default_limit),
                 )
-            can_reactivate_same_device = recovery_state == "revoked" and happ_device is not None
+            # Removing a profile in Happ and importing the same public URL is a
+            # deliberate reconnect action. A revoked deterministic direct-import
+            # slot may therefore be reactivated when a subscription slot is free;
+            # otherwise users get trapped behind the stale "device removed" rows.
+            can_reactivate_same_device = recovery_state == "revoked" and not subscription_device_slots_full(sub_id)
             can_register_new_device = recovery_state is None and not subscription_device_slots_full(sub_id)
             if can_reactivate_same_device or can_register_new_device:
                 import_platform = happ_device["platform"] if happ_device else "unknown"
