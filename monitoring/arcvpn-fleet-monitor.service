@@ -1,0 +1,15 @@
+[Unit]
+Description=ArcVPN RemnaNode fleet synthetic monitor
+After=network-online.target arcvpn-subscription.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/root/ArcVPN
+Environment=ARCVPN_DB_PATH=/root/ArcVPN/database/vpn_bot.db
+ExecStart=/root/ArcVPN/venv/bin/python /root/ArcVPN/monitoring/remnawave_fleet_monitor.py
+User=root
+Nice=10
+TimeoutStartSec=90
+NoNewPrivileges=true
+PrivateTmp=true

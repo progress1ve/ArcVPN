@@ -3128,7 +3128,10 @@ def api_admin_diagnostics_run():
         host = _clean_text(node.get("address"), 255)
         ports = sorted({
             int(item.get("port")) for item in ((node.get("configProfile") or {}).get("activeInbounds") or [])
-            if str(item.get("port") or "").isdigit() and 1 <= int(item.get("port")) <= 65535
+            if str(item.get("port") or "").isdigit()
+            and 1 <= int(item.get("port")) <= 65535
+            and not any(marker in " ".join(str(item.get(key) or "") for key in ("network", "type", "protocol", "tag")).lower()
+                        for marker in ("hysteria", "udp", "quic"))
         })
         completed = subprocess.run(
             [os.sys.executable, os.path.join(os.path.dirname(__file__), "monitoring", "deep_node_diagnostics.py"),
@@ -3503,6 +3506,20 @@ def api_admin_overview():
                 "node_uuid": node_uuid or None,
                 "node_name": node_names.get(node_uuid, "Узел не определён"),
             })
+        latest_diagnostics = {}
+        with get_db() as conn:
+            rows = conn.execute("""
+                SELECT d.host,d.result_json,d.ok,d.created_at
+                FROM node_diagnostic_runs d
+                JOIN (SELECT host,MAX(id) id FROM node_diagnostic_runs GROUP BY host) latest ON latest.id=d.id
+            """).fetchall()
+            for row in rows:
+                try:
+                    item = json.loads(row["result_json"] or "{}")
+                except (TypeError, ValueError):
+                    item = {}
+                item.update({"ok": bool(row["ok"]), "created_at": row["created_at"]})
+                latest_diagnostics[str(row["host"])] = item
         remnawave = {
             "healthy": True,
             "users": int((remna_users or {}).get("total") or 0),
@@ -3526,6 +3543,7 @@ def api_admin_overview():
                 "load_1m": (((node.get("system") or {}).get("stats") or {}).get("loadAvg") or [None])[0],
                 "rx_bps": int(((((node.get("system") or {}).get("stats") or {}).get("interface") or {}).get("rxBytesPerSec")) or 0),
                 "tx_bps": int(((((node.get("system") or {}).get("stats") or {}).get("interface") or {}).get("txBytesPerSec")) or 0),
+                "diagnostic": latest_diagnostics.get(str(node.get("address") or "")),
                 "inbounds": [{
                     "tag": inbound.get("tag"),
                     "type": inbound.get("type"),
