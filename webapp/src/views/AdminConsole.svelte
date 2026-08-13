@@ -21,9 +21,11 @@
   let diagnosticNode = ''
   let diagnostics = {}
   const nav = [
-    ['overview', 'home', 'Обзор'], ['users', 'users', 'Пользователи'],
-    ['payments', 'wallet', 'Платежи'], ['network', 'signal', 'Инфраструктура'],
-    ['support', 'headset', 'Поддержка'], ['settings', 'settings', 'Настройки'],
+    ['overview', 'home', 'Главная'], ['health', 'pulse', 'Здоровье'],
+    ['schemes', 'signal', 'Схемы подключений'], ['nodes', 'devices', 'Ноды'],
+    ['users', 'users', 'Пользователи'], ['payments', 'wallet', 'Финансы'],
+    ['support', 'headset', 'Поддержка'], ['security', 'shield', 'Безопасность'],
+    ['backups', 'file', 'Резервные копии'], ['settings', 'settings', 'Настройки'],
   ]
   const rub = (v) => `${new Intl.NumberFormat('ru-RU').format(Number(v || 0))} ₽`
   const num = (v) => new Intl.NumberFormat('ru-RU').format(Number(v || 0))
@@ -79,8 +81,8 @@
     <div class="owner"><i>К</i><span>Владелец<small>Полный доступ</small></span></div>
   </aside>
 
-  <main>
-    <header><div><span class="eyebrow">Бизнес в реальном времени</span><h1>Всё под контролем.</h1></div><div class="live-tools"><span class="telemetry-fresh"><i></i>{lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Подключаем телеметрию'}</span><button class="refresh" on:click={() => load(true)}><ArcIcon name="pulse" size={18} />Обновить</button></div></header>
+  <main class={`section-${active}`}>
+    <header><div><span class="eyebrow">Arc Operations · единый контур</span><h1>{active === 'overview' ? 'Командный центр.' : nav.find(item => item[0] === active)?.[2] || 'Arc Operations'}</h1></div><div class="live-tools"><span class="telemetry-fresh"><i></i>{lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}` : 'Подключаем телеметрию'}</span><button class="refresh" on:click={() => load(true)}><ArcIcon name="pulse" size={18} />Обновить</button></div></header>
     {#if loading}
       <section class="state"><i class="loader"></i><p>Собираем показатели ArcVPN…</p></section>
     {:else if error}
@@ -103,9 +105,9 @@
         <div class="filters"><button class:active={paymentFilter==='paid'} on:click={()=>paymentFilter='paid'}>Успешные</button><button class:active={paymentFilter==='failed'} on:click={()=>paymentFilter='failed'}>Не завершены</button><button class:active={paymentFilter==='all'} on:click={()=>paymentFilter='all'}>Все</button></div>
         <div class="record-list">{#each visiblePayments as payment}<article><div><b>{Number(payment.display_amount_rub)>0 ? rub(payment.display_amount_rub) : `$${Number(payment.display_amount_usd || 0).toFixed(2)}`}</b><small>@{payment.username || payment.telegram_id} · {payment.tariff_name || payment.payment_type || 'оплата'}</small></div><span class:ok={payment.status === 'succeeded' || payment.status === 'paid'}>{payment.status}</span></article>{/each}</div>
       </section>
-    {:else if active === 'network'}
+    {:else if ['network','health','schemes','nodes'].includes(active)}
       <section class="workspace-section">
-        <div class="section-title"><div><span class="eyebrow">Операционный центр</span><h2>Сеть ArcVPN</h2><p>Remnawave, RemnaNode и системные процессы в одном контуре.</p></div><button class="refresh" on:click={load}><ArcIcon name="pulse" size={18}/>Проверить</button></div>
+        <div class="section-title"><div><span class="eyebrow">{active === 'schemes' ? 'Маршрутизация' : active === 'nodes' ? 'Инфраструктура' : 'Операционный центр'}</span><h2>{active === 'schemes' ? 'Схемы подключений' : active === 'nodes' ? 'Ноды ArcVPN' : 'Здоровье системы'}</h2><p>{active === 'schemes' ? 'Автовыбор, резервные маршруты и LTE fallback.' : active === 'nodes' ? 'Состояние, нагрузка и диагностика каждого сетевого узла.' : 'Remnawave, Subscription API, база и внешние сетевые пробы.'}</p></div><button class="refresh" on:click={load}><ArcIcon name="pulse" size={18}/>Проверить</button></div>
         <div class="service-strip">
           <article class:ok={data.remnawave?.healthy}><i></i><span><b>Remnawave</b><small>{data.remnawave?.healthy ? `${data.remnawave.users} пользователей` : `Ошибка: ${data.remnawave?.detail}`}</small></span></article>
           <article class:ok={data.operations.subscription_service}><i></i><span><b>Subscription API</b><small>{data.operations.subscription_service ? 'Отвечает' : 'Недоступен'}</small></span></article>
@@ -122,7 +124,7 @@
         <section class="inbound-board"><header><div><span class="eyebrow">Качество провайдеров</span><h3>Независимые сетевые пробы</h3></div><strong>каждые 10 минут</strong></header><div>{#each data.servers || [] as server}<article><i class:off={!server.agent_online}></i><span><b>{server.name}</b><small>loss {server.packet_loss_pct ?? '—'}% · jitter {server.jitter_ms ?? '—'} мс · DNS {server.dns_ms ?? '—'} мс · HTTPS {server.https_ms ?? '—'} мс</small></span><em>↓ {server.download_mbps ?? '—'} Мбит/с</em></article>{/each}</div></section>
     {:else if active === 'support'}
       <section class="support-workspace"><aside class="thread-list"><div class="section-title"><div><span class="eyebrow">Поддержка</span><h2>Диалоги</h2></div><button on:click={openSupport}>↻</button></div>{#each supportThreads as thread}<button class:active={selectedThread?.id===thread.id} on:click={()=>selectThread(thread.id)}><i>{(thread.first_name || thread.username || '?')[0]}</i><span><b>{thread.first_name || `@${thread.username}` || `ID ${thread.telegram_id}`}</b><small>{thread.last_message || 'Нет сообщений'}</small></span>{#if thread.unread}<em>{thread.unread}</em>{/if}</button>{/each}</aside><section class="admin-chat">{#if selectedThread}<header><div><b>{selectedThread.first_name || selectedThread.username || `ID ${selectedThread.telegram_id}`}</b><small>@{selectedThread.username || selectedThread.telegram_id}</small></div></header><div class="chat-messages">{#each supportMessages as message}<article class:admin={message.sender==='admin'}><span>{message.body}</span><small>{message.created_at}</small></article>{/each}</div><form on:submit|preventDefault={sendReply}><textarea bind:value={replyBody} placeholder="Ответить пользователю" maxlength="4000"></textarea><button disabled={sendingReply || !replyBody.trim()}>Отправить</button></form>{:else}<div class="chat-empty">Выберите диалог слева</div>{/if}</section></section>
-    {:else if active === 'settings'}
+    {:else if ['settings','security','backups'].includes(active)}
       <section class="workspace-section"><div class="section-title"><div><span class="eyebrow">Система</span><h2>Готовность сервиса</h2></div></div><div class="check-grid"><article class="done"><i>✓</i><div><b>WebApp и подписки</b><span>Публичные endpoints и импорт</span></div></article><article class:done={data.remnawave?.healthy}><i>{data.remnawave?.healthy?'✓':'!'}</i><div><b>Remnawave и RemnaNode</b><span>{data.remnawave?.nodes?.filter(node=>node.connected).length || 0} из {data.remnawave?.nodes?.length || 0} узлов подключены</span></div></article><article class:done={data.recurring.provider_ready}><i>{data.recurring.provider_ready?'✓':'→'}</i><div><b>Автопродление</b><span>{data.recurring.provider_ready ? `${data.recurring.active} активных привязок` : 'Интерфейс отвязки готов · ожидается разрешение YooKassa'}</span></div></article><article class:done={data.system.database_integrity==='ok'}><i>{data.system.database_integrity==='ok'?'✓':'!'}</i><div><b>Целостность данных</b><span>БД: {data.system.database_integrity} · диск {data.system.disk_used_pct}%</span></div></article><article><i>→</i><div><b>Email и документы</b><span>Ожидаются SMTP и реквизиты</span></div></article></div></section>
     {:else if active !== 'overview'}
       <section class="state"><ArcIcon name="gift" size={30} /><h2>{nav.find(i => i[0] === active)?.[2]}</h2><p>Раздел готовится к следующему обновлению.</p></section>
@@ -190,4 +192,33 @@
   .network-grid article>p{margin:9px 0 0;color:#71879a;font-size:11px}.node-name>em{margin-left:auto;padding:6px 9px;border-radius:12px;background:rgba(97,216,165,.09);color:#78e1b4;font-size:9px;font-style:normal;font-weight:900;text-transform:uppercase}.node-name>em.bad{background:rgba(255,116,116,.09);color:#ff9c9c}.node-day{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}.node-day>span{padding:6px 9px;border-radius:11px;background:rgba(155,217,255,.06);color:#8da7bc;font-size:9px;font-weight:800}
   .deep-test{width:100%;min-height:38px;margin-top:14px;border:0;border-radius:15px;background:#14283a;color:#a9dfff;font-weight:800;cursor:pointer}.deep-test:hover{background:#1b354b}.deep-test:disabled{opacity:.55}.diagnostic-result{padding:9px 11px!important;border-radius:12px;background:rgba(255,116,116,.07);color:#ff9c9c!important}.diagnostic-result.good{background:rgba(97,216,165,.07);color:#78e1b4!important}
   .support-workspace{height:calc(100vh - 150px);display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px}.thread-list,.admin-chat{min-height:0;border:1px solid var(--line);border-radius:28px;background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96));overflow:hidden}.thread-list{padding:20px;overflow-y:auto;scrollbar-width:none}.thread-list::-webkit-scrollbar{display:none}.thread-list>.section-title{position:sticky;top:-20px;z-index:2;padding:18px 0 14px;background:#0d1927}.thread-list>.section-title button{border:0;background:transparent;color:#9bd9ff;font-size:20px}.thread-list>button{box-sizing:border-box;width:100%;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;padding:12px;border:0;border-radius:20px;background:transparent;color:#eaf4fc;text-align:left}.thread-list>button.active{background:#14283a}.thread-list>button>i{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#1b3852;color:#9bd9ff;font-style:normal;font-weight:900}.thread-list span{min-width:0;display:flex;flex-direction:column;gap:4px}.thread-list small{overflow:hidden;color:#7890a5;text-overflow:ellipsis;white-space:nowrap}.thread-list em{display:grid;place-items:center;min-width:22px;height:22px;border-radius:50%;background:#9bd9ff;color:#07111d;font-size:11px;font-style:normal;font-weight:900}.admin-chat{display:grid;grid-template-rows:auto 1fr auto}.admin-chat header{padding:20px 24px;border-bottom:1px solid var(--line)}.admin-chat header div{display:flex;flex-direction:column}.admin-chat header small{color:#7890a5}.chat-messages{min-height:0;padding:22px;overflow-y:auto;scrollbar-width:none}.chat-messages::-webkit-scrollbar{display:none}.chat-messages article{max-width:72%;display:flex;flex-direction:column;gap:5px;margin:0 auto 12px 0;padding:13px 16px;border-radius:20px 20px 20px 7px;background:#142333}.chat-messages article.admin{margin-left:auto;margin-right:0;border-radius:20px 20px 7px 20px;background:#1c405a}.chat-messages small{color:#7990a4;font-size:10px}.admin-chat form{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px;border-top:1px solid var(--line)}.admin-chat textarea{min-height:46px;max-height:120px;resize:none;border:0;border-radius:18px;padding:14px;background:#111e2c;color:#fff;font:inherit;outline:0}.admin-chat form button{border:0;border-radius:18px;padding:0 20px;background:#9bd9ff;color:#07111d;font-weight:900}.chat-empty{display:grid;place-content:center;color:#7890a5}@media(max-width:900px){.support-workspace{grid-template-columns:1fr}.thread-list{display:none}}
+  /* Arc Operations 2.0 — dense, calm and operational rather than decorative. */
+  :global(body.admin-console-open){background:#07090d}
+  .console{grid-template-columns:286px minmax(0,1fr);background:radial-gradient(900px 600px at 78% -15%,rgba(81,155,205,.12),transparent 58%),#07090d}
+  aside{padding:22px 16px;border-right:1px solid rgba(255,255,255,.055);background:#0b0d12}
+  .brand{min-height:66px;padding:0 14px;border-radius:20px;background:rgba(255,255,255,.025)}
+  .brand img{width:34px}.brand span{font-size:16px}.brand small{margin-top:4px;color:#68717e;font-size:9px;letter-spacing:.12em;text-transform:uppercase}
+  nav{gap:3px;margin-top:24px;overflow-y:auto;scrollbar-width:none}nav::-webkit-scrollbar{display:none}
+  nav button{min-height:47px;padding:0 14px;border-radius:14px;color:#8e98a6;font-size:12px;font-weight:700;letter-spacing:-.01em;transition:background .18s,color .18s,transform .18s}
+  nav button:hover{background:rgba(255,255,255,.04);color:#eaf5fd;transform:translateX(2px)}
+  nav button.active{background:linear-gradient(90deg,rgba(145,214,255,.15),rgba(145,214,255,.045));color:#bfe8ff;box-shadow:inset 3px 0 #91d6ff}
+  nav button.active:after{display:none}.owner{border:1px solid rgba(255,255,255,.05);background:#10131a}
+  main{width:min(1460px,calc(100% - 72px));padding:34px 0 80px}
+  main>header{align-items:center;margin-bottom:26px;padding-bottom:22px;border-bottom:1px solid rgba(255,255,255,.055)}
+  h1{font-size:clamp(34px,3.3vw,52px);letter-spacing:-.05em}.eyebrow{color:#80bfe7}
+  .panel,.metrics article,.network-grid article,.inbound-board,.check-grid article,.scheme-board,.thread-list,.admin-chat{border-color:rgba(255,255,255,.065);background:#10141c;box-shadow:0 18px 50px rgba(0,0,0,.16)}
+  .panel,.scheme-board,.inbound-board,.network-grid article{border-radius:22px}.metrics article{border-radius:18px}
+  .health{border-radius:18px;background:linear-gradient(90deg,rgba(62,149,118,.12),rgba(16,20,28,.98));border-color:rgba(109,213,170,.11)}
+  .metrics{grid-template-columns:1.2fr repeat(3,1fr)}.metrics article:first-child{background:linear-gradient(145deg,rgba(50,113,151,.22),#10141c 72%)}
+  .service-strip article{border-radius:14px;background:#0c1118}.service-strip article>i{box-shadow:none}
+  .network-grid article{background:linear-gradient(150deg,#121923,#0d1118)}
+  .scheme-grid>article,.inbound-board article,.device-control article,.referral-metrics article{border:1px solid rgba(255,255,255,.045);border-radius:15px;background:#0c1118}
+  .scheme-grid>article.auto{background:linear-gradient(135deg,rgba(56,126,167,.19),#0c1118)}
+  .deep-test,.filters button{border-radius:12px!important}.deep-test{background:#172535}.refresh{border-radius:13px;background:#111720}
+  .section-health .scheme-board,.section-health .remna-board{display:none}
+  .section-schemes .service-strip,.section-schemes .network-grid,.section-schemes .remna-board{display:none}
+  .section-nodes .scheme-board{display:none}
+  .section-security .check-grid article:not(:nth-child(2)):not(:nth-child(3)){opacity:.48}
+  .section-backups .check-grid article:not(:last-child){opacity:.48}
+  @media(max-width:1100px){.console{grid-template-columns:82px minmax(0,1fr)}aside{padding-inline:10px}.brand span,nav span,.owner span{display:none}.brand,nav button,.owner{justify-content:center;padding-inline:0}.metrics{grid-template-columns:1fr 1fr}}
 </style>
