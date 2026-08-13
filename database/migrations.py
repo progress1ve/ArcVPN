@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 46
+LATEST_VERSION = 48
 
 
 def get_current_version() -> int:
@@ -1965,6 +1965,44 @@ def migration_46(conn: sqlite3.Connection) -> None:
     logger.info("Migration v46 applied")
 
 
+def migration_47(conn: sqlite3.Connection) -> None:
+    """Deduplicate expiry notifications per meaningful lifecycle stage."""
+    logger.info("Applying migration v47 (typed expiry notifications)...")
+    _add_column(conn, "notification_log", "notification_type TEXT NOT NULL DEFAULT 'legacy'")
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_notification_log_type "
+        "ON notification_log(vpn_key_id, notification_type, sent_at)"
+    )
+    conn.execute(
+        """INSERT INTO settings(key,value) VALUES('notification_text',?)
+           ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+        ("⏳ <b>ArcVPN скоро закончится</b>\n\n"
+         "Осталось: <b>%дней%</b>. Продлите заранее, чтобы VPN продолжил работать без перерыва.\n\n"
+         "Настройки и устройства сохранятся, повторно импортировать подписку не потребуется.",),
+    )
+    conn.execute(
+        """INSERT INTO settings(key,value) VALUES('expired_notification_text',?)
+           ON CONFLICT(key) DO UPDATE SET value=excluded.value""",
+        ("🔒 <b>Подписка ArcVPN закончилась</b>\n\n"
+         "VPN больше не подключается, но ваши настройки и устройства сохранены.\n\n"
+         "Продлите подписку — доступ восстановится автоматически, заново настраивать Happ не нужно.",),
+    )
+    logger.info("Migration v47 applied")
+
+
+def migration_48(conn: sqlite3.Connection) -> None:
+    """Persist bounded manual infrastructure diagnostics."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS node_diagnostic_runs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        host TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        ok INTEGER NOT NULL DEFAULT 0,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_node_diagnostics_host ON node_diagnostic_runs(host, created_at)")
+    logger.info("Migration v48 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2012,6 +2050,8 @@ MIGRATIONS = {
     44: migration_44,
     45: migration_45,
     46: migration_46,
+    47: migration_47,
+    48: migration_48,
 }
 
 

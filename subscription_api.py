@@ -1078,6 +1078,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     links = [item.strip() for item in links_text.splitlines() if item.strip()]
     regular: list[Dict[str, Any]] = []
     auto_outbounds: list[Dict[str, Any]] = []
+    lte_fallback: Optional[Dict[str, Any]] = None
     for index, link in enumerate(links, start=1):
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else f"ArcVPN #{index}"
         outbound = _json_outbound_from_share_link(link, "proxy")
@@ -1098,7 +1099,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 ],
             },
         })
-        if "Обход глушилок" not in name:
+        if "Обход глушилок" in name and lte_fallback is None:
+            lte_fallback = _json_outbound_from_share_link(link, "lte_backup")
+        elif "Обход глушилок" not in name:
             candidate = _json_outbound_from_share_link(link, "proxy" if not auto_outbounds else f"proxy-{len(auto_outbounds) + 1}")
             if candidate is not None:
                 auto_outbounds.append(candidate)
@@ -1117,11 +1120,13 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "inbounds": _json_local_inbounds(key),
         "log": {"loglevel": "none"},
         "meta": None,
-        "outbounds": [*auto_outbounds, {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
+        "outbounds": [*auto_outbounds, *([lte_fallback] if lte_fallback else []), {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
         "remarks": "⚡ Автовыбор",
         "routing": {
             "balancers": [{
-                "fallbackTag": "direct", "selector": ["proxy"],
+                # LTE is excluded from observation/least-load and is used only
+                # when every normal server fails the connectivity probe.
+                "fallbackTag": "lte_backup" if lte_fallback else "direct", "selector": ["proxy"],
                 "strategy": {"settings": {"baselines": ["1s"], "expected": 2, "maxRTT": "1s", "tolerance": 0.01}, "type": "leastLoad"},
                 "tag": "Auto_Select",
             }],
@@ -3088,6 +3093,59 @@ def api_admin_logout():
     response = jsonify({"ok": True})
     response.delete_cookie(ADMIN_CONSOLE_COOKIE, path="/")
     return _api_no_store(response)
+
+
+@app.route('/api/admin/diagnostics/run', methods=['POST'])
+def api_admin_diagnostics_run():
+    """Run a bounded reachability test for one registered RemnaNode."""
+    if not _admin_authorized():
+        return _api_error("admin_unauthorized", 403)
+    payload = request.get_json(silent=True) or {}
+    requested_uuid = _clean_text(payload.get("node_uuid"), 64)
+    remna_env: Dict[str, str] = {}
+    try:
+        with open(os.path.join(os.path.dirname(__file__), ".env.remnawave-staging"), "r", encoding="utf-8") as stream:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    remna_env[key.strip()] = value.strip()
+
+        async def get_nodes():
+            client = RemnawaveClient({
+                "panel_api_url": remna_env.get("REMNAWAVE_PANEL_URL", ""),
+                "panel_api_token": remna_env.get("REMNAWAVE_API_TOKEN", ""),
+            })
+            try:
+                return await client._request("GET", "/api/nodes")
+            finally:
+                await client.close()
+
+        nodes = ASYNC_EXECUTOR.run(get_nodes(), timeout=12) or []
+        node = next((item for item in nodes if str(item.get("uuid")) == requested_uuid), None)
+        if not node:
+            return _api_error("unknown_node", 404)
+        host = _clean_text(node.get("address"), 255)
+        ports = sorted({
+            int(item.get("port")) for item in ((node.get("configProfile") or {}).get("activeInbounds") or [])
+            if str(item.get("port") or "").isdigit() and 1 <= int(item.get("port")) <= 65535
+        })
+        completed = subprocess.run(
+            [os.sys.executable, os.path.join(os.path.dirname(__file__), "monitoring", "deep_node_diagnostics.py"),
+             "--host", host, "--ports", ",".join(map(str, ports))],
+            capture_output=True, text=True, timeout=45, check=False,
+        )
+        result = json.loads(completed.stdout or "{}")
+        result.update({"node_uuid": requested_uuid, "node_name": node.get("name") or host})
+        with get_db() as conn:
+            conn.execute(
+                "INSERT INTO node_diagnostic_runs(host,result_json,ok) VALUES(?,?,?)",
+                (host, json.dumps(result, ensure_ascii=False), int(bool(result.get("ok")))),
+            )
+        return _api_no_store(jsonify({"ok": True, "diagnostic": result}))
+    except (OSError, ValueError, subprocess.SubprocessError) as exc:
+        logger.exception("Manual node diagnostic failed")
+        return _api_error(type(exc).__name__, 503)
 
 
 @app.route('/api/admin/overview', methods=['GET'])

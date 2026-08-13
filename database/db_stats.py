@@ -193,7 +193,7 @@ def mark_key_panel_disabled(vpn_key_id: int) -> bool:
         )
         return cursor.rowcount > 0
 
-def is_notification_sent_today(vpn_key_id: int) -> bool:
+def is_notification_sent_today(vpn_key_id: int, notification_type: str = "legacy", cooldown_days: int = 7) -> bool:
     """
     Проверяет, было ли уже отправлено уведомление для этого ключа.
     Уведомление отправляется только один раз, повторное - через 7 дней после последнего.
@@ -207,10 +207,10 @@ def is_notification_sent_today(vpn_key_id: int) -> bool:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT sent_at FROM notification_log
-            WHERE vpn_key_id = ? 
+            WHERE vpn_key_id = ? AND COALESCE(notification_type, 'legacy') = ?
             ORDER BY sent_at DESC
             LIMIT 1
-        """, (vpn_key_id,))
+        """, (vpn_key_id, notification_type))
         row = cursor.fetchone()
         
         if not row:
@@ -224,9 +224,9 @@ def is_notification_sent_today(vpn_key_id: int) -> bool:
         days_passed = cursor.fetchone()['days_passed']
         
         # Если прошло меньше 7 дней - не отправляем
-        return days_passed < 7
+        return days_passed < max(1, int(cooldown_days))
 
-def log_notification_sent(vpn_key_id: int) -> None:
+def log_notification_sent(vpn_key_id: int, notification_type: str = "legacy") -> None:
     """
     Записывает факт отправки уведомления.
     Каждое уведомление записывается как отдельная запись.
@@ -236,9 +236,9 @@ def log_notification_sent(vpn_key_id: int) -> None:
     """
     with get_db() as conn:
         conn.execute("""
-            INSERT INTO notification_log (vpn_key_id, sent_at)
-            VALUES (?, date('now'))
-        """, (vpn_key_id,))
+            INSERT INTO notification_log (vpn_key_id, sent_at, notification_type)
+            VALUES (?, CURRENT_TIMESTAMP, ?)
+        """, (vpn_key_id, notification_type))
         logger.debug(f"Записано уведомление для ключа {vpn_key_id}")
 
 def get_keys_stats() -> Dict[str, int]:

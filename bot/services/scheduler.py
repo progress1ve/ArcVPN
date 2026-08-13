@@ -450,8 +450,8 @@ def _pluralize_days(n: int) -> str:
 
 def _expired_keyboard(vpn_key_id: int) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
-    builder.row(InlineKeyboardButton(text="💳 Продлить", callback_data=f"key_renew:{vpn_key_id}"))
-    builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"))
+    builder.row(InlineKeyboardButton(text="⚡ Продлить подписку", callback_data=f"key_renew:{vpn_key_id}"))
+    builder.row(InlineKeyboardButton(text="🔐 Моя подписка", callback_data="my_keys"))
     builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
     return builder.as_markup()
 
@@ -464,13 +464,13 @@ async def notify_expired_subscription(bot: Bot, vpn_key_id: int, telegram_id: in
     Вынесено в один хелпер, чтобы не дублировать логику в двух местах.
     """
     if (not telegram_id or not notification_allowed(telegram_id, "expiry")
-            or is_notification_sent_today(vpn_key_id)):
+            or is_notification_sent_today(vpn_key_id, "expired", 30)):
         return False
     from bot.services.notifications import render_template
     default_expired = (
-        '❌ <b>Ваша подписка %имяподписки% истекла!</b>\n\n'
-        'Срок действия вашей подписки закончился.\n\n'
-        'Продлите подписку, чтобы восстановить доступ к VPN!'
+        '🔒 <b>Подписка ArcVPN закончилась</b>\n\n'
+        'VPN больше не подключается, но ваши настройки и устройства сохранены.\n\n'
+        'Продлите подписку — доступ восстановится автоматически, заново настраивать Happ не нужно.'
     )
     text, photo = render_template(
         'expired_notification_text', default_expired,
@@ -478,7 +478,7 @@ async def notify_expired_subscription(bot: Bot, vpn_key_id: int, telegram_id: in
     )
     ok = await send_to_user(bot, telegram_id, text, reply_markup=_expired_keyboard(vpn_key_id), photo=photo)
     if ok:
-        log_notification_sent(vpn_key_id)
+        log_notification_sent(vpn_key_id, "expired")
     return ok
 
 
@@ -495,15 +495,10 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
         days = int(get_setting('notification_days', '3'))
 
         default_notification = (
-            '⚠️ <b>Ваша подписка %имяподписки% скоро истекает!</b>\n\n'
-            'Через %дней% закончится срок действия вашей подписки.\n\n'
-            'Продлите подписку, чтобы сохранить доступ к VPN без перерыва!'
+            '⏳ <b>ArcVPN скоро закончится</b>\n\n'
+            'Осталось: <b>%дней%</b>. Продлите заранее, чтобы VPN продолжил работать без перерыва.\n\n'
+            'Настройки и устройства сохранятся, повторно импортировать подписку не потребуется.'
         )
-
-        builder = InlineKeyboardBuilder()
-        builder.row(InlineKeyboardButton(text="Моя подписка", callback_data="my_keys"))
-        builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-        expiring_kb = builder.as_markup()
 
         expiring_keys = get_expiring_keys(days)
         sent_count = 0
@@ -513,10 +508,12 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
             user_telegram_id = key_info['user_telegram_id']
             days_left = key_info['days_left']
             keyname = key_info.get('custom_name', f"Подписка #{vpn_key_id}")
+            expiring_kb = _expired_keyboard(vpn_key_id)
 
             if not notification_allowed(user_telegram_id, "expiry"):
                 continue
-            if is_notification_sent_today(vpn_key_id):
+            stage = "expiring_1d" if days_left <= 1 else "expiring_3d"
+            if is_notification_sent_today(vpn_key_id, stage, 30):
                 continue
 
             text, photo = render_template(
@@ -528,7 +525,7 @@ async def check_and_send_expiry_notifications(bot: Bot) -> None:
                 },
             )
             if await send_to_user(bot, user_telegram_id, text, reply_markup=expiring_kb, photo=photo):
-                log_notification_sent(vpn_key_id)
+                log_notification_sent(vpn_key_id, stage)
                 sent_count += 1
             await asyncio.sleep(0.05)
 
