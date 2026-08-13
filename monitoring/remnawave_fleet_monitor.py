@@ -4,8 +4,8 @@ import json
 import os
 import sqlite3
 import sys
+import urllib.request
 from pathlib import Path
-import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "monitoring"))
@@ -39,13 +39,12 @@ def tcp_ports(node: dict) -> list[int]:
 
 def main() -> int:
     env = load_env(ROOT / ".env.remnawave-staging")
-    response = requests.get(
+    request = urllib.request.Request(
         f"{env['REMNAWAVE_PANEL_URL'].rstrip('/')}/api/nodes",
         headers={"Authorization": f"Bearer {env['REMNAWAVE_API_TOKEN']}", "Accept": "application/json"},
-        timeout=15,
     )
-    response.raise_for_status()
-    payload = response.json()
+    with urllib.request.urlopen(request, timeout=15) as response:
+        payload = json.loads(response.read().decode("utf-8"))
     nodes = payload if isinstance(payload, list) else payload.get("response", payload.get("nodes", []))
     db_path = Path(os.getenv("ARCVPN_DB_PATH", str(ROOT / "database" / "vpn_bot.db")))
     failures = 0
