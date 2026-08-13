@@ -3350,7 +3350,7 @@ def api_admin_overview():
     except Exception:
         logger.exception("Admin health: database quick_check failed")
 
-    remnawave = {"healthy": False, "users": 0, "nodes": [], "detail": "not configured"}
+    remnawave = {"healthy": False, "users": 0, "nodes": [], "online_users": [], "detail": "not configured"}
     try:
         remna_env: Dict[str, str] = {}
         env_path = os.path.join(os.path.dirname(__file__), ".env.remnawave-staging")
@@ -3369,15 +3369,41 @@ def api_admin_overview():
             })
             try:
                 nodes = await client._request("GET", "/api/nodes")
-                users = await client._request("GET", "/api/users", params={"start": 0, "size": 1})
+                users = await client._request("GET", "/api/users", params={"start": 0, "size": 500})
                 return nodes, users
             finally:
                 await client.close()
 
         remna_nodes, remna_users = ASYNC_EXECUTOR.run(_remnawave_telemetry(), timeout=12)
+        node_names = {
+            str(node.get("uuid")): node.get("name") or node.get("address") or "RemnaNode"
+            for node in (remna_nodes or [])
+        }
+        online_cutoff = datetime.now(timezone.utc) - timedelta(minutes=3)
+        online_users = []
+        for user in (remna_users or {}).get("users", []):
+            traffic = user.get("userTraffic") or {}
+            raw_online_at = traffic.get("onlineAt")
+            if not raw_online_at:
+                continue
+            try:
+                online_at = datetime.fromisoformat(str(raw_online_at).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if online_at < online_cutoff:
+                continue
+            node_uuid = str(traffic.get("lastConnectedNodeUuid") or "")
+            online_users.append({
+                "username": user.get("username"),
+                "telegram_id": user.get("telegramId"),
+                "online_at": raw_online_at,
+                "node_uuid": node_uuid or None,
+                "node_name": node_names.get(node_uuid, "Узел не определён"),
+            })
         remnawave = {
             "healthy": True,
             "users": int((remna_users or {}).get("total") or 0),
+            "online_users": sorted(online_users, key=lambda item: item["online_at"], reverse=True),
             "detail": "connected",
             "nodes": [{
                 "uuid": node.get("uuid"),
@@ -3408,6 +3434,21 @@ def api_admin_overview():
     except Exception as exc:
         remnawave["detail"] = type(exc).__name__
         logger.exception("Admin Remnawave telemetry failed")
+
+    # Remnawave is authoritative for current presence after the panel cutover.
+    # Merge it into the business user rows so the "Online" filter shows real
+    # people and their last node instead of stale XUI counters.
+    remna_online_by_tg = {
+        str(item.get("telegram_id")): item
+        for item in remnawave.get("online_users", [])
+        if item.get("telegram_id") is not None
+    }
+    for user in recent_users:
+        presence = remna_online_by_tg.get(str(user.get("telegram_id")))
+        user["online_devices"] = 1 if presence else 0
+        if presence:
+            user["last_online_at"] = presence.get("online_at")
+            user["online_node"] = presence.get("node_name")
 
     return _api_no_store(jsonify({
         "ok": True,

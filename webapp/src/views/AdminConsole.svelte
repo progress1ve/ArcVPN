@@ -87,7 +87,7 @@
     {:else if active === 'users'}
       <section class="panel records"><div class="panel-head"><div><span>Клиентская база</span><h2>Пользователи</h2></div></div>
         <div class="filters"><button class:active={userFilter==='top'} on:click={()=>userFilter='top'}>Больше заплатили</button><button class:active={userFilter==='online'} on:click={()=>userFilter='online'}>Онлайн</button><button class:active={userFilter==='inactive'} on:click={()=>userFilter='inactive'}>Не продлили</button><button class:active={userFilter==='all'} on:click={()=>userFilter='all'}>Все</button></div>
-        <div class="record-list">{#each visibleUsers as user}<article><div><b>{user.first_name || user.username || `ID ${user.telegram_id}`}</b><small>@{user.username || 'без username'} · {user.online_devices || 0} онлайн · оплачено {rub(user.paid_rub)}</small></div><span class:ok={user.active}>{user.active ? (Number(user.online_devices)>0?'Онлайн':'Активен') : 'Не продлил'}</span></article>{/each}</div>
+        <div class="record-list">{#each visibleUsers as user}<article><div><b>{user.first_name || user.username || `ID ${user.telegram_id}`}</b><small>@{user.username || 'без username'} · {Number(user.online_devices)>0 ? `онлайн через ${user.online_node || 'Remnawave'}` : 'не в сети'} · оплачено {rub(user.paid_rub)}</small></div><span class:ok={user.active}>{user.active ? (Number(user.online_devices)>0?'Онлайн':'Активен') : 'Не продлил'}</span></article>{/each}</div>
       </section>
     {:else if active === 'payments'}
       <section class="panel records"><div class="panel-head"><div><span>Деньги и заказы</span><h2>Платежи</h2></div></div>
@@ -124,7 +124,7 @@
         <article><span>Выручка за 30 дней</span><strong>{rub(data.financials?.month_rub)}</strong><small>{num(data.financials?.successful_orders)} успешных оплат за всё время</small></article>
         <article><span>Активные подписки</span><strong>{num(data.subscriptions.active)}</strong><small>+{num(data.subscriptions.month)} за 30 дней</small></article>
         <article><span>Trial → оплата</span><strong>{Number(data.conversion.conversion_rate).toFixed(1)}%</strong><small>{num(data.conversion.converted)} конверсий</small></article>
-        <article><span>Сейчас онлайн</span><strong>{num((data.operations.panel_online_total || 0) + (data.remnawave?.nodes || []).reduce((sum,node)=>sum+Number(node.users_online||0),0))}</strong><small>Remnawave + переходный XUI-контур</small></article>
+        <article><span>Сейчас онлайн</span><strong>{num(data.remnawave?.online_users?.length || 0)}</strong><small>уникальные пользователи Remnawave за 3 минуты</small></article>
       </section>
       <div class="grid">
         <section class="panel">

@@ -1261,3 +1261,21 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   nodes and hosts exist, every public profile is generated from Remnawave, and
   XUI is retained through a measured rollback window. Never call the hybrid
   phase a completed XUI retirement.
+
+## Happ auto profile and Remnawave presence (2026-08-13)
+
+- The production subscription service on Poland must run commit `5513ebb` or
+  newer. JSON imports contain a visible first profile `⚡ Автовыбор`, built as
+  an Xray `burstObservatory` plus a `leastLoad` balancer. Plain subscriptions
+  cannot represent this composite profile; users need a JSON import/re-import.
+- The auto profile balances only normal Wi-Fi outbounds. LTE/CDN is deliberately
+  excluded: latency alone cannot detect a mobile whitelist regime, and silently
+  routing ordinary traffic through LTE would consume weighted x10 traffic.
+- Remnawave `/api/users` exposes `userTraffic.onlineAt` and
+  `lastConnectedNodeUuid`. The business console treats activity within three
+  minutes as online and maps the node UUID to its RemnaNode name. Do not add
+  Remnawave node counters together: one user can appear on more than one node.
+- `194.186.130.21` is an unverified shared edge address suggested in a chat.
+  Never hard-code it as the CDN resource address without confirming ownership,
+  TLS/SNI behavior and operator-specific reachability. Prefer the CDN-assigned
+  CNAME and use fixed edge IP only as a measured, reversible emergency route.
