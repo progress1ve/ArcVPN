@@ -1279,3 +1279,27 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   Never hard-code it as the CDN resource address without confirming ownership,
   TLS/SNI behavior and operator-specific reachability. Prefer the CDN-assigned
   CNAME and use fixed edge IP only as a measured, reversible emergency route.
+
+## Fleet monitoring, LTE fallback and notifications (2026-08-13)
+
+- Production runs `arcvpn-fleet-monitor.timer` on Poland every 10 minutes. It
+  reads only registered RemnaNodes, checks panel connectivity and TCP-based
+  active inbound ports, stores 30 days in `node_diagnostic_runs`, and exposes
+  the latest result in Business Console. Hysteria2 is UDP/QUIC and must never
+  be declared down by a TCP-connect probe. The console also provides a bounded
+  manual deep test for a selected registered node.
+- Happ JSON subscriptions use LTE as a costly fallback only: normal outbounds
+  participate in `leastLoad`/`burstObservatory`, while `lte_backup` is excluded
+  from latency selection and referenced only by `fallbackTag`. The separate
+  visible LTE profile remains an explicit emergency option. Existing live Xray
+  connections may persist until reconnect; automatic fallback is not an
+  instant migration mechanism.
+- Subscription lifecycle messages are independent stages: three days left,
+  one day left, and expired. Each stage has its own deduplication key, so an
+  early warning can no longer suppress the urgent or expired notification.
+  Expired wording says saved devices/settings remain and renewal does not
+  require re-import.
+- Exactly one Telegram polling instance is allowed. On 2026-08-13 the obsolete
+  Germany `arcvpn-bot.service` was stopped and disabled after it was found
+  competing with Poland (`getUpdates` conflicts). Poland is authoritative for
+  bot commands, lifecycle notifications and payment reconciliation.
