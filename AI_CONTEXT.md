@@ -1303,3 +1303,23 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   Germany `arcvpn-bot.service` was stopped and disabled after it was found
   competing with Poland (`getUpdates` conflicts). Poland is authoritative for
   bot commands, lifecycle notifications and payment reconciliation.
+
+## Deterministic catalog and France reconnect (2026-08-14)
+
+- `sub.arccnet.space` still resolves to both `2.26.84.210` and
+  `217.60.33.38`. This caused the apparent random old/new subscription: two
+  independent nginx origins served different deployed revisions. Both origins
+  were synchronized to the same commit as an immediate compatibility fix.
+  Remove the old Germany A record after DNS propagation so Poland is the only
+  subscription authority; do the same for `panel.arccnet.space`.
+- An unspecified subscription format now resolves to Happ JSON for both Happ
+  and generic/browser clients. Explicit `?format=plain` and `?format=base64`
+  remain available for other clients. The verified Happ catalog contains eight
+  profiles: AutoSelect, France TCP, Finland TCP/Hysteria, Germany
+  TCP/Hysteria, and two selectable LTE profiles.
+- France Remnawave profile `f9e9b07f-2b9e-42e8-9b66-16d52642fd4d` now uses
+  `vpbggjof6.vpvr4ib84nuv6hdkt.ru:443`, Reality port `20086`, short ID
+  `e1609bc5259a2c3f`, and no Hysteria inbound. The control address is
+  `vpbggjof6.vpvr4ib84nuv6hdkt.ru:20085`. A new RemnaNode secret was generated
+  and stored only on Poland at `/root/ArcVPN/.secret.remnanode-france` (0600);
+  it must be pasted into wCloud together with panel IP `217.60.33.38`.
