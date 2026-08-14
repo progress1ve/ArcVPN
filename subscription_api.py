@@ -180,11 +180,14 @@ REMNAWAVE_PUBLIC_NODES = (
         "country": "FR",
         "flag": "🇫🇷",
         "label": "Франция",
-        "host": "fr2.sfxu.ru",
+        "host": "vpbggjof6.vpvr4ib84nuv6hdkt.ru",
         "tcp_port": 20086,
-        "hy2_port": 20087,
-        "public_key": "IRmahen2BbN-2-_exw4TNoeJBGAF0bvVSobxdBQ_Bn0",
-        "short_id": "ba5b0807589028e6",
+        # The replacement wCloud profile currently exposes only TCP Reality.
+        # Do not manufacture a Hysteria row for a port absent from its Xray
+        # profile: that creates a healthy-looking but permanently dead entry.
+        "hy2_port": None,
+        "public_key": "gfwUlsr4e_IxiJSl2pFkSitsdUzEUtDG5XvPzQR2eXg",
+        "short_id": "e1609bc5259a2c3f",
         "tcp_number": 1,
         "hy2_number": 2,
     },
@@ -1108,12 +1111,16 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 ],
             },
         }
-        if LTE_NAME_MARKER in name and lte_fallback is None:
-            lte_fallback = _json_outbound_from_share_link(link, "lte_backup")
-        elif LTE_NAME_MARKER not in name:
-            # LTE is an internal emergency route of the automatic profile.  Do
-            # not expose it as a normal selectable row: otherwise a user can
-            # leave it enabled on an unrestricted network and burn CDN traffic.
+        if LTE_NAME_MARKER in name:
+            # Keep both explicit LTE rows available for manual recovery while
+            # the first one is also the emergency fallback of Auto Select.
+            # Traffic accounting still charges these routes with the x10
+            # multiplier, so hiding them from Happ is neither required nor
+            # desirable when a carrier blocks every regular node.
+            regular.append(regular_profile)
+            if lte_fallback is None:
+                lte_fallback = _json_outbound_from_share_link(link, "lte_backup")
+        else:
             regular.append(regular_profile)
             candidate = _json_outbound_from_share_link(link, "proxy" if not auto_outbounds else f"proxy-{len(auto_outbounds) + 1}")
             if candidate is not None:
@@ -1655,20 +1662,21 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         f"{xhttp_query}#{xhttp_name}"
                     )
 
-                hy2_query = urllib.parse.urlencode({
-                    "sni": node["host"],
-                    "fm": json.dumps(
-                        {"quicParams": {"debug": False, "congestion": "bbr"}},
-                        separators=(",", ":"),
-                    ),
-                })
-                hy2_name = urllib.parse.quote(
-                    f"{node['flag']} {node['label']} #{node['hy2_number']}", safe=""
-                )
-                links.append(
-                    f"hysteria2://{credential}@{node['host']}:{node['hy2_port']}?"
-                    f"{hy2_query}#{hy2_name}"
-                )
+                if node.get("hy2_port"):
+                    hy2_query = urllib.parse.urlencode({
+                        "sni": node["host"],
+                        "fm": json.dumps(
+                            {"quicParams": {"debug": False, "congestion": "bbr"}},
+                            separators=(",", ":"),
+                        ),
+                    })
+                    hy2_name = urllib.parse.quote(
+                        f"{node['flag']} {node['label']} #{node['hy2_number']}", safe=""
+                    )
+                    links.append(
+                        f"hysteria2://{credential}@{node['host']}:{node['hy2_port']}?"
+                        f"{hy2_query}#{hy2_name}"
+                    )
 
             if REMNAWAVE_LTE_ENABLED:
                 lte_extra = json.dumps({
