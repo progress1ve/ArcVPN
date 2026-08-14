@@ -1085,6 +1085,56 @@ def _json_local_inbounds(key: ActiveKeyRecord) -> list[Dict[str, Any]]:
     ]
 
 
+def _happ_direct_rules() -> list[Dict[str, Any]]:
+    """Rules that keep Russian and private services outside the VPN tunnel.
+
+    Happ imports JSON profiles as standalone Xray configurations, therefore
+    the legacy ``happ://routing`` header is not sufficient for these profiles.
+    Keep explicit domain fallbacks alongside geo-assets: the fallbacks cover
+    the most common Russian apps even while Happ is refreshing geo files.
+    """
+    domains = list(dict.fromkeys([
+        *SPLIT_TUNNELING_DIRECT_SITES,
+        "regexp:\\.(ru|su)$",
+        "regexp:\\.xn--p1ai$",
+        "domain:yandex.net",
+        "domain:yastatic.net",
+        "domain:vk.com",
+        "domain:vk.ru",
+        "domain:ok.ru",
+        "domain:mail.ru",
+        "domain:mycdn.me",
+        "domain:avito.ru",
+        "domain:ozon.ru",
+        "domain:ozone.ru",
+        "domain:ozonusercontent.com",
+        "domain:wildberries.ru",
+        "domain:wildberries.net",
+        "domain:wb.ru",
+        "domain:2gis.ru",
+        "domain:2gis.com",
+        "domain:gosuslugi.ru",
+        "domain:sberbank.ru",
+        "domain:sber.ru",
+        "domain:tbank.ru",
+        "domain:tinkoff.ru",
+        "domain:alfabank.ru",
+        "domain:vtb.ru",
+        "domain:mts.ru",
+        "domain:megafon.ru",
+        "domain:beeline.ru",
+        "domain:tele2.ru",
+        "domain:rutube.ru",
+        "domain:kinopoisk.ru",
+    ]))
+    ips = list(dict.fromkeys([*SPLIT_TUNNELING_DIRECT_IP, *LOCAL_AND_RESERVED_CIDRS]))
+    return [
+        {"outboundTag": "direct", "protocol": ["bittorrent"], "type": "field"},
+        {"domain": domains, "outboundTag": "direct", "type": "field"},
+        {"ip": ips, "outboundTag": "direct", "type": "field"},
+    ]
+
+
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
     links = [item.strip() for item in links_text.splitlines() if item.strip()]
@@ -1106,7 +1156,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "routing": {
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
-                    {"outboundTag": "direct", "protocol": ["bittorrent"], "type": "field"},
+                    *_happ_direct_rules(),
                     {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
                 ],
             },
@@ -1152,7 +1202,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             }],
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
             "rules": [
-                {"outboundTag": "direct", "protocol": ["bittorrent"], "type": "field"},
+                *_happ_direct_rules(),
                 {"balancerTag": "Auto_Select", "network": "tcp,udp", "type": "field"},
             ],
         },

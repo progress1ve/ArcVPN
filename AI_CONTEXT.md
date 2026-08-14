@@ -1342,3 +1342,8 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - `/api/admin/backups` lists and creates local SQLite backups using the SQLite
   backup API, verifies each new copy with `PRAGMA quick_check`, and stores it in
   `/root/ArcVPN/backups` with mode 0600.
+- Happ JSON profiles are standalone Xray configurations. Russian split routing
+  must therefore be embedded into every regular profile and AutoSelect profile;
+  the legacy `happ://routing` header alone does not affect JSON imports. Direct
+  rules include configured RU geo-assets plus explicit `.ru`/`.su`/`.xn--p1ai`
+  and major Russian-service domain fallbacks, followed by the proxy rule.
