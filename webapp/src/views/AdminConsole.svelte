@@ -1,6 +1,9 @@
 <script>
   import { onDestroy, onMount } from 'svelte'
   import ArcIcon from '../components/ArcIcon.svelte'
+  import AdminHealth from './admin/AdminHealth.svelte'
+  import AdminSchemes from './admin/AdminSchemes.svelte'
+  import AdminNodes from './admin/AdminNodes.svelte'
   import { fetchAdminOverview, loginAdmin, logoutAdmin, runAdminNodeDiagnostic, fetchAdminSupportThreads, fetchAdminSupportThread, sendAdminSupportReply } from '../lib/api.js'
 
   let data = null
@@ -105,7 +108,13 @@
         <div class="filters"><button class:active={paymentFilter==='paid'} on:click={()=>paymentFilter='paid'}>Успешные</button><button class:active={paymentFilter==='failed'} on:click={()=>paymentFilter='failed'}>Не завершены</button><button class:active={paymentFilter==='all'} on:click={()=>paymentFilter='all'}>Все</button></div>
         <div class="record-list">{#each visiblePayments as payment}<article><div><b>{Number(payment.display_amount_rub)>0 ? rub(payment.display_amount_rub) : `$${Number(payment.display_amount_usd || 0).toFixed(2)}`}</b><small>@{payment.username || payment.telegram_id} · {payment.tariff_name || payment.payment_type || 'оплата'}</small></div><span class:ok={payment.status === 'succeeded' || payment.status === 'paid'}>{payment.status}</span></article>{/each}</div>
       </section>
-    {:else if ['network','health','schemes','nodes'].includes(active)}
+    {:else if active === 'health'}
+      <AdminHealth {data} onRefresh={() => load(true)} />
+    {:else if active === 'schemes'}
+      <AdminSchemes {data} />
+    {:else if active === 'nodes'}
+      <AdminNodes {data} {diagnostics} {diagnosticNode} onDiagnostic={runDiagnostic} />
+    {:else if active === 'network'}
       <section class="workspace-section">
         <div class="section-title"><div><span class="eyebrow">{active === 'schemes' ? 'Маршрутизация' : active === 'nodes' ? 'Инфраструктура' : 'Операционный центр'}</span><h2>{active === 'schemes' ? 'Схемы подключений' : active === 'nodes' ? 'Ноды ArcVPN' : 'Здоровье системы'}</h2><p>{active === 'schemes' ? 'Автовыбор, резервные маршруты и LTE fallback.' : active === 'nodes' ? 'Состояние, нагрузка и диагностика каждого сетевого узла.' : 'Remnawave, Subscription API, база и внешние сетевые пробы.'}</p></div><button class="refresh" on:click={load}><ArcIcon name="pulse" size={18}/>Проверить</button></div>
         <div class="service-strip">
@@ -220,5 +229,17 @@
   .section-nodes .scheme-board{display:none}
   .section-security .check-grid article:not(:nth-child(2)):not(:nth-child(3)){opacity:.48}
   .section-backups .check-grid article:not(:last-child){opacity:.48}
+  /* Arc Operations uses its own warm operations palette. It is deliberately
+     separate from the blue customer WebApp, so the console reads as a serious
+     control plane rather than a duplicated consumer screen. */
+  .console{--card:#171315;--line:rgba(244,204,190,.09);background:radial-gradient(900px 620px at 92% -15%,rgba(174,94,72,.12),transparent 60%),#0d0a0b;color:#f5eeee}
+  aside{background:#120e10;border-color:rgba(244,204,190,.075)}
+  .brand{background:#1a1416}.brand small,.owner small{color:#847a7c}
+  nav button{color:#928789}nav button:hover{color:#fff3ef;background:rgba(236,159,128,.06)}nav button.active{color:#ffb394;background:linear-gradient(90deg,rgba(236,154,123,.17),rgba(236,154,123,.035));box-shadow:inset 3px 0 #ee9d7d}
+  .owner{background:#1a1416;border-color:rgba(244,204,190,.08)}.owner>i{background:#3b262a;color:#ffb394}
+  main>header{border-color:rgba(244,204,190,.075)}.eyebrow{color:#e99c7f}.refresh{background:#191416;border-color:rgba(244,204,190,.1);color:#eadfdd}.telemetry-fresh i{background:#70d5a7}
+  .panel,.metrics article,.network-grid article,.inbound-board,.check-grid article,.scheme-board,.thread-list,.admin-chat{border-color:rgba(244,204,190,.075);background:#171315}.metrics article:first-child{background:linear-gradient(145deg,rgba(116,63,52,.28),#171315 72%)}
+  .panel-head span{color:#a16f61}.panel-head button,.metrics small{color:#eda88d}.health{background:linear-gradient(90deg,rgba(47,116,86,.13),#171315);border-color:rgba(109,213,170,.11)}
+  .logout{background:#1b1517!important;border-color:#3b2d30!important;color:#dcacab!important}
   @media(max-width:1100px){.console{grid-template-columns:82px minmax(0,1fr)}aside{padding-inline:10px}.brand span,nav span,.owner span{display:none}.brand,nav button,.owner{justify-content:center;padding-inline:0}.metrics{grid-template-columns:1fr 1fr}}
 </style>
