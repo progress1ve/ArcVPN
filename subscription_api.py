@@ -762,7 +762,7 @@ def _normalize_output_format(raw_format: str, client_family: str) -> str:
         # subscription can only contain independent share links and therefore
         # cannot expose a separate "Автовыбор" row.  Keep Hiddify on plain,
         # because it expects URI rows rather than Happ profile JSON.
-        if client_family == "happ":
+        if client_family in {"happ", "generic"}:
             return "json"
         if client_family == "hiddify":
             return "plain"
