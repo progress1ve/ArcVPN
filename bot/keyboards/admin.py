@@ -53,6 +53,7 @@ __all__ = [
     'broadcast_notifications_kb',
     'broadcast_back_kb',
     'broadcast_notify_back_kb',
+    'broadcast_user_selection_kb',
     'users_menu_kb',
     'users_list_kb',
     'user_view_kb',

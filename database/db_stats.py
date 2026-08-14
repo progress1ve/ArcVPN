@@ -3,6 +3,7 @@ import logging
 import secrets
 import string
 import datetime
+import json
 from typing import Optional, List, Dict, Any, Tuple
 from .connection import get_db
 
@@ -11,6 +12,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     'get_users_for_broadcast',
     'count_users_for_broadcast',
+    'get_active_users_for_broadcast_selection',
     'get_expiring_keys',
     'get_expired_keys_today',
     'get_all_expired_keys',
@@ -18,6 +20,36 @@ __all__ = [
     'log_notification_sent',
     'get_keys_stats',
 ]
+
+
+def _selected_broadcast_ids(conn) -> List[int]:
+    row = conn.execute(
+        "SELECT value FROM settings WHERE key = 'broadcast_selected_users'"
+    ).fetchone()
+    if not row or not row['value']:
+        return []
+    try:
+        values = json.loads(row['value'])
+        return [int(value) for value in values]
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return []
+
+
+def get_active_users_for_broadcast_selection() -> List[Dict[str, Any]]:
+    """Return active, non-banned users available for an explicit broadcast."""
+    with get_db() as conn:
+        cursor = conn.execute("""
+            SELECT u.telegram_id, u.username, u.first_name,
+                   MAX(vk.expires_at) AS expires_at
+            FROM users u
+            JOIN vpn_keys vk ON vk.user_id = u.id
+            WHERE u.is_banned = 0
+              AND vk.expires_at > datetime('now')
+            GROUP BY u.id, u.telegram_id, u.username, u.first_name
+            ORDER BY COALESCE(NULLIF(u.username, ''), NULLIF(u.first_name, ''),
+                              CAST(u.telegram_id AS TEXT)) COLLATE NOCASE
+        """)
+        return [dict(row) for row in cursor.fetchall()]
 
 def get_users_for_broadcast(filter_type: str) -> List[int]:
     """
@@ -88,6 +120,19 @@ def get_users_for_broadcast(filter_type: str) -> List[int]:
                     WHERE expires_at > datetime('now')
                 )
             """)
+        elif filter_type == 'selected':
+            selected_ids = _selected_broadcast_ids(conn)
+            if not selected_ids:
+                return []
+            placeholders = ','.join('?' for _ in selected_ids)
+            cursor = conn.execute(f"""
+                SELECT DISTINCT u.telegram_id
+                FROM users u
+                JOIN vpn_keys vk ON vk.user_id = u.id
+                WHERE u.is_banned = 0
+                  AND vk.expires_at > datetime('now')
+                  AND u.telegram_id IN ({placeholders})
+            """, selected_ids)
         else:
             return []
         

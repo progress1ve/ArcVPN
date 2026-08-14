@@ -17,6 +17,7 @@ from config import ADMIN_IDS
 from database.requests import (
     get_setting, set_setting,
     get_users_for_broadcast, count_users_for_broadcast,
+    get_active_users_for_broadcast_selection,
     get_all_promocodes
 )
 from bot.states.admin_states import AdminStates
@@ -28,6 +29,7 @@ from bot.keyboards.admin import (
     BROADCAST_FILTERS, broadcast_templates_kb,
     broadcast_template_promocode_kb,
     broadcast_gift_confirm_kb, broadcast_gift_back_kb,
+    broadcast_user_selection_kb,
 )
 
 logger = logging.getLogger(__name__)
@@ -74,6 +76,105 @@ def is_broadcast_in_progress() -> bool:
 def set_broadcast_in_progress(value: bool) -> None:
     """Устанавливает флаг рассылки."""
     set_setting('broadcast_in_progress', '1' if value else '0')
+
+
+def _get_selected_user_ids() -> set[int]:
+    try:
+        return {int(value) for value in json.loads(get_setting('broadcast_selected_users', '[]'))}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return set()
+
+
+def _save_selected_user_ids(user_ids: set[int]) -> None:
+    set_setting('broadcast_selected_users', json.dumps(sorted(user_ids)))
+
+
+async def _show_user_selection(callback: CallbackQuery, page: int = 0) -> None:
+    page_size = 8
+    active_users = get_active_users_for_broadcast_selection()
+    active_ids = {int(user['telegram_id']) for user in active_users}
+    selected_ids = _get_selected_user_ids() & active_ids
+    _save_selected_user_ids(selected_ids)
+    pages = max(1, (len(active_users) + page_size - 1) // page_size)
+    page = min(max(page, 0), pages - 1)
+    page_users = active_users[page * page_size:(page + 1) * page_size]
+    text = (
+        "🎯 <b>Конкретные активные пользователи</b>\n\n"
+        "Отметьте получателей. В списке только пользователи с действующей подпиской. "
+        "Перед отправкой их статус будет проверен ещё раз.\n\n"
+        f"<b>Выбрано:</b> {len(selected_ids)} из {len(active_users)}"
+    )
+    await safe_edit_or_send(
+        callback.message,
+        text,
+        reply_markup=broadcast_user_selection_kb(page_users, selected_ids, page, pages),
+    )
+
+
+@router.callback_query(F.data.startswith('broadcast_select_users:'))
+async def broadcast_select_users(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    page = int(callback.data.rsplit(':', 1)[1])
+    await _show_user_selection(callback, page)
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('broadcast_user_toggle:'))
+async def broadcast_user_toggle(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    _, telegram_id, page = callback.data.split(':')
+    telegram_id = int(telegram_id)
+    active_ids = {int(user['telegram_id']) for user in get_active_users_for_broadcast_selection()}
+    if telegram_id not in active_ids:
+        await callback.answer("Подписка пользователя уже не активна", show_alert=True)
+        await _show_user_selection(callback, int(page))
+        return
+    selected_ids = _get_selected_user_ids()
+    if telegram_id in selected_ids:
+        selected_ids.remove(telegram_id)
+    else:
+        selected_ids.add(telegram_id)
+    _save_selected_user_ids(selected_ids)
+    await _show_user_selection(callback, int(page))
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('broadcast_users_clear:'))
+async def broadcast_users_clear(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    _save_selected_user_ids(set())
+    await _show_user_selection(callback, int(callback.data.rsplit(':', 1)[1]))
+    await callback.answer("Выбор очищен")
+
+
+@router.callback_query(F.data == 'broadcast_users_done')
+async def broadcast_users_done(callback: CallbackQuery):
+    if not is_admin(callback.from_user.id):
+        await callback.answer("⛔ Доступ запрещён", show_alert=True)
+        return
+    if not get_users_for_broadcast('selected'):
+        await callback.answer("Выберите хотя бы одного активного пользователя", show_alert=True)
+        return
+    set_setting('broadcast_filter', 'selected')
+    msg_data = get_broadcast_message()
+    await safe_edit_or_send(
+        callback.message,
+        "📢 <b>Рассылка</b>\n\nВыбраны конкретные активные пользователи. "
+        "Теперь задайте сообщение или начинайте рассылку.",
+        reply_markup=broadcast_main_kb(
+            bool(msg_data and msg_data.get('text')),
+            'selected',
+            is_broadcast_in_progress(),
+            count_users_for_broadcast('selected'),
+        ),
+    )
+    await callback.answer("Получатели сохранены")
 
 
 def _days_word(n: int) -> str:
