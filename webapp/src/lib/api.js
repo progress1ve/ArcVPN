@@ -164,6 +164,8 @@ export const fetchAdminOverview = () => (import.meta.env.DEV
 export const loginAdmin = (password) => post('/api/admin/login', { password })
 export const logoutAdmin = () => post('/api/admin/logout')
 export const runAdminNodeDiagnostic = (nodeUuid) => post('/api/admin/diagnostics/run', { node_uuid: nodeUuid })
+export const fetchAdminBackups = () => get('/api/admin/backups')
+export const createAdminBackup = () => post('/api/admin/backups')
 export const fetchAdminSupportThreads = () => get('/api/admin/support/threads')
 export const fetchAdminSupportThread = (threadId) => get(`/api/admin/support/threads/${threadId}`)
 export const sendAdminSupportReply = (threadId, body) => post(`/api/admin/support/threads/${threadId}`, { body })

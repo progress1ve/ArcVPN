@@ -1323,3 +1323,22 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   `vpbggjof6.vpvr4ib84nuv6hdkt.ru:20085`. A new RemnaNode secret was generated
   and stored only on Poland at `/root/ArcVPN/.secret.remnanode-france` (0600);
   it must be pasted into wCloud together with panel IP `217.60.33.38`.
+
+## Single subscription authority and Business Console (2026-08-14)
+
+- Poland (`217.60.33.38`) is the only subscription/database authority. The old
+  Germany origin (`2.26.84.210`) must not run its own subscription API: its
+  nginx endpoint transparently proxies requests to Poland. This prevents
+  alternating device-limit decisions while both DNS A records still exist.
+  The old Germany `arcvpn-subscription.service` is disabled.
+- A blocked Happ JSON response must always be a JSON array of three complete,
+  visibly named profiles. A single object with `remarks: ArcVPN` is invalid for
+  this purpose because Happ renders it as one unexplained empty server.
+- Business Console uses the ArcVPN dark-blue palette. Health, connection
+  schemes, nodes, security, backups and settings are separate views, not
+  duplicated copies of one readiness screen. Do not expose dead controls:
+  every visible action must navigate, filter, diagnose, reply, refresh, or
+  perform a real server-side operation.
+- `/api/admin/backups` lists and creates local SQLite backups using the SQLite
+  backup API, verifies each new copy with `PRAGMA quick_check`, and stores it in
+  `/root/ArcVPN/backups` with mode 0600.

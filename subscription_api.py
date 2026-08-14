@@ -40,7 +40,7 @@ from bot.services.panels.remnawave import RemnawaveClient
 from bot.utils.key_generator import generate_link
 from bot.utils.telegram_webapp import get_telegram_id
 import config
-from database.connection import get_db
+from database.connection import DB_PATH, get_db
 from database.db_webapp import adopt_import_device_identity
 from database.db_servers import get_server_by_id
 from database.db_statistics import (
@@ -1227,15 +1227,26 @@ def _prepare_device_limit_subscription(
     userinfo_header = _build_subscription_userinfo(key)
 
     if output_format == "json":
-        body = json.dumps(
-            {
-                "remarks": PROFILE_TITLE,
-                "message": " ".join(notices),
-                "outbounds": [],
-            },
-            ensure_ascii=False,
-            separators=(",", ":"),
-        )
+        profiles = []
+        for index, (notice, link) in enumerate(zip(notices, links), start=1):
+            outbound = _json_outbound_from_share_link(link, "proxy")
+            profiles.append({
+                "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
+                "inbounds": _json_local_inbounds(key),
+                "log": {"loglevel": "none"},
+                "meta": {"arcvpnAccessState": reason, "noticeIndex": index},
+                "outbounds": [
+                    outbound,
+                    {"protocol": "freedom", "tag": "direct"},
+                    {"protocol": "blackhole", "tag": "block"},
+                ],
+                "remarks": notice,
+                "routing": {
+                    "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+                    "rules": [{"network": "tcp,udp", "outboundTag": "proxy", "type": "field"}],
+                },
+            })
+        body = json.dumps(profiles, ensure_ascii=False, separators=(",", ":"))
         return PreparedSubscription(body, "application/json; charset=utf-8", userinfo_header)
 
     plain = "\n".join(links)
@@ -3161,6 +3172,50 @@ def api_admin_diagnostics_run():
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         logger.exception("Manual node diagnostic failed")
         return _api_error(type(exc).__name__, 503)
+
+
+@app.route('/api/admin/backups', methods=['GET', 'POST'])
+def api_admin_backups():
+    """List or create verified, local SQLite backups for the control plane."""
+    if not _admin_authorized():
+        return _api_error("admin_unauthorized", 403)
+    backup_dir = os.path.join(os.path.dirname(__file__), "backups")
+    os.makedirs(backup_dir, mode=0o700, exist_ok=True)
+    if request.method == 'POST':
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        target = os.path.join(backup_dir, f"vpn_bot-{stamp}.db")
+        try:
+            source = sqlite3.connect(str(DB_PATH))
+            destination = sqlite3.connect(target)
+            try:
+                source.backup(destination)
+                check = destination.execute("PRAGMA quick_check").fetchone()
+                if not check or str(check[0]).lower() != "ok":
+                    raise sqlite3.DatabaseError(f"backup_check:{check}")
+            finally:
+                destination.close()
+                source.close()
+            os.chmod(target, 0o600)
+        except (OSError, sqlite3.Error) as exc:
+            logger.exception("Admin backup creation failed")
+            try:
+                if os.path.exists(target):
+                    os.unlink(target)
+            except OSError:
+                pass
+            return _api_error(type(exc).__name__, 503)
+    files = []
+    for name in sorted(os.listdir(backup_dir), reverse=True):
+        if not re.fullmatch(r"vpn_bot-\d{8}-\d{6}\.db", name):
+            continue
+        path = os.path.join(backup_dir, name)
+        stat = os.stat(path)
+        files.append({
+            "name": name,
+            "size_bytes": stat.st_size,
+            "created_at": datetime.fromtimestamp(stat.st_mtime, timezone.utc).isoformat(),
+        })
+    return _api_no_store(jsonify({"ok": True, "backups": files[:50]}))
 
 
 @app.route('/api/admin/overview', methods=['GET'])
