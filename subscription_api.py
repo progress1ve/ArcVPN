@@ -1141,7 +1141,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "log": {"loglevel": "none"},
         "meta": None,
         "outbounds": [*auto_outbounds, *([lte_fallback] if lte_fallback else []), {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
-        "remarks": "\u26a1 \u0410\u0432\u0442\u043e\u0432\u044b\u0431\u043e\u0440",
+        "remarks": "🇪🇺 Автовыбор",
         "routing": {
             "balancers": [{
                 # LTE is excluded from observation/least-load and is used only
@@ -1695,7 +1695,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         "security": "tls", "sni": lte_host, "alpn": "h2,http/1.1",
                         "extra": lte_extra,
                     })
-                    lte_label = LTE_NAME_MARKER + " (" + "\u0442\u0440\u0430\u0444\u0438\u043a \u00d710, LTE)"
+                    lte_label = "🇷🇺 " + LTE_NAME_MARKER + " (" + "\u0442\u0440\u0430\u0444\u0438\u043a \u00d710, LTE)"
                     lte_name = urllib.parse.quote(f"{lte_label} #{lte_number}", safe="")
                     links.append(f"vless://{credential}@{lte_host}:443?{lte_query}#{lte_name}")
 
@@ -3619,7 +3619,7 @@ def api_admin_overview():
             node_distribution[node_name] = node_distribution.get(node_name, 0) + 1
         remnawave["connection_schemes"] = [{
             "id": "auto",
-            "name": "Автовыбор",
+            "name": "🇪🇺 Автовыбор",
             "kind": "client_balancer",
             "probe_interval_seconds": 20,
             "probe_samples": 2,
@@ -3632,11 +3632,11 @@ def api_admin_overview():
                 for node in (remna_nodes or []) if not bool(node.get("isDisabled"))
             ],
         }, {
-            "id": "lte-1", "name": "Обход глушилок #1", "kind": "cdn_fallback",
+            "id": "lte-1", "name": "🇷🇺 Обход глушилок #1", "kind": "cdn_fallback",
             "public_host": "cdn-fi.arccnet.space", "origin": "195.226.92.37", "traffic_factor": 10,
             "active_only_as_fallback": True,
         }, {
-            "id": "lte-2", "name": "Обход глушилок #2", "kind": "cdn_fallback",
+            "id": "lte-2", "name": "🇷🇺 Обход глушилок #2", "kind": "cdn_fallback",
             "public_host": "cdn.arccnet.space", "origin": "195.226.92.37", "traffic_factor": 10,
             "active_only_as_fallback": False, "standby": True,
         }]
