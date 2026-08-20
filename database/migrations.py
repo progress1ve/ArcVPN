@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 49
+LATEST_VERSION = 50
 
 
 def get_current_version() -> int:
@@ -2026,6 +2026,18 @@ def migration_49(conn: sqlite3.Connection) -> None:
     logger.info("Migration v49 applied")
 
 
+def migration_50(conn: sqlite3.Connection) -> None:
+    """Role assignments for server-side Business Console authorization."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS admin_role_assignments (
+        telegram_id INTEGER PRIMARY KEY,
+        role TEXT NOT NULL CHECK(role IN ('owner','operator','support','finance','viewer')),
+        assigned_by INTEGER,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    logger.info("Migration v50 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2076,6 +2088,7 @@ MIGRATIONS = {
     47: migration_47,
     48: migration_48,
     49: migration_49,
+    50: migration_50,
 }
 
 

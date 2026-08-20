@@ -44,6 +44,10 @@ from database.connection import DB_PATH, get_db
 from database.db_webapp import adopt_import_device_identity
 from database.db_servers import get_server_by_id
 from database.db_admin_audit import append_admin_audit
+from database.db_admin_roles import (
+    get_admin_role, get_assigned_admin_role, list_admin_roles,
+    role_allows, role_permissions, set_admin_role,
+)
 from database.db_statistics import (
     get_new_users_stats,
     get_subscriptions_stats,
@@ -1161,12 +1165,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             },
         }
         if LTE_NAME_MARKER in name:
-            # Keep both explicit LTE rows available for manual recovery while
-            # the first one is also the emergency fallback of Auto Select.
-            # Traffic accounting still charges these routes with the x10
-            # multiplier, so hiding them from Happ is neither required nor
-            # desirable when a carrier blocks every regular node.
-            regular.append(regular_profile)
+            # Never expose a manually selectable LTE profile in Happ JSON.
+            # Otherwise a user can remain on the expensive CDN route even
+            # after regular nodes recover. LTE exists only inside AutoSelect.
             candidate = _json_outbound_from_share_link(link, f"proxy-back-{len(lte_outbounds) + 1}")
             if candidate is not None:
                 lte_outbounds.append(candidate)
@@ -1184,7 +1185,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
                 "interval": "20s", "sampling": 2, "timeout": "3s",
             },
-            "subjectSelector": ["proxy-main", "proxy-back"],
+            # Probing LTE while main is healthy would itself consume CDN
+            # traffic for every subscriber. Only normal routes are observed.
+            "subjectSelector": ["proxy-main"],
         },
         "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
         "inbounds": _json_local_inbounds(key),
@@ -1212,7 +1215,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "tag": "balancer_main",
             }, *([{
                 "fallbackTag": "direct", "selector": ["proxy-back"],
-                "strategy": {"settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "2500ms", "tolerance": 0.3}, "type": "leastLoad"},
+                # No observatory probes for LTE: choose a fallback only after
+                # main actually fails. Multiple LTE routes alternate.
+                "strategy": {"type": "roundRobin"},
                 "tag": "balancer_back",
             }] if lte_outbounds else [])],
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
@@ -2305,7 +2310,11 @@ def _webapp_telegram_id() -> Optional[int]:
 
 def _admin_telegram_id() -> Optional[int]:
     telegram_id = _webapp_telegram_id()
-    return telegram_id if telegram_id in set(getattr(config, "ADMIN_IDS", [])) else None
+    if telegram_id is None:
+        return None
+    if telegram_id in set(getattr(config, "ADMIN_IDS", [])):
+        return telegram_id
+    return telegram_id if get_assigned_admin_role(telegram_id) else None
 
 
 def _admin_cookie_signature(issued_at: str, nonce: str) -> str:
@@ -2328,8 +2337,26 @@ def _admin_cookie_valid() -> bool:
         return False
 
 
-def _admin_authorized() -> bool:
-    return _admin_telegram_id() is not None or _admin_cookie_valid()
+def _admin_access_context() -> Optional[Dict[str, Any]]:
+    telegram_id = _admin_telegram_id()
+    if telegram_id is not None:
+        return {"actor_id": str(telegram_id), "role": get_admin_role(telegram_id, default="owner")}
+    if _admin_cookie_valid():
+        return {"actor_id": "password-session", "role": "owner"}
+    return None
+
+
+def _admin_authorized(permission: Optional[str] = None) -> bool:
+    context = _admin_access_context()
+    if context is None:
+        return False
+    if not permission or role_allows(context["role"], permission):
+        return True
+    append_admin_audit(
+        "rbac.denied", "denied", actor_id=context["actor_id"],
+        target_type="permission", target_id=permission, metadata={"role": context["role"]},
+    )
+    return False
 
 
 _ADMIN_LOGIN_LOCK = threading.Lock()
@@ -3187,10 +3214,47 @@ def api_admin_logout():
     return _api_no_store(response)
 
 
+@app.route('/api/admin/access', methods=['GET'])
+def api_admin_access():
+    """Expose effective permissions so the UI can hide unavailable controls."""
+    context = _admin_access_context()
+    if context is None:
+        return _api_error("admin_unauthorized", 403)
+    return _api_no_store(jsonify({
+        "ok": True, "role": context["role"],
+        "permissions": sorted(role_permissions(context["role"])),
+    }))
+
+
+@app.route('/api/admin/roles', methods=['GET', 'POST'])
+def api_admin_roles():
+    """Owner-only role assignments for Telegram-authenticated administrators."""
+    if not _admin_authorized("roles.manage"):
+        return _api_error("admin_forbidden", 403)
+    context = _admin_access_context() or {}
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        try:
+            telegram_id = int(payload.get("telegram_id"))
+        except (TypeError, ValueError):
+            return _api_error("invalid_telegram_id", 400)
+        role = str(payload.get("role") or "").strip().lower()
+        if telegram_id <= 0 or role not in {"owner", "operator", "support", "finance", "viewer"}:
+            return _api_error("invalid_role_assignment", 400)
+        actor_id = context.get("actor_id")
+        assigned_by = int(actor_id) if str(actor_id).isdigit() else None
+        set_admin_role(telegram_id, role, assigned_by)
+        append_admin_audit(
+            "rbac.assign", "success", actor_id=str(actor_id),
+            target_type="telegram_admin", target_id=str(telegram_id), metadata={"role": role},
+        )
+    return _api_no_store(jsonify({"ok": True, "assignments": list_admin_roles()}))
+
+
 @app.route('/api/admin/diagnostics/run', methods=['POST'])
 def api_admin_diagnostics_run():
     """Run a bounded reachability test for one registered RemnaNode."""
-    if not _admin_authorized():
+    if not _admin_authorized("nodes.diagnose"):
         return _api_error("admin_unauthorized", 403)
     payload = request.get_json(silent=True) or {}
     requested_uuid = _clean_text(payload.get("node_uuid"), 64)
@@ -3252,7 +3316,8 @@ def api_admin_diagnostics_run():
 @app.route('/api/admin/backups', methods=['GET', 'POST'])
 def api_admin_backups():
     """List or create verified, local SQLite backups for the control plane."""
-    if not _admin_authorized():
+    permission = "backups.create" if request.method == "POST" else "backups.read"
+    if not _admin_authorized(permission):
         return _api_error("admin_unauthorized", 403)
     backup_dir = os.path.join(os.path.dirname(__file__), "backups")
     os.makedirs(backup_dir, mode=0o700, exist_ok=True)
@@ -3300,7 +3365,7 @@ def api_admin_backups():
 @app.route('/api/admin/overview', methods=['GET'])
 def api_admin_overview():
     """Read-only first slice of ArcVPN Business Console."""
-    if not _admin_authorized():
+    if not _admin_authorized("overview.read"):
         return _api_error("admin_unauthorized", 403)
 
     with get_db() as conn:
@@ -3844,7 +3909,7 @@ def api_admin_overview():
 
 @app.route('/api/admin/support/threads', methods=['GET'])
 def api_admin_support_threads():
-    if not _admin_authorized():
+    if not _admin_authorized("support.read"):
         return _api_error("admin_unauthorized", 403)
     with get_db() as conn:
         rows = conn.execute("""SELECT t.id,t.status,t.updated_at,u.telegram_id,u.username,u.first_name,
@@ -3857,7 +3922,8 @@ def api_admin_support_threads():
 
 @app.route('/api/admin/support/threads/<int:thread_id>', methods=['GET', 'POST'])
 def api_admin_support_thread(thread_id: int):
-    if not _admin_authorized():
+    permission = "support.reply" if request.method == "POST" else "support.read"
+    if not _admin_authorized(permission):
         return _api_error("admin_unauthorized", 403)
     thread = get_support_thread(thread_id)
     if not thread:

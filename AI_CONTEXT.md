@@ -1421,6 +1421,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   falls back through `LOOPBACK_TO_BACK`/`FROM_LOOPBACK_BACK` into the LTE-only
   `proxy-back-*` leastLoad balancer. LTE remains outside the main selector and is used
   only when normal candidates fail; the second balancer falls back to direct.
+- LTE outbounds are not exposed as manual Happ JSON profiles and are not included in
+  burstObservatory. The LTE fallback uses roundRobin without background probes, so CDN
+  traffic begins only after all observed main candidates fail and loopback is invoked.
+- Business Console RBAC migration v50 supports owner/operator/support/finance/viewer.
+  Permission checks are server-side; configured admins default to owner, explicit Telegram
+  assignments can downgrade/grant access, and denied actions are appended to audit.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.

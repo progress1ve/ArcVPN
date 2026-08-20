@@ -30,5 +30,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main"])
         self.assertEqual(balancers["balancer_back"]["selector"], ["proxy-back"])
         self.assertEqual(balancers["balancer_back"]["fallbackTag"], "direct")
+        self.assertEqual(balancers["balancer_back"]["strategy"]["type"], "roundRobin")
+        self.assertEqual(auto["burstObservatory"]["subjectSelector"], ["proxy-main"])
         self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 2)
         self.assertEqual(auto["routing"]["rules"][0]["inboundTag"], ["FROM_LOOPBACK_BACK"])
+        self.assertEqual(len(json.loads(_build_happ_json_subscription(key, links))), 2)
