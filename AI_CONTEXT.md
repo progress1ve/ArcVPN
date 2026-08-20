@@ -1392,6 +1392,13 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Local cleanup inventory is `docs/LOCAL_CLEANUP_INVENTORY_2026-08-20.md`. Unknown/user
   files were not deleted. A local diagnostic file and older tracked history contain
   credentials; rotate and sanitize them before any cleanup commit that touches secrets.
+- Owner cancelled Vyrex on 2026-08-20. A one-day reseller trial at `159.200.230.224`
+  was advertised as Hetzner, but live routing identifies AS58212 dataforest GmbH,
+  Frankfurt. Baseline hardware is 1 vCPU, 2 GiB RAM and 20 GiB disk. It is telemetry-only:
+  no Remnawave profile/squad/user exposure until a hostname and a successful gate exist.
+- Owner approved deletion of the classified local obsolete/unknown candidates. Only the
+  verified unused root assets, intermediate images, operator draft, tooling config and
+  historical VLESS diagnostic were removed; final `*-v2.png` runtime assets remain.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.

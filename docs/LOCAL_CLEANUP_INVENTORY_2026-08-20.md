@@ -1,12 +1,12 @@
 # Локальная очистка ArcVPN: инвентаризация
 
-Дата: 2026-08-20. На этом этапе файлы не удалялись и не перемещались.
+Дата: 2026-08-20. Владелец разрешил удаление классифицированных локальных кандидатов.
 
 ## Изменённые tracked
 
 | Путь | Класс | Решение |
 |---|---|---|
-| `vless_test_20260708_113659.txt` | diagnostic/obsolete candidate | Удаление принадлежит пользователю; не включать в коммит без подтверждения |
+| `vless_test_20260708_113659.txt` | diagnostic/obsolete | Удалён после подтверждения владельца |
 
 ## Untracked
 
@@ -17,14 +17,12 @@
 | `.arcshots/pydeps/`, `.arcshots/video-bg/` | generated | Сохранить локально, игнорировать Git |
 | `.codex-worktrees/` | generated/tool state | Сохранить локально, игнорировать Git |
 | `__diag.py` | secret + diagnostic | Не коммитить; после ротации секрета удалить только с подтверждением владельца |
-| `gift.png`, `support.png` | unknown/source asset candidate | Не удалять; сравнить с финальными WebApp assets |
-| `opencode.json` | unknown/user tooling config | Не удалять и пока не игнорировать |
-| `support_message_2.md` | diagnostic/operator draft | Не удалять; после подтверждения перенести в private incident archive либо удалить |
-| `webapp/public/assets/arc-flow/*-chroma.png` | generated/intermediate asset | Не публиковать, пока не подтверждена необходимость runtime |
-| `webapp/public/assets/arc-flow/referral-gift.png` | production asset candidate | Сравнить ссылки в source и dimensions/hash |
-| `webapp/public/assets/arc-flow/support-agent.png` | production asset candidate | Сравнить ссылки в source и dimensions/hash |
-| `webapp/public/assets/arc-flow/referral-v2-chroma.png` | generated/intermediate asset | Не удалять без подтверждения |
-| `webapp/public/assets/arc-flow/support-v2-chroma.png` | generated/intermediate asset | Не удалять без подтверждения |
+| `gift.png`, `support.png` | obsolete source assets | Не использовались source; удалены после подтверждения |
+| `opencode.json` | user tooling config | Удалён после подтверждения |
+| `support_message_2.md` | diagnostic/operator draft | Удалён после подтверждения |
+| `webapp/public/assets/arc-flow/*-chroma.png` | generated/intermediate asset | Удалены после проверки source references |
+| `webapp/public/assets/arc-flow/referral-gift.png` | obsolete asset | Удалён; runtime использует `referral-gift-v2.png` |
+| `webapp/public/assets/arc-flow/support-agent.png` | obsolete asset | Удалён; runtime использует `support-agent-v2.png` |
 
 ## Tracked-классы
 
@@ -45,11 +43,9 @@
 
 ## Следующий destructive gate
 
-До удаления требуется решение владельца по tracked `vless_test_...`, двум корневым PNG,
-`support_message_2.md`, `opencode.json` и всем intermediate PNG. После решения:
+Неоднозначные локальные кандидаты подтверждены и удалены. Следующий security gate:
 
 1. проверить реальные ссылки через `rg`;
-2. сравнить hash/dimensions и оставить только runtime assets;
-3. санитизировать tracked документацию и ротировать обнаруженные credentials;
-4. сделать cleanup отдельным коммитом;
-5. прогнать Python tests, WebApp build, bot import/startup smoke и subscription API smoke.
+2. санитизировать tracked документацию и ротировать обнаруженные credentials;
+3. проверить production backup inventory отдельным read-only аудитом;
+4. прогнать Python tests, WebApp build, bot import/startup smoke и subscription API smoke.

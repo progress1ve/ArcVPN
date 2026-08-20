@@ -1,6 +1,8 @@
-# Vyrex Netherlands: canary runbook
+# Provider node canary runbook
 
-Статус: инфраструктура подготовлена, доступ к VPS/домену ещё не выдан.
+Статус: Vyrex отменён владельцем. 2026-08-20 получен однодневный пробник реселлера
+`159.200.230.224`; фактический origin — AS58212 dataforest GmbH, Frankfurt, а не Hetzner.
+Пробник добавлен только в telemetry allowlist, без Remnawave и без пользователей.
 
 ## Инварианты
 
@@ -12,9 +14,9 @@
   `0600`; в Git и отчёты попадают только public key/SID/порты.
 - Один провайдер/ASN не должен стать единственной площадкой всех production nodes.
 
-## Данные, необходимые от владельца
+## Данные, необходимые перед VPN canary
 
-- публичный IPv4/IPv6 и SSH endpoint Vyrex;
+- публичный IPv4/IPv6 и SSH endpoint кандидата;
 - root/sudo access через secret storage;
 - выделенный hostname, направленный только на новую VPS;
 - заявленный port policy, лимит/стоимость трафика и abuse constraints.
@@ -23,9 +25,9 @@
 
 1. Зафиксировать provider/ASN, CPU/RAM/disk/network и baseline до установки.
 2. Обновить ОС, включить time sync, firewall и автоматические security updates.
-3. Создать отдельный Remnawave Config Profile `Vyrex Netherlands Canary` с уникальными
+3. Создать отдельный Remnawave Config Profile с уникальными
    inbound tags, TCP Reality и Hysteria2/UDP. Не переиспользовать private key.
-4. Создать Node и isolated squad `ArcVPN Vyrex Canary`; добавить только synthetic user.
+4. Создать Node и isolated canary squad; добавить только synthetic user.
 5. Установить RemnaNode по официальному методу, secret передать вне shell history.
 6. Установить `monitoring/arcvpn_node_agent.py`, service/timer и отдельный env `0600`.
 7. Проверить reboot recovery, panel outage behaviour и rollback (detach canary squad).
@@ -39,7 +41,7 @@ python3 monitoring/compare_node_quality.py \
   --db /root/ArcVPN/database/vpn_bot.db \
   --hours 72 --source agent \
   --evening-start-utc 15 --evening-end-utc 21 \
-  --output /root/ArcVPN/backup/diagnostics/vyrex-72h.json
+  --output /root/ArcVPN/backup/diagnostics/provider-canary-72h.json
 ```
 
 Обязательные измерения:
@@ -71,10 +73,14 @@ YouTube/Instagram/Gemini/Claude проверяются функциональн�
 
 ## Решение
 
-- `production`: все gates пройдены и Vyrex не хуже медианы действующих обычных nodes;
+- `production`: все gates пройдены и кандидат не хуже медианы действующих обычных nodes;
 - `reserve`: стабильна, но скорость/latency хуже либо есть воспроизводимое ограничение сервиса;
 - `reject`: gate провален, вечерняя деградация, высокий steal/loss или transport instability.
 
 После положительного synthetic gate: 2–5 добровольцев, затем 5% → 25% → 50% → 100%.
 Каждая ступень минимум 24 часа; автоматический rollback — detach Vyrex inbounds/host от
 production squad без изменения пользователя, UUID или URL.
+
+Однодневный бесплатный trial не удовлетворяет 72-часовому gate. Его можно использовать
+для первичного 24-часового отсева; для доказательного решения сервер нужно продлить минимум
+на три дня. Заявление реселлера о Hetzner не принимать без совпадения origin ASN/IP WHOIS.
