@@ -224,6 +224,7 @@ REMNAWAVE_PUBLIC_NODES = (
         "country": "DE",
         "flag": "🇩🇪",
         "label": "Германия (Резерв)",
+        "auto_select": False,
         "host": "de.arccnet.space",
         "reality_sni": "sub.arccnet.space",
         "tcp_port": 22101,
@@ -1189,9 +1190,12 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 lte_outbounds.append(candidate)
         else:
             regular.append(regular_profile)
-            candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
-            if candidate is not None:
-                auto_outbounds.append(candidate)
+            # Reserve profiles remain manually selectable but must not receive
+            # routine AutoSelect traffic while primary nodes are healthy.
+            if "(Резерв)" not in name:
+                candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
+                if candidate is not None:
+                    auto_outbounds.append(candidate)
 
     if not auto_outbounds:
         return json.dumps(regular, ensure_ascii=False, separators=(",", ":"))
