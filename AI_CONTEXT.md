@@ -1433,7 +1433,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   and sends the initiating admin a final sent/blocked/failed summary.
 - The dhost Germany VPS at `193.233.198.184` is registered as `ArcVPN Germany DHost`
   with its own Remnawave profile and Reality keypair. Its public TCP Reality contract was
-  changed on 2026-08-20 to port 443, `google.com` SNI/target and an empty short ID while
+  changed on 2026-08-20 to port 443 and `google.com` SNI/target while
   preserving the existing private/public keypair and inbound UUID. The previous Germany
   node remains enabled and is customer-labelled `Германия (Резерв)`. The post-reboot
   outage was caused by two control-plane issues: UFW did not allow the current Remnawave
@@ -1441,6 +1441,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   assignment. Both were repaired on 2026-08-20; the node returned connected/enabled,
   loaded 16 users, listened publicly on 443, and a real VLESS Reality tunnel reached
   YouTube with HTTP 204. Keep management port 22300 restricted to control-plane IPs.
+  An empty Reality short ID worked with Xray but was replaced with a normal 16-hex short
+  ID for Happ compatibility; the native and fallback subscription links must both include
+  the same `sid` value.
 - The initial dhost Reality failure was not networking or Happ: the declarative
   `REMNAWAVE_SQUAD_INBOUND_UUIDS` list still had seven entries, so reconciliation removed
   the new inbound from the production squad and no user UUIDs reached the node. Production

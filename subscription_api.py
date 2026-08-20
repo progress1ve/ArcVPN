@@ -218,7 +218,7 @@ REMNAWAVE_PUBLIC_NODES = (
         "reality_sni": "google.com",
         "tcp_port": 443,
         "public_key": "4eeWXVSvnq4N9CAL0_-ZHWS-iz7mImVPwbHRZqMQakw",
-        "short_id": "",
+        "short_id": "7f3a91c4b6e2085d",
         "tcp_number": 1,
     },
     {
