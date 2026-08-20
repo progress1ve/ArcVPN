@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 48
+LATEST_VERSION = 49
 
 
 def get_current_version() -> int:
@@ -2003,6 +2003,29 @@ def migration_48(conn: sqlite3.Connection) -> None:
     logger.info("Migration v48 applied")
 
 
+def migration_49(conn: sqlite3.Connection) -> None:
+    """Append-only security audit for privileged Business Console actions."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS admin_audit_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor_type TEXT NOT NULL,
+        actor_id TEXT,
+        action TEXT NOT NULL,
+        target_type TEXT,
+        target_id TEXT,
+        outcome TEXT NOT NULL,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_admin_audit_created ON admin_audit_events(created_at DESC)")
+    conn.execute("""CREATE TRIGGER IF NOT EXISTS admin_audit_no_update
+        BEFORE UPDATE ON admin_audit_events BEGIN
+        SELECT RAISE(ABORT, 'admin_audit_events is append-only'); END""")
+    conn.execute("""CREATE TRIGGER IF NOT EXISTS admin_audit_no_delete
+        BEFORE DELETE ON admin_audit_events BEGIN
+        SELECT RAISE(ABORT, 'admin_audit_events is append-only'); END""")
+    logger.info("Migration v49 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2052,6 +2075,7 @@ MIGRATIONS = {
     46: migration_46,
     47: migration_47,
     48: migration_48,
+    49: migration_49,
 }
 
 

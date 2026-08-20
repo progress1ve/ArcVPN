@@ -43,6 +43,7 @@ import config
 from database.connection import DB_PATH, get_db
 from database.db_webapp import adopt_import_device_identity
 from database.db_servers import get_server_by_id
+from database.db_admin_audit import append_admin_audit
 from database.db_statistics import (
     get_new_users_stats,
     get_subscriptions_stats,
@@ -3091,6 +3092,7 @@ def api_admin_login():
     payload = request.get_json(silent=True) or {}
     supplied = str(payload.get("password") or "")[:256]
     if not secrets.compare_digest(supplied, ADMIN_CONSOLE_PASSWORD):
+        append_admin_audit("admin.login", "denied", actor_type="anonymous")
         time.sleep(0.35)
         return _api_error("invalid_password", 403)
     issued_at = str(int(time.time()))
@@ -3105,6 +3107,7 @@ def api_admin_login():
         samesite="Strict",
         path="/",
     )
+    append_admin_audit("admin.login", "success", actor_id=str(_admin_telegram_id() or "password-session"))
     return _api_no_store(response)
 
 
@@ -3161,6 +3164,7 @@ def api_internal_node_metrics():
 
 @app.route('/api/admin/logout', methods=['POST'])
 def api_admin_logout():
+    append_admin_audit("admin.logout", "success", actor_id=str(_admin_telegram_id() or "password-session"))
     response = jsonify({"ok": True})
     response.delete_cookie(ADMIN_CONSOLE_COOKIE, path="/")
     return _api_no_store(response)
@@ -3216,6 +3220,12 @@ def api_admin_diagnostics_run():
                 "INSERT INTO node_diagnostic_runs(host,result_json,ok) VALUES(?,?,?)",
                 (host, json.dumps(result, ensure_ascii=False), int(bool(result.get("ok")))),
             )
+        append_admin_audit(
+            "node.diagnostic", "success" if result.get("ok") else "failed",
+            actor_id=str(_admin_telegram_id() or "password-session"),
+            target_type="remnanode", target_id=requested_uuid,
+            metadata={"host": host, "ports_tested": len(ports)},
+        )
         return _api_no_store(jsonify({"ok": True, "diagnostic": result}))
     except (OSError, ValueError, subprocess.SubprocessError) as exc:
         logger.exception("Manual node diagnostic failed")
@@ -3244,6 +3254,10 @@ def api_admin_backups():
                 destination.close()
                 source.close()
             os.chmod(target, 0o600)
+            append_admin_audit(
+                "backup.create", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+                target_type="sqlite_backup", target_id=os.path.basename(target),
+            )
         except (OSError, sqlite3.Error) as exc:
             logger.exception("Admin backup creation failed")
             try:
@@ -3836,6 +3850,10 @@ def api_admin_support_thread(thread_id: int):
         if not body or len(body) > 4000:
             return _api_error("invalid_message", 400)
         message = add_admin_support_message(thread_id, 0, body)
+        append_admin_audit(
+            "support.reply", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+            target_type="support_thread", target_id=str(thread_id), metadata={"length": len(body)},
+        )
         token = getattr(config, 'BOT_TOKEN', '')
         if token:
             try:
