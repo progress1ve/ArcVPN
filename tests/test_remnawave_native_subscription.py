@@ -41,6 +41,16 @@ def test_decode_native_plain_and_base64():
     assert api._decode_native_subscription_links(encoded) == links
 
 
+def test_native_credentials_must_match_active_user():
+    expected = "11111111-1111-4111-8111-111111111111"
+    matching = [f"vless://{expected}@example.com:443#DE"]
+    foreign = ["vless://22222222-2222-4222-8222-222222222222@example.com:443#DE"]
+
+    assert api._native_links_match_key(matching, expected)
+    assert not api._native_links_match_key(foreign, expected)
+    assert not api._native_links_match_key(["hysteria2://password@example.com:443#HY2"], expected)
+
+
 @pytest.mark.parametrize(
     "url, expected",
     [

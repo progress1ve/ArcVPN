@@ -1968,6 +1968,19 @@ def _decode_native_subscription_links(body: str) -> list[str]:
     return [line.strip() for line in candidate.splitlines() if line.strip().startswith(supported)]
 
 
+def _native_links_match_key(links: Iterable[str], client_uuid: str) -> bool:
+    """Never replace a working subscription with credentials for another user."""
+    vless_credentials = [
+        urllib.parse.urlsplit(link).username or ""
+        for link in links
+        if link.startswith("vless://")
+    ]
+    return bool(vless_credentials) and all(
+        hmac.compare_digest(value.lower(), str(client_uuid).lower())
+        for value in vless_credentials
+    )
+
+
 async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
     """Resolve and fetch a user's native Remnawave subscription with short caches."""
     if not _native_subscription_enabled() or not key.client_uuid:
@@ -2010,7 +2023,11 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
                 if len(cached_body) > 1024 * 1024:
                     raise VPNAPIError("native subscription is too large")
         REMNAWAVE_NATIVE_BODY_CACHE.set(body_cache_key, cached_body)
-    return _decode_native_subscription_links(cached_body)
+    links = _decode_native_subscription_links(cached_body)
+    if not _native_links_match_key(links, str(key.client_uuid)):
+        logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
+        return []
+    return links
 
 
 def _prepare_native_remnawave_subscription(
