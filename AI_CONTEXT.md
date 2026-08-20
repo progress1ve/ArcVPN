@@ -1404,6 +1404,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   jitter, 0.96 ms latency, 0% steal and 158.65 Mbps. YouTube/Instagram/Gemini were
   reachable, while Claude returned HTTP 403. The node remains telemetry-only and its
   `degraded` state is expected until a VPN runtime exists. Do not expose it to users yet.
+- Owner-only isolated test transports were installed on the Dataforest trial: VLESS TCP
+  Reality on TCP 24443 and Hysteria2 on UDP 24444. Their temporary import links are only
+  in ignored local `.secrets/test-node-access.txt`; never commit or paste them into logs.
+  Both passed real SOCKS-to-YouTube HTTP 204 tests and returned active after reboot into
+  kernel 5.15.0-190. They are not connected to Remnawave or public subscriptions.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.

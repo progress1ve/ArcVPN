@@ -11,6 +11,16 @@
 YouTube вернул 204, Instagram и Gemini — 200, Claude — устойчивый 403; Claude нужно
 повторно проверить через реальный VPN transport и сравнить с действующими nodes.
 
+Владелец запросил ручной интернет-тест. На пробнике подняты изолированные сервисы:
+
+- `arcvpn-test-reality.service`: VLESS TCP Reality, TCP `24443`;
+- `arcvpn-test-hysteria.service`: Hysteria2, UDP `24444`;
+- access links: локальный ignored-файл `.secrets/test-node-access.txt`.
+
+Оба транспорта прошли end-to-end SOCKS probe до YouTube (`HTTP 204`). После обновления
+ядра до `5.15.0-190` выполнен reboot; оба VPN-сервиса и node-agent timer автоматически
+вернулись в `active`. Профили временные и не входят в Remnawave/public subscription.
+
 ## Инварианты
 
 - Не менять `/sub/<sub_id>`, device subscription IDs и VLESS UUID пользователей.
