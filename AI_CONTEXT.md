@@ -1417,6 +1417,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - BEDOLAGA-inspired admin hardening is implemented independently: migration v49 adds
   append-only `admin_audit_events` with database triggers blocking update/delete. Login,
   logout, node diagnostics, backup creation and support replies create bounded events.
+- Happ JSON AutoSelect uses a two-stage Xray balancer: regular `proxy-main-*` leastLoad
+  falls back through `LOOPBACK_TO_BACK`/`FROM_LOOPBACK_BACK` into the LTE-only
+  `proxy-back-*` leastLoad balancer. LTE remains outside the main selector and is used
+  only when normal candidates fail; the second balancer falls back to direct.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.

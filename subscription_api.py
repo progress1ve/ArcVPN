@@ -1139,7 +1139,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     links = [item.strip() for item in links_text.splitlines() if item.strip()]
     regular: list[Dict[str, Any]] = []
     auto_outbounds: list[Dict[str, Any]] = []
-    lte_fallback: Optional[Dict[str, Any]] = None
+    lte_outbounds: list[Dict[str, Any]] = []
     for index, link in enumerate(links, start=1):
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else f"ArcVPN #{index}"
         outbound = _json_outbound_from_share_link(link, "proxy")
@@ -1167,11 +1167,12 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             # multiplier, so hiding them from Happ is neither required nor
             # desirable when a carrier blocks every regular node.
             regular.append(regular_profile)
-            if lte_fallback is None:
-                lte_fallback = _json_outbound_from_share_link(link, "lte_backup")
+            candidate = _json_outbound_from_share_link(link, f"proxy-back-{len(lte_outbounds) + 1}")
+            if candidate is not None:
+                lte_outbounds.append(candidate)
         else:
             regular.append(regular_profile)
-            candidate = _json_outbound_from_share_link(link, "proxy" if not auto_outbounds else f"proxy-{len(auto_outbounds) + 1}")
+            candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
             if candidate is not None:
                 auto_outbounds.append(candidate)
 
@@ -1183,26 +1184,42 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
                 "interval": "20s", "sampling": 2, "timeout": "3s",
             },
-            "subjectSelector": ["proxy"],
+            "subjectSelector": ["proxy-main", "proxy-back"],
         },
         "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
         "inbounds": _json_local_inbounds(key),
         "log": {"loglevel": "none"},
         "meta": None,
-        "outbounds": [*auto_outbounds, *([lte_fallback] if lte_fallback else []), {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
+        "outbounds": [
+            *auto_outbounds,
+            *lte_outbounds,
+            {"protocol": "freedom", "tag": "direct"},
+            {"protocol": "blackhole", "tag": "block"},
+            *([{
+                "protocol": "loopback", "tag": "LOOPBACK_TO_BACK",
+                "settings": {"inboundTag": "FROM_LOOPBACK_BACK"},
+            }] if lte_outbounds else []),
+        ],
         "remarks": "🇪🇺 Автовыбор",
         "routing": {
             "balancers": [{
-                # LTE is excluded from observation/least-load and is used only
-                # when every normal server fails the connectivity probe.
-                "fallbackTag": "lte_backup" if lte_fallback else "direct", "selector": ["proxy"],
+                # A balancer cannot directly use another balancer as fallback.
+                # Loopback re-enters routing with a dedicated inbound tag and
+                # hands the request to the LTE-only second balancer.
+                "fallbackTag": "LOOPBACK_TO_BACK" if lte_outbounds else "direct",
+                "selector": ["proxy-main"],
                 "strategy": {"settings": {"baselines": ["1s"], "expected": 2, "maxRTT": "1s", "tolerance": 0.01}, "type": "leastLoad"},
-                "tag": "Auto_Select",
-            }],
+                "tag": "balancer_main",
+            }, *([{
+                "fallbackTag": "direct", "selector": ["proxy-back"],
+                "strategy": {"settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "2500ms", "tolerance": 0.3}, "type": "leastLoad"},
+                "tag": "balancer_back",
+            }] if lte_outbounds else [])],
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
             "rules": [
+                *([{"inboundTag": ["FROM_LOOPBACK_BACK"], "balancerTag": "balancer_back", "type": "field"}] if lte_outbounds else []),
                 *_happ_direct_rules(),
-                {"balancerTag": "Auto_Select", "network": "tcp,udp", "type": "field"},
+                {"balancerTag": "balancer_main", "network": "tcp,udp", "type": "field"},
             ],
         },
     }
