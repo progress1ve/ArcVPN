@@ -1357,6 +1357,8 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - `scripts/sync_remnawave_users.py` must never let squad-topology reconciliation
   block user provisioning. Squad errors are operator warnings; every user is
   synchronized independently and one bad legacy record cannot stop the batch.
+  The production reconciliation timer runs every minute so a new identity is
+  not left with valid-looking but unauthorized node links for five minutes.
 - Production squad now contains seven live inbounds. A full reconciliation
   selected and verified all 14 active ArcVPN identities, including subscription
   `IhiMk6JyzqhXDedn0-1SI5EcJBtC_xkQ`.

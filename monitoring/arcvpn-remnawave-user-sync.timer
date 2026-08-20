@@ -3,7 +3,7 @@ Description=Keep Remnawave identities synchronized with ArcVPN
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=5min
+OnUnitActiveSec=1min
 RandomizedDelaySec=20s
 Persistent=true
 
