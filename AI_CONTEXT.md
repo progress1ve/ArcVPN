@@ -1365,3 +1365,14 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Production France profile `f9e9b07f-2b9e-42e8-9b66-16d52642fd4d` now exposes
   TCP Reality on `20086` and Hysteria2 on `20087`. Public connection metadata
   must match the current wCloud profile; private Reality keys stay outside Git.
+
+## Next-chat handoff (2026-08-20)
+
+- `NEXT_CHAT_HANDOFF.md` is the concise entry point for the next Codex chat.
+  Read it before targeted searches in this file; do not reconstruct the project
+  by scanning thousands of files.
+- Next priorities: canary and 72-hour evaluation of one Vyrex Netherlands node;
+  architecture/security/license audit of the BEDOLAGA Telegram bot and cabinet;
+  then a classified, reversible cleanup of the local workspace.
+- Existing untracked assets, diagnostics and local files belong to the owner
+  until classified. Never mass-delete them or treat `git status` as permission.
