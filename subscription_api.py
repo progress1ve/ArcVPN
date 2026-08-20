@@ -182,12 +182,9 @@ REMNAWAVE_PUBLIC_NODES = (
         "label": "Франция",
         "host": "vpbggjof6.vpvr4ib84nuv6hdkt.ru",
         "tcp_port": 20086,
-        # The replacement wCloud profile currently exposes only TCP Reality.
-        # Do not manufacture a Hysteria row for a port absent from its Xray
-        # profile: that creates a healthy-looking but permanently dead entry.
-        "hy2_port": None,
-        "public_key": "gfwUlsr4e_IxiJSl2pFkSitsdUzEUtDG5XvPzQR2eXg",
-        "short_id": "e1609bc5259a2c3f",
+        "hy2_port": 20087,
+        "public_key": "gYSkDlmcENk8hJcn5YlDpTC70WnxsMGDXjEt-6pZE04",
+        "short_id": "847f26fc96f70fdd",
         "tcp_number": 1,
         "hy2_number": 2,
     },

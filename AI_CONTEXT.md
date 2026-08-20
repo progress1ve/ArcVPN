@@ -1347,3 +1347,19 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   the legacy `happ://routing` header alone does not affect JSON imports. Direct
   rules include configured RU geo-assets plus explicit `.ru`/`.su`/`.xn--p1ai`
   and major Russian-service domain fallbacks, followed by the proxy rule.
+
+## Remnawave provisioning incident and France Hysteria (2026-08-20)
+
+- New-user provisioning failed because `REMNAWAVE_SQUAD_INBOUND_UUIDS` retained
+  UUIDs of removed inbounds. Remnawave returned `Update internal squad error`
+  before the sync loop, so new ArcVPN users received syntactically valid links
+  but were absent from Remnawave and rejected by every node.
+- `scripts/sync_remnawave_users.py` must never let squad-topology reconciliation
+  block user provisioning. Squad errors are operator warnings; every user is
+  synchronized independently and one bad legacy record cannot stop the batch.
+- Production squad now contains seven live inbounds. A full reconciliation
+  selected and verified all 14 active ArcVPN identities, including subscription
+  `IhiMk6JyzqhXDedn0-1SI5EcJBtC_xkQ`.
+- Production France profile `f9e9b07f-2b9e-42e8-9b66-16d52642fd4d` now exposes
+  TCP Reality on `20086` and Hysteria2 on `20087`. Public connection metadata
+  must match the current wCloud profile; private Reality keys stay outside Git.

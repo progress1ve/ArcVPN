@@ -74,6 +74,7 @@ async def synchronize(apply: bool, db_path: Path) -> dict:
         "verified": 0,
         "squad_inbounds_verified": 0,
         "errors": [],
+        "warnings": [],
     }
     try:
         # A Remnawave user only reaches inbounds attached to their internal
@@ -85,18 +86,35 @@ async def synchronize(apply: bool, db_path: Path) -> dict:
             if value.strip()
         ]
         if apply and desired_inbounds:
-            await client._request(
-                "PATCH",
-                "/api/internal-squads",
-                json={"uuid": squad_uuid, "inbounds": desired_inbounds},
-            )
-            squad = await client._request("GET", "/api/internal-squads")
-            squads = squad.get("internalSquads", []) if isinstance(squad, dict) else []
-            current = next((item for item in squads if item.get("uuid") == squad_uuid), None)
-            current_ids = {item.get("uuid") for item in (current or {}).get("inbounds", [])}
-            if set(desired_inbounds) - current_ids:
-                raise RuntimeError("Remnawave squad inbound verification failed")
-            result["squad_inbounds_verified"] = len(desired_inbounds)
+            # Squad topology and user provisioning are independent concerns.
+            # A removed/recreated inbound used to make this PATCH fail and abort
+            # the whole run before any newly registered ArcVPN user was created.
+            # Keep the last valid squad topology and continue provisioning users;
+            # surface the stale topology as a warning for operators instead.
+            try:
+                await client._request(
+                    "PATCH",
+                    "/api/internal-squads",
+                    json={"uuid": squad_uuid, "inbounds": desired_inbounds},
+                )
+                squad = await client._request("GET", "/api/internal-squads")
+                squads = squad.get("internalSquads", []) if isinstance(squad, dict) else []
+                current = next((item for item in squads if item.get("uuid") == squad_uuid), None)
+                current_ids = {item.get("uuid") for item in (current or {}).get("inbounds", [])}
+                missing_ids = sorted(set(desired_inbounds) - current_ids)
+                if missing_ids:
+                    result["warnings"].append({
+                        "scope": "squad_inbounds",
+                        "error": "Remnawave squad inbound verification failed",
+                        "missing": missing_ids,
+                    })
+                else:
+                    result["squad_inbounds_verified"] = len(desired_inbounds)
+            except Exception as exc:
+                result["warnings"].append({
+                    "scope": "squad_inbounds",
+                    "error": str(exc),
+                })
 
         for key in active_keys(db_path):
             result["selected"] += 1
