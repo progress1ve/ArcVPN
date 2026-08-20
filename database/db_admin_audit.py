@@ -24,3 +24,20 @@ def append_admin_audit(
             str(action)[:96], str(target_type)[:64] if target_type else None,
             str(target_id)[:128] if target_id else None, str(outcome)[:32], safe_metadata[:4096],
         ))
+
+
+def list_admin_audit(limit: int = 100) -> list[dict[str, Any]]:
+    bounded_limit = min(500, max(1, int(limit)))
+    with get_db() as conn:
+        rows = conn.execute("""SELECT id,actor_type,actor_id,action,target_type,target_id,
+            outcome,metadata_json,created_at FROM admin_audit_events
+            ORDER BY id DESC LIMIT ?""", (bounded_limit,)).fetchall()
+    result = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item["metadata"] = json.loads(item.pop("metadata_json") or "{}")
+        except (TypeError, ValueError):
+            item["metadata"] = {}
+        result.append(item)
+    return result

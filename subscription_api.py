@@ -43,7 +43,7 @@ import config
 from database.connection import DB_PATH, get_db
 from database.db_webapp import adopt_import_device_identity
 from database.db_servers import get_server_by_id
-from database.db_admin_audit import append_admin_audit
+from database.db_admin_audit import append_admin_audit, list_admin_audit
 from database.db_admin_roles import (
     get_admin_role, get_assigned_admin_role, list_admin_roles,
     role_allows, role_permissions, set_admin_role,
@@ -1165,9 +1165,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             },
         }
         if LTE_NAME_MARKER in name:
-            # Never expose a manually selectable LTE profile in Happ JSON.
-            # Otherwise a user can remain on the expensive CDN route even
-            # after regular nodes recover. LTE exists only inside AutoSelect.
+            # Keep explicit emergency profiles at the owner's request. They
+            # consume CDN traffic whenever selected manually; AutoSelect does
+            # not use them while main candidates are healthy.
+            regular.append(regular_profile)
             candidate = _json_outbound_from_share_link(link, f"proxy-back-{len(lte_outbounds) + 1}")
             if candidate is not None:
                 lte_outbounds.append(candidate)
@@ -3249,6 +3250,17 @@ def api_admin_roles():
             target_type="telegram_admin", target_id=str(telegram_id), metadata={"role": role},
         )
     return _api_no_store(jsonify({"ok": True, "assignments": list_admin_roles()}))
+
+
+@app.route('/api/admin/audit', methods=['GET'])
+def api_admin_audit():
+    if not _admin_authorized("audit.read"):
+        return _api_error("admin_forbidden", 403)
+    try:
+        limit = int(request.args.get("limit", "100"))
+    except ValueError:
+        return _api_error("invalid_limit", 400)
+    return _api_no_store(jsonify({"ok": True, "events": list_admin_audit(limit)}))
 
 
 @app.route('/api/admin/diagnostics/run', methods=['POST'])
