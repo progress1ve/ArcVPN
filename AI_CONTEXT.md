@@ -1448,7 +1448,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   legacy generator remain local; panel URL/body caches are bounded and every native
   failure fails open to the working generator.
 - Production canary on 20 August 2026 found Remnawave's native subscription credentials
-  did not match the active user's panel VLESS UUID. A mandatory credential gate therefore
-  rejected the native response and kept the active user's existing profiles working.
-  Do not remove this fallback until Remnawave native credentials and the full assigned
-  catalog pass canary validation.
+  did not initially match the active user's panel VLESS UUID. Root cause: Remnawave had
+  no Hosts attached to the user's internal-squad inbounds and returned four dummy
+  `0.0.0.0:1` notice links. The Hosts catalog was rebuilt for all eight squad inbounds
+  (including two LTE hosts), and one stale DHost inbound UUID in the production env was
+  replaced. The squad now has eight valid inbounds; native output has nine real links
+  with matching VLESS/Hysteria2 credentials. Keep the credential and real-endpoint gate:
+  any topology drift must fail open to the stable ArcVPN generator.

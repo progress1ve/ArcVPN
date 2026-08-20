@@ -1970,14 +1970,19 @@ def _decode_native_subscription_links(body: str) -> list[str]:
 
 def _native_links_match_key(links: Iterable[str], client_uuid: str) -> bool:
     """Never replace a working subscription with credentials for another user."""
-    vless_credentials = [
-        urllib.parse.urlsplit(link).username or ""
-        for link in links
-        if link.startswith("vless://")
+    parsed_links = [urllib.parse.urlsplit(link) for link in links]
+    credentials = [
+        parsed.username or ""
+        for parsed in parsed_links
+        if parsed.scheme in {"vless", "hysteria2", "hy2"}
     ]
-    return bool(vless_credentials) and all(
+    has_real_endpoint = any(
+        parsed.hostname not in {None, "0.0.0.0", "127.0.0.1", "localhost"}
+        for parsed in parsed_links
+    )
+    return has_real_endpoint and bool(credentials) and all(
         hmac.compare_digest(value.lower(), str(client_uuid).lower())
-        for value in vless_credentials
+        for value in credentials
     )
 
 
