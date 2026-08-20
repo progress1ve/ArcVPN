@@ -1435,6 +1435,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   with its own Remnawave profile and Reality keypair. RemnaNode 3.1.1 is connected on a
   control-plane-only management port; public TCP Reality uses 22101. The previous Germany
   node remains enabled and is customer-labelled `Германия (Резерв)`.
+- The initial dhost Reality failure was not networking or Happ: the declarative
+  `REMNAWAVE_SQUAD_INBOUND_UUIDS` list still had seven entries, so reconciliation removed
+  the new inbound from the production squad and no user UUIDs reached the node. Production
+  env now declares eight inbounds; a real Xray/SOCKS test through dhost to YouTube returned
+  HTTP 204 after reconciliation. Keep the env list updated whenever adding an inbound.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.
