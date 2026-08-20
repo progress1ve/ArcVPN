@@ -1432,9 +1432,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   per-recipient delivery state. The bot worker resumes interrupted campaigns after restart
   and sends the initiating admin a final sent/blocked/failed summary.
 - The dhost Germany VPS at `193.233.198.184` is registered as `ArcVPN Germany DHost`
-  with its own Remnawave profile and Reality keypair. RemnaNode 3.1.1 is connected on a
-  control-plane-only management port; public TCP Reality uses 22101. The previous Germany
-  node remains enabled and is customer-labelled `Германия (Резерв)`.
+  with its own Remnawave profile and Reality keypair. Its public TCP Reality contract was
+  changed on 2026-08-20 to port 443, `google.com` SNI/target and an empty short ID while
+  preserving the existing private/public keypair and inbound UUID. The previous Germany
+  node remains enabled and is customer-labelled `Германия (Резерв)`. After a provider-side
+  reboot the new node remained disconnected/disabled and port 443 closed; restore the
+  RemnaNode agent before treating this profile as healthy or returning it to AutoSelect.
 - The initial dhost Reality failure was not networking or Happ: the declarative
   `REMNAWAVE_SQUAD_INBOUND_UUIDS` list still had seven entries, so reconciliation removed
   the new inbound from the production squad and no user UUIDs reached the node. Production

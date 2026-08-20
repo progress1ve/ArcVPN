@@ -215,10 +215,10 @@ REMNAWAVE_PUBLIC_NODES = (
         "flag": "🇩🇪",
         "label": "Германия",
         "host": "193.233.198.184",
-        "reality_sni": "sub.arccnet.space",
-        "tcp_port": 22101,
+        "reality_sni": "google.com",
+        "tcp_port": 443,
         "public_key": "4eeWXVSvnq4N9CAL0_-ZHWS-iz7mImVPwbHRZqMQakw",
-        "short_id": "5b9520fdde173f8c",
+        "short_id": "",
         "tcp_number": 1,
     },
     {
