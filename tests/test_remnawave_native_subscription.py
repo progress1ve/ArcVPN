@@ -56,17 +56,25 @@ def test_native_subscription_url_validation(url, expected):
 
 
 def test_native_failure_keeps_legacy_fallback_available(monkeypatch):
-    monkeypatch.setattr(api.ASYNC_EXECUTOR, "run", lambda coroutine: [])
+    def fake_run(coroutine):
+        coroutine.close()
+        return []
+
+    monkeypatch.setattr(api.ASYNC_EXECUTOR, "run", fake_run)
     assert api._prepare_native_remnawave_subscription(_key(), "plain") is None
 
 
 def test_native_links_keep_arcvpn_happ_wrapper(monkeypatch):
     native_link = "vless://11111111-1111-4111-8111-111111111111@example.com:443?security=reality#DE"
-    monkeypatch.setattr(api.ASYNC_EXECUTOR, "run", lambda coroutine: [native_link])
+    def fake_run(coroutine):
+        coroutine.close()
+        return [native_link]
+
+    monkeypatch.setattr(api.ASYNC_EXECUTOR, "run", fake_run)
 
     prepared = api._prepare_native_remnawave_subscription(_key(), "json")
 
     assert prepared is not None
     assert prepared.content_type.startswith("application/json")
-    assert "AutoSelect" in prepared.body
+    assert "burstObservatory" in prepared.body
     assert "example.com" in prepared.body
