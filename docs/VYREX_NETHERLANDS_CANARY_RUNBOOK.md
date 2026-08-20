@@ -4,6 +4,13 @@
 `159.200.230.224`; фактический origin — AS58212 dataforest GmbH, Frankfurt, а не Hetzner.
 Пробник добавлен только в telemetry allowlist, без Remnawave и без пользователей.
 
+Первичный baseline: KVM, Ubuntu 22.04, 1 vCPU Xeon Gold 6240R, 2 GiB RAM,
+20 GiB disk, 1 GiB swap. Первая production telemetry sample: loss 0%, jitter
+0.1 ms, latency 0.96 ms, CPU steal 0%, download 158.65 Mbps. Отдельная короткая
+25 MB загрузка достигла около 1.04 Gbps, поэтому результат зависит от endpoint/cache.
+YouTube вернул 204, Instagram и Gemini — 200, Claude — устойчивый 403; Claude нужно
+повторно проверить через реальный VPN transport и сравнить с действующими nodes.
+
 ## Инварианты
 
 - Не менять `/sub/<sub_id>`, device subscription IDs и VLESS UUID пользователей.

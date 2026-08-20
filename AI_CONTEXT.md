@@ -1399,6 +1399,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Owner approved deletion of the classified local obsolete/unknown candidates. Only the
   verified unused root assets, intermediate images, operator draft, tooling config and
   historical VLESS diagnostic were removed; final `*-v2.png` runtime assets remain.
+- Dataforest trial node-agent was installed and started on 2026-08-20. Production accepts
+  the host through `NODE_INVENTORY`; the first stored agent sample had 0% loss, 0.1 ms
+  jitter, 0.96 ms latency, 0% steal and 158.65 Mbps. YouTube/Instagram/Gemini were
+  reachable, while Claude returned HTTP 403. The node remains telemetry-only and its
+  `degraded` state is expected until a VPN runtime exists. Do not expose it to users yet.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.
