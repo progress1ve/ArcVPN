@@ -1443,3 +1443,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.
+- BEDOLAGA-style native Remnawave subscription sourcing was added behind the unchanged
+  ArcVPN `/sub/<id>` contract. Device enforcement, headers, Happ JSON/AutoSelect and the
+  legacy generator remain local; panel URL/body caches are bounded and every native
+  failure fails open to the working generator.
+- Production canary on 20 August 2026 found Remnawave's native subscription credentials
+  did not match the active user's panel VLESS UUID. A mandatory credential gate therefore
+  rejected the native response and kept the active user's existing profiles working.
+  Do not remove this fallback until Remnawave native credentials and the full assigned
+  catalog pass canary validation.
