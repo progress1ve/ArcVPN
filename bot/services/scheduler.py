@@ -34,7 +34,7 @@ from database.db_statistics import (
 )
 from bot.services.vpn_api import get_client_from_server_data, VPNAPIError, format_traffic
 from bot.services.notifications import send_to_user, notify_admins
-from bot.services.remnawave_stats import get_remnawave_network_stats
+from bot.services.remnawave_stats import get_remnawave_network_stats, remnawave_authority_enabled
 from bot.utils.git_utils import check_for_updates
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -1055,6 +1055,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
     keys = get_all_active_keys_with_server()
     if not keys:
         return
+    remnawave_authority = remnawave_authority_enabled()
     
     # Группируем ключи по серверам
     keys_by_server: dict = {}
@@ -1074,6 +1075,11 @@ async def sync_traffic_stats(bot: Bot) -> None:
     for server_id, server_keys in keys_by_server.items():
         server = server_map.get(server_id)
         if not server or not server.get('is_active'):
+            continue
+        if remnawave_authority and str(server.get('panel_type') or 'xui').lower() != 'remnawave':
+            # Historical key assignments still point at the former x-ui master.
+            # Remnawave reconciliation is handled by the production sync timer;
+            # polling x-ui here revives stale counters and legacy side effects.
             continue
         
         try:
@@ -1230,7 +1236,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
 
         for key in expired_keys:
             # Отключаем ключ на панели
-            if key.get('server_id') and key.get('panel_email'):
+            if not remnawave_authority and key.get('server_id') and key.get('panel_email'):
                 try:
                     if await disable_key_on_panel(key['id']):
                         mark_key_panel_disabled(key['id'])

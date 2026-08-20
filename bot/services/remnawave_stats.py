@@ -28,6 +28,12 @@ def _credentials() -> dict[str, Any]:
     }
 
 
+def remnawave_authority_enabled() -> bool:
+    """Whether production Remnawave credentials are present for this checkout."""
+    credentials = _credentials()
+    return bool(credentials.get("panel_api_url") and credentials.get("panel_api_token"))
+
+
 async def get_remnawave_network_stats() -> dict[str, Any]:
     """Return authoritative users/nodes data without exposing panel secrets."""
     client = RemnawaveClient(_credentials())
