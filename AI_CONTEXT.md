@@ -1431,6 +1431,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Broadcast migration v51 replaces the volatile inline send loop with persistent jobs and
   per-recipient delivery state. The bot worker resumes interrupted campaigns after restart
   and sends the initiating admin a final sent/blocked/failed summary.
+- The dhost Germany VPS at `193.233.198.184` is registered as `ArcVPN Germany DHost`
+  with its own Remnawave profile and Reality keypair. RemnaNode 3.1.1 is connected on a
+  control-plane-only management port; public TCP Reality uses 22101. The previous Germany
+  node remains enabled and is customer-labelled `Германия (Резерв)`.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.

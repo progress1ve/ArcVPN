@@ -212,6 +212,18 @@ REMNAWAVE_PUBLIC_NODES = (
         "country": "DE",
         "flag": "🇩🇪",
         "label": "Германия",
+        "host": "193.233.198.184",
+        "reality_sni": "sub.arccnet.space",
+        "tcp_port": 22101,
+        "public_key": "4eeWXVSvnq4N9CAL0_-ZHWS-iz7mImVPwbHRZqMQakw",
+        "short_id": "5b9520fdde173f8c",
+        "tcp_number": 1,
+    },
+    {
+        "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)),
+        "country": "DE",
+        "flag": "🇩🇪",
+        "label": "Германия (Резерв)",
         "host": "de.arccnet.space",
         "reality_sni": "sub.arccnet.space",
         "tcp_port": 22101,
@@ -299,6 +311,9 @@ NODE_INVENTORY = {
     "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
     "195.226.92.37": {"provider": "rdp-onedash.ru", "location": "Финляндия", "monthly_cost_rub": 365, "capacity_mbps": 10000},
     "159.200.230.224": {"provider": "Dataforest reseller trial", "location": "Германия", "monthly_cost_rub": 0, "capacity_mbps": 1000},
+    # The advertised 10 Gbit/s uplink is shared; use a conservative planning
+    # capacity until sustained production telemetry proves otherwise.
+    "193.233.198.184": {"provider": "dhost", "location": "Германия", "monthly_cost_rub": 300, "capacity_mbps": 1000},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
