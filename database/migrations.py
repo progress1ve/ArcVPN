@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 50
+LATEST_VERSION = 51
 
 
 def get_current_version() -> int:
@@ -2038,6 +2038,46 @@ def migration_50(conn: sqlite3.Connection) -> None:
     logger.info("Migration v50 applied")
 
 
+def migration_51(conn: sqlite3.Connection) -> None:
+    """Durable broadcast queue which survives bot restarts."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS broadcast_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_by INTEGER NOT NULL,
+            filter_type TEXT NOT NULL,
+            message_text TEXT NOT NULL,
+            photo_file_id TEXT,
+            status TEXT NOT NULL DEFAULT 'queued'
+                CHECK(status IN ('queued','running','completed','failed','cancelled')),
+            total_count INTEGER NOT NULL DEFAULT 0,
+            sent_count INTEGER NOT NULL DEFAULT 0,
+            blocked_count INTEGER NOT NULL DEFAULT 0,
+            failed_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            started_at DATETIME,
+            completed_at DATETIME,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS broadcast_job_recipients (
+            job_id INTEGER NOT NULL REFERENCES broadcast_jobs(id) ON DELETE CASCADE,
+            telegram_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending','sent','blocked','failed')),
+            attempts INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            sent_at DATETIME,
+            PRIMARY KEY(job_id, telegram_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_broadcast_jobs_status
+            ON broadcast_jobs(status, created_at);
+        CREATE INDEX IF NOT EXISTS idx_broadcast_recipients_pending
+            ON broadcast_job_recipients(job_id, status, telegram_id);
+        UPDATE settings SET value = '0' WHERE key = 'broadcast_in_progress';
+    """)
+    logger.info("Migration v51 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2089,6 +2129,7 @@ MIGRATIONS = {
     48: migration_48,
     49: migration_49,
     50: migration_50,
+    51: migration_51,
 }
 
 

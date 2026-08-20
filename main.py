@@ -16,6 +16,7 @@ from config import BOT_TOKEN
 from database.migrations import run_migrations
 
 from bot.services.vpn_api import close_all_clients
+from bot.services.broadcast_worker import run_broadcast_worker
 from bot.services.scheduler import (
     run_daily_tasks,
     run_update_check_scheduler,
@@ -171,6 +172,7 @@ async def main():
     )
     recurring_payment_tasks = asyncio.create_task(run_recurring_payment_scheduler(bot))
     lifecycle_tasks = asyncio.create_task(run_lifecycle_scheduler(bot))
+    broadcast_tasks = asyncio.create_task(run_broadcast_worker(bot))
     
     try:
         await dp.start_polling(bot)
@@ -181,6 +183,7 @@ async def main():
         payment_reconciliation_tasks.cancel()
         recurring_payment_tasks.cancel()
         lifecycle_tasks.cancel()
+        broadcast_tasks.cancel()
         await bot.session.close()
 
 

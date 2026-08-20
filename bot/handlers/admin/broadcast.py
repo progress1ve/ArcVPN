@@ -18,7 +18,7 @@ from database.requests import (
     get_setting, set_setting,
     get_users_for_broadcast, count_users_for_broadcast,
     get_active_users_for_broadcast_selection,
-    get_all_promocodes
+    get_all_promocodes, create_broadcast_job, has_active_broadcast
 )
 from bot.states.admin_states import AdminStates
 from bot.utils.admin import is_admin
@@ -70,7 +70,7 @@ def save_broadcast_message(text: str, photo_file_id: str | None = None) -> None:
 
 def is_broadcast_in_progress() -> bool:
     """Проверяет, идёт ли рассылка сейчас."""
-    return get_setting('broadcast_in_progress', '0') == '1'
+    return has_active_broadcast() or get_setting('broadcast_in_progress', '0') == '1'
 
 
 def set_broadcast_in_progress(value: bool) -> None:
@@ -506,74 +506,20 @@ async def broadcast_confirm(callback: CallbackQuery, bot: Bot):
         await callback.answer("❌ Нет получателей!", show_alert=True)
         return
     
-    # Устанавливаем флаг
-    set_broadcast_in_progress(True)
-    
     total = len(user_ids)
-    sent = 0
-    blocked = 0
-    
-    # Начинаем рассылку
-    await safe_edit_or_send(callback.message, 
-        f"📤 <b>Рассылка запущена</b>\n\n"
-        f"Отправлено: 0/{total}\n"
-        f"🚫 Заблокировали бота: 0"
-    )
-    await callback.answer()
-    
     text = msg_data.get('text', '')
     photo_file_id = msg_data.get('photo_file_id')
-    
-    for i, user_id in enumerate(user_ids):
-        try:
-            if photo_file_id:
-                await bot.send_photo(
-                    chat_id=user_id,
-                    photo=photo_file_id,
-                    caption=text,
-                    parse_mode="HTML"
-                )
-            else:
-                await bot.send_message(
-                    chat_id=user_id,
-                    text=text,
-                    parse_mode="HTML"
-                )
-            sent += 1
-        except TelegramForbiddenError:
-            # Пользователь заблокировал бота
-            blocked += 1
-        except TelegramBadRequest as e:
-            logger.warning(f"Ошибка отправки {user_id}: {e}")
-            blocked += 1
-        except Exception as e:
-            logger.error(f"Неожиданная ошибка отправки {user_id}: {e}")
-            blocked += 1
-        
-        # Обновляем прогресс каждые 10 сообщений
-        if (i + 1) % 10 == 0 or (i + 1) == total:
-            try:
-                await safe_edit_or_send(callback.message, 
-                    f"📤 <b>Рассылка в процессе...</b>\n\n"
-                    f"Отправлено: {sent}/{total}\n"
-                    f"🚫 Заблокировали бота: {blocked}"
-                )
-            except TelegramBadRequest:
-                pass  # Сообщение не изменилось
-        
-        # Задержка между сообщениями
-        await asyncio.sleep(0.5)
-    
-    # Сбрасываем флаг
-    set_broadcast_in_progress(False)
-    
-    # Итоговый отчёт
-    await safe_edit_or_send(callback.message, 
-        f"✅ <b>Рассылка завершена!</b>\n\n"
-        f"📤 Отправлено: {sent}\n"
-        f"🚫 Заблокировали бота: {blocked}",
-        reply_markup=home_only_kb()
+    job_id = create_broadcast_job(
+        callback.from_user.id, current_filter, text, photo_file_id, user_ids
     )
+
+    await safe_edit_or_send(callback.message, 
+        f"📥 <b>Рассылка #{job_id} поставлена в очередь</b>\n\n"
+        f"Получателей: {total}\n"
+        "Она продолжится после перезапуска бота. Итоговый отчёт придёт сюда.",
+        reply_markup=home_only_kb(),
+    )
+    await callback.answer()
 
 
 # ============================================================================

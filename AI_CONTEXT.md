@@ -1428,6 +1428,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Business Console RBAC migration v50 supports owner/operator/support/finance/viewer.
   Permission checks are server-side; configured admins default to owner, explicit Telegram
   assignments can downgrade/grant access, and denied actions are appended to audit.
+- Broadcast migration v51 replaces the volatile inline send loop with persistent jobs and
+  per-recipient delivery state. The bot worker resumes interrupted campaigns after restart
+  and sends the initiating admin a final sent/blocked/failed summary.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.
