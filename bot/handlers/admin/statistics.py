@@ -18,7 +18,6 @@ from database.db_statistics import (
     get_revenue_stats,
     get_traffic_stats,
     get_payers_stats,
-    get_servers_stats,
     get_conversion_stats,
     get_recent_payments,
     get_usage_activity_stats,
@@ -301,13 +300,15 @@ async def show_online_statistics(callback: CallbackQuery):
 
 @router.callback_query(F.data == 'admin_stats_servers')
 async def show_servers_statistics(callback: CallbackQuery):
-    """Статистика по серверам."""
+    """Authoritative Remnawave node statistics."""
     if not is_admin(callback.from_user.id):
         await callback.answer('⛔ Доступ запрещён', show_alert=True)
         return
 
     try:
-        servers = get_servers_stats()
+        from bot.services.remnawave_stats import get_remnawave_network_stats
+        network = await get_remnawave_network_stats()
+        servers = network.get("nodes", [])
 
         text = "🖥️ <b>Серверы</b>\n\n"
         total_clients = total_active = 0
@@ -317,19 +318,17 @@ async def show_servers_statistics(callback: CallbackQuery):
             text += "<i>Серверов пока нет</i>"
         else:
             for s in servers:
-                status = "🟢" if s['is_active'] else "🔴"
+                status = "🟢" if s['connected'] else ("⚪" if s.get("disabled") else "🔴")
                 text += (
                     f"{status} <b>{escape_html(s['name'])}</b> — "
-                    f"{s['active_clients']}/{s['clients_count']} активны · "
-                    f"{s['total_traffic_gb']:.1f} ГБ\n"
+                    f"{s['users_online']} онлайн · {s['traffic_gb']:.1f} ГБ\n"
                 )
-                total_clients += s['clients_count']
-                total_active += s['active_clients']
-                total_traffic += s['total_traffic_gb']
+                total_active += s['users_online']
+                total_traffic += s['traffic_gb']
 
             text += (
-                f"\n<b>Итого:</b> {total_active}/{total_clients} активны · "
-                f"{total_traffic:.1f} ГБ"
+                f"\n<b>Итого:</b> {len(servers)} нод · {total_active} онлайн · "
+                f"{network.get('users', 0)} пользователей · {total_traffic:.1f} ГБ"
             )
 
         await safe_edit_or_send(callback.message, text, reply_markup=stats_detail_kb())

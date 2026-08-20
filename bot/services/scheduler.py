@@ -30,10 +30,11 @@ from database.requests import (
 )
 from database.db_statistics import (
     get_revenue_stats, get_new_users_stats, get_subscriptions_stats,
-    get_conversion_stats, get_servers_stats,
+    get_conversion_stats,
 )
 from bot.services.vpn_api import get_client_from_server_data, VPNAPIError, format_traffic
 from bot.services.notifications import send_to_user, notify_admins
+from bot.services.remnawave_stats import get_remnawave_network_stats
 from bot.utils.git_utils import check_for_updates
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.utils.keyboard import InlineKeyboardBuilder
@@ -154,9 +155,8 @@ async def collect_daily_stats() -> str:
     """
     Собирает богатый суточный отчёт для администраторов.
 
-    Использует агрегированные функции db_statistics (доход/новые/подписки/конверсия)
-    и быстрый get_servers_stats (один запрос). Данные по серверам берём из БД —
-    без медленных запросов к панелям (живой онлайн виден в админ-статистике).
+    Использует агрегированные функции db_statistics для бизнес-метрик и
+    read-only Remnawave API для актуального состава и состояния нод.
 
     Returns:
         Готовый HTML-текст отчёта.
@@ -189,27 +189,29 @@ async def collect_daily_stats() -> str:
         logger.warning(f"daily stats: conversion error: {e}")
         conv = {}
     try:
-        servers = get_servers_stats()
+        network = await get_remnawave_network_stats()
     except Exception as e:
-        logger.warning(f"daily stats: servers error: {e}")
-        servers = []
+        logger.warning(f"daily stats: Remnawave error: {e}")
+        network = {"users": 0, "nodes": []}
 
     day_rev = rev.get('day', {}) if rev else {}
     week_rev = rev.get('week', {}) if rev else {}
     month_rev = rev.get('month', {}) if rev else {}
 
-    # --- серверы (из БД, быстро) ---
-    if servers:
+    # Remnawave is the production authority; the local servers table contains
+    # historical 3x-ui assignments and must not be presented as fleet health.
+    nodes = network.get("nodes", [])
+    if nodes:
         srv_lines = []
-        for s in servers:
-            mark = "🟢" if s.get('is_active') else "🔴"
+        for node in nodes:
+            mark = "🟢" if node.get("connected") else ("⚪" if node.get("disabled") else "🔴")
             srv_lines.append(
-                f"  {mark} <b>{s['name']}</b>: {s.get('active_clients', 0)} акт. / "
-                f"{s.get('clients_count', 0)} всего · {s.get('total_traffic_gb', 0):.1f} ГБ"
+                f"  {mark} <b>{node['name']}</b>: {node.get('users_online', 0)} онлайн · "
+                f"{node.get('traffic_gb', 0):.1f} ГБ"
             )
         servers_text = "\n".join(srv_lines)
     else:
-        servers_text = "  Нет серверов"
+        servers_text = "  Данные Remnawave временно недоступны"
 
     report = f"""📊 <b>Суточная статистика — {today}</b>
 
@@ -233,6 +235,7 @@ async def collect_daily_stats() -> str:
 
 🖥️ <b>Серверы:</b>
 {servers_text}
+  Пользователей в Remnawave: {network.get('users', 0)}
 """
     return report
 
@@ -1219,46 +1222,6 @@ async def sync_traffic_stats(bot: Bot) -> None:
                 key['traffic_notified_pct'] = threshold
                 break  # Только одно уведомление за раз
     
-    # === Восстановление: x-ui 3.3.1 не обновляет client_traffics.enable через API ===
-    # при продлении. Проверяем прямым SQL-запросом к x-ui.db и включаем обратно.
-    try:
-        import sqlite3 as _sqlite3
-        from datetime import timezone
-        XUI_DB = getattr(_cfg, 'XUI_DB_PATH', '/etc/x-ui/x-ui.db')
-        _xui_conn = _sqlite3.connect(XUI_DB)
-        _restored = 0
-        for key in keys:
-            email = key.get('panel_email')
-            if not email:
-                continue
-            expires_at = key.get('expires_at')
-            if not expires_at:
-                continue
-            dt = datetime.fromisoformat(str(expires_at).replace('Z', '+00:00'))
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            exp_ms = int(dt.timestamp() * 1000)
-            row = _xui_conn.execute(
-                "SELECT enable FROM client_traffics WHERE email=?", (email,)
-            ).fetchone()
-            if row and row[0] == 0:
-                _xui_conn.execute(
-                    "UPDATE client_traffics SET enable=1, expiry_time=? WHERE email=?",
-                    (exp_ms, email)
-                )
-                _xui_conn.execute(
-                    "UPDATE clients SET enable=1, expiry_time=? WHERE email=?",
-                    (exp_ms, email)
-                )
-                _restored += 1
-                logger.warning(f"Восстановлен клиент {email}: enable 0->1")
-        if _restored:
-            _xui_conn.commit()
-            logger.info(f"Синхронизация enable: восстановлено {_restored} клиентов в x-ui.db")
-        _xui_conn.close()
-    except Exception as e:
-        logger.debug(f"x-ui.db enable sync: {e}")
-
     # === Отключаем истёкшие ключи на панели + единое уведомление об истечении ===
     try:
         expired_keys = get_all_expired_keys()
