@@ -5,6 +5,10 @@
 # Explicitly ignore these (redundant due to * but good for clarity/overrides if I change * later)
 config.py
 logs/
+.arcshots/
+.codex-worktrees/
+*.log
+__diag.py
 tests/
 docs/
 results.md

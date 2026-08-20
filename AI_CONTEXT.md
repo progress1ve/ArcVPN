@@ -1373,6 +1373,25 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   by scanning thousands of files.
 - Next priorities: canary and 72-hour evaluation of one Vyrex Netherlands node;
   architecture/security/license audit of the BEDOLAGA Telegram bot and cabinet;
+
+## BEDOLAGA audit and Vyrex preparation (2026-08-20)
+
+- Read-only audit pinned BEDOLAGA bot `49b05d5` (v4.1.0) and cabinet `2192484`.
+  Bot is MIT plus Commons Clause, not plain MIT; cabinet is AGPL-3.0. Do not copy code
+  into commercial closed ArcVPN without written permission/license review. The approved
+  approach is independent implementation of selected patterns; see
+  `docs/BEDOLAGA_AUDIT_2026-08-20.md`.
+- Highest-value independent adaptations: server-side RBAC, append-only admin audit,
+  broadcast job queue, payment health, signed/deduplicated Remnawave webhook inbox,
+  backup verification and squad migration preview. Stable ArcVPN subscription URLs,
+  UUIDs, device slots and current payment history remain authoritative.
+- Vyrex Netherlands must start as an isolated synthetic canary. The 72-hour report now
+  includes latency p50/p95, explicit evening metrics and fail-closed missing-metric gates.
+  Access/install steps and production/reserve/reject criteria are documented in
+  `docs/VYREX_NETHERLANDS_CANARY_RUNBOOK.md`.
+- Local cleanup inventory is `docs/LOCAL_CLEANUP_INVENTORY_2026-08-20.md`. Unknown/user
+  files were not deleted. A local diagnostic file and older tracked history contain
+  credentials; rotate and sanitize them before any cleanup commit that touches secrets.
   then a classified, reversible cleanup of the local workspace.
 - Existing untracked assets, diagnostics and local files belong to the owner
   until classified. Never mass-delete them or treat `git status` as permission.
