@@ -12,6 +12,7 @@ import concurrent.futures
 import hashlib
 import hmac
 import html
+import ipaddress
 import json
 import logging
 import os
@@ -32,6 +33,7 @@ from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
 from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
 
+import aiohttp
 from flask import Flask, Response, jsonify, redirect, request, send_from_directory
 
 from bot.services.panels.base import VPNAPIError
@@ -290,6 +292,8 @@ app = Flask(__name__)
 
 SERVER_CACHE_TTL_SECONDS = 300
 CLIENT_CONFIG_CACHE_TTL_SECONDS = 180
+REMNAWAVE_NATIVE_URL_CACHE_TTL_SECONDS = 300
+REMNAWAVE_NATIVE_BODY_CACHE_TTL_SECONDS = 45
 MAX_CACHE_ITEMS = 2048
 SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS = 60
 SUBSCRIPTION_RATE_LIMIT_PER_TOKEN = 12
@@ -595,6 +599,8 @@ class AsyncExecutor:
 
 SERVER_CACHE = TTLCache(SERVER_CACHE_TTL_SECONDS, 256)
 CLIENT_CONFIG_CACHE = TTLCache(CLIENT_CONFIG_CACHE_TTL_SECONDS, MAX_CACHE_ITEMS)
+REMNAWAVE_NATIVE_URL_CACHE = TTLCache(REMNAWAVE_NATIVE_URL_CACHE_TTL_SECONDS, MAX_CACHE_ITEMS)
+REMNAWAVE_NATIVE_BODY_CACHE = TTLCache(REMNAWAVE_NATIVE_BODY_CACHE_TTL_SECONDS, MAX_CACHE_ITEMS)
 TOKEN_RATE_LIMITER = SlidingWindowRateLimiter(
     SUBSCRIPTION_RATE_LIMIT_PER_TOKEN,
     SUBSCRIPTION_RATE_LIMIT_WINDOW_SECONDS,
@@ -1903,6 +1909,125 @@ def _select_links(links: list[str], output_format: str) -> str:
     return "\n".join(links)
 
 
+def _load_remnawave_runtime_config() -> Dict[str, str]:
+    """Load the panel endpoint without leaking its token into process logs."""
+    values = {
+        "REMNAWAVE_PANEL_URL": str(os.getenv("REMNAWAVE_PANEL_URL") or "").strip(),
+        "REMNAWAVE_API_TOKEN": str(os.getenv("REMNAWAVE_API_TOKEN") or "").strip(),
+    }
+    env_path = os.path.join(os.path.dirname(__file__), ".env.remnawave-staging")
+    try:
+        with open(env_path, "r", encoding="utf-8") as stream:
+            for raw_line in stream:
+                line = raw_line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                name, value = line.split("=", 1)
+                name = name.strip()
+                if name in values and not values[name]:
+                    values[name] = value.strip().strip('"').strip("'")
+    except FileNotFoundError:
+        pass
+    return values
+
+
+def _native_subscription_enabled() -> bool:
+    value = str(
+        os.getenv("REMNAWAVE_NATIVE_SUBSCRIPTION_ENABLED")
+        or getattr(config, "REMNAWAVE_NATIVE_SUBSCRIPTION_ENABLED", "1")
+    ).strip().lower()
+    return value not in {"0", "false", "no", "off"}
+
+
+def _public_https_subscription_url(value: str) -> bool:
+    """Reject malformed/private URLs even though the URL originates from the panel."""
+    try:
+        parsed = urllib.parse.urlsplit(value)
+        if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+            return False
+        try:
+            return ipaddress.ip_address(parsed.hostname).is_global
+        except ValueError:
+            return parsed.hostname not in {"localhost"} and "." in parsed.hostname
+    except ValueError:
+        return False
+
+
+def _decode_native_subscription_links(body: str) -> list[str]:
+    """Normalize Remnawave's plain or base64 subscription into share links."""
+    candidate = body.strip().lstrip("\ufeff")
+    if not candidate:
+        return []
+    if "://" not in candidate:
+        try:
+            padding = "=" * (-len(candidate) % 4)
+            candidate = base64.urlsafe_b64decode(candidate + padding).decode("utf-8")
+        except (ValueError, UnicodeDecodeError):
+            return []
+    supported = ("vless://", "hysteria2://", "hy2://", "trojan://", "ss://")
+    return [line.strip() for line in candidate.splitlines() if line.strip().startswith(supported)]
+
+
+async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
+    """Resolve and fetch a user's native Remnawave subscription with short caches."""
+    if not _native_subscription_enabled() or not key.client_uuid:
+        return []
+
+    identity_hash = hashlib.sha256(str(key.client_uuid).encode("utf-8")).hexdigest()
+    subscription_url = REMNAWAVE_NATIVE_URL_CACHE.get(identity_hash)
+    if subscription_url is None:
+        runtime = _load_remnawave_runtime_config()
+        if not runtime["REMNAWAVE_PANEL_URL"] or not runtime["REMNAWAVE_API_TOKEN"]:
+            return []
+        client = RemnawaveClient({
+            "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
+            "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
+        })
+        try:
+            user = await client.get_user(key.panel_email)
+        finally:
+            await client.close()
+        if not user or str(user.get("vlessUuid") or "") != str(key.client_uuid):
+            return []
+        subscription_url = str(user.get("subscriptionUrl") or "").strip()
+        if not _public_https_subscription_url(subscription_url):
+            logger.warning("Remnawave returned an invalid native subscription URL")
+            return []
+        REMNAWAVE_NATIVE_URL_CACHE.set(identity_hash, subscription_url)
+
+    body_cache_key = hashlib.sha256(subscription_url.encode("utf-8")).hexdigest()
+    cached_body = REMNAWAVE_NATIVE_BODY_CACHE.get(body_cache_key)
+    if cached_body is None:
+        timeout = aiohttp.ClientTimeout(total=8, connect=3, sock_read=6)
+        headers = {"Accept": "text/plain", "User-Agent": "v2rayN/7.0 ArcVPN"}
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(subscription_url, headers=headers, allow_redirects=False) as response:
+                if response.status != 200:
+                    raise VPNAPIError(f"native subscription HTTP {response.status}")
+                if int(response.headers.get("Content-Length") or 0) > 1024 * 1024:
+                    raise VPNAPIError("native subscription is too large")
+                cached_body = await response.text()
+                if len(cached_body) > 1024 * 1024:
+                    raise VPNAPIError("native subscription is too large")
+        REMNAWAVE_NATIVE_BODY_CACHE.set(body_cache_key, cached_body)
+    return _decode_native_subscription_links(cached_body)
+
+
+def _prepare_native_remnawave_subscription(
+    key: ActiveKeyRecord,
+    output_format: str,
+) -> Optional[PreparedSubscription]:
+    """Use Remnawave as authority, while failing open to the legacy generator."""
+    try:
+        links = ASYNC_EXECUTOR.run(_native_remnawave_links(key))
+    except Exception as exc:
+        logger.warning("Native Remnawave subscription unavailable; using fallback: %s", type(exc).__name__)
+        return None
+    if not links:
+        return None
+    return _prepare_subscription(key, "\n".join(links), output_format)
+
+
 def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
     """Находит активный ключ по subscription id."""
     with get_db() as conn:
@@ -2180,18 +2305,22 @@ def subscription(sub_id: str, path_device_token: str = ''):
             )
             return _response_from_prepared(prepared, profile_title)
 
-        links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
-        link = _select_links(links, output_format)
-        if not link:
-            logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
-            return _subscription_temporarily_unavailable()
-
-        prepared = _prepare_subscription(key, link, output_format)
+        prepared = _prepare_native_remnawave_subscription(key, output_format)
+        source = "remnawave"
+        if prepared is None:
+            links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
+            link = _select_links(links, output_format)
+            if not link:
+                logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
+                return _subscription_temporarily_unavailable()
+            prepared = _prepare_subscription(key, link, output_format)
+            source = "fallback"
         logger.info(
-            "Подписка выдана: %s, client=%s, format=%s",
+            "Подписка выдана: %s, client=%s, format=%s, source=%s",
             masked_sub_id,
             client_family,
             output_format,
+            source,
         )
         return _response_from_prepared(prepared, profile_title)
 
