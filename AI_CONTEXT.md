@@ -1503,3 +1503,16 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   despite the advertised shared 10 Gbit/s uplink. This admits only the normal Netherlands
   node; Netherlands LTE still requires a separate x10 node and CDN hostname before Finland
   can be retired.
+- Happ JSON catalog order is now stable and customer-facing: AutoSelect first, then the
+  manual `Ютуб без рекламы` alias of Netherlands TCP Reality, Netherlands TCP/Hysteria,
+  Germany TCP/Hysteria, Finland TCP/Hysteria, remaining normal countries, and LTE last.
+  The YouTube alias is intentionally excluded from AutoSelect so it does not double the
+  Netherlands weight. Country profiles use explicit flags and protocol numbers.
+- Paid orders in `manual_review` are no longer fulfilled automatically a second time.
+  A panel-update failure can happen after the database expiry was already extended; retrying
+  that order caused an exact duplicate period. Reconciliation must now be performed by an
+  operator before the order is marked applied.
+- Public DNS for `remna.arccnet.space` disappeared on 2026-08-21 and stopped the minute user
+  reconciliation timer. The Polish control plane currently has an `/etc/hosts` loopback
+  mapping as an operational repair; restore a public `remna -> 217.60.33.38` A record, then
+  remove the hosts-file workaround after DNS propagation and a successful sync gate.
