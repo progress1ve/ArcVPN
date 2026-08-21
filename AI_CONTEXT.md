@@ -1444,6 +1444,19 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   An empty Reality short ID worked with Xray but was replaced with a normal 16-hex short
   ID for Happ compatibility; the native and fallback subscription links must both include
   the same `sid` value.
+- On 2026-08-21 the affected Happ builds were confirmed to require `firefox` or `edge`
+  fingerprints on the failing mobile routes. Remnawave Hosts for DHost Germany and LTE
+  were changed from `chrome` to `firefox`, and native VLESS links are normalized likewise.
+  Native Remnawave XHTTP links omit ArcVPN's required `xPadding*` transport extension, so
+  the Arc wrapper injects the same `extra` JSON used by the stable legacy generator. The
+  dead old-Germany node and its TCP/HY2 Hosts, plus the obsolete German LTE Host, are
+  disabled rather than deleted; only the Finland LTE CDN origin remains published.
+- The old production host `2.26.84.210` became unreachable on 2026-08-21 (SSH,
+  RemnaNode management and VPN transports all time out). The fallback generator now keeps
+  its reserve profile disabled by default and publishes only the Finland LTE origin. DNS
+  still had a stale `sub.arccnet.space -> 2.26.84.210` A-record beside the live
+  `217.60.33.38`; remove the stale Reg.ru record because it makes subscription refreshes
+  fail nondeterministically.
 - The initial dhost Reality failure was not networking or Happ: the declarative
   `REMNAWAVE_SQUAD_INBOUND_UUIDS` list still had seven entries, so reconciliation removed
   the new inbound from the production squad and no user UUIDs reached the node. Production

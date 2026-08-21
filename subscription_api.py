@@ -222,7 +222,7 @@ REMNAWAVE_PUBLIC_NODES = (
         "tcp_number": 1,
     },
     {
-        "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)),
+        "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_RESERVE_ENABLED", False)),
         "country": "DE",
         "flag": "🇩🇪",
         "label": "Германия (Резерв)",
@@ -1794,9 +1794,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                     "xPaddingBytes": "100-1000", "xPaddingHeader": "X-Cache",
                     "xPaddingMethod": "tokenish", "xPaddingPlacement": "queryInHeader",
                 }, separators=(",", ":"))
-                for lte_number, lte_host in enumerate(
-                    (REMNAWAVE_LTE_HOST, REMNAWAVE_LTE_GERMANY_HOST), start=1
-                ):
+                for lte_number, lte_host in enumerate((REMNAWAVE_LTE_HOST,), start=1):
                     lte_query = urllib.parse.urlencode({
                         "type": "xhttp", "encryption": "none", "path": "/api-test",
                         "host": lte_host, "mode": "packet-up", "x_padding_bytes": "100-1000",
@@ -1968,6 +1966,53 @@ def _decode_native_subscription_links(body: str) -> list[str]:
     return [line.strip() for line in candidate.splitlines() if line.strip().startswith(supported)]
 
 
+def _normalize_native_share_link(link: str) -> str:
+    """Apply ArcVPN client-compatibility fields missing from Remnawave Hosts."""
+    try:
+        parsed = urllib.parse.urlsplit(link)
+    except ValueError:
+        return link
+    if parsed.scheme != "vless":
+        return link
+
+    params = urllib.parse.parse_qs(parsed.query, keep_blank_values=True)
+    security = params.get("security", [""])[0]
+    if security in {"reality", "tls"}:
+        # Happ builds in current use accept Firefox/Edge uTLS fingerprints, while
+        # Chrome intermittently fails on the affected Russian mobile routes.
+        params["fp"] = ["firefox"]
+
+    host = (parsed.hostname or "").lower()
+    if params.get("type", [""])[0] == "xhttp" and host in {
+        REMNAWAVE_LTE_HOST.lower(),
+        REMNAWAVE_LTE_GERMANY_HOST.lower(),
+    }:
+        params.update({
+            "mode": ["packet-up"],
+            "path": ["/api-test"],
+            "host": [host],
+            "alpn": ["h2,http/1.1"],
+            "x_padding_bytes": ["100-1000"],
+            "extra": [json.dumps({
+                "uplinkHTTPMethod": "OPTIONS",
+                "scMaxEachPostBytes": 5000000,
+                "scMinPostsIntervalMs": 10,
+                "scMaxBufferedPosts": 50,
+                "xPaddingObfsMode": True,
+                "xPaddingKey": "dc",
+                "xPaddingBytes": "100-1000",
+                "xPaddingHeader": "X-Cache",
+                "xPaddingMethod": "tokenish",
+                "xPaddingPlacement": "queryInHeader",
+            }, separators=(",", ":"))],
+        })
+
+    query = urllib.parse.urlencode(params, doseq=True)
+    return urllib.parse.urlunsplit((
+        parsed.scheme, parsed.netloc, parsed.path, query, parsed.fragment,
+    ))
+
+
 def _native_links_match_key(links: Iterable[str], client_uuid: str) -> bool:
     """Never replace a working subscription with credentials for another user."""
     parsed_links = [urllib.parse.urlsplit(link) for link in links]
@@ -2028,7 +2073,7 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
                 if len(cached_body) > 1024 * 1024:
                     raise VPNAPIError("native subscription is too large")
         REMNAWAVE_NATIVE_BODY_CACHE.set(body_cache_key, cached_body)
-    links = _decode_native_subscription_links(cached_body)
+    links = [_normalize_native_share_link(link) for link in _decode_native_subscription_links(cached_body)]
     if not _native_links_match_key(links, str(key.client_uuid)):
         logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
         return []

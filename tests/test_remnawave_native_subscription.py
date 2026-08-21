@@ -1,4 +1,6 @@
 import base64
+import json
+import urllib.parse
 
 import pytest
 
@@ -93,3 +95,33 @@ def test_native_links_keep_arcvpn_happ_wrapper(monkeypatch):
     assert prepared.content_type.startswith("application/json")
     assert "burstObservatory" in prepared.body
     assert "example.com" in prepared.body
+
+
+def test_native_lte_link_gets_happ_fingerprint_and_padding():
+    link = (
+        "vless://11111111-1111-4111-8111-111111111111@cdn-fi.arccnet.space:443"
+        "?encryption=none&type=xhttp&path=%2Fapi-test&host=cdn-fi.arccnet.space"
+        "&mode=packet-up&security=tls&sni=cdn-fi.arccnet.space&fp=chrome#LTE"
+    )
+
+    normalized = api._normalize_native_share_link(link)
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(normalized).query)
+    extra = json.loads(params["extra"][0])
+
+    assert params["fp"] == ["firefox"]
+    assert params["alpn"] == ["h2,http/1.1"]
+    assert params["x_padding_bytes"] == ["100-1000"]
+    assert extra["uplinkHTTPMethod"] == "OPTIONS"
+    assert extra["xPaddingObfsMode"] is True
+
+
+def test_native_reality_link_replaces_chrome_fingerprint():
+    link = (
+        "vless://11111111-1111-4111-8111-111111111111@node.example.com:443"
+        "?type=tcp&security=reality&fp=chrome&pbk=public&sid=0123456789abcdef#DE"
+    )
+
+    normalized = api._normalize_native_share_link(link)
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(normalized).query)
+
+    assert params["fp"] == ["firefox"]
