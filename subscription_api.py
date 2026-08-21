@@ -286,7 +286,9 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
     number_match = re.search(r"#\s*([1-9][0-9]*)", name)
     protocol_order = int(number_match.group(1)) if number_match else 99
-    if "Нидерланды" in name:
+    if "Ютуб без рекламы" in name:
+        country_order = 5
+    elif "Нидерланды" in name:
         country_order = 10
     elif "Германия" in name:
         country_order = 20
@@ -301,6 +303,49 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     else:
         country_order = 60
     return country_order, protocol_order, name
+
+
+def _normalize_customer_profile_label(link: str) -> str:
+    """Apply a consistent flag and protocol number without changing transport data."""
+    if "#" not in link:
+        return link
+    payload, encoded_name = link.rsplit("#", 1)
+    name = urllib.parse.unquote(encoded_name)
+    if "Ютуб без рекламы" in name or "Обход глушилок" in name:
+        return link
+    countries = (
+        ("Нидерланды", "🇳🇱"),
+        ("Германия", "🇩🇪"),
+        ("Финляндия", "🇫🇮"),
+        ("Франция", "🇫🇷"),
+    )
+    for country, flag in countries:
+        if country not in name:
+            continue
+        if "(Резерв)" in name:
+            label = f"{flag} {country} (Резерв)"
+        else:
+            scheme = urllib.parse.urlsplit(link).scheme.lower()
+            is_hysteria = scheme in {"hysteria", "hysteria2", "hy2"}
+            label = f"{flag} {country} #{2 if is_hysteria else 1}{' ⚡' if is_hysteria else ''}"
+        return payload + "#" + urllib.parse.quote(label, safe="")
+    return link
+
+
+def _with_youtube_without_ads_alias(links: list[str]) -> list[str]:
+    """Expose NL Reality as a manual friendly alias without weighting AutoSelect twice."""
+    if any("Ютуб без рекламы" in urllib.parse.unquote(item.rsplit("#", 1)[-1]) for item in links):
+        return links
+    source = next((
+        item for item in links
+        if urllib.parse.urlsplit(item).scheme.lower() == "vless"
+        and "Нидерланды" in urllib.parse.unquote(item.rsplit("#", 1)[-1])
+    ), None)
+    if not source:
+        return links
+    payload = source.rsplit("#", 1)[0]
+    alias = payload + "#" + urllib.parse.quote("🇷🇺 Ютуб без рекламы", safe="")
+    return [*links, alias]
 
 
 # Настройка логирования
@@ -1221,7 +1266,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             regular.append(regular_profile)
             # Reserve profiles remain manually selectable but must not receive
             # routine AutoSelect traffic while primary nodes are healthy.
-            if "(Резерв)" not in name:
+            if "(Резерв)" not in name and "Ютуб без рекламы" not in name:
                 candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
                 if candidate is not None:
                     auto_outbounds.append(candidate)
@@ -1877,7 +1922,8 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 f"{REMNAWAVE_FRANCE_HY2_PORT}?{hy2_query}#{hy2_name}"
             )
 
-    return sorted(links, key=_subscription_link_order)
+    links = [_normalize_customer_profile_label(link) for link in links]
+    return sorted(_with_youtube_without_ads_alias(links), key=_subscription_link_order)
 
 
 def _cdn_traffic_exceeded(email: str) -> bool:
@@ -2082,7 +2128,8 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
     if not _native_links_match_key(links, str(key.client_uuid)):
         logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
         return []
-    return sorted(links, key=_subscription_link_order)
+    links = [_normalize_customer_profile_label(link) for link in links]
+    return sorted(_with_youtube_without_ads_alias(links), key=_subscription_link_order)
 
 
 def _prepare_native_remnawave_subscription(

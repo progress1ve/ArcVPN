@@ -46,6 +46,27 @@ def test_customer_catalog_order_is_netherlands_germany_finland_then_lte():
     ]
 
 
+def test_country_labels_and_manual_youtube_alias_are_normalized():
+    links = [
+        "vless://id@nd.arccnet.space:443?security=reality#Нидерланды%20%231",
+        "hysteria2://id@nd.arccnet.space:443#Нидерланды%20%232",
+        "vless://id@de.arccnet.space:443?security=reality#Германия",
+        "hysteria2://id@de.arccnet.space:443#Германия%20⚡",
+    ]
+    normalized = [api._normalize_customer_profile_label(link) for link in links]
+    result = sorted(api._with_youtube_without_ads_alias(normalized), key=api._subscription_link_order)
+    names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in result]
+
+    assert names == [
+        "🇷🇺 Ютуб без рекламы",
+        "🇳🇱 Нидерланды #1",
+        "🇳🇱 Нидерланды #2 ⚡",
+        "🇩🇪 Германия #1",
+        "🇩🇪 Германия #2 ⚡",
+    ]
+    assert result[0].split("#", 1)[0] == result[1].split("#", 1)[0]
+
+
 def _key():
     return api.ActiveKeyRecord(
         id=1,
