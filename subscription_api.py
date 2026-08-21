@@ -246,14 +246,12 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
 # известных конфигураций в подписке. Неизвестные конфиги идут после них.
 SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
-    "Финляндия ⭐⚡ [АВТОВЫБОР]",
-    "Германия ⭐ [АВТОВЫБОР]",
-    "Финляндия #1",
-    "Германия #1",
-    "Финляндия #2⚡",
-    "Германия #2⚡",
     "Нидерланды #1",
     "Нидерланды #2 ⚡",
+    "Германия #1",
+    "Германия #2⚡",
+    "Финляндия #1",
+    "Финляндия #2⚡",
     "Обход глушилок (LTE, трафик ×10) #1",
     "Обход глушилок (LTE, трафик ×10) #2",
 ])
@@ -281,6 +279,28 @@ def _subscription_display_name(name: str) -> str:
     if "Обход глушилок" in value:
         return "🇷🇺 Обход глушилок (трафик ×10, LTE)"
     return value
+
+
+def _subscription_link_order(link: str) -> tuple[int, int, str]:
+    """Stable customer-facing order shared by native and fallback catalogs."""
+    name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
+    number_match = re.search(r"#\s*([1-9][0-9]*)", name)
+    protocol_order = int(number_match.group(1)) if number_match else 99
+    if "Нидерланды" in name:
+        country_order = 10
+    elif "Германия" in name:
+        country_order = 20
+    elif "Финляндия" in name:
+        country_order = 30
+    elif "Франция" in name:
+        country_order = 40
+    elif "Польша" in name:
+        country_order = 50
+    elif "Обход глушилок" in name or "LTE" in name:
+        country_order = 90
+    else:
+        country_order = 60
+    return country_order, protocol_order, name
 
 
 # Настройка логирования
@@ -1857,25 +1877,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 f"{REMNAWAVE_FRANCE_HY2_PORT}?{hy2_query}#{hy2_name}"
             )
 
-    def _catalog_order(link: str) -> tuple[int, int, str]:
-        name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
-        number_match = re.search(r"#([1-9][0-9]*)", name)
-        protocol_order = int(number_match.group(1)) if number_match else 99
-        if "Франция" in name:
-            country_order = 10
-        elif "Финляндия" in name:
-            country_order = 20
-        elif "Германия" in name:
-            country_order = 30
-        elif "Польша" in name:
-            country_order = 40
-        elif "Обход глушилок" in name:
-            country_order = 60
-        else:
-            country_order = 45
-        return country_order, protocol_order, name
-
-    return sorted(links, key=_catalog_order)
+    return sorted(links, key=_subscription_link_order)
 
 
 def _cdn_traffic_exceeded(email: str) -> bool:
@@ -2080,7 +2082,7 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
     if not _native_links_match_key(links, str(key.client_uuid)):
         logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
         return []
-    return links
+    return sorted(links, key=_subscription_link_order)
 
 
 def _prepare_native_remnawave_subscription(

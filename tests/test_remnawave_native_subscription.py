@@ -25,6 +25,27 @@ def test_netherlands_profiles_sort_before_lte_and_accept_flag_prefix():
     assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
 
 
+def test_customer_catalog_order_is_netherlands_germany_finland_then_lte():
+    links = [
+        "vless://id@host#Обход%20глушилок%20(LTE)",
+        "vless://id@host#Финляндия%20%232",
+        "vless://id@host#Германия%20%231",
+        "vless://id@host#Нидерланды%20%232",
+        "vless://id@host#Нидерланды%20%231",
+        "vless://id@host#Германия%20%232",
+        "vless://id@host#Финляндия%20%231",
+    ]
+
+    names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in sorted(links, key=api._subscription_link_order)]
+
+    assert names == [
+        "Нидерланды #1", "Нидерланды #2",
+        "Германия #1", "Германия #2",
+        "Финляндия #1", "Финляндия #2",
+        "Обход глушилок (LTE)",
+    ]
+
+
 def _key():
     return api.ActiveKeyRecord(
         id=1,

@@ -496,7 +496,12 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
 
     fulfillment_status = order.get('fulfillment_status')
-    if order.get('status') == 'paid' and fulfillment_status == 'applied':
+    if order.get('status') == 'paid' and fulfillment_status in {'applied', 'manual_review'}:
+        # A manual-review renewal may already have extended the database before
+        # its panel update failed. Retrying it automatically would add the same
+        # period again. Only an operator may reconcile and release such orders.
+        if fulfillment_status == 'manual_review':
+            return True, "✅ Оплата принята и ожидает проверки поддержки.", order
         return True, "✅ Этот платёж уже был обработан ранее.", order
 
     payment_marked_paid = False
