@@ -1494,3 +1494,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   Netherlands remains canary-only until SSH authentication, node connection, squad/Host
   assignment and real TCP/Hysteria tests pass. Do not retire Finland before both normal
   and LTE replacement gates pass.
+- On 2026-08-21 the DHost Netherlands VPS at `193.233.82.42` passed the normal-node
+  admission gate. It runs RemnaNode 3.1.1 with TCP Reality and Hysteria2 on TCP/UDP 443;
+  management port 22400 is restricted to the Polish control plane. Both unique inbounds
+  are attached to the production squad and their Remnawave Hosts are enabled. Real Xray
+  client tunnels built from an active user's native subscription reached the public 204
+  endpoint through both transports. Planning capacity remains a conservative 1 Gbit/s
+  despite the advertised shared 10 Gbit/s uplink. This admits only the normal Netherlands
+  node; Netherlands LTE still requires a separate x10 node and CDN hostname before Finland
+  can be retired.

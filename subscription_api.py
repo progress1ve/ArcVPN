@@ -252,6 +252,8 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Германия #1",
     "Финляндия #2⚡",
     "Германия #2⚡",
+    "Нидерланды #1",
+    "Нидерланды #2 ⚡",
     "Обход глушилок (LTE, трафик ×10) #1",
     "Обход глушилок (LTE, трафик ×10) #2",
 ])
@@ -263,7 +265,7 @@ _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
 def _subscription_inbound_order(name: str) -> int:
     """Возвращает порядок подписки, игнорируя флаг страны в remark панели."""
     normalized = name or ""
-    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇷🇺 "):
+    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇷🇺 "):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
@@ -319,6 +321,7 @@ NODE_INVENTORY = {
     # The advertised 10 Gbit/s uplink is shared; use a conservative planning
     # capacity until sustained production telemetry proves otherwise.
     "193.233.198.184": {"provider": "dhost", "location": "Германия", "monthly_cost_rub": 300, "capacity_mbps": 1000},
+    "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12

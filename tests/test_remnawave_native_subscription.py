@@ -16,6 +16,15 @@ else:
 pytestmark = pytest.mark.skipif(api is None, reason=f"subscription_api unavailable: {IMPORT_ERROR}")
 
 
+def test_netherlands_profiles_sort_before_lte_and_accept_flag_prefix():
+    tcp = api._subscription_inbound_order("🇳🇱 Нидерланды #1")
+    hy2 = api._subscription_inbound_order("Нидерланды #2 ⚡")
+    lte = api._subscription_inbound_order("Обход глушилок (LTE, трафик ×10) #1")
+
+    assert tcp < hy2 < lte
+    assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
+
+
 def _key():
     return api.ActiveKeyRecord(
         id=1,
