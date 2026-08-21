@@ -37,3 +37,6 @@ debug-vpn-slow-speed.md
 ARCHITECTURE_NEXT_CHAT_BRIEF.md
 WORKING_NOTES.md
 AI_CONTEXT.md
+
+# One-shot local diagnostics may contain temporary infrastructure credentials.
+.*_tmp.py

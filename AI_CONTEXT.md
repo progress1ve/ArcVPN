@@ -77,12 +77,12 @@ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/health
 | 10 | Мастер (Германия) | `2.26.84.210` | Linux | 3x-ui v3.3.1 |
 | 11 | Нода (Финляндия) | `195.226.92.37` | Linux | 3x-ui v3.3.1 (нода) |
 
-### SSH-доступы (по прямому указанию владельца; файл игнорируется Git)
+### SSH-доступы
 
-| Сервер | Команда / адрес | Пароль root |
-|--------|-----------------|-------------|
-| Германия | `ssh root@2.26.84.210` | `P9TyuQwEvedOBpC9hI9z` |
-| Финляндия | `195.226.92.37`, SSH-порт `22` | `rgzC4Ya6vvMFK` |
+| Сервер | Команда / адрес | Доступ |
+|--------|-----------------|--------|
+| Германия | `ssh root@2.26.84.210` | Только локальное защищённое хранилище / `.env` |
+| Финляндия | `195.226.92.37`, SSH-порт `22` | Только локальное защищённое хранилище / `.env` |
 
 ### Доступы к панелям 3x-ui
 
@@ -1477,3 +1477,20 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   replaced. The squad now has eight valid inbounds; native output has nine real links
   with matching VLESS/Hysteria2 credentials. Keep the credential and real-endpoint gate:
   any topology drift must fail open to the stable ArcVPN generator.
+- On 2026-08-21 DHost Germany gained a second inbound, native Hysteria2 on UDP/443,
+  without changing the existing TCP Reality inbound or user identities. DHost filters
+  inbound ACME HTTP-01 and TLS-ALPN-01, so Hysteria2 uses a long-lived self-signed
+  leaf certificate (`CA:FALSE`) with mandatory `pinnedPeerCertSha256` and
+  `verifyPeerCertByName=de.arccnet.space`; never replace this with `allowInsecure`.
+  The current Xray `26.7.28` includes the certificate-pinning security fix. The new
+  inbound is attached to the production squad and declared in
+  `REMNAWAVE_SQUAD_INBOUND_UUIDS`; reconciliation verified nine inbounds. A real Xray
+  client tunnel through German Hysteria2 reached the public 204 endpoint successfully.
+- Target Finland retirement topology: Germany and Netherlands each use one normal
+  RemnaNode (`consumptionMultiplier=1`) for TCP Reality plus Hysteria2, and a separate
+  LTE RemnaNode (`consumptionMultiplier=10`) for XHTTP `packet-up`. LTE Hosts stay out of
+  burstObservatory/main AutoSelect and require distinct CDN resources/hostnames; the
+  direct `de.arccnet.space` and `nd.arccnet.space` A-records are not CDN endpoints.
+  Netherlands remains canary-only until SSH authentication, node connection, squad/Host
+  assignment and real TCP/Hysteria tests pass. Do not retire Finland before both normal
+  and LTE replacement gates pass.
