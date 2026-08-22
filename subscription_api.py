@@ -316,7 +316,8 @@ def _catalog_overrides() -> dict[str, dict[str, Any]]:
     try:
         with get_db() as conn:
             rows = conn.execute(
-                "SELECT source_name,display_name,sort_order,enabled FROM subscription_profile_overrides"
+                "SELECT source_name,display_name,sort_order,enabled,include_in_auto "
+                "FROM subscription_profile_overrides"
             ).fetchall()
         values = {str(row["source_name"]): dict(row) for row in rows}
     except sqlite3.OperationalError:
@@ -1314,7 +1315,10 @@ def _happ_direct_rules() -> list[Dict[str, Any]]:
 
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
-    links = [item.strip() for item in links_text.splitlines() if item.strip()]
+    links = sorted(
+        (item.strip() for item in links_text.splitlines() if item.strip()),
+        key=_subscription_link_order,
+    )
     regular: list[Dict[str, Any]] = []
     auto_outbounds: list[Dict[str, Any]] = []
     lte_outbounds: list[Dict[str, Any]] = []
@@ -1323,13 +1327,21 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         outbound = _json_outbound_from_share_link(link, "proxy")
         if outbound is None:
             continue
+        source_name = _subscription_source_name(name)
+        override = _catalog_overrides().get(source_name)
+        visible_individually = not override or bool(override["enabled"])
+        include_in_auto = not override or bool(override.get("include_in_auto", 1))
+        display_name = (
+            _safe_profile_display_name(str(override["display_name"]), source_name)
+            if override else _subscription_display_name(name)
+        )
         regular_profile = {
             "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
             "inbounds": _json_local_inbounds(key),
             "log": {"loglevel": "none"},
             "meta": None,
             "outbounds": [outbound, {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
-            "remarks": name,
+            "remarks": display_name,
             "routing": {
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
@@ -1342,15 +1354,18 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             # Keep explicit emergency profiles at the owner's request. They
             # consume CDN traffic whenever selected manually; AutoSelect does
             # not use them while main candidates are healthy.
-            regular.append(regular_profile)
-            candidate = _json_outbound_from_share_link(link, f"proxy-back-{len(lte_outbounds) + 1}")
-            if candidate is not None:
-                lte_outbounds.append(candidate)
+            if visible_individually:
+                regular.append(regular_profile)
+            if include_in_auto:
+                candidate = _json_outbound_from_share_link(link, f"proxy-back-{len(lte_outbounds) + 1}")
+                if candidate is not None:
+                    lte_outbounds.append(candidate)
         else:
-            regular.append(regular_profile)
+            if visible_individually:
+                regular.append(regular_profile)
             # Reserve profiles remain manually selectable but must not receive
             # routine AutoSelect traffic while primary nodes are healthy.
-            if "(Резерв)" not in name and "Ютуб без рекламы" not in name:
+            if include_in_auto and "(Резерв)" not in name and "Ютуб без рекламы" not in name:
                 candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
                 if candidate is not None:
                     auto_outbounds.append(candidate)
@@ -1425,7 +1440,12 @@ def _prepare_subscription(
             userinfo_header=userinfo_header,
         )
 
-    plain_text_subscription = _build_plain_text_subscription(link, routing_link, userinfo_header)
+    visible_links = _apply_subscription_catalog(
+        item for item in link.splitlines() if item.strip()
+    )
+    plain_text_subscription = _build_plain_text_subscription(
+        "\n".join(visible_links), routing_link, userinfo_header
+    )
     if output_format == "base64":
         body = base64.b64encode(plain_text_subscription.encode("utf-8")).decode("ascii")
         content_type = "application/octet-stream"
@@ -2007,7 +2027,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             )
 
     links = [_normalize_customer_profile_label(link) for link in links]
-    return _apply_subscription_catalog(_with_youtube_without_ads_alias(links))
+    return _with_youtube_without_ads_alias(links)
 
 
 def _cdn_traffic_exceeded(email: str) -> bool:
@@ -2213,7 +2233,7 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
         logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
         return []
     links = [_normalize_customer_profile_label(link) for link in links]
-    return _apply_subscription_catalog(_with_youtube_without_ads_alias(links))
+    return _with_youtube_without_ads_alias(links)
 
 
 def _prepare_native_remnawave_subscription(
@@ -3754,12 +3774,19 @@ def api_admin_subscription_catalog():
             if not source or not display or source in seen:
                 return _api_error("invalid_profile", 400)
             seen.add(source)
-            parsed.append((source, re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", display).strip(), index, int(bool(item.get("enabled", True)))))
+            parsed.append((
+                source,
+                re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", display).strip(),
+                index,
+                int(bool(item.get("enabled", True))),
+                int(bool(item.get("include_in_auto", True))),
+            ))
         with get_db() as conn:
             conn.execute("BEGIN IMMEDIATE")
             conn.execute("DELETE FROM subscription_profile_overrides")
             conn.executemany("""INSERT INTO subscription_profile_overrides
-                (source_name,display_name,sort_order,enabled) VALUES(?,?,?,?)""", parsed)
+                (source_name,display_name,sort_order,enabled,include_in_auto)
+                VALUES(?,?,?,?,?)""", parsed)
         _CATALOG_CACHE = (0.0, {})
         append_admin_audit(
             "catalog.update", "success", actor_id=str(_admin_telegram_id() or "password-session"),
@@ -3778,6 +3805,7 @@ def api_admin_subscription_catalog():
             "display_name": _safe_profile_display_name(item.get("display_name", source), source),
             "sort_order": int(item.get("sort_order", fallback_order)),
             "enabled": bool(item.get("enabled", True)),
+            "include_in_auto": bool(item.get("include_in_auto", True)),
             "protocol_label": _subscription_protocol_label(source),
         })
     profiles.sort(key=lambda item: (item["sort_order"], item["source_name"]))

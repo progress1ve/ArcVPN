@@ -1,7 +1,7 @@
 import sqlite3
 import unittest
 
-from database.migrations import migration_52
+from database.migrations import migration_52, migration_53
 
 
 class AdminPlatformTests(unittest.TestCase):
@@ -13,6 +13,11 @@ class AdminPlatformTests(unittest.TestCase):
         )}
         self.assertIn("subscription_profile_overrides", tables)
         self.assertIn("service_expenses", tables)
+        migration_53(connection)
+        columns = {row[1] for row in connection.execute(
+            "PRAGMA table_info(subscription_profile_overrides)"
+        )}
+        self.assertIn("include_in_auto", columns)
 
 if __name__ == "__main__":
     unittest.main()

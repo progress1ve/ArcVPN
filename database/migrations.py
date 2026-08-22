@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 52
+LATEST_VERSION = 53
 
 
 def get_current_version() -> int:
@@ -2104,6 +2104,20 @@ def migration_52(conn: sqlite3.Connection) -> None:
     logger.info("Migration v52 applied")
 
 
+def migration_53(conn: sqlite3.Connection) -> None:
+    """Separate standalone visibility from synthetic-balancer membership."""
+    columns = {row[1] for row in conn.execute(
+        "PRAGMA table_info(subscription_profile_overrides)"
+    )}
+    if "include_in_auto" not in columns:
+        conn.execute(
+            "ALTER TABLE subscription_profile_overrides "
+            "ADD COLUMN include_in_auto INTEGER NOT NULL DEFAULT 1 "
+            "CHECK(include_in_auto IN (0,1))"
+        )
+    logger.info("Migration v53 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2157,6 +2171,7 @@ MIGRATIONS = {
     50: migration_50,
     51: migration_51,
     52: migration_52,
+    53: migration_53,
 }
 
 
