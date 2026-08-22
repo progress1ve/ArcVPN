@@ -3667,15 +3667,15 @@ def api_admin_overview():
                  NOT EXISTS(SELECT 1 FROM user_devices d WHERE d.user_id=u.id AND COALESCE(d.is_active,1)=1)
                ) AS awaiting_reimport
         """).fetchone())
-        # Historical YooKassa rows used amount_cents as RUB, while the current
-        # checkout stores kopecks.  Normalize both generations at the read
-        # boundary; never rewrite payment history because fulfilment is keyed
-        # to the original order values.
+        # Rows linked to YooKassa are reconciled against the provider and stored
+        # in kopecks. Older unlinked payment integrations stored whole RUB and
+        # remain a read-only compatibility fallback.
         rub_amount_sql = """
             CASE
+              WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id != ''
+                THEN COALESCE(p.amount_cents,0) / 100.0
               WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
-                THEN CASE WHEN COALESCE(p.amount_cents,0) >= 10000
-                          THEN p.amount_cents / 100.0 ELSE COALESCE(p.amount_cents,0) END
+                THEN COALESCE(p.amount_cents,0)
               ELSE 0
             END
         """
@@ -4095,6 +4095,13 @@ def api_admin_overview():
         for presence in online_users:
             node_name = str(presence.get("node_name") or "Unknown")
             node_distribution[node_name] = node_distribution.get(node_name, 0) + 1
+        # Remnawave's nodes.usersOnline is a transport/session counter, while
+        # the user list is unique identities seen in the same three-minute
+        # window. Display the latter everywhere so node cards and the online
+        # people list reconcile exactly; retain the raw counter for diagnostics.
+        for node in remnawave.get("nodes", []):
+            node["reported_sessions_online"] = int(node.get("users_online") or 0)
+            node["users_online"] = int(node_distribution.get(str(node.get("name") or ""), 0))
         remnawave["connection_schemes"] = [{
             "id": "auto",
             "name": "🇪🇺 Автовыбор",
