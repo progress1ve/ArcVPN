@@ -1535,3 +1535,16 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   the provider-ID script and must not be assumed correct. On 2026-08-22 the Oleg_tgx annual
   payment was uniquely matched by Telegram ID and capture time to YooKassa, backed up, linked,
   and corrected from the stale quoted value to the provider-authoritative 960 RUB.
+- Business Console release `acf4c52` adds audited subscription-catalog overrides on top of
+  native Remnawave output, user subscription duration/link controls, and an operating-expense
+  ledger with current-month RUB net profit. Schema v52 must be applied explicitly before the
+  subscription service is restarted. Regenerating a subscription URL also revokes and rotates
+  existing device URLs; ordinary duration changes preserve the user's UUID and URL.
+- The disabled old Germany RemnaNode at the former `de.arccnet.space` origin was explicitly
+  deleted on 2026-08-22. Removing its Hosts from subscription output does not delete a node in
+  Remnawave; node lifecycle and customer catalog visibility are separate operations.
+- A Yandex CDN resource can be reused by every customer of one origin, but independent DE and
+  NL origins need separate resources if both locations must remain individually selectable.
+  One shared resource is only appropriate when both origins form one primary/fallback pool.
+  After a resource is ready, the public CDN hostname must resolve to its Yandex GSLB CNAME, not
+  directly to the origin IP; the `_acme-challenge` validation record is a separate DNS name.
