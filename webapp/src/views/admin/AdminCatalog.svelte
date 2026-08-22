@@ -8,7 +8,7 @@
   async function save(){ saving=true;message='';try{profiles=(await saveAdminCatalog(profiles)).profiles||profiles;message='Каталог опубликован'}catch(e){message='Не удалось сохранить каталог'}finally{saving=false} }
 </script>
 <section class="page">
-  <header><span>МАРШРУТ ПОДПИСКИ</span><h2>Каталог подключений</h2><p>Порядок и названия применяются поверх Remnawave. UUID и действующие ссылки пользователей не меняются.</p></header>
+  <header><span>МАРШРУТ ПОДПИСКИ</span><h2>Каталог подключений</h2><p>Меняйте подпись и порядок существующих Remnawave Hosts. Флаг страны восстанавливается автоматически; редактор не создаёт inbound и не меняет UUID.</p></header>
   {#if loading}<p>Загружаем каталог…</p>{:else}
     <div class="route">{#each profiles as profile,index}<article class:disabled={!profile.enabled}>
       <b>{String(index+1).padStart(2,'0')}</b><div><input bind:value={profile.display_name} maxlength="120" aria-label="Название профиля"/><small>{profile.source_name}</small></div>

@@ -269,7 +269,28 @@ def _subscription_source_name(name: str) -> str:
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
-    return normalized.replace("(LTE)", "(LTE, трафик ×10)")
+    normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
+    normalized = re.sub(r"\s*⚡\s*", " ", normalized)
+    return re.sub(r"\s+", " ", normalized).strip()
+
+
+def _profile_country_flag(name: str) -> str:
+    value = str(name or "")
+    for marker, flag in (
+        ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"), ("Финляндия", "🇫🇮"),
+        ("Франция", "🇫🇷"), ("Польша", "🇵🇱"), ("Ютуб без рекламы", "🇷🇺"),
+        ("Обход глушилок", "🇷🇺"),
+    ):
+        if marker in value:
+            return flag
+    return ""
+
+
+def _safe_profile_display_name(custom_name: str, source_name: str) -> str:
+    value = str(custom_name or source_name or "").strip()
+    value = re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", value).strip()
+    flag = _profile_country_flag(source_name) or _profile_country_flag(value)
+    return f"{flag} {value}".strip()
 
 
 def _catalog_overrides() -> dict[str, dict[str, Any]]:
@@ -321,7 +342,7 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         override = overrides.get(source_name)
         if override and not bool(override["enabled"]):
             continue
-        display_name = str(override["display_name"]) if override else _subscription_display_name(raw_name)
+        display_name = _safe_profile_display_name(str(override["display_name"]), source_name) if override else _subscription_display_name(raw_name)
         order = _subscription_link_order(link)
         if override:
             order = (int(override["sort_order"]), order[1], display_name)
@@ -3696,7 +3717,9 @@ def api_admin_subscription_catalog():
     if not _admin_authorized(permission):
         return _api_error("admin_forbidden", 403)
     global _CATALOG_CACHE
-    defaults = list(SUBSCRIPTION_INBOUND_ORDER)
+    # Only profiles which actually exist in the current customer catalog are
+    # editable. A catalog override never creates a Remnawave Host/inbound.
+    defaults = [name for name in SUBSCRIPTION_INBOUND_ORDER if not name.endswith("#2") or "LTE" not in name]
     defaults.insert(0, "Ютуб без рекламы")
     if request.method == "PATCH":
         payload = request.get_json(silent=True) or {}
@@ -3708,12 +3731,12 @@ def api_admin_subscription_catalog():
         for index, item in enumerate(profiles):
             if not isinstance(item, dict):
                 return _api_error("invalid_profile", 400)
-            source = _clean_text(item.get("source_name"), 120)
+            source = _subscription_source_name(_clean_text(item.get("source_name"), 120))
             display = _clean_text(item.get("display_name"), 120)
             if not source or not display or source in seen:
                 return _api_error("invalid_profile", 400)
             seen.add(source)
-            parsed.append((source, display, index, int(bool(item.get("enabled", True)))))
+            parsed.append((source, re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", display).strip(), index, int(bool(item.get("enabled", True)))))
         with get_db() as conn:
             conn.execute("BEGIN IMMEDIATE")
             conn.execute("DELETE FROM subscription_profile_overrides")
@@ -3731,7 +3754,7 @@ def api_admin_subscription_catalog():
         item = overrides.get(source) or {}
         profiles.append({
             "source_name": source,
-            "display_name": item.get("display_name", source),
+            "display_name": _safe_profile_display_name(item.get("display_name", source), source),
             "sort_order": int(item.get("sort_order", fallback_order)),
             "enabled": bool(item.get("enabled", True)),
         })
@@ -3829,6 +3852,43 @@ def api_admin_user_subscription(telegram_id: int):
         result = conn.execute("SELECT id,expires_at FROM vpn_keys WHERE id=?", (key_id,)).fetchone()
     append_admin_audit("subscription.manage", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="vpn_key", target_id=str(key_id), metadata=metadata)
     return _api_no_store(jsonify({"ok": True, "key_id": key_id, "expires_at": result["expires_at"]}))
+
+
+@app.route('/api/admin/users/<int:telegram_id>', methods=['GET'])
+def api_admin_user_detail(telegram_id: int):
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    with get_db() as conn:
+        user = conn.execute("""SELECT id,telegram_id,username,first_name,created_at,
+            device_limit,COALESCE(enforce_device_tokens,0) AS enforce_device_tokens,
+            COALESCE(personal_balance,0)/100.0 AS balance_rub
+            FROM users WHERE telegram_id=?""", (telegram_id,)).fetchone()
+        if not user:
+            return _api_error("user_not_found", 404)
+        user_id = int(user["id"])
+        subscriptions = [dict(row) for row in conn.execute("""SELECT vk.id,vk.custom_name,
+            vk.expires_at,vk.created_at,vk.traffic_used,vk.traffic_limit,vk.online_devices,
+            vk.last_online_at,vk.panel_disabled_at,t.name AS tariff_name,
+            CASE WHEN vk.expires_at>datetime('now') THEN 1 ELSE 0 END AS active
+            FROM vpn_keys vk LEFT JOIN tariffs t ON t.id=vk.tariff_id
+            WHERE vk.user_id=? ORDER BY vk.expires_at DESC,vk.id DESC""", (user_id,)).fetchall()]
+        payments = [dict(row) for row in conn.execute("""SELECT p.order_id,p.payment_type,p.status,
+            p.period_days,p.paid_at,t.name AS tariff_name,
+            CASE
+              WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN p.amount_cents/100.0
+              WHEN p.payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN p.amount_cents
+              ELSE 0 END AS amount_rub,
+            CASE WHEN p.payment_type='crypto' THEN p.amount_cents/100.0 ELSE 0 END AS amount_usd,
+            COALESCE(p.amount_stars,0) AS amount_stars
+            FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
+            WHERE p.user_id=? ORDER BY p.paid_at DESC,p.id DESC LIMIT 100""", (user_id,)).fetchall()]
+        devices = [dict(row) for row in conn.execute("""SELECT id,display_name,platform,model,
+            COALESCE(is_active,1) AS active,imported_at,last_seen_at,revoked_at
+            FROM user_devices WHERE user_id=? ORDER BY COALESCE(last_seen_at,imported_at) DESC LIMIT 50""", (user_id,)).fetchall()]
+    return _api_no_store(jsonify({
+        "ok": True, "user": dict(user), "subscriptions": subscriptions,
+        "payments": payments, "devices": devices,
+    }))
 
 
 @app.route('/api/admin/overview', methods=['GET'])
