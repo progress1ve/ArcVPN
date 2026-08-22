@@ -1516,3 +1516,15 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   reconciliation timer. The Polish control plane currently has an `/etc/hosts` loopback
   mapping as an operational repair; restore a public `remna -> 217.60.33.38` A record, then
   remove the hosts-file workaround after DNS propagation and a successful sync gate.
+- On 2026-08-22 public `remna.arccnet.space -> 217.60.33.38` DNS was restored, the temporary
+  control-plane hosts-file override was removed, and an applied user sync verified all 16
+  selected users plus 11 squad inbounds without errors or warnings.
+- Yandex Certificate Manager HTTP-01 challenges for `cdn-de.arccnet.space` and
+  `cdn-nd.arccnet.space` are served by minimal nginx port-80 sites on their respective DHost
+  origins. External requests returned the exact challenge bodies; certificate issuance is
+  still controlled by Yandex and must be confirmed there before configuring LTE/XHTTP.
+- Admin payment displays use provider-linked YooKassa amounts in kopecks. The production
+  reconciliation updated 21 of 22 linked historical rows from YooKassa, created a database
+  backup, and a repeat dry-run found zero differences. Node online counts now use the same
+  unique three-minute `onlineAt` user set and last-connected-node distribution as the admin
+  online-users list; raw Remnawave session counts remain diagnostic only.
