@@ -1517,8 +1517,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   mapping as an operational repair; restore a public `remna -> 217.60.33.38` A record, then
   remove the hosts-file workaround after DNS propagation and a successful sync gate.
 - On 2026-08-22 public `remna.arccnet.space -> 217.60.33.38` DNS was restored, the temporary
-  control-plane hosts-file override was removed, and an applied user sync verified all 16
-  selected users plus 11 squad inbounds without errors or warnings.
+  control-plane hosts-file override was initially removed. Intermittent local DNS/hairpin
+  timeouts then caused partial minute-sync failures even though public Remnawave stayed
+  healthy. Keep the control plane's local `127.0.0.1 remna.arccnet.space` override: three
+  consecutive applied syncs verified all 16 selected users plus 11 squad inbounds without
+  errors or warnings, while public DNS remains available to external clients.
 - Yandex Certificate Manager HTTP-01 challenges for `cdn-de.arccnet.space` and
   `cdn-nd.arccnet.space` are served by minimal nginx port-80 sites on their respective DHost
   origins. External requests returned the exact challenge bodies; certificate issuance is
@@ -1528,3 +1531,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   backup, and a repeat dry-run found zero differences. Node online counts now use the same
   unique three-minute `onlineAt` user set and last-connected-node distribution as the admin
   online-users list; raw Remnawave session counts remain diagnostic only.
+- A legacy paid card row may lack `yookassa_payment_id`; those rows cannot be reconciled by
+  the provider-ID script and must not be assumed correct. On 2026-08-22 the Oleg_tgx annual
+  payment was uniquely matched by Telegram ID and capture time to YooKassa, backed up, linked,
+  and corrected from the stale quoted value to the provider-authoritative 960 RUB.
