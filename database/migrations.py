@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 51
+LATEST_VERSION = 52
 
 
 def get_current_version() -> int:
@@ -2078,6 +2078,32 @@ def migration_51(conn: sqlite3.Connection) -> None:
     logger.info("Migration v51 applied")
 
 
+def migration_52(conn: sqlite3.Connection) -> None:
+    """Admin-managed subscription catalog and operating expenses."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS subscription_profile_overrides (
+            source_name TEXT PRIMARY KEY,
+            display_name TEXT NOT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 100,
+            enabled INTEGER NOT NULL DEFAULT 1 CHECK(enabled IN (0,1)),
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS service_expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            category TEXT NOT NULL DEFAULT 'other',
+            amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+            incurred_on DATE NOT NULL,
+            recurring_monthly INTEGER NOT NULL DEFAULT 0 CHECK(recurring_monthly IN (0,1)),
+            note TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_service_expenses_date
+            ON service_expenses(incurred_on DESC, id DESC);
+    """)
+    logger.info("Migration v52 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2130,6 +2156,7 @@ MIGRATIONS = {
     49: migration_49,
     50: migration_50,
     51: migration_51,
+    52: migration_52,
 }
 
 

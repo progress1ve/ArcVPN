@@ -7,6 +7,9 @@
   import AdminSecurity from './admin/AdminSecurity.svelte'
   import AdminBackups from './admin/AdminBackups.svelte'
   import AdminSettings from './admin/AdminSettings.svelte'
+  import AdminCatalog from './admin/AdminCatalog.svelte'
+  import AdminFinance from './admin/AdminFinance.svelte'
+  import AdminUsers from './admin/AdminUsers.svelte'
   import { fetchAdminOverview, loginAdmin, logoutAdmin, runAdminNodeDiagnostic, fetchAdminSupportThreads, fetchAdminSupportThread, sendAdminSupportReply } from '../lib/api.js'
 
   let data = null
@@ -29,7 +32,7 @@
   const nav = [
     ['overview', 'home', 'Главная'], ['health', 'pulse', 'Здоровье'],
     ['schemes', 'signal', 'Схемы подключений'], ['nodes', 'devices', 'Ноды'],
-    ['users', 'users', 'Пользователи'], ['payments', 'wallet', 'Финансы'],
+    ['catalog', 'route', 'Каталог подписки'], ['users', 'users', 'Пользователи'], ['payments', 'wallet', 'Финансы'],
     ['support', 'headset', 'Поддержка'], ['security', 'shield', 'Безопасность'],
     ['backups', 'file', 'Резервные копии'], ['settings', 'settings', 'Настройки'],
   ]
@@ -102,15 +105,11 @@
         </form>
       </section>
     {:else if active === 'users'}
-      <section class="panel records"><div class="panel-head"><div><span>Клиентская база</span><h2>Пользователи</h2></div></div>
-        <div class="filters"><button class:active={userFilter==='new'} on:click={()=>userFilter='new'}>Сначала новые</button><button class:active={userFilter==='top'} on:click={()=>userFilter='top'}>Больше заплатили</button><button class:active={userFilter==='referral'} on:click={()=>userFilter='referral'}>Пригласили друзей</button><button class:active={userFilter==='online'} on:click={()=>userFilter='online'}>Онлайн</button><button class:active={userFilter==='inactive'} on:click={()=>userFilter='inactive'}>Не продлили</button><button class:active={userFilter==='all'} on:click={()=>userFilter='all'}>Все</button></div>
-        <div class="record-list">{#each visibleUsers as user}<article><div><b>{user.first_name || user.username || `ID ${user.telegram_id}`}</b><small>@{user.username || 'без username'} · {Number(user.online_devices)>0 ? `онлайн через ${user.online_node || 'Remnawave'}` : 'не в сети'} · {new Date(user.created_at).toLocaleDateString('ru-RU')} · оплачено {rub(user.paid_rub)}{Number(user.invited_count)>0 ? ` · приглашено ${user.invited_count}, оплатили ${user.invited_paid_count}` : ''}</small></div><span class:ok={user.active}>{user.active ? (Number(user.online_devices)>0?'Онлайн':'Активен') : 'Не продлил'}</span></article>{/each}</div>
-      </section>
+      <AdminUsers users={data?.recent_users || []} onRefresh={() => load(true)} />
     {:else if active === 'payments'}
-      <section class="panel records"><div class="panel-head"><div><span>Деньги и заказы</span><h2>Платежи</h2></div></div>
-        <div class="filters"><button class:active={paymentFilter==='paid'} on:click={()=>paymentFilter='paid'}>Успешные</button><button class:active={paymentFilter==='failed'} on:click={()=>paymentFilter='failed'}>Не завершены</button><button class:active={paymentFilter==='all'} on:click={()=>paymentFilter='all'}>Все</button></div>
-        <div class="record-list">{#each visiblePayments as payment}<article><div><b>{Number(payment.display_amount_rub)>0 ? rub(payment.display_amount_rub) : `$${Number(payment.display_amount_usd || 0).toFixed(2)}`}</b><small>@{payment.username || payment.telegram_id} · {payment.tariff_name || payment.payment_type || 'оплата'}</small></div><span class:ok={payment.status === 'succeeded' || payment.status === 'paid'}>{payment.status}</span></article>{/each}</div>
-      </section>
+      <AdminFinance {data} />
+    {:else if active === 'catalog'}
+      <AdminCatalog />
     {:else if active === 'health'}
       <AdminHealth {data} onRefresh={() => load(true)} />
     {:else if active === 'schemes'}

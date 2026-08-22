@@ -252,22 +252,50 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Германия #2⚡",
     "Финляндия #1",
     "Финляндия #2⚡",
+    "Франция #1",
+    "Франция #2⚡",
     "Обход глушилок (LTE, трафик ×10) #1",
     "Обход глушилок (LTE, трафик ×10) #2",
 ])
 _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
     name: index for index, name in enumerate(SUBSCRIPTION_INBOUND_ORDER)
 }
+_CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
+
+
+def _subscription_source_name(name: str) -> str:
+    normalized = str(name or "").strip()
+    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇷🇺 ", "🇫🇷 "):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix):]
+            break
+    return normalized.replace("(LTE)", "(LTE, трафик ×10)")
+
+
+def _catalog_overrides() -> dict[str, dict[str, Any]]:
+    global _CATALOG_CACHE
+    now = time.monotonic()
+    if now - _CATALOG_CACHE[0] < 5:
+        return _CATALOG_CACHE[1]
+    values: dict[str, dict[str, Any]] = {}
+    try:
+        with get_db() as conn:
+            rows = conn.execute(
+                "SELECT source_name,display_name,sort_order,enabled FROM subscription_profile_overrides"
+            ).fetchall()
+        values = {str(row["source_name"]): dict(row) for row in rows}
+    except sqlite3.OperationalError:
+        values = {}
+    _CATALOG_CACHE = (now, values)
+    return values
 
 
 def _subscription_inbound_order(name: str) -> int:
     """Возвращает порядок подписки, игнорируя флаг страны в remark панели."""
-    normalized = name or ""
-    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇷🇺 "):
-        if normalized.startswith(prefix):
-            normalized = normalized[len(prefix):]
-            break
-    normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
+    normalized = _subscription_source_name(name)
+    override = _catalog_overrides().get(normalized)
+    if override:
+        return int(override["sort_order"])
     return _SUBSCRIPTION_INBOUND_ORDER_INDEX.get(
         normalized, len(_SUBSCRIPTION_INBOUND_ORDER_INDEX)
     )
@@ -279,6 +307,27 @@ def _subscription_display_name(name: str) -> str:
     if "Обход глушилок" in value:
         return "🇷🇺 Обход глушилок (трафик ×10, LTE)"
     return value
+
+
+def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
+    overrides = _catalog_overrides()
+    result: list[tuple[tuple[int, int, str], str]] = []
+    for link in links:
+        if "#" not in link:
+            result.append((_subscription_link_order(link), link))
+            continue
+        raw_name = urllib.parse.unquote(link.rsplit("#", 1)[-1])
+        source_name = _subscription_source_name(raw_name)
+        override = overrides.get(source_name)
+        if override and not bool(override["enabled"]):
+            continue
+        display_name = str(override["display_name"]) if override else _subscription_display_name(raw_name)
+        order = _subscription_link_order(link)
+        if override:
+            order = (int(override["sort_order"]), order[1], display_name)
+        mapped = link.rsplit("#", 1)[0] + "#" + urllib.parse.quote(display_name, safe="")
+        result.append((order, mapped))
+    return [link for _, link in sorted(result, key=lambda item: item[0])]
 
 
 def _subscription_link_order(link: str) -> tuple[int, int, str]:
@@ -1923,7 +1972,7 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
             )
 
     links = [_normalize_customer_profile_label(link) for link in links]
-    return sorted(_with_youtube_without_ads_alias(links), key=_subscription_link_order)
+    return _apply_subscription_catalog(_with_youtube_without_ads_alias(links))
 
 
 def _cdn_traffic_exceeded(email: str) -> bool:
@@ -2129,7 +2178,7 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
         logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
         return []
     links = [_normalize_customer_profile_label(link) for link in links]
-    return sorted(_with_youtube_without_ads_alias(links), key=_subscription_link_order)
+    return _apply_subscription_catalog(_with_youtube_without_ads_alias(links))
 
 
 def _prepare_native_remnawave_subscription(
@@ -3641,6 +3690,147 @@ def api_admin_backups():
     return _api_no_store(jsonify({"ok": True, "backups": files[:50]}))
 
 
+@app.route('/api/admin/subscription-catalog', methods=['GET', 'PATCH'])
+def api_admin_subscription_catalog():
+    permission = "catalog.manage" if request.method == "PATCH" else "overview.read"
+    if not _admin_authorized(permission):
+        return _api_error("admin_forbidden", 403)
+    global _CATALOG_CACHE
+    defaults = list(SUBSCRIPTION_INBOUND_ORDER)
+    defaults.insert(0, "Ютуб без рекламы")
+    if request.method == "PATCH":
+        payload = request.get_json(silent=True) or {}
+        profiles = payload.get("profiles")
+        if not isinstance(profiles, list) or not 1 <= len(profiles) <= 100:
+            return _api_error("invalid_profiles", 400)
+        parsed = []
+        seen = set()
+        for index, item in enumerate(profiles):
+            if not isinstance(item, dict):
+                return _api_error("invalid_profile", 400)
+            source = _clean_text(item.get("source_name"), 120)
+            display = _clean_text(item.get("display_name"), 120)
+            if not source or not display or source in seen:
+                return _api_error("invalid_profile", 400)
+            seen.add(source)
+            parsed.append((source, display, index, int(bool(item.get("enabled", True)))))
+        with get_db() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("DELETE FROM subscription_profile_overrides")
+            conn.executemany("""INSERT INTO subscription_profile_overrides
+                (source_name,display_name,sort_order,enabled) VALUES(?,?,?,?)""", parsed)
+        _CATALOG_CACHE = (0.0, {})
+        append_admin_audit(
+            "catalog.update", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+            target_type="subscription_catalog", metadata={"profiles": len(parsed)},
+        )
+    overrides = _catalog_overrides()
+    names = list(dict.fromkeys(defaults + list(overrides)))
+    profiles = []
+    for fallback_order, source in enumerate(names):
+        item = overrides.get(source) or {}
+        profiles.append({
+            "source_name": source,
+            "display_name": item.get("display_name", source),
+            "sort_order": int(item.get("sort_order", fallback_order)),
+            "enabled": bool(item.get("enabled", True)),
+        })
+    profiles.sort(key=lambda item: (item["sort_order"], item["source_name"]))
+    return _api_no_store(jsonify({"ok": True, "profiles": profiles}))
+
+
+@app.route('/api/admin/expenses', methods=['GET', 'POST'])
+@app.route('/api/admin/expenses/<int:expense_id>', methods=['DELETE'])
+def api_admin_expenses(expense_id: Optional[int] = None):
+    permission = "expenses.manage" if request.method != "GET" else "overview.read"
+    if not _admin_authorized(permission):
+        return _api_error("admin_forbidden", 403)
+    if request.method == "POST":
+        payload = request.get_json(silent=True) or {}
+        title = _clean_text(payload.get("title"), 100)
+        category = _clean_text(payload.get("category"), 32) or "other"
+        note = _clean_text(payload.get("note"), 500)
+        incurred_on = _clean_text(payload.get("incurred_on"), 10)
+        try:
+            amount_cents = int(round(float(payload.get("amount_rub")) * 100))
+            datetime.strptime(incurred_on, "%Y-%m-%d")
+        except (TypeError, ValueError):
+            return _api_error("invalid_expense", 400)
+        if not title or amount_cents <= 0 or amount_cents > 100_000_000_00:
+            return _api_error("invalid_expense", 400)
+        with get_db() as conn:
+            cursor = conn.execute("""INSERT INTO service_expenses
+                (title,category,amount_cents,incurred_on,recurring_monthly,note)
+                VALUES(?,?,?,?,?,?)""", (
+                title, category, amount_cents, incurred_on,
+                int(bool(payload.get("recurring_monthly"))), note or None,
+            ))
+            created_id = int(cursor.lastrowid)
+        append_admin_audit("expense.create", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(created_id), metadata={"amount_cents": amount_cents})
+    elif request.method == "DELETE":
+        with get_db() as conn:
+            cursor = conn.execute("DELETE FROM service_expenses WHERE id=?", (expense_id,))
+        if not cursor.rowcount:
+            return _api_error("expense_not_found", 404)
+        append_admin_audit("expense.delete", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(expense_id))
+    with get_db() as conn:
+        rows = [dict(row) for row in conn.execute("""SELECT id,title,category,
+            amount_cents/100.0 AS amount_rub,incurred_on,recurring_monthly,note,created_at
+            FROM service_expenses ORDER BY incurred_on DESC,id DESC LIMIT 500""").fetchall()]
+        month_expenses = float(conn.execute("""SELECT COALESCE(SUM(amount_cents),0)/100.0
+            FROM service_expenses WHERE
+              strftime('%Y-%m',incurred_on)=strftime('%Y-%m','now')
+              OR (recurring_monthly=1 AND date(incurred_on)<=date('now'))""").fetchone()[0])
+        month_revenue = float(conn.execute("""SELECT COALESCE(SUM(CASE
+            WHEN yookassa_payment_id IS NOT NULL AND yookassa_payment_id!='' THEN amount_cents/100.0
+            WHEN payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN amount_cents
+            ELSE 0 END),0) FROM payments WHERE status IN ('paid','succeeded')
+            AND paid_at >= datetime('now','start of month')""").fetchone()[0])
+    return _api_no_store(jsonify({"ok": True, "expenses": rows, "summary": {
+        "month_revenue_rub": month_revenue, "month_expenses_rub": month_expenses,
+        "month_net_rub": month_revenue - month_expenses,
+    }}))
+
+
+@app.route('/api/admin/users/<int:telegram_id>/subscription', methods=['PATCH'])
+def api_admin_user_subscription(telegram_id: int):
+    if not _admin_authorized("subscriptions.manage"):
+        return _api_error("admin_forbidden", 403)
+    payload = request.get_json(silent=True) or {}
+    action = str(payload.get("action") or "")
+    with get_db() as conn:
+        row = conn.execute("""SELECT vk.id,vk.expires_at,vk.user_id FROM vpn_keys vk JOIN users u ON u.id=vk.user_id
+            WHERE u.telegram_id=? ORDER BY (vk.expires_at>datetime('now')) DESC,vk.expires_at DESC,vk.id DESC LIMIT 1""", (telegram_id,)).fetchone()
+        if not row:
+            return _api_error("subscription_not_found", 404)
+        key_id = int(row["id"])
+        metadata: dict[str, Any] = {"action": action}
+        if action == "adjust_days":
+            try: days = int(payload.get("days"))
+            except (TypeError, ValueError): return _api_error("invalid_days", 400)
+            if days == 0 or not -1095 <= days <= 1095:
+                return _api_error("invalid_days", 400)
+            conn.execute("UPDATE vpn_keys SET expires_at=datetime(expires_at, ? || ' days') WHERE id=?", (f"{days:+d}", key_id))
+            metadata["days"] = days
+        elif action == "activate_days":
+            try: days = int(payload.get("days"))
+            except (TypeError, ValueError): return _api_error("invalid_days", 400)
+            if not 1 <= days <= 1095: return _api_error("invalid_days", 400)
+            conn.execute("UPDATE vpn_keys SET expires_at=datetime('now', ? || ' days'),panel_disabled_at=NULL WHERE id=?", (f"+{days}", key_id))
+            metadata["days"] = days
+        elif action == "disable":
+            conn.execute("UPDATE vpn_keys SET expires_at=datetime('now'),panel_disabled_at=datetime('now') WHERE id=?", (key_id,))
+        elif action == "regenerate_url":
+            conn.execute("UPDATE vpn_keys SET sub_id=? WHERE id=?", (secrets.token_urlsafe(32), key_id))
+            conn.execute("""UPDATE user_devices SET is_active=0,revoked_at=CURRENT_TIMESTAMP,
+                device_sub_id=lower(hex(randomblob(16))) WHERE user_id=?""", (int(row["user_id"]),))
+        else:
+            return _api_error("invalid_action", 400)
+        result = conn.execute("SELECT id,expires_at FROM vpn_keys WHERE id=?", (key_id,)).fetchone()
+    append_admin_audit("subscription.manage", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="vpn_key", target_id=str(key_id), metadata=metadata)
+    return _api_no_store(jsonify({"ok": True, "key_id": key_id, "expires_at": result["expires_at"]}))
+
+
 @app.route('/api/admin/overview', methods=['GET'])
 def api_admin_overview():
     """Read-only first slice of ArcVPN Business Console."""
@@ -3695,7 +3885,8 @@ def api_admin_overview():
                       UNION SELECT rs.referral_id FROM referral_stats rs WHERE rs.referrer_id=u.id
                     ) AND rp.status IN ('paid','succeeded')
                       AND COALESCE(rp.payment_type,'') != 'trial') AS invited_paid_count,
-                   (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at
+                   (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at,
+                   (SELECT vk.id FROM vpn_keys vk WHERE vk.user_id=u.id ORDER BY (vk.expires_at>datetime('now')) DESC,vk.expires_at DESC,vk.id DESC LIMIT 1) AS key_id
             FROM users u
             ORDER BY u.created_at DESC LIMIT 500
         """).fetchall()]

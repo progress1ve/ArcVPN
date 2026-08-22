@@ -6,9 +6,9 @@ from .connection import get_db
 
 ROLE_PERMISSIONS = {
     "owner": {"*"},
-    "operator": {"overview.read", "nodes.diagnose", "backups.read", "backups.create", "support.read", "support.reply", "audit.read"},
+    "operator": {"overview.read", "nodes.diagnose", "catalog.manage", "subscriptions.manage", "backups.read", "backups.create", "support.read", "support.reply", "audit.read"},
     "support": {"support.read", "support.reply"},
-    "finance": {"overview.read"},
+    "finance": {"overview.read", "expenses.manage"},
     "viewer": {"overview.read", "backups.read", "support.read"},
 }
 
