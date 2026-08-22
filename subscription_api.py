@@ -269,6 +269,10 @@ def _subscription_source_name(name: str) -> str:
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
+    if "Обход глушилок" in normalized or "LTE" in normalized:
+        number_match = re.search(r"#\s*([1-9][0-9]*)", normalized)
+        number = number_match.group(1) if number_match else "1"
+        return f"Обход глушилок (LTE, трафик ×10) #{number}"
     normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
     normalized = re.sub(r"\s*⚡\s*", " ", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
