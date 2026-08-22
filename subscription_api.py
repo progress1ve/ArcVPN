@@ -293,6 +293,16 @@ def _safe_profile_display_name(custom_name: str, source_name: str) -> str:
     return f"{flag} {value}".strip()
 
 
+def _subscription_protocol_label(source_name: str) -> str:
+    """Human-readable transport, kept separate from the editable remark."""
+    value = _subscription_source_name(source_name)
+    if "Обход глушилок" in value or "LTE" in value:
+        return "VLESS · XHTTP · TLS · CDN"
+    if re.search(r"#\s*2$", value):
+        return "Hysteria2 · QUIC · TLS"
+    return "VLESS · TCP · Reality"
+
+
 def _catalog_overrides() -> dict[str, dict[str, Any]]:
     global _CATALOG_CACHE
     now = time.monotonic()
@@ -1367,7 +1377,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "settings": {"inboundTag": "FROM_LOOPBACK_BACK"},
             }] if lte_outbounds else []),
         ],
-        "remarks": "🇪🇺 Автовыбор",
+        "remarks": "🇪🇺 Автовыбор | Самый быстрый",
         "routing": {
             "balancers": [{
                 # A balancer cannot directly use another balancer as fallback.
@@ -3719,7 +3729,11 @@ def api_admin_subscription_catalog():
     global _CATALOG_CACHE
     # Only profiles which actually exist in the current customer catalog are
     # editable. A catalog override never creates a Remnawave Host/inbound.
-    defaults = [name for name in SUBSCRIPTION_INBOUND_ORDER if not name.endswith("#2") or "LTE" not in name]
+    defaults = [
+        _subscription_source_name(name)
+        for name in SUBSCRIPTION_INBOUND_ORDER
+        if not name.endswith("#2") or "LTE" not in name
+    ]
     defaults.insert(0, "Ютуб без рекламы")
     if request.method == "PATCH":
         payload = request.get_json(silent=True) or {}
@@ -3747,8 +3761,11 @@ def api_admin_subscription_catalog():
             "catalog.update", "success", actor_id=str(_admin_telegram_id() or "password-session"),
             target_type="subscription_catalog", metadata={"profiles": len(parsed)},
         )
-    overrides = _catalog_overrides()
-    names = list(dict.fromkeys(defaults + list(overrides)))
+    overrides = {
+        _subscription_source_name(source): item
+        for source, item in _catalog_overrides().items()
+    }
+    names = list(dict.fromkeys(_subscription_source_name(name) for name in [*defaults, *overrides]))
     profiles = []
     for fallback_order, source in enumerate(names):
         item = overrides.get(source) or {}
@@ -3757,6 +3774,7 @@ def api_admin_subscription_catalog():
             "display_name": _safe_profile_display_name(item.get("display_name", source), source),
             "sort_order": int(item.get("sort_order", fallback_order)),
             "enabled": bool(item.get("enabled", True)),
+            "protocol_label": _subscription_protocol_label(source),
         })
     profiles.sort(key=lambda item: (item["sort_order"], item["source_name"]))
     return _api_no_store(jsonify({"ok": True, "profiles": profiles}))
@@ -4355,7 +4373,7 @@ def api_admin_overview():
             node["users_online"] = int(node_distribution.get(str(node.get("name") or ""), 0))
         remnawave["connection_schemes"] = [{
             "id": "auto",
-            "name": "🇪🇺 Автовыбор",
+            "name": "🇪🇺 Автовыбор | Самый быстрый",
             "kind": "client_balancer",
             "probe_interval_seconds": 20,
             "probe_samples": 2,

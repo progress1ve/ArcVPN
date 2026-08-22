@@ -11,7 +11,7 @@
   <header><span>МАРШРУТ ПОДПИСКИ</span><h2>Каталог подключений</h2><p>Меняйте подпись и порядок существующих Remnawave Hosts. Флаг страны восстанавливается автоматически; редактор не создаёт inbound и не меняет UUID.</p></header>
   {#if loading}<p>Загружаем каталог…</p>{:else}
     <div class="route">{#each profiles as profile,index}<article class:disabled={!profile.enabled}>
-      <b>{String(index+1).padStart(2,'0')}</b><div><input bind:value={profile.display_name} maxlength="120" aria-label="Название профиля"/><small>{profile.source_name}</small></div>
+      <b>{String(index+1).padStart(2,'0')}</b><div><input bind:value={profile.display_name} maxlength="120" aria-label="Название профиля"/><small>{profile.protocol_label||'Протокол определяется Remnawave'}</small></div>
       <label><input type="checkbox" bind:checked={profile.enabled}/><span>{profile.enabled?'В подписке':'Скрыт'}</span></label>
       <nav><button on:click={()=>move(index,-1)} disabled={index===0} aria-label="Выше">↑</button><button on:click={()=>move(index,1)} disabled={index===profiles.length-1} aria-label="Ниже">↓</button></nav>
     </article>{/each}</div>
