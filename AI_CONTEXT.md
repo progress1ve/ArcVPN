@@ -1586,3 +1586,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   (`Обход глушилок #1..#3`) followed by direct NL #4 and DE #5 XHTTP profiles. Each fallback
   observes only main outbounds and reaches hidden CDN outbounds through loopback only after
   complete main failure; all five labels and topology passed the production profile gate.
+- Business Console release `286a99e` replaces the retired Finland LTE operator card with
+  explicit Netherlands and Germany CDN edge models. Each edge shows CDN hostname, physical
+  RemnaNode origin, XHTTP inbound/path, traffic multiplier and health. The customer screen now
+  uses server-side search/filter/sort/pagination across the whole database and exposes a detail
+  timeline for subscriptions, payments, devices and audited admin actions.
+- Fleet monitor release `d36ea2b` no longer probes loopback-only XHTTP port 10001 on the public
+  node address. CDN/XHTTP health belongs to the separate LTE edge model; public synthetic probes
+  cover externally reachable TCP inbounds. Production fleet timer returned success/status 0.
