@@ -1,5 +1,6 @@
 import json
 import unittest
+from unittest.mock import patch
 
 try:
     from subscription_api import ActiveKeyRecord, _build_happ_json_subscription
@@ -20,7 +21,9 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "vless://33333333-3333-3333-3333-333333333333@lte2.example:443?security=none&type=tcp#Обход%20глушилок%20%28LTE%29%20%232",
         ])
 
-        auto = json.loads(_build_happ_json_subscription(key, links))[0]
+        with patch("subscription_api._catalog_overrides", return_value={}):
+            built = _build_happ_json_subscription(key, links)
+        auto = json.loads(built)[0]
         outbounds = {item["tag"]: item for item in auto["outbounds"]}
         balancers = {item["tag"]: item for item in auto["routing"]["balancers"]}
 
@@ -34,7 +37,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual(auto["burstObservatory"]["subjectSelector"], ["proxy-main"])
         self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 2)
         self.assertEqual(auto["routing"]["rules"][0]["inboundTag"], ["FROM_LOOPBACK_BACK"])
-        profiles = json.loads(_build_happ_json_subscription(key, links))
+        profiles = json.loads(built)
         self.assertEqual(len(profiles), 7)
         self.assertEqual(
             [item["remarks"] for item in profiles[-3:]],
@@ -60,7 +63,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "vless://33333333-3333-3333-3333-333333333333@cdn-de.example:443?security=tls&type=xhttp#%F0%9F%87%A9%F0%9F%87%AA%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%235",
         ])
 
-        profiles = json.loads(_build_happ_json_subscription(key, links))
+        with patch("subscription_api._catalog_overrides", return_value={}):
+            profiles = json.loads(_build_happ_json_subscription(key, links))
 
         self.assertEqual(
             [item["remarks"] for item in profiles[-2:]],

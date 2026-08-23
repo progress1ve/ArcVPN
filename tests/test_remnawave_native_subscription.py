@@ -166,6 +166,25 @@ def test_native_lte_link_gets_happ_fingerprint_and_padding():
     assert extra["xPaddingObfsMode"] is True
 
 
+@pytest.mark.parametrize("host", ["cdn-de.arccnet.space", "cdn-nd.arccnet.space"])
+def test_dhost_lte_links_match_finland_options_transport(host):
+    link = (
+        f"vless://11111111-1111-4111-8111-111111111111@{host}:443"
+        f"?encryption=none&type=xhttp&path=%2Fapi-test&host={host}"
+        f"&mode=packet-up&security=tls&sni={host}&fp=chrome#LTE"
+    )
+
+    normalized = api._normalize_native_share_link(link)
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(normalized).query)
+    extra = json.loads(params["extra"][0])
+
+    assert params["fp"] == ["firefox"]
+    assert params["mode"] == ["packet-up"]
+    assert params["path"] == ["/api-test"]
+    assert extra["uplinkHTTPMethod"] == "OPTIONS"
+    assert extra["xPaddingKey"] == "dc"
+
+
 def test_native_reality_link_replaces_chrome_fingerprint():
     link = (
         "vless://11111111-1111-4111-8111-111111111111@node.example.com:443"

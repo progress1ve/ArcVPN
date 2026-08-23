@@ -241,6 +241,7 @@ REMNAWAVE_PUBLIC_NODES = (
 REMNAWAVE_LTE_ENABLED = bool(getattr(config, "REMNAWAVE_LTE_ENABLED", False))
 REMNAWAVE_LTE_HOST = "cdn-fi.arccnet.space"
 REMNAWAVE_LTE_GERMANY_HOST = "cdn.arccnet.space"
+REMNAWAVE_LTE_DHOST_HOSTS = {"cdn-de.arccnet.space", "cdn-nd.arccnet.space"}
 LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a"
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
@@ -2179,6 +2180,7 @@ def _normalize_native_share_link(link: str) -> str:
     if params.get("type", [""])[0] == "xhttp" and host in {
         REMNAWAVE_LTE_HOST.lower(),
         REMNAWAVE_LTE_GERMANY_HOST.lower(),
+        *(value.lower() for value in REMNAWAVE_LTE_DHOST_HOSTS),
     }:
         params.update({
             "mode": ["packet-up"],
