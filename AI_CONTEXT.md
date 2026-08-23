@@ -1574,3 +1574,15 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   One shared resource is only appropriate when both origins form one primary/fallback pool.
   After a resource is ready, the public CDN hostname must resolve to its Yandex GSLB CNAME, not
   directly to the origin IP; the `_acme-challenge` validation record is a separate DNS name.
+- On 2026-08-23 the new DHost XHTTP inbounds were verified to match the formerly working
+  Finland LTE transport (`packet-up`, `/api-test`, OPTIONS uplink and identical padding).
+  The actual ping-without-traffic failure was at both origins: their nginx sites still served
+  ACME-only 404 responses instead of proxying `/api-test` to Xray on `127.0.0.1:10001`.
+  Both DE and NL sites now rewrite OPTIONS to POST at the origin and proxy to Xray; external
+  CDN responses and origin access logs show successful OPTIONS/GET XHTTP sessions with payload.
+  Do not replace this with the shared example's HEAD method or mismatched path/padding fields.
+- Release `dea4a09` normalizes DHost CDN links to the same Happ-compatible OPTIONS transport
+  as Finland. Happ JSON now ends with three deliberately identical visible fallback profiles
+  (`Обход глушилок #1..#3`) followed by direct NL #4 and DE #5 XHTTP profiles. Each fallback
+  observes only main outbounds and reaches hidden CDN outbounds through loopback only after
+  complete main failure; all five labels and topology passed the production profile gate.
