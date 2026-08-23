@@ -1604,3 +1604,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   preflight for direct, bridge and WARP node plans. SSH passwords are request-memory-only, never
   audited or stored; preflight does not install, register or publish a node. The online user list
   now resolves authoritative Remnawave presence by Telegram ID or panel username.
+- On 2026-08-23 wCloud Canada 3.0.0 started locally on port 20006 and its TLS endpoint became
+  reachable from the control plane, but Remnawave still reported `isConnected=false`; local wCloud
+  startup is not an authorization gate, so the two Canada Hosts remain disabled.
+- The first static Connection Units diagram was replaced with the MIT-licensed Svelte Flow
+  renderer compatible with Svelte 4. It supports node dragging, pan/zoom, minimap and stable edge
+  routing; production mutations remain intentionally separate from the visual draft.
