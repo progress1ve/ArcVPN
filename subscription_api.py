@@ -279,6 +279,10 @@ def _subscription_source_name(name: str) -> str:
         if number in {"4", "5"}:
             return f"Обход глушилок #{number}"
         return f"Обход глушилок (LTE, трафик ×10) #{number}"
+    # The former wCloud France pair was physically replaced by Canada. Keep
+    # accepting the old Host remarks during the Remnawave cutover, but never
+    # expose the retired country to customers or create a second catalog row.
+    normalized = normalized.replace("Франция", "Канада")
     normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
     normalized = re.sub(r"\s*⚡\s*", " ", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
@@ -396,7 +400,7 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
         country_order = 20
     elif "Финляндия" in name:
         country_order = 30
-    elif "Франция" in name:
+    elif "Канада" in name or "Франция" in name:
         country_order = 40
     elif "Польша" in name:
         country_order = 50
@@ -415,11 +419,12 @@ def _normalize_customer_profile_label(link: str) -> str:
     name = urllib.parse.unquote(encoded_name)
     if "Ютуб без рекламы" in name or "Обход глушилок" in name:
         return link
+    name = name.replace("Франция", "Канада")
     countries = (
         ("Нидерланды", "🇳🇱"),
         ("Германия", "🇩🇪"),
         ("Финляндия", "🇫🇮"),
-        ("Франция", "🇫🇷"),
+        ("Канада", "🇨🇦"),
     )
     for country, flag in countries:
         if country not in name:

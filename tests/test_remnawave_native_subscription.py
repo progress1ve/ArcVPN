@@ -69,10 +69,13 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
 
 def test_canada_replaces_france_and_keeps_transport_labels():
     assert api._subscription_source_name("🇨🇦 Канада #1") == "Канада #1"
+    assert api._subscription_source_name("🇫🇷 Франция #1") == "Канада #1"
     assert api._profile_country_flag("Канада #2") == "🇨🇦"
     assert api._subscription_protocol_label("Канада #1") == "VLESS · TCP · Reality"
     assert api._subscription_protocol_label("Канада #2") == "Hysteria2 · QUIC · TLS"
     assert api._subscription_inbound_order("Канада #1") < api._subscription_inbound_order("Финляндия #1")
+    legacy = "vless://id@example.com:443?security=reality#%F0%9F%87%AB%F0%9F%87%B7%20%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F%20%231"
+    assert urllib.parse.unquote(api._normalize_customer_profile_label(legacy).rsplit("#", 1)[-1]) == "🇨🇦 Канада #1"
 
 
 def _key():
