@@ -67,6 +67,14 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
     assert result[0].split("#", 1)[0] == result[1].split("#", 1)[0]
 
 
+def test_canada_replaces_france_and_keeps_transport_labels():
+    assert api._subscription_source_name("🇨🇦 Канада #1") == "Канада #1"
+    assert api._profile_country_flag("Канада #2") == "🇨🇦"
+    assert api._subscription_protocol_label("Канада #1") == "VLESS · TCP · Reality"
+    assert api._subscription_protocol_label("Канада #2") == "Hysteria2 · QUIC · TLS"
+    assert api._subscription_inbound_order("Канада #1") < api._subscription_inbound_order("Финляндия #1")
+
+
 def _key():
     return api.ActiveKeyRecord(
         id=1,

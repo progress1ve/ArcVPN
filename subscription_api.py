@@ -252,10 +252,10 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Нидерланды #2 ⚡",
     "Германия #1",
     "Германия #2⚡",
+    "Канада #1",
+    "Канада #2 ⚡",
     "Финляндия #1",
     "Финляндия #2⚡",
-    "Франция #1",
-    "Франция #2⚡",
     "Обход глушилок (LTE, трафик ×10) #1",
     "Обход глушилок (LTE, трафик ×10) #2",
     "Обход глушилок #4",
@@ -269,7 +269,7 @@ _CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
 
 def _subscription_source_name(name: str) -> str:
     normalized = str(name or "").strip()
-    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇷🇺 ", "🇫🇷 "):
+    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇷🇺 ", "🇫🇷 ", "🇨🇦 "):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
@@ -292,7 +292,8 @@ def _profile_country_flag(name: str) -> str:
         return "🇩🇪"
     for marker, flag in (
         ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"), ("Финляндия", "🇫🇮"),
-        ("Франция", "🇫🇷"), ("Польша", "🇵🇱"), ("Ютуб без рекламы", "🇷🇺"),
+        ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
+        ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
     ):
         if marker in value:
@@ -312,7 +313,7 @@ def _subscription_protocol_label(source_name: str) -> str:
     value = _subscription_source_name(source_name)
     if "Обход глушилок" in value or "LTE" in value:
         return "VLESS · XHTTP · TLS · CDN"
-    if re.search(r"#\s*2$", value):
+    if re.search(r"#\s*(?:2|4)$", value):
         return "Hysteria2 · QUIC · TLS"
     return "VLESS · TCP · Reality"
 
@@ -4006,6 +4007,80 @@ def api_admin_user_detail(telegram_id: int):
     }))
 
 
+_ADMIN_PRESENCE_CACHE: tuple[float, bool, dict[int, dict[str, Any]]] = (0.0, False, {})
+
+
+def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
+    """Resolve Remnawave presence to local users by Telegram ID or panel username."""
+    global _ADMIN_PRESENCE_CACHE
+    now = time.monotonic()
+    if now - _ADMIN_PRESENCE_CACHE[0] < 10:
+        return _ADMIN_PRESENCE_CACHE[1], _ADMIN_PRESENCE_CACHE[2]
+    try:
+        runtime = _load_remnawave_runtime_config()
+
+        async def _fetch_presence():
+            client = RemnawaveClient({
+                "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
+                "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
+            })
+            try:
+                users = await client._request("GET", "/api/users", params={"start": 0, "size": 500})
+                nodes = await client._request("GET", "/api/nodes")
+                return users, nodes
+            finally:
+                await client.close()
+
+        result, nodes = ASYNC_EXECUTOR.run(_fetch_presence(), timeout=12)
+        node_names = {
+            str(node.get("uuid")): node.get("name") or node.get("address") or "Узел не определён"
+            for node in (nodes or [])
+        }
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=3)
+        live_by_tg: dict[str, dict[str, Any]] = {}
+        live_by_username: dict[str, dict[str, Any]] = {}
+        for item in (result or {}).get("users", []):
+            traffic = item.get("userTraffic") or {}
+            raw_online_at = traffic.get("onlineAt")
+            if not raw_online_at:
+                continue
+            try:
+                online_at = datetime.fromisoformat(str(raw_online_at).replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            if online_at < cutoff:
+                continue
+            node_uuid = str(traffic.get("lastConnectedNodeUuid") or "")
+            presence = {
+                "online_at": raw_online_at,
+                "online_node": node_names.get(node_uuid, "Узел не определён"),
+            }
+            if item.get("telegramId") is not None:
+                live_by_tg[str(item.get("telegramId"))] = presence
+            username = str(item.get("username") or "").strip().lower()
+            if username:
+                live_by_username[username] = presence
+
+        resolved: dict[int, dict[str, Any]] = {}
+        with get_db() as conn:
+            rows = conn.execute("""
+                SELECT u.id,u.telegram_id,lower(COALESCE(vk.panel_email,'')) AS panel_email
+                FROM users u LEFT JOIN vpn_keys vk ON vk.user_id=u.id
+            """).fetchall()
+        for row in rows:
+            presence = live_by_tg.get(str(row["telegram_id"])) or live_by_username.get(str(row["panel_email"] or ""))
+            if presence:
+                resolved[int(row["id"])] = presence
+        _ADMIN_PRESENCE_CACHE = (now, True, resolved)
+        return True, resolved
+    except Exception:
+        logger.exception("Admin live presence refresh failed")
+        # A telemetry outage must not falsely mark everybody offline. Keep the
+        # stored scheduler counters as a degraded fallback.
+        _ADMIN_PRESENCE_CACHE = (now, False, {})
+        return False, {}
+
+
 @app.route('/api/admin/users', methods=['GET'])
 def api_admin_users():
     """Server-side customer search; never load the whole customer base in the browser."""
@@ -4019,6 +4094,7 @@ def api_admin_users():
         offset = max(0, int(request.args.get("cursor") or 0))
     except (TypeError, ValueError):
         return _api_error("invalid_pagination", 400)
+    presence_authoritative, live_presence = _admin_live_presence()
     where = []
     params: list[Any] = []
     if query:
@@ -4030,7 +4106,15 @@ def api_admin_users():
     elif status == "inactive":
         where.append("active=0")
     elif status == "online":
-        where.append("online_devices>0")
+        if presence_authoritative:
+            if live_presence:
+                placeholders = ",".join("?" for _ in live_presence)
+                where.append(f"id IN ({placeholders})")
+                params.extend(live_presence)
+            else:
+                where.append("0=1")
+        else:
+            where.append("online_devices>0")
     elif status != "all":
         return _api_error("invalid_status", 400)
     order_sql = {
@@ -4061,10 +4145,18 @@ def api_admin_users():
         rows = [dict(row) for row in conn.execute(
             f"{base_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?", [*params, limit, offset]
         ).fetchall()]
+    if presence_authoritative:
+        for row in rows:
+            presence = live_presence.get(int(row["id"]))
+            row["online_devices"] = 1 if presence else 0
+            if presence:
+                row["last_online_at"] = presence["online_at"]
+                row["online_node"] = presence["online_node"]
     next_cursor = offset + len(rows) if offset + len(rows) < total else None
     return _api_no_store(jsonify({
         "ok": True, "users": rows, "total": total,
         "cursor": offset, "next_cursor": next_cursor, "limit": limit,
+        "presence_source": "remnawave" if presence_authoritative else "database_fallback",
     }))
 
 
