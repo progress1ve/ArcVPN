@@ -4524,7 +4524,8 @@ def api_admin_overview():
         # expose them explicitly instead of pretending they are extra VPSes.
         remnawave["nodes"] = [
             node for node in remnawave["nodes"]
-            if "finland lte" not in str(node.get("name") or "").lower()
+            if not node.get("disabled")
+            and "finland lte" not in str(node.get("name") or "").lower()
         ]
         lte_specs = (
             {

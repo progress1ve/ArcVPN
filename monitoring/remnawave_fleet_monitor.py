@@ -26,7 +26,11 @@ def tcp_ports(node: dict) -> list[int]:
     result = []
     for inbound in ((node.get("configProfile") or {}).get("activeInbounds") or []):
         transport = " ".join(str(inbound.get(k) or "") for k in ("network", "type", "protocol", "tag")).lower()
-        if any(marker in transport for marker in ("hysteria", "udp", "quic")):
+        # XHTTP origins intentionally bind to loopback and are reached through
+        # the CDN/nginx edge. Probing their internal port on the public node IP
+        # produces a false outage. LTE health is exposed separately by the
+        # admin edge model and its CDN/origin checks.
+        if any(marker in transport for marker in ("hysteria", "udp", "quic", "xhttp")):
             continue
         try:
             port = int(inbound.get("port"))
