@@ -177,6 +177,10 @@ export const createAdminExpense = (expense) => post('/api/admin/expenses', expen
 export const deleteAdminExpense = (expenseId) => mutate(`/api/admin/expenses/${encodeURIComponent(expenseId)}`, 'DELETE')
 export const manageAdminSubscription = (telegramId, action) => mutate(`/api/admin/users/${encodeURIComponent(telegramId)}/subscription`, 'PATCH', action)
 export const fetchAdminUserDetail = (telegramId) => get(`/api/admin/users/${encodeURIComponent(telegramId)}`)
+export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', cursor = 0, limit = 40 } = {}) => {
+  const params = new URLSearchParams({ q, status, sort, cursor: String(cursor), limit: String(limit) })
+  return get(`/api/admin/users?${params.toString()}`)
+}
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))
 export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get('/api/referral'))
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))

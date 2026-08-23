@@ -4519,6 +4519,51 @@ def api_admin_overview():
                 } for inbound in ((node.get("configProfile") or {}).get("activeInbounds") or [])],
             } for node in (remna_nodes or [])],
         }
+        # Finland LTE is retired from the operator surface. DE/NL XHTTP are
+        # logical CDN edges hosted by the corresponding DHost RemnaNodes, so
+        # expose them explicitly instead of pretending they are extra VPSes.
+        remnawave["nodes"] = [
+            node for node in remnawave["nodes"]
+            if "finland lte" not in str(node.get("name") or "").lower()
+        ]
+        lte_specs = (
+            {
+                "id": "lte-nl", "name": "Нидерланды LTE", "country_code": "NL",
+                "node_marker": "Netherlands DHost", "inbound_tag": "NL_DHOST_LTE_XHTTP",
+                "public_host": "cdn-nd.arccnet.space", "profile_name": "🇳🇱 Обход глушилок #4",
+            },
+            {
+                "id": "lte-de", "name": "Германия LTE", "country_code": "DE",
+                "node_marker": "Germany DHost", "inbound_tag": "DE_DHOST_LTE_XHTTP",
+                "public_host": "cdn-de.arccnet.space", "profile_name": "🇩🇪 Обход глушилок #5",
+            },
+        )
+        lte_edges = []
+        for spec in lte_specs:
+            parent = next(
+                (node for node in remnawave["nodes"] if spec["node_marker"].lower() in str(node.get("name") or "").lower()),
+                None,
+            )
+            inbound = next(
+                (item for item in (parent or {}).get("inbounds", []) if item.get("tag") == spec["inbound_tag"]),
+                None,
+            )
+            lte_edges.append({
+                **spec,
+                "origin": (parent or {}).get("address"),
+                "node_uuid": (parent or {}).get("uuid"),
+                "connected": bool((parent or {}).get("connected")),
+                "inbound_active": inbound is not None,
+                "network": (inbound or {}).get("network") or "xhttp",
+                "port": (inbound or {}).get("port") or 10001,
+                "path": "/api-test",
+                "traffic_factor": 10,
+                "users_online": int((parent or {}).get("users_online") or 0),
+                "traffic_used_gb": float((parent or {}).get("traffic_used_gb") or 0),
+                "diagnostic": (parent or {}).get("diagnostic"),
+                "healthy": bool((parent or {}).get("connected") and inbound is not None),
+            })
+        remnawave["lte_edges"] = lte_edges
         node_distribution: Dict[str, int] = {}
         for presence in online_users:
             node_name = str(presence.get("node_name") or "Unknown")
@@ -4537,22 +4582,26 @@ def api_admin_overview():
             "probe_interval_seconds": 20,
             "probe_samples": 2,
             "probe_url": "http://www.gstatic.com/generate_204",
-            "failover": "LTE #1",
+            "failover": "Скрытые DE/NL CDN outbounds",
             "selection_observable": False,
             "online_distribution": node_distribution,
             "members": [
                 {"name": node.get("name") or node.get("address"), "online": int(node.get("usersOnline") or 0), "connected": bool(node.get("isConnected"))}
                 for node in (remna_nodes or []) if not bool(node.get("isDisabled"))
             ],
-        }, {
-            "id": "lte-1", "name": "🇷🇺 Обход глушилок #1", "kind": "cdn_fallback",
-            "public_host": "cdn-fi.arccnet.space", "origin": "195.226.92.37", "traffic_factor": 10,
+        }, *[{
+            "id": f"fallback-{number}", "name": f"🇷🇺 Обход глушилок #{number}",
+            "kind": "client_cdn_fallback", "traffic_factor": 10,
             "active_only_as_fallback": True,
-        }, {
-            "id": "lte-2", "name": "🇷🇺 Обход глушилок #2", "kind": "cdn_fallback",
-            "public_host": "cdn.arccnet.space", "origin": "195.226.92.37", "traffic_factor": 10,
-            "active_only_as_fallback": False, "standby": True,
-        }]
+            "strategy": "main → loopback → hidden DE/NL CDN",
+            "origins": [edge["public_host"] for edge in lte_edges],
+            "healthy": all(edge["healthy"] for edge in lte_edges),
+        } for number in range(1, 4)], *[{
+            "id": edge["id"], "name": edge["profile_name"], "kind": "direct_cdn",
+            "public_host": edge["public_host"], "origin": edge["origin"],
+            "traffic_factor": edge["traffic_factor"], "active_only_as_fallback": False,
+            "healthy": edge["healthy"],
+        } for edge in lte_edges]]
     except Exception as exc:
         remnawave["detail"] = type(exc).__name__
         logger.exception("Admin Remnawave telemetry failed")
