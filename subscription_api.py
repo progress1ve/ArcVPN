@@ -3742,6 +3742,68 @@ def api_admin_diagnostics_run():
         return _api_error(type(exc).__name__, 503)
 
 
+@app.route('/api/admin/nodes/preflight', methods=['POST'])
+def api_admin_node_preflight():
+    """Validate a new public VPS and SSH credentials without persisting them."""
+    if not _admin_authorized("nodes.provision"):
+        return _api_error("admin_forbidden", 403)
+    payload = request.get_json(silent=True) or {}
+    host = _clean_text(payload.get("host"), 255).strip().lower()
+    username = _clean_text(payload.get("username") or "root", 32)
+    password = str(payload.get("password") or "")
+    preset = str(payload.get("preset") or "direct")
+    if preset not in {"direct", "bridge", "warp"}:
+        return _api_error("invalid_preset", 400)
+    if not host or not re.fullmatch(r"[a-z0-9.-]+", host) or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", username):
+        return _api_error("invalid_ssh_target", 400)
+    if not password or len(password) > 256:
+        return _api_error("invalid_ssh_password", 400)
+    try:
+        addresses = {item[4][0] for item in socket.getaddrinfo(host, 22, type=socket.SOCK_STREAM)}
+        if not addresses or any(ipaddress.ip_address(address).is_private or ipaddress.ip_address(address).is_loopback
+                                or ipaddress.ip_address(address).is_link_local for address in addresses):
+            return _api_error("public_host_required", 400)
+        askpass = os.path.join(os.path.dirname(__file__), "scripts", "ssh_askpass.sh")
+        os.chmod(askpass, 0o700)
+        env = os.environ.copy()
+        env.update({
+            "SSH_ASKPASS": askpass,
+            "SSH_ASKPASS_REQUIRE": "force",
+            "DISPLAY": "arcvpn-preflight",
+            "ARC_NODE_SSH_PASSWORD": password,
+        })
+        completed = subprocess.run([
+            "ssh", "-o", "BatchMode=no", "-o", "ConnectTimeout=8",
+            "-o", "ConnectionAttempts=1", "-o", "StrictHostKeyChecking=no",
+            "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR",
+            f"{username}@{host}",
+            "printf 'ARC_PREFLIGHT_OK\\n'; uname -srm; command -v docker || true; command -v curl || true",
+        ], env=env, capture_output=True, text=True, timeout=15, check=False)
+        # Drop references immediately; neither audit nor response contains it.
+        env.pop("ARC_NODE_SSH_PASSWORD", None)
+        password = ""
+        ok = completed.returncode == 0 and "ARC_PREFLIGHT_OK" in completed.stdout
+        append_admin_audit(
+            "node.preflight", "success" if ok else "failed",
+            actor_id=str(_admin_telegram_id() or "password-session"),
+            target_type="ssh_target", target_id=host,
+            metadata={"addresses": sorted(addresses), "preset": preset, "ssh": ok},
+        )
+        if not ok:
+            return _api_error("ssh_auth_failed", 422)
+        lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
+        return _api_no_store(jsonify({
+            "ok": True, "host": host, "addresses": sorted(addresses), "preset": preset,
+            "system": lines[1] if len(lines) > 1 else "unknown",
+            "docker": any(line.endswith("docker") for line in lines[2:]),
+            "curl": any(line.endswith("curl") for line in lines[2:]),
+            "next_step": "bootstrap",
+        }))
+    except (OSError, socket.gaierror, subprocess.SubprocessError) as exc:
+        logger.exception("Node SSH preflight failed")
+        return _api_error(type(exc).__name__, 503)
+
+
 @app.route('/api/admin/backups', methods=['GET', 'POST'])
 def api_admin_backups():
     """List or create verified, local SQLite backups for the control plane."""

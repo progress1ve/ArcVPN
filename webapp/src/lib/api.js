@@ -164,6 +164,7 @@ export const fetchAdminOverview = () => (import.meta.env.DEV
 export const loginAdmin = (password) => post('/api/admin/login', { password })
 export const logoutAdmin = () => post('/api/admin/logout')
 export const runAdminNodeDiagnostic = (nodeUuid) => post('/api/admin/diagnostics/run', { node_uuid: nodeUuid })
+export const preflightAdminNode = (payload) => post('/api/admin/nodes/preflight', payload)
 export const fetchAdminBackups = () => get('/api/admin/backups')
 export const createAdminBackup = () => post('/api/admin/backups')
 export const fetchAdminAudit = (limit = 100) => get(`/api/admin/audit?limit=${encodeURIComponent(limit)}`)
