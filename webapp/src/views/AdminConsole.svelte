@@ -234,18 +234,8 @@
   .section-schemes .service-strip,.section-schemes .network-grid,.section-schemes .remna-board{display:none}
   .section-nodes .scheme-board{display:none}
   @media(max-width:1100px){.console{grid-template-columns:82px minmax(0,1fr)}aside{padding-inline:10px}.brand span,nav span,.owner span{display:none}.brand,nav button,.owner{justify-content:center;padding-inline:0}.metrics{grid-template-columns:1fr 1fr}}
-  /* ArcVPN Admin — compact warm operations surface inspired by the reference,
-     while retaining ArcVPN's route rails and live network language. */
-  :global(body.admin-console-open){background:#080607}
-  .console{grid-template-columns:272px minmax(0,1fr);background:#080607;color:#f2edef}
-  aside{background:#100c0d;border-color:#2a2022}
-  .brand{background:transparent;border-bottom:1px solid #2a2022;border-radius:0}.brand img{width:38px}.brand span{font-size:20px}
-  nav button{color:#958b8e}nav button:hover{background:#1a1315;color:#f5edef;transform:none}nav button.active{background:#211719;color:#f3d9dd;box-shadow:none}nav button.active:before{content:'';width:3px;height:20px;border-radius:3px;background:#e6a2ab}
-  main{width:min(1560px,calc(100% - 64px));padding-top:26px}main>header{margin-bottom:22px;padding-bottom:18px;border-color:#271d1f}h1{font-size:32px;letter-spacing:-.035em}
-  .telemetry-fresh i{background:#d6a55f}.refresh{background:#181214;border:1px solid #302426;color:#eee4e6}
-  .panel,.metrics article,.network-grid article,.inbound-board,.check-grid article,.scheme-board,.thread-list,.admin-chat{border-color:#2d2224;background:#151012;box-shadow:none}
-  .metrics article:first-child{background:#1d1517}.health{border-color:#342426;background:#191214}.health>strong{background:#2b2022;color:#efb1b9}
-  .service-strip article,.scheme-grid>article,.inbound-board article,.device-control article,.referral-metrics article{background:#110d0e;border-color:#2a2022}
-  .scheme-grid>article.auto{background:#201719}.deep-test,.filters button{background:#21181a}.refresh:hover,.deep-test:hover{background:#2a1e21}
-  .live-tools{gap:10px}
+  /* Compact ArcVPN shell: original cold palette, Axottle-like information density. */
+  .console{grid-template-columns:272px minmax(0,1fr)}
+  .brand{background:transparent;border-bottom:1px solid rgba(255,255,255,.055);border-radius:0}.brand img{width:38px}.brand span{font-size:20px}
+  main{width:min(1560px,calc(100% - 64px));padding-top:26px}main>header{margin-bottom:22px;padding-bottom:18px}h1{font-size:32px;letter-spacing:-.035em}.live-tools{gap:10px}
 </style>
