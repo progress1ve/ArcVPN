@@ -13,6 +13,7 @@ import hashlib
 import hmac
 import html
 import ipaddress
+import copy
 import json
 import logging
 import os
@@ -256,6 +257,8 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Франция #2⚡",
     "Обход глушилок (LTE, трафик ×10) #1",
     "Обход глушилок (LTE, трафик ×10) #2",
+    "Обход глушилок #4",
+    "Обход глушилок #5",
 ])
 _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
     name: index for index, name in enumerate(SUBSCRIPTION_INBOUND_ORDER)
@@ -272,6 +275,8 @@ def _subscription_source_name(name: str) -> str:
     if "Обход глушилок" in normalized or "LTE" in normalized:
         number_match = re.search(r"#\s*([1-9][0-9]*)", normalized)
         number = number_match.group(1) if number_match else "1"
+        if number in {"4", "5"}:
+            return f"Обход глушилок #{number}"
         return f"Обход глушилок (LTE, трафик ×10) #{number}"
     normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
     normalized = re.sub(r"\s*⚡\s*", " ", normalized)
@@ -280,6 +285,10 @@ def _subscription_source_name(name: str) -> str:
 
 def _profile_country_flag(name: str) -> str:
     value = str(name or "")
+    if re.search(r"Обход глушилок\s*#\s*4\b", value):
+        return "🇳🇱"
+    if re.search(r"Обход глушилок\s*#\s*5\b", value):
+        return "🇩🇪"
     for marker, flag in (
         ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"), ("Финляндия", "🇫🇮"),
         ("Франция", "🇫🇷"), ("Польша", "🇵🇱"), ("Ютуб без рекламы", "🇷🇺"),
@@ -341,6 +350,12 @@ def _subscription_display_name(name: str) -> str:
     """Keep the expensive LTE route explicit in every client UI."""
     value = str(name or "")
     if "Обход глушилок" in value:
+        number_match = re.search(r"#\s*([1-9][0-9]*)", value)
+        number = number_match.group(1) if number_match else "1"
+        if number == "4":
+            return "🇳🇱 Обход глушилок #4"
+        if number == "5":
+            return "🇩🇪 Обход глушилок #5"
         return "🇷🇺 Обход глушилок (трафик ×10, LTE)"
     return value
 
@@ -1421,7 +1436,30 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             ],
         },
     }
-    return json.dumps([auto_profile, *regular], ensure_ascii=False, separators=(",", ":"))
+    # These visible entries intentionally share one topology. They make the
+    # emergency route discoverable in Happ while keeping CDN outbounds hidden
+    # and completely idle until every main candidate has failed.
+    bypass_profiles: list[Dict[str, Any]] = []
+    if lte_outbounds:
+        for number in range(1, 4):
+            bypass = copy.deepcopy(auto_profile)
+            bypass["remarks"] = f"🇷🇺 Обход глушилок #{number}"
+            bypass["meta"] = {
+                "arcvpnProfileKind": "cdn-fallback",
+                "arcvpnProfileCopy": number,
+            }
+            bypass_profiles.append(bypass)
+
+    direct_cdn_profiles = [
+        profile for profile in regular
+        if re.search(r"Обход глушилок\s*#\s*[45]\b", str(profile.get("remarks") or ""))
+    ]
+    normal_profiles = [profile for profile in regular if profile not in direct_cdn_profiles]
+    return json.dumps(
+        [auto_profile, *normal_profiles, *bypass_profiles, *direct_cdn_profiles],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 def _prepare_subscription(
@@ -3935,9 +3973,96 @@ def api_admin_user_detail(telegram_id: int):
         devices = [dict(row) for row in conn.execute("""SELECT id,display_name,platform,model,
             COALESCE(is_active,1) AS active,imported_at,last_seen_at,revoked_at
             FROM user_devices WHERE user_id=? ORDER BY COALESCE(last_seen_at,imported_at) DESC LIMIT 50""", (user_id,)).fetchall()]
+        timeline = []
+        for item in subscriptions:
+            timeline.append({"kind": "subscription", "at": item.get("created_at"), "title": "Подписка создана", "detail": item.get("tariff_name") or item.get("custom_name") or f"Подписка #{item['id']}"})
+            if item.get("panel_disabled_at"):
+                timeline.append({"kind": "subscription", "at": item["panel_disabled_at"], "title": "Подписка отключена", "detail": "Доступ остановлен"})
+        for item in payments:
+            amount = item.get("amount_rub") or item.get("amount_usd") or item.get("amount_stars") or 0
+            timeline.append({"kind": "payment", "at": item.get("paid_at"), "title": "Оплата", "detail": f"{item.get('tariff_name') or item.get('payment_type')} · {amount:g}"})
+        for item in devices:
+            timeline.append({"kind": "device", "at": item.get("imported_at"), "title": "Устройство подключено", "detail": item.get("display_name") or item.get("model") or item.get("platform") or "Устройство"})
+            if item.get("revoked_at"):
+                timeline.append({"kind": "device", "at": item["revoked_at"], "title": "Устройство отключено", "detail": item.get("display_name") or item.get("model") or "Устройство"})
+        key_ids = [str(item["id"]) for item in subscriptions]
+        if key_ids:
+            placeholders = ",".join("?" for _ in key_ids)
+            audit_rows = conn.execute(f"""SELECT action,outcome,metadata_json,created_at
+                FROM admin_audit_events WHERE target_type='vpn_key'
+                  AND target_id IN ({placeholders}) ORDER BY id DESC LIMIT 100""", key_ids).fetchall()
+            for row in audit_rows:
+                try:
+                    metadata = json.loads(row["metadata_json"] or "{}")
+                except (TypeError, ValueError):
+                    metadata = {}
+                timeline.append({"kind": "admin", "at": row["created_at"], "title": "Действие администратора", "detail": f"{row['action']} · {metadata.get('action') or row['outcome']}"})
+        timeline = sorted((item for item in timeline if item.get("at")), key=lambda item: str(item["at"]), reverse=True)[:200]
     return _api_no_store(jsonify({
         "ok": True, "user": dict(user), "subscriptions": subscriptions,
-        "payments": payments, "devices": devices,
+        "payments": payments, "devices": devices, "timeline": timeline,
+    }))
+
+
+@app.route('/api/admin/users', methods=['GET'])
+def api_admin_users():
+    """Server-side customer search; never load the whole customer base in the browser."""
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    query = _clean_text(request.args.get("q"), 100).lower()
+    status = str(request.args.get("status") or "all")
+    sort = str(request.args.get("sort") or "new")
+    try:
+        limit = min(100, max(10, int(request.args.get("limit") or 40)))
+        offset = max(0, int(request.args.get("cursor") or 0))
+    except (TypeError, ValueError):
+        return _api_error("invalid_pagination", 400)
+    where = []
+    params: list[Any] = []
+    if query:
+        where.append("(lower(COALESCE(username,'')) LIKE ? OR lower(COALESCE(first_name,'')) LIKE ? OR CAST(telegram_id AS TEXT) LIKE ?)")
+        pattern = f"%{query}%"
+        params.extend((pattern, pattern, pattern))
+    if status == "active":
+        where.append("active=1")
+    elif status == "inactive":
+        where.append("active=0")
+    elif status == "online":
+        where.append("online_devices>0")
+    elif status != "all":
+        return _api_error("invalid_status", 400)
+    order_sql = {
+        "new": "created_at DESC,id DESC",
+        "top": "paid_rub DESC,id DESC",
+        "online": "online_devices DESC,last_online_at DESC,id DESC",
+        "expiry": "expires_at ASC,id DESC",
+    }.get(sort)
+    if not order_sql:
+        return _api_error("invalid_sort", 400)
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    rub_amount_sql = """CASE
+      WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN COALESCE(p.amount_cents,0)/100.0
+      WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance') THEN COALESCE(p.amount_cents,0)
+      ELSE 0 END"""
+    with get_db() as conn:
+        base_sql = f"""WITH customer_rows AS (
+          SELECT u.id,u.telegram_id,u.username,u.first_name,u.created_at,
+            EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at>datetime('now')) AS active,
+            COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id),0) AS online_devices,
+            (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
+            (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at,
+            COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id
+              AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'),0) AS paid_rub
+          FROM users u
+        ) SELECT * FROM customer_rows {where_sql}"""
+        total = int(conn.execute(f"SELECT COUNT(*) FROM ({base_sql})", params).fetchone()[0])
+        rows = [dict(row) for row in conn.execute(
+            f"{base_sql} ORDER BY {order_sql} LIMIT ? OFFSET ?", [*params, limit, offset]
+        ).fetchall()]
+    next_cursor = offset + len(rows) if offset + len(rows) < total else None
+    return _api_no_store(jsonify({
+        "ok": True, "users": rows, "total": total,
+        "cursor": offset, "next_cursor": next_cursor, "limit": limit,
     }))
 
 
