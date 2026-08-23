@@ -1594,3 +1594,13 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Fleet monitor release `d36ea2b` no longer probes loopback-only XHTTP port 10001 on the public
   node address. CDN/XHTTP health belongs to the separate LTE edge model; public synthetic probes
   cover externally reachable TCP inbounds. Production fleet timer returned success/status 0.
+- On 2026-08-23 the former wCloud France Remnawave profile, node and two Hosts were renamed to
+  `wCloud Canada` / `🇨🇦 Канада #1..#2`. The control and inbound ports are publicly reachable, but
+  Remnawave still reports the node disconnected and its logs show no connection attempt. Keep both
+  Canada Hosts disabled until the wCloud console has the existing node Secret Key plus panel IP
+  `217.60.33.38`, the server is fully stopped/started, and real RAW/Hysteria2 gates pass.
+- Business Console release `4cfeea7` simplifies the admin shell toward a compact warm operations
+  layout, removes the redundant Arc Operations/Business Console labels, and adds owner-only SSH
+  preflight for direct, bridge and WARP node plans. SSH passwords are request-memory-only, never
+  audited or stored; preflight does not install, register or publish a node. The online user list
+  now resolves authoritative Remnawave presence by Telegram ID or panel username.
