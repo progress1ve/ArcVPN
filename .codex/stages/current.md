@@ -24,6 +24,8 @@ Correction evidence before deployment:
 - Four-viewport overview geometry: desktop/wide KPI cards resolve to four equal columns; the operational surface resolves to 12 equal tracks; Nodes and Attention have identical top coordinates; device metrics resolve to five columns, then two on tablet and one on mobile.
 - Responsive smoke covered the 10 remaining sections x four viewports (`40` combinations): no document overflow, Schemes navigation, or overview logout control. Screenshots: `.codex/stages/evidence/admin-dashboard-correction/{mobile,tablet,desktop,wide}-overview.png`.
 - Full local Python regression remains `68 passed`; `git diff --check` passed.
+- Correction commit `d111e11efa5f86738e54fc6e464fabe3e2dc9bb6` was pushed and fast-forwarded on production. Only `arcvpn-subscription.service` restarted; its readiness poll returned `OK`, and both subscription and bot services are active.
+- Authenticated production verification passed at 390x844, 768x1024, 1366x768, and 1920x1080: no document overflow, Schemes nav, or logout control; desktop/wide KPI columns are equal and Nodes/Attention align. Public panel and the exact `index-JV-fiZUG.js` / `index-e0ypqx1N.css` assets returned HTTP 200.
 
 ## Goal
 
