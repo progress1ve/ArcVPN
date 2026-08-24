@@ -14,10 +14,12 @@ Updated: 2026-08-24. This file is current state, not a diary.
 - Admin panel is not visually accepted. Support has known responsive/layout defects; Schemes is gated and must not be treated as production routing control.
 - Frontend changes require live browser inspection at four viewport classes, not only code/tests.
 - Node configuration facts live in `.codex/references/node-config-contract.md`.
+- Non-secret server topology lives in `.codex/server-inventory.toml`; credentials are local DPAPI entries managed by `scripts/ops/server-vault.ps1`.
+- Use `$arcvpn-node-ops` for node, Remnawave, Reality, Hysteria2, LTE/XHTTP, CDN, DNS, or certificate work.
 
 ## Next recommended stage
 
-Run a browser-first admin-panel audit beginning with Support. Write measurable acceptance criteria and a component map to `.codex/stages/current.md` before changing UI. Do not imitate proprietary Axottle source; reproduce required behavior with the ArcVPN design system and original implementation.
+Populate the local credential vault for active servers, then start the next bounded product stage. For UI, run a browser-first admin-panel audit beginning with Support. Do not imitate proprietary Axottle source; reproduce required behavior with the ArcVPN design system and original implementation.
 
 ## Starting a new chat
 

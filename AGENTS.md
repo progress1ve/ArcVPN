@@ -8,7 +8,7 @@ Before non-trivial work, read `.codex/handoff.md`, `.codex/project-index.md`, an
 - Preserve existing subscription URLs, user UUIDs, and active-user access during migrations.
 - Never print or commit passwords, tokens, Reality private keys, or subscription IDs.
 - Do not delete unknown/user files. Classify first; delete only an explicitly authorized class.
-- For node/protocol work, follow `.codex/references/node-config-contract.md`.
+- For node/protocol/CDN work, use `$arcvpn-node-ops` and follow `.codex/references/node-config-contract.md`.
 - For frontend work, use `$arcvpn-frontend-qa`; browser evidence is part of acceptance.
 
 ## Routing

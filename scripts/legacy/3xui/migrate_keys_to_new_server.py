@@ -18,8 +18,8 @@ push_key_to_panel, который выставляет expiry/totalGB из на�
 2. Сделан бэкап database/vpn_bot.db.
 
 Запуск:
-  python3 migrate_keys_to_new_server.py --old-server 3 --new-server 4            # dry-run
-  python3 migrate_keys_to_new_server.py --old-server 3 --new-server 4 --apply    # перенос
+  python3 scripts/legacy/3xui/migrate_keys_to_new_server.py --old-server 3 --new-server 4            # dry-run
+  python3 scripts/legacy/3xui/migrate_keys_to_new_server.py --old-server 3 --new-server 4 --apply    # перенос
   # по умолчанию переносятся ВСЕ ключи с panel_email со старого сервера
   # (active + expired), чтобы на умирающем сервере ничего не осталось.
 """

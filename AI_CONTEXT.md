@@ -1601,8 +1601,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   `217.60.33.38`, the server is fully stopped/started, and real RAW/Hysteria2 gates pass.
 - Business Console release `4cfeea7` simplifies the admin shell toward a compact warm operations
   layout, removes the redundant Arc Operations/Business Console labels, and adds owner-only SSH
-  preflight for direct, bridge and WARP node plans. SSH passwords are request-memory-only, never
-  audited or stored; preflight does not install, register or publish a node. The online user list
+  preflight for direct, bridge and WARP node plans. SSH passwords are never audited or committed;
+  when supplied by the owner they may be stored only in the local Windows DPAPI vault under
+  `.secrets/server-credentials/`. Preflight does not install, register or publish a node. The online user list
   now resolves authoritative Remnawave presence by Telegram ID or panel username.
 - On 2026-08-23 wCloud Canada 3.0.0 started locally on port 20006 and its TLS endpoint became
   reachable from the control plane, but Remnawave still reported `isConnected=false`; local wCloud
@@ -1629,3 +1630,8 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   on ArcVPN production to look for UI sources. ArcVPN's editor instead renders scheme-specific
   paths for ordinary auto-selection, guarded CDN fallback and direct-CDN profiles; selecting a
   block exposes its current route metadata.
+- On 2026-08-24 repository operations were normalized: current roadmaps live in `docs/roadmaps`,
+  old 3x-ui material in `docs/archive`, systemd units in `deploy/systemd`, and manual scripts under
+  `scripts/maintenance` or `scripts/legacy/3xui`. The root is reserved for real runtime entrypoints
+  and project configuration. `$arcvpn-node-ops`, `.codex/server-inventory.toml`, and the DPAPI vault
+  convention are the authority for future node/CDN access and provisioning; secrets stay outside Git.

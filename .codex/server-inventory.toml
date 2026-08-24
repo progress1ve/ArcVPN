@@ -1,0 +1,38 @@
+version = 1
+
+# Non-secret topology only. Credential aliases map to the local DPAPI vault.
+[[servers]]
+alias = "pl-control"
+role = "production-control-plane"
+location = "Poland"
+host = "217.60.33.38"
+ssh_user = "root"
+credential_alias = "pl-control"
+status = "active"
+
+[[servers]]
+alias = "de-dhost"
+role = "vpn-node"
+location = "Germany"
+host = "193.233.198.184"
+ssh_user = "root"
+credential_alias = "de-dhost"
+status = "active"
+
+[[servers]]
+alias = "nl-dhost"
+role = "vpn-node"
+location = "Netherlands"
+host = "193.233.82.42"
+ssh_user = "root"
+credential_alias = "nl-dhost"
+status = "active"
+
+[[servers]]
+alias = "fi-legacy"
+role = "vpn-node"
+location = "Finland"
+host = "195.226.92.37"
+ssh_user = "root"
+credential_alias = "fi-legacy"
+status = "retirement-candidate"

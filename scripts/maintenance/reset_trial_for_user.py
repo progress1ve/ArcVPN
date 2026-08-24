@@ -4,10 +4,10 @@
 Используется для тестирования пробного периода.
 
 Использование:
-    python reset_trial_for_user.py <telegram_id>
+    python scripts/maintenance/reset_trial_for_user.py <telegram_id>
     
 Пример:
-    python reset_trial_for_user.py 123456789
+    python scripts/maintenance/reset_trial_for_user.py 123456789
 """
 
 import sys
@@ -59,8 +59,8 @@ def reset_trial(telegram_id: int):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Использование: python reset_trial_for_user.py <telegram_id>")
-        print("Пример: python reset_trial_for_user.py 123456789")
+        print("Использование: python scripts/maintenance/reset_trial_for_user.py <telegram_id>")
+        print("Пример: python scripts/maintenance/reset_trial_for_user.py 123456789")
         sys.exit(1)
     
     try:

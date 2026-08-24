@@ -3,7 +3,7 @@
 Скрипт для проверки статуса пробного периода.
 
 Использование:
-    python check_trial_status.py [telegram_id]
+    python scripts/maintenance/check_trial_status.py [telegram_id]
     
 Если telegram_id не указан, показывает всех пользователей с used_trial=1
 """

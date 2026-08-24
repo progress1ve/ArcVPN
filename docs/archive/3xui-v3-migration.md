@@ -66,8 +66,8 @@
    Затем продлить/обновить один тестовый ключ из бота и убедиться, что 404 ушли.
 5. **Бэкфилл** существующих клиентов в Hysteria2 (после успешного п.4):
    ```bash
-   python3 backfill_all_inbounds.py --server 10            # dry-run
-   python3 backfill_all_inbounds.py --server 10 --apply
+   python3 scripts/legacy/3xui/backfill_all_inbounds.py --server 10            # dry-run
+   python3 scripts/legacy/3xui/backfill_all_inbounds.py --server 10 --apply
    ```
 6. Проверить подписку: `curl -s '<SUBSCRIPTION_URL>/sub/<sub_id>?format=plain'`
    → должны прийти и `vless://`, и `hysteria2://`.

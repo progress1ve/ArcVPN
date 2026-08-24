@@ -42,8 +42,8 @@
    > Останавливать бота на старом сервере перед копированием БД, чтобы не потерять свежие записи.
 5. **systemd-юниты** (есть в репо):
    ```bash
-   cp /root/ArcVPN/arcvpn-bot.service /etc/systemd/system/
-   cp /root/ArcVPN/arcvpn-subscription.service /etc/systemd/system/
+   cp /root/ArcVPN/deploy/systemd/arcvpn-bot.service /etc/systemd/system/
+   cp /root/ArcVPN/deploy/systemd/arcvpn-subscription.service /etc/systemd/system/
    systemctl daemon-reload
    systemctl enable --now arcvpn-bot.service arcvpn-subscription.service
    ```

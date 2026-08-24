@@ -21,7 +21,7 @@
      (если триал — единственный ключ пользователя, не удаляем: пусть продлевает).
 
 По умолчанию РЕЖИМ DRY-RUN: только показывает, что было бы удалено.
-Чтобы реально удалить (БД + клиент на панели 3X-UI):  python cleanup_expired_trials.py --apply
+Чтобы реально удалить (БД + клиент на панели 3X-UI):  python scripts/maintenance/cleanup_expired_trials.py --apply
 
 Перед --apply сделайте бэкап database/vpn_bot.db.
 """
@@ -117,7 +117,7 @@ async def main():
 
     if not args.apply:
         print("\nDRY-RUN. Ничего не удалено.")
-        print("Для реального удаления: python cleanup_expired_trials.py --apply")
+        print("Для реального удаления: python scripts/maintenance/cleanup_expired_trials.py --apply")
         print("(Сначала сделайте бэкап database/vpn_bot.db!)")
         conn.close()
         return

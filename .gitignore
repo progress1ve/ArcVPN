@@ -9,8 +9,6 @@ logs/
 .codex-worktrees/
 *.log
 __diag.py
-tests/
-docs/
 results.md
 !AGENTS.md
 .agents/*
@@ -22,6 +20,8 @@ results.md
 !.agents/skills/arcvpn-frontend-qa/**
 !.agents/skills/arcvpn-closeout/
 !.agents/skills/arcvpn-closeout/**
+!.agents/skills/arcvpn-node-ops/
+!.agents/skills/arcvpn-node-ops/**
 .codex/stages/*.local.md
 **/__pycache__/
 .vscode

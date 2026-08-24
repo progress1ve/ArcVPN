@@ -17,8 +17,8 @@
 Клиенты берутся из vpn_bot.db, sub_id не меняется → переимпорт пользователям не нужен.
 
 Запуск:
-  python3 rebuild_inbound_from_botdb.py                 # dry-run (ничего не пишет)
-  python3 rebuild_inbound_from_botdb.py --apply         # записать и потом x-ui restart
+  python3 scripts/legacy/3xui/rebuild_inbound_from_botdb.py                 # dry-run (ничего не пишет)
+  python3 scripts/legacy/3xui/rebuild_inbound_from_botdb.py --apply         # записать и потом x-ui restart
 """
 import argparse
 import json

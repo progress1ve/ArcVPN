@@ -21,9 +21,9 @@ sub_id ключа НЕ меняется — переимпорт подписк�
 2. Бэкап x-ui.db на сервере (панель) и database/vpn_bot.db.
 
 Запуск:
-  python3 backfill_all_inbounds.py --server 10               # dry-run
-  python3 backfill_all_inbounds.py --server 10 --apply       # бэкфилл
-  python3 backfill_all_inbounds.py --server 10 --apply --active-only
+  python3 scripts/legacy/3xui/backfill_all_inbounds.py --server 10               # dry-run
+  python3 scripts/legacy/3xui/backfill_all_inbounds.py --server 10 --apply       # бэкфилл
+  python3 scripts/legacy/3xui/backfill_all_inbounds.py --server 10 --apply --active-only
 """
 import argparse
 import asyncio
