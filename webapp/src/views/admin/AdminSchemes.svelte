@@ -12,6 +12,8 @@
   let findingsOpen = true
   let addedIndex = 0
   let selectedNodeId = ''
+  let appliedGraphKey = ''
+  let pendingGraphKey = ''
   const nodeTypes = { arc: ArcFlowNode }
 
   $: schemes = data?.remnawave?.connection_schemes || []
@@ -19,12 +21,39 @@
   $: lteEdges = data?.remnawave?.lte_edges || []
   $: if (schemes.length && !schemes.some((scheme) => scheme.id === activeScheme)) activeScheme = schemes[0].id
   $: graphKey = JSON.stringify({ activeScheme, main: mainNodes.map((node) => [node.uuid || node.id, node.name, node.connected, node.users_online]), edges: lteEdges.map((item) => [item.id, item.country_code]) })
-  $: rebuildGraph(graphKey)
+  $: if (graphKey !== appliedGraphKey) synchronizeGraph(graphKey)
   $: findings = validateGraph($nodes, $graphEdges)
   $: blocked = findings.some((item) => item.severity === 'critical')
   $: selectedNode = $nodes.find((node) => node.id === selectedNodeId)
 
   const palette = [['Входная нода','in'],['Транзитная нода','transit'],['CDN','cdn'],['WARP','warp'],['Внешний прокси','proxy'],['Blackhole','block']]
+
+  function synchronizeGraph(nextKey) {
+    if (draftChanged && appliedGraphKey) pendingGraphKey = nextKey
+    else {
+      rebuildGraph()
+      appliedGraphKey = nextKey
+      pendingGraphKey = ''
+    }
+  }
+  function switchScheme(event) {
+    activeScheme = event.currentTarget.value
+    draftChanged = false
+    appliedGraphKey = ''
+    pendingGraphKey = ''
+  }
+  function resetDraft() {
+    draftChanged = false
+    rebuildGraph()
+    appliedGraphKey = pendingGraphKey || graphKey
+    pendingGraphKey = ''
+  }
+  function markNodeChanges(changes) {
+    if (changes?.some((change) => ['position', 'add', 'remove'].includes(change.type))) draftChanged = true
+  }
+  function markEdgeChanges(changes) {
+    if (changes?.some((change) => ['add', 'remove'].includes(change.type))) draftChanged = true
+  }
 
   function rebuildGraph() {
     const items = mainNodes.length ? mainNodes : [{ name: 'Нет доступных main-нод', connected: false }]
@@ -89,16 +118,19 @@
   }
 </script>
 
-<section class="page">
-  <header><div><span>СХЕМЫ ПОДКЛЮЧЕНИЙ</span><h2>Маршрут без догадок</h2><p>Соберите путь клиента и проверьте его до применения.</p></div><label class="scheme-select"><small>Текущая схема</small><select bind:value={activeScheme}>{#each schemes as scheme}<option value={scheme.id}>{scheme.name}</option>{/each}</select></label></header>
+<section class="page" aria-labelledby="schemes-title">
+  <header><div><span>СХЕМЫ ПОДКЛЮЧЕНИЙ</span><h2 id="schemes-title">Лаборатория маршрутов</h2><p>Просмотрите рабочий маршрут или соберите локальный черновик для проверки.</p></div><nav aria-label="Выбор рабочей схемы"><label class="scheme-select"><small>Рабочая схема</small><select value={activeScheme} on:change={switchScheme} disabled={!schemes.length}>{#each schemes as scheme}<option value={scheme.id}>{scheme.name}</option>{/each}</select></label></nav></header>
+  <div class="planning-note" role="note"><b>Только локальное планирование</b><span>Редактор не применяет конфигурацию в Remnawave и не меняет подписки. Обновление метрик не сотрёт черновик.</span></div>
+  {#if !schemes.length}<div class="empty"><b>Схемы не получены</b><p>Проверьте Remnawave и обновите данные панели.</p></div>{:else}
   <section class="workspace">
     <aside><small>ПАЛИТРА БЛОКОВ</small><p>Добавьте блок, затем соедините его маркеры на холсте. Изменения остаются черновиком.</p>{#each palette as item}<button class={item[1]} on:click={() => addBlock(item[1], item[0])}><i></i>{item[0]}<b>+</b></button>{/each}<footer>Gateway и Интернет — системные блоки, их нельзя удалить.</footer></aside>
     <div class="board">
-      <header><b><strong>{$nodes.length}</strong> блоков <i>·</i> <strong>{$graphEdges.length}</strong> связей</b><div><span class:bad={blocked}>{blocked ? 'Применение заблокировано' : draftChanged ? 'Черновик изменён' : 'Схема готова'}</span><button on:click={() => rebuildGraph(graphKey)} disabled={!draftChanged}>Сбросить</button></div></header>
-      <div class="canvas"><SvelteFlow {nodes} edges={graphEdges} {nodeTypes} fitView minZoom={0.55} maxZoom={1.65} nodesConnectable={true} elementsSelectable={true} onnodeclick={({ node }) => selectedNodeId = node.id} onconnect={connectBlocks} onnodeschange={() => draftChanged = true} onedgeschange={() => draftChanged = true}><Background variant={BackgroundVariant.Dots} gap={20} size={1} /><MiniMap pannable zoomable /><Controls /></SvelteFlow>{#if selectedNode}<aside class="inspector"><header><span>Параметры блока</span><button on:click={() => selectedNodeId = ''}>×</button></header><strong>{selectedNode.data.title}</strong><small>{selectedNode.data.subtitle}</small><dl><div><dt>Тип</dt><dd>{selectedNode.data.tone}</dd></div><div><dt>Вход</dt><dd>{selectedNode.data.entry ? 'Системный' : 'Подключён'}</dd></div><div><dt>Выход</dt><dd>{selectedNode.data.exit ? 'Internet' : 'Маршрут'}</dd></div></dl><p>Изменения блока остаются в черновике до проверки и применения.</p></aside>{/if}</div>
+      <header><b><strong>{$nodes.length}</strong> блоков <i>·</i> <strong>{$graphEdges.length}</strong> связей</b><div><span class:bad={blocked}>{blocked ? 'Черновик не прошёл проверку' : draftChanged ? 'Локальный черновик изменён' : 'Рабочая схема загружена'}</span>{#if pendingGraphKey}<em class="freshness">Метрики обновились</em>{/if}<button on:click={resetDraft} disabled={!draftChanged && !pendingGraphKey}>Сбросить черновик</button></div></header>
+      <div class="canvas"><SvelteFlow {nodes} edges={graphEdges} {nodeTypes} fitView minZoom={0.55} maxZoom={1.65} nodesConnectable={true} elementsSelectable={true} onnodeclick={({ node }) => selectedNodeId = node.id} onconnect={connectBlocks} onnodeschange={markNodeChanges} onedgeschange={markEdgeChanges}><Background variant={BackgroundVariant.Dots} gap={20} size={1} /><MiniMap pannable zoomable /><Controls /></SvelteFlow>{#if selectedNode}<aside class="inspector"><header><span>Параметры блока</span><button on:click={() => selectedNodeId = ''} aria-label="Закрыть параметры блока">×</button></header><strong>{selectedNode.data.title}</strong><small>{selectedNode.data.subtitle}</small><dl><div><dt>Тип</dt><dd>{selectedNode.data.tone}</dd></div><div><dt>Вход</dt><dd>{selectedNode.data.entry ? 'Системный' : 'Подключён'}</dd></div><div><dt>Выход</dt><dd>{selectedNode.data.exit ? 'Internet' : 'Маршрут'}</dd></div></dl><p>Это локальный черновик: публикация из этого экрана не выполняется.</p></aside>{/if}</div>
       <section class="findings"><button class="findings-head" on:click={() => findingsOpen = !findingsOpen} aria-expanded={findingsOpen}><i class:good={!blocked}></i><b>Проверка схемы</b><span>{findings.length} {findings.length === 1 ? 'результат' : 'результата'}</span><em>{findingsOpen ? '⌃' : '⌄'}</em></button>{#if findingsOpen}<div class="findings-list">{#each findings as finding}<article class:good={finding.severity === 'ok'}><i>{finding.severity === 'ok' ? '✓' : '×'}</i><span><b>{finding.title}</b><small>{finding.code}</small></span></article>{/each}</div>{/if}</section>
     </div>
   </section>
+  {/if}
 </section>
 
 <style>
@@ -107,4 +139,5 @@
 @media(max-width:1000px){.page>header{align-items:stretch;flex-direction:column}.page>header nav{max-width:100%}.workspace{grid-template-columns:1fr}.workspace>aside{display:none}}@media(max-width:700px){.workspace{min-height:560px}.canvas{height:455px}.page>header h2{font-size:25px}}
 .page{gap:18px}.page>header{align-items:center}.page>header h2{font-size:27px;letter-spacing:-.035em}.page>header p{font-size:12px}.scheme-select{display:grid;min-width:270px;gap:6px}.scheme-select small{color:#6d8498;font-size:9px;text-transform:uppercase;letter-spacing:.12em}.scheme-select select{height:42px;border:1px solid #253746;border-radius:11px;padding:0 36px 0 13px;background:#0d1824;color:#dcebf5;font:700 12px inherit;outline:none}.workspace{grid-template-columns:178px minmax(0,1fr);min-height:614px;border-radius:20px}.workspace>aside{padding:16px 11px}.workspace>aside button{min-height:39px;border-radius:9px}.board{grid-template-rows:43px 500px auto}.canvas{position:relative;height:500px}.inspector{position:absolute;z-index:8;top:14px;right:14px;box-sizing:border-box;width:225px;padding:15px;border:1px solid #2c4052;border-radius:15px;background:#0c1723eF;box-shadow:0 18px 45px #0008}.inspector header{display:flex;align-items:center;justify-content:space-between}.inspector header span{color:#6f879a;font-size:9px;text-transform:uppercase;letter-spacing:.1em}.inspector header button{border:0;background:transparent;color:#91a7b9;font-size:20px;cursor:pointer}.inspector>strong{display:block;margin-top:12px}.inspector>small,.inspector p{color:#7890a5;font-size:9px}.inspector dl{display:grid;gap:7px;margin:14px 0}.inspector dl div{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #1d2d3b}.inspector dt{color:#6e8497;font-size:9px}.inspector dd{margin:0;color:#c3d5e2;font:9px 'JetBrains Mono',monospace}:global(.svelte-flow__node-arc){width:auto!important;min-height:0!important;padding:0!important;border:0!important;background:transparent!important;box-shadow:none!important}:global(.svelte-flow__edge path){stroke:#2eaa9e;stroke-width:1.6}:global(.svelte-flow__edge.fallback path){stroke:#8c74cf;stroke-dasharray:7 6}:global(.svelte-flow__edge-text){font-size:8px}:global(.svelte-flow__minimap){width:145px!important;height:92px!important}:global(.svelte-flow__attribution){font-size:7px;opacity:.35}
 @media(max-width:1000px){.scheme-select{min-width:0}.workspace{grid-template-columns:1fr}.workspace>aside{display:none}.board{grid-template-rows:43px 480px auto}.canvas{height:480px}}
+.planning-note{display:flex;align-items:center;gap:12px;padding:12px 15px;border:1px solid #294359;border-radius:14px;background:#101c28;color:#8da5b8;font-size:11px}.planning-note b{color:#bde7ff;white-space:nowrap}.empty{padding:32px;border:1px dashed #26394a;border-radius:20px;text-align:center}.empty b{display:block;margin-bottom:7px}.freshness{color:#e8b957;font-size:9px;font-style:normal}.page,.workspace,.board{min-width:0}:global(button:focus-visible),.scheme-select select:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}@media(max-width:700px){.planning-note{align-items:flex-start;flex-direction:column}.board>header>div{gap:4px}.freshness{display:none}}
 </style>

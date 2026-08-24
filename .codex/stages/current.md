@@ -1,19 +1,22 @@
-# Current stage: browser-first Support workspace redesign
+# Current stage: browser-first whole-admin operations redesign
 
 Status: in progress
 Started: 2026-08-24
+Expanded: 2026-08-24 after the Support deployment, before further runtime edits
 
 ## Goal
 
-Turn the ArcVPN admin Support section into an original, production-grade operations workspace that keeps the existing support APIs and Telegram delivery intact while making thread triage and replies clear, responsive, accessible, and recoverable from failures.
+Turn every ArcVPN admin section into one coherent, original, production-grade operations panel. Preserve the already deployed Support workspace and real ArcVPN operations, close demonstrated functional gaps using existing or explicitly implemented ArcVPN contracts, and make the whole panel responsive, accessible, observable, and recoverable from failures.
 
 ## Non-goals
 
 - Do not copy Axottle code, assets, naming, or exact visual treatment; its screenshot is only a reference for information hierarchy, dense-but-readable cards, and quick actions.
 - Do not change subscription URLs, user UUIDs, node/protocol topology, Remnawave state, or active-user access.
 - Do not promote Schemes into production routing control.
-- Do not redesign unrelated admin pages except shell rules strictly required for Support reachability/responsiveness.
-- Do not add ticket assignment/status workflow or backend schema migrations in this bounded stage.
+- Do not clone Axottle screens, code, assets, copy, information architecture, or branding. Its public documentation is comparative product research only.
+- Do not add generic infrastructure controls merely because Axottle exposes them. A new action requires an ArcVPN-owned backend contract, permissions, safe confirmation, test coverage, and production evidence.
+- Do not turn Schemes into production routing control or introduce node/CDN/GeoAssets/SelfSteal mutations in this frontend stage.
+- Do not add backend schema migrations unless a browser-observed core workflow cannot be completed safely without one and the acceptance plan is amended before implementation.
 
 ## Baseline and component map
 
@@ -26,7 +29,23 @@ Turn the ArcVPN admin Support section into an original, production-grade operati
 - `database/db_support.py`: existing thread/message persistence; inspect for tests, do not change without a demonstrated contract defect.
 - `tests/`: focused Support/API and role regression coverage if backend behavior needs explicit proof.
 - `webapp_dist/`: generated production bundle after the accepted source build.
-- Runtime/deploy target: `arcvpn-subscription.service` only unless bot runtime is actually changed.
+- Runtime/deploy target: `arcvpn-subscription.service` and `arcvpn-bot.service`; both import the changed shared panel reconciliation code.
+
+### Expanded screen and ownership map
+
+| Section | Primary component | Required operator outcome |
+|---|---|---|
+| Главная | `AdminConsole.svelte` | Understand service health, business pulse, attention queue, and reach the responsible workflow. |
+| Здоровье | `AdminHealth.svelte` | Diagnose stale/degraded/offline state and refresh evidence without confusing cached data for current state. |
+| Схемы подключений | `AdminSchemes.svelte` | Inspect and validate declared connection layouts; clearly distinguish read-only/planned behavior from active routing. |
+| Ноды | `AdminNodes.svelte` | Inspect node status and operational metadata; expose safe failure/empty/stale states. |
+| Каталог подписки | `AdminCatalog.svelte` | Understand the user-visible catalog and its ordering/availability without implying unsupported mutations. |
+| Пользователи | `AdminUsers.svelte` | Search and inspect users, subscriptions, devices, and relevant actions with permission/error feedback. |
+| Финансы | `AdminFinance.svelte` | Inspect revenue and operational expenses, and distinguish loading, failed, validation, mutation, and empty states. |
+| Поддержка | `AdminConsole.svelte` Support workspace | Triage threads and send one durable reply with recovery from all request failures. |
+| Безопасность | `AdminSecurity.svelte` | Inspect access/device/audit evidence and perform only existing guarded actions. |
+| Резервные копии | `AdminBackups.svelte` | See backup freshness/status and execute only existing confirmed backup operations. |
+| Настройки | `AdminSettings.svelte` | Inspect integration readiness and effective access; owners can manage the supported administrator-role contract with validation and feedback. |
 
 ## Browser-first defect evidence
 
@@ -41,21 +60,47 @@ Turn the ArcVPN admin Support section into an original, production-grade operati
 | S-07 | Layout/density | laptop/tablet | high | Support uses fixed viewport-height math inside the shell and hides overflow globally; composition can clip/conceal content instead of proving no horizontal overflow. |
 | S-08 | CSS maintainability | shell/Support | all | Multiple successive style layers redefine the same shell and Support selectors, producing dead/overridden CSS risk and hard-to-predict breakpoints. |
 | S-09 | Production auth baseline | wide 1920x1080 | gate | Real `https://panel.arccnet.space/admin` loaded in the in-app browser with no horizontal overflow, but the current browser session stopped at the owner login surface. Screenshot: `.codex/stages/evidence/support-before/wide-1920x1080.png`. Authenticated Support evidence is still required before acceptance. |
+| P-01 | Whole-panel navigation | mobile 390x844 | critical | Authenticated production browser shows only Home, Health, Nodes, Support, and Settings. Schemes, Catalog, Users, Finance, Security, and Backups are `display:none` with no menu/scroll alternative. |
+| P-02 | Admin shell/RBAC | all | critical | Backend `/api/admin/access` exposes effective permissions, but the shell always loads overview first, renders every section, and labels every session Owner/full access. A support-only role lacks `overview.read` and therefore cannot reach its permitted Support workspace. |
+| P-03 | Users subscription mutation | all | critical | Local disable expires the SQLite key, while the minute sync selects only unexpired keys. The existing generic revoke path interprets Remnawave nodes as XUI inbounds, so an already provisioned remote identity can remain ACTIVE. |
+| P-04 | Schemes | tablet/desktop/wide | high | Visible graph nodes extend beyond the main viewport even while document width reports equality because the shell masks overflow. UI copy implies an apply workflow, but no apply contract exists; background metric changes can rebuild and discard the local draft. |
+| P-05 | Overview refresh | all | high | A transient 30-second refresh error replaces the authenticated workspace with the login card instead of retaining the last known snapshot and exposing stale/retry state. |
+| P-06 | Health/Nodes/Catalog | all | high | Health omits Remnawave/subscription failures and uses an unsupported numeric score; Nodes calls SSH preflight “Add node” although no bootstrap exists and labels bps as MB/s; Catalog lacks error/empty/dirty/reset semantics and an audit failure after commit can invite a duplicate retry. |
+| P-07 | Users/Finance/Security/Backups/Settings | all | high | Network/mutation state machines are incomplete; Finance can silently show zeros on failure; Security reports false empty while loading; Backups calls every historical file verified without a returned verification status; Settings is a static status page with a hard-coded SMTP state. |
+| P-08 | Accessibility and CSS | all | high | Non-Support components have missing labels/live regions/current/expanded/disabled semantics, weak mobile reflow, unused props/selectors, and the shell retains an unreachable `active === 'network'` branch with legacy CSS. |
 
-## Acceptance criteria (fixed before implementation)
+## Axottle comparison and disposition
 
-1. Support is reachable and usable at mobile 390x844, tablet 768x1024, laptop/desktop 1366x768, and wide 1920x1080.
-2. At every viewport `documentElement.scrollWidth <= innerWidth`; content is not merely hidden by an x-overflow mask, and no required control is clipped.
-3. Wide/desktop use a balanced list + conversation composition; tablet/mobile provide an explicit list/detail flow with a visible back action and preserve thread selection.
-4. Thread list, thread detail, refresh, and reply expose intentional loading, error with retry/recovery, empty, disabled, and success/settled states. No stale thread is presented as the newly selected one.
-5. Hover, active/selected, `:focus-visible`, disabled, loading, error, and empty states are visually distinct and meet readable contrast in the touched surface.
-6. A keyboard-only pass can reach Support, refresh, filters/search if present, every visible thread, back navigation, reply field, and send action in a logical order; focus never disappears.
-7. Interactive elements have accessible names; current section/thread state is programmatically exposed; form errors/status changes are announced appropriately; touched build warnings for accessibility and unused/dead CSS are zero.
-8. Existing real operations remain intact: list threads, open/read a thread, reply once, persist the message, and retain best-effort Telegram delivery/audit behavior. No API path or permission regression.
-9. Original ArcVPN visual language is preserved: dark navy surface, ice-blue action color, compact operational metadata, restrained status accents, no Axottle assets/code/exact copy.
-10. Before/after screenshots exist for all four viewport classes, with precise paths recorded here; key interaction states have additional evidence where a static screenshot cannot prove behavior.
-11. Local focused tests, full relevant Python regression, and `npm run build` pass; generated bundle is inspected with the source diff.
-12. Exact staged diff is reviewed and secret-scanned; commit is pushed; production performs `git pull --ff-only`; only `arcvpn-subscription.service` is restarted if it is the only affected runtime; service state, health, public asset/version, and authenticated production browser behavior are verified.
+The public Axottle documentation is used only to compare operator outcomes and safety contracts. ArcVPN implementation remains original and limited to ArcVPN-owned APIs.
+
+| Documented product pattern | ArcVPN disposition for this stage | Evidence/constraint |
+|---|---|---|
+| Permission-aware navigation and protected actions | **Implement now** | ArcVPN already has `/api/admin/access`, `/api/admin/roles`, and a role matrix; the frontend is the missing link. Reference: `https://docs.axottle.com/ru/panel/navigation`, `.../access-and-sessions`. |
+| Dashboard that answers health / recent change / next action | **Implement available evidence now** | Reuse ArcVPN overview, health, attention queue, audit, and existing route actions; do not invent incident objects or quick actions without contracts. Reference: `https://docs.axottle.com/ru/panel/dashboard`. |
+| Operation/audit journal with filters | **Implement bounded version now** | ArcVPN already exposes the last 500 append-only audit events; client-side search/filter/refresh is valid. Server pagination and a distinct operations event model are deferred. Reference: `https://docs.axottle.com/ru/panel/journal-and-audit`. |
+| Explicit health states/severity and stale evidence | **Implement from existing telemetry now** | Derive honest severity from Remnawave, services, registered nodes, database integrity, disk boundary, and timestamps. Do not invent self-heal or SLO percentages. Reference: `https://docs.axottle.com/ru/health/states`. |
+| Node metrics/services/diagnostics | **Implement truthful inspection now; defer mutations** | Metrics and bounded diagnostics exist. Agent bootstrap, service start/stop, logs, GeoAssets, TLS, and provisioning lack an ArcVPN admin API and require a separate node-ops contract. Reference: `https://docs.axottle.com/ru/nodes/control-panel`. |
+| Versioned connection-unit editor with validate/apply/rollback | **Reject imitation; make current screen honest** | ArcVPN has derived topology only, no version/apply/rollback backend. Keep read-only topology or clearly local planning; no production-control affordance. Reference: `https://docs.axottle.com/ru/connection-units/lifecycle`. |
+| Backup histories with integrity status and previewed restore | **Implement truthful list/create now; defer restore** | ArcVPN API can create a quick-checked local SQLite snapshot and list files, but does not return persistent verification, download, retention, offsite storage, or restore preview. Reference: `https://docs.axottle.com/ru/operations/backups`. |
+| Settings with real persisted forms, reset, roles, integrations | **Implement access/readiness evidence now; defer missing APIs** | Effective role/permissions and role assignments exist. SMTP readiness can be reported. 2FA, sessions, notification policy, health policy, integration mutation, and passwords require new security contracts. Reference: `https://docs.axottle.com/ru/panel/settings`. |
+| Ticket SLA, assignment, priority, delivery queue, infrastructure context | **Defer** | ArcVPN Support currently has thread/message persistence and best-effort Telegram delivery only. Schema, delivery job state, operator ownership, and SLA clocks need a separate backend stage. Preserve the improved reliable reply flow. Reference: `https://docs.axottle.com/ru/support/tickets`. |
+| CDN, SelfSteal, GeoAssets, Axosun, anti-abuse automation, status page | **Reject for this stage** | No matching ArcVPN-owned admin contracts or production acceptance gates. Decorative controls would be misleading and risky. |
+
+## Whole-panel acceptance criteria (fixed before expanded implementation)
+
+1. Every mapped section is reachable and usable at mobile 390x844, tablet 768x1024, laptop/desktop 1366x768, and wide 1920x1080.
+2. At every section and viewport `documentElement.scrollWidth <= innerWidth`; content is not merely hidden by an x-overflow mask, and no required control, table cell, dialog, popover, or navigation item is clipped or unreachable.
+3. Each section has a deliberate composition appropriate to the viewport: dense operational layout on desktop/wide, readable stacking or drill-down on tablet/mobile, and no information encoded by position or color alone.
+4. Every network-backed surface exposes intentional loading, recoverable error, empty, stale/last-updated where relevant, and settled states. Mutations expose distinct ready, disabled, in-flight, success, validation-error, and server-error states without losing user input or duplicating actions.
+5. Hover, selected/current, `:focus-visible`, disabled, loading, warning, error, and empty states are visually distinct and readable in all touched components.
+6. A keyboard-only pass can reach every section and every visible control in logical order, activate safe controls, operate forms/dialogs, return focus after dismissal, and never lose visible focus.
+7. Interactive elements have accessible names and semantics; headings/landmarks are coherent; current navigation, expanded state, tables, forms, errors, and live status updates are programmatically exposed. Touched components produce zero accessibility or unused/dead-CSS warnings.
+8. Existing real operations remain intact and receive focused regression proof: overview refresh/routing, health refresh, node/catalog/user/payment inspection, Support list/open/reply persistence, security/device/audit actions, backup actions, and supported settings updates. No API/RBAC/path regression.
+9. Axottle comparison produces a traceable gap matrix with three dispositions: implement now using an ArcVPN contract, defer with a concrete missing dependency, or reject as out of scope/risky. No proprietary code, assets, exact copy, or misleading unsupported control enters ArcVPN.
+10. Original ArcVPN visual language is preserved: dark navy surfaces, ice-blue primary actions, compact operational metadata, restrained semantic accents, and consistent shell/page/state primitives across all sections.
+11. Before/after screenshots exist for every section at all four viewport classes. Key dialogs, overflow behavior, empty/error/loading, hover/focus, disabled, and success states have additional evidence where static default screenshots are insufficient.
+12. Local focused tests, full relevant Python regression, browser interaction checks, and `npm run build` pass. Generated assets are inspected with source changes; no touched warning or accidental fixture text ships in production.
+13. Exact staged diff is reviewed and secret-scanned; commit is pushed; production performs `git pull --ff-only`; only affected services restart; service state, health, public assets/version, authenticated production workflows, all four viewport classes, and a real safe operation are verified.
 
 ## Risks and mitigations
 
@@ -65,10 +110,11 @@ Turn the ArcVPN admin Support section into an original, production-grade operati
 - **Generated bundle drift:** build from the reviewed source and inspect `webapp_dist/` alongside source changes.
 - **Production dirty tree:** compare incoming tracked paths with remote status before fast-forward; abort safely on overlap.
 - **Unrelated shell regressions:** constrain shell edits to navigation reachability and Support layout; smoke-test another admin section at each viewport.
+- **Local disable without Remnawave revocation:** target is the authorized admin mutation plus the shared panel reconciliation path, and only users explicitly changed by that operation. Current state can remove local eligibility while leaving an already provisioned Remnawave identity active. Desired state is idempotent remote deactivation keyed by the existing UUID, with no UUID or subscription URL replacement and no impact to still-active users. Gate with focused adapter/API tests, a production dry/read-only comparison, one explicitly safe disabled test identity if available, Remnawave state verification, and unchanged active-user authorization. Roll back the sync change and re-enable only the designated test identity if the remote transition is not exact.
 
 ## Rollback
 
-- Revert the stage commit, rebuild `webapp_dist/`, push, production `git pull --ff-only`, and restart `arcvpn-subscription.service`.
+- Revert the stage commit, rebuild `webapp_dist/`, push, production `git pull --ff-only`, and restart `arcvpn-subscription.service` plus `arcvpn-bot.service` because the shared panel reconciliation path changed.
 - No database rollback should be needed because this stage must not migrate or rewrite support data.
 - If deployment health or Support operations regress, immediately roll back the UI commit while preserving all production operational files.
 
@@ -76,12 +122,12 @@ Turn the ArcVPN admin Support section into an original, production-grade operati
 
 | Check | Mobile 390x844 | Tablet 768x1024 | Desktop 1366x768 | Wide 1920x1080 | Evidence/status |
 |---|---:|---:|---:|---:|---|
-| No horizontal overflow / no clipped controls | local pass | local pass | local pass | local pass | `scrollWidth == innerWidth`; all visible Support controls stayed inside viewport bounds |
-| Composition and list/detail navigation | local pass | local pass | local pass | local pass | mobile/tablet list + detail screenshots; explicit back flow; dual-pane desktop/wide |
-| Hover/focus/disabled/loading/error/empty | local pass | local pass | local pass | local pass | computed hover/focus styles + state screenshots |
+| No horizontal overflow / no clipped controls | local pass | local pass | local pass | local pass | All 11 sections: `scrollWidth == innerWidth`; required controls inside viewport after mobile Users filter correction; Schemes canvas is contained and pannable. |
+| Composition and section navigation | local pass | local pass | local pass | local pass | 44 after screenshots under `.codex/stages/evidence/admin-after/`; every owner section is reachable, including horizontally scrollable mobile shell navigation. |
+| Hover/focus/disabled/loading/error/empty | local pass | local pass | local pass | local pass | 17 cross-panel state/RBAC screenshots plus prior Support state evidence; child request fixtures cover error/empty, mutation controls expose guarded states. |
 | Keyboard-only path and accessible names | partial | partial | partial | partial | names/current/live regions and focus-visible verified; in-app key injection focused controls but did not dispatch Tab/Enter activation, so a real keyboard pass remains a production/manual gate |
-| Real list/open/reply persistence | n/a | n/a | local pass, prod pending | local pass, prod pending | 21 focused/RBAC tests and dev persisted reply; one production reply still required |
-| Other admin section shell smoke | local pass | local pass | local pass | local pass | Home/Support shell and visible nav geometry; mobile nav click regression fixed and reverified |
+| RBAC and read-only behavior | local pass | local pass | local pass | local pass | Browser roles: support sees only Support and can reply; viewer mutations disabled; finance/operator nav matches effective permissions; access/role endpoint tests pass. |
+| Real operations | pending prod | pending prod | local/API pass, prod pending | local/API pass, prod pending | 68 tests cover RBAC, Support, verified Remnawave disable and panel-sync failure. Production safe-operation and Support reply gates remain. |
 
 ## Evidence log
 
@@ -96,9 +142,16 @@ Turn the ArcVPN admin Support section into an original, production-grade operati
 - Browser state proof: list/detail failures expose retry UI; empty list/history are distinct; sending sets `aria-busy=true`, changes the label, and disables thread switching; send failure preserves the draft; successful dev reply increased messages 3→4, cleared the editor, updated the list preview, and announced success.
 - Interaction proof: non-selected thread hover changed background/border/transform; keyboard-induced focus on thread/search/reply exposed a solid ice-blue outline; navigation, current section/thread, form labels, live/status regions, and disabled controls have accessible semantics.
 - Focused API/RBAC tests after the audit-failure fix: `21 passed`. Full local Python suite: `57 passed`; `py_compile` passed.
-- Final WebApp production build passed in 4.36s; `AdminConsole.svelte` produced zero accessibility or unused CSS warnings. Pre-existing warnings remain in untouched `HomeFlowPreview`, `AdminSchemes`, `AdminCatalog`, and `AdminFinance`, plus the existing bundle-size warning.
-- Commit, production deployment, authenticated browser reply, and keyboard/manual gate are still pending.
+- The earlier Support-only WebApp production build passed in 4.36s; `AdminConsole.svelte` produced zero accessibility or unused CSS warnings. Those historical results were superseded by the integrated whole-panel build below.
+- Support commit `1da502d0e5423ee1c9e86b64653fcb17d0878a18` was pushed, fast-forwarded to production, and `arcvpn-subscription.service` is healthy. Public assets and the authenticated production overview load successfully.
+- Support still retains two closeout gates: one authorized production reply and a real keyboard-only activation pass. They remain acceptance items of this expanded stage.
+- Authenticated production baseline before this batch: 38 private screenshots under `C:/Users/babay/AppData/Local/Temp/arcvpn-admin-evidence/admin-before`. Tablet/desktop/wide cover all 11 sections; mobile captures the five reachable sections and proves the other six had no reachable navigation. They stay outside Git because they contain real operator data.
+- Integrated safe-fixture after evidence: 44 screenshots under `.codex/stages/evidence/admin-after/` cover all 11 sections at 390x844, 768x1024, 1366x768, and 1920x1080. Browser geometry found zero document overflow and zero clipped required controls after the one-pixel Users filter fix.
+- State/RBAC evidence: 17 screenshots under `.codex/stages/evidence/admin-after/states/` cover access denied/error, stale overview refresh, support/viewer roles, child error/empty states, and node-metrics error/empty states.
+- Browser RBAC proof: support role booted directly into Support without overview access; viewer Support editor/send were disabled, Catalog inputs were read-only with no publish footer, and Backup creation was disabled. Owner, operator, finance, viewer, and support labels/navigation matched effective permissions.
+- Backend operation proof: admin disable now updates Remnawave to `DISABLED` and verifies the authoritative read-back without changing the UUID; activate/adjust synchronizes immediately; a failed remote confirmation returns `502 panel_sync_failed` and is safely retryable. Focused and full local suite: `68 passed`; `py_compile` and `git diff --check` passed.
+- Final integrated `npm run build` passed. All touched admin components have zero Svelte accessibility or unused-selector warnings. Two pre-existing warnings remain in untouched `HomeFlowPreview.svelte`; the existing bundle-size advisory remains.
 
 ## Next step
 
-Review and stage the exact diff, deploy the accepted source/bundle, then complete authenticated production reply and keyboard evidence before closeout.
+Regenerate the final bundle after the last integration fixes, inspect/secret-scan and stage the exact intended files (excluding the line-ending-only payment SVG), then commit, push, fast-forward production, restart the bot and subscription services, and repeat authenticated four-viewport/public/operation verification. Do not close while the real keyboard pass and authorized Support reply remain unconfirmed.

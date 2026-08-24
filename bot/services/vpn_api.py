@@ -284,6 +284,30 @@ async def disable_key_on_panel(key_id: int) -> bool:
     try:
         server_data = _server_data_from_key(key)
         client = get_client_from_server_data(server_data)
+
+        # Remnawave is user-centric: get_inbounds() returns nodes rather than
+        # XUI client settings. Reconcile the known user directly, then verify
+        # the authoritative status instead of silently treating a node lookup
+        # as a successful revoke.
+        if str(key.get('panel_type') or '').lower() == 'remnawave':
+            current = await client.get_user(email)
+            if not current:
+                logger.info(f'disable_key_on_panel: Remnawave user {email} already absent')
+                return True
+            if str(current.get('status') or '').upper() == 'DISABLED':
+                logger.info(f'disable_key_on_panel: Remnawave user {email} already disabled')
+                return True
+            success = await client.update_client_full(
+                inbound_id=inbound_id,
+                client_uuid=client_uuid,
+                email=email,
+                expiry_time_ms=int(dt.timestamp() * 1000) if expires_at else 0,
+                total_gb_bytes=key.get('traffic_limit', 0) or 0,
+                enable=False,
+                limit_ip=max(0, int(key.get('device_limit', 2) or 0)),
+            )
+            verified = await client.get_user(email)
+            return bool(success and str((verified or {}).get('status') or '').upper() == 'DISABLED')
         
         # Получаем текущие данные клиента с панели
         inbounds = await client.get_inbounds()
@@ -379,6 +403,7 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
     
     # Конвертируем expires_at из БД → expiryTime (ms)
     expires_at = key.get('expires_at')
+    enable = True
     if expires_at:
         from datetime import datetime, timedelta, timezone
         
@@ -393,6 +418,7 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
         now_utc = datetime.now(timezone.utc)
         
         # Если срок больше 90000 дней (бессрочный)
+        enable = dt > now_utc
         if dt > now_utc + timedelta(days=90000):
             expiry_time_ms = 0
         else:
@@ -402,6 +428,7 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
     
     # Лимит трафика из БД (уже в байтах)
     traffic_limit = key.get('traffic_limit', 0) or 0
+    device_limit = max(0, int(key.get('device_limit', 2) or 0))
     
     try:
         server_data = _server_data_from_key(key)
@@ -420,6 +447,7 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
             expiry_time_ms=expiry_time_ms,
             total_gb_bytes=traffic_limit,
             limit_ip=device_limit,
+            enable=enable,
         )
         
         if success:

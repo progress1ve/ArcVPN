@@ -106,7 +106,7 @@ from database.requests import (
 from database.db_support import get_support_thread, add_admin_support_message
 from database.db_recurring import disable_recurring_methods, get_active_recurring_method, get_recurring_summary, save_recurring_method
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, get_yookassa_payment_details, process_payment_order
-from bot.services.vpn_api import get_client_from_server_data
+from bot.services.vpn_api import disable_key_on_panel, get_client_from_server_data, push_key_to_panel
 from bot.services.reserve import get_reserve_client_info
 from subscription_pages import render_import_page, render_silent_import_page, render_user_agreement
 
@@ -2729,13 +2729,21 @@ def _admin_access_context() -> Optional[Dict[str, Any]]:
     return None
 
 
+def _append_admin_audit_best_effort(action: str, outcome: str, **kwargs: Any) -> None:
+    """Never turn an already-decided admin action into a misleading retry."""
+    try:
+        append_admin_audit(action, outcome, **kwargs)
+    except Exception:
+        logger.exception("Admin audit append failed action=%s outcome=%s", action, outcome)
+
+
 def _admin_authorized(permission: Optional[str] = None) -> bool:
     context = _admin_access_context()
     if context is None:
         return False
     if not permission or role_allows(context["role"], permission):
         return True
-    append_admin_audit(
+    _append_admin_audit_best_effort(
         "rbac.denied", "denied", actor_id=context["actor_id"],
         target_type="permission", target_id=permission, metadata={"role": context["role"]},
     )
@@ -3627,7 +3635,7 @@ def api_admin_roles():
         actor_id = context.get("actor_id")
         assigned_by = int(actor_id) if str(actor_id).isdigit() else None
         set_admin_role(telegram_id, role, assigned_by)
-        append_admin_audit(
+        _append_admin_audit_best_effort(
             "rbac.assign", "success", actor_id=str(actor_id),
             target_type="telegram_admin", target_id=str(telegram_id), metadata={"role": role},
         )
@@ -3821,7 +3829,7 @@ def api_admin_backups():
                 destination.close()
                 source.close()
             os.chmod(target, 0o600)
-            append_admin_audit(
+            _append_admin_audit_best_effort(
                 "backup.create", "success", actor_id=str(_admin_telegram_id() or "password-session"),
                 target_type="sqlite_backup", target_id=os.path.basename(target),
             )
@@ -3890,7 +3898,7 @@ def api_admin_subscription_catalog():
                 (source_name,display_name,sort_order,enabled,include_in_auto)
                 VALUES(?,?,?,?,?)""", parsed)
         _CATALOG_CACHE = (0.0, {})
-        append_admin_audit(
+        _append_admin_audit_best_effort(
             "catalog.update", "success", actor_id=str(_admin_telegram_id() or "password-session"),
             target_type="subscription_catalog", metadata={"profiles": len(parsed)},
         )
@@ -3941,13 +3949,13 @@ def api_admin_expenses(expense_id: Optional[int] = None):
                 int(bool(payload.get("recurring_monthly"))), note or None,
             ))
             created_id = int(cursor.lastrowid)
-        append_admin_audit("expense.create", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(created_id), metadata={"amount_cents": amount_cents})
+        _append_admin_audit_best_effort("expense.create", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(created_id), metadata={"amount_cents": amount_cents})
     elif request.method == "DELETE":
         with get_db() as conn:
             cursor = conn.execute("DELETE FROM service_expenses WHERE id=?", (expense_id,))
         if not cursor.rowcount:
             return _api_error("expense_not_found", 404)
-        append_admin_audit("expense.delete", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(expense_id))
+        _append_admin_audit_best_effort("expense.delete", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(expense_id))
     with get_db() as conn:
         rows = [dict(row) for row in conn.execute("""SELECT id,title,category,
             amount_cents/100.0 AS amount_rub,incurred_on,recurring_monthly,note,created_at
@@ -3973,6 +3981,7 @@ def api_admin_user_subscription(telegram_id: int):
         return _api_error("admin_forbidden", 403)
     payload = request.get_json(silent=True) or {}
     action = str(payload.get("action") or "")
+    synchronize_panel = False
     with get_db() as conn:
         row = conn.execute("""SELECT vk.id,vk.expires_at,vk.user_id FROM vpn_keys vk JOIN users u ON u.id=vk.user_id
             WHERE u.telegram_id=? ORDER BY (vk.expires_at>datetime('now')) DESC,vk.expires_at DESC,vk.id DESC LIMIT 1""", (telegram_id,)).fetchone()
@@ -3987,14 +3996,17 @@ def api_admin_user_subscription(telegram_id: int):
                 return _api_error("invalid_days", 400)
             conn.execute("UPDATE vpn_keys SET expires_at=datetime(expires_at, ? || ' days') WHERE id=?", (f"{days:+d}", key_id))
             metadata["days"] = days
+            synchronize_panel = True
         elif action == "activate_days":
             try: days = int(payload.get("days"))
             except (TypeError, ValueError): return _api_error("invalid_days", 400)
             if not 1 <= days <= 1095: return _api_error("invalid_days", 400)
             conn.execute("UPDATE vpn_keys SET expires_at=datetime('now', ? || ' days'),panel_disabled_at=NULL WHERE id=?", (f"+{days}", key_id))
             metadata["days"] = days
+            synchronize_panel = True
         elif action == "disable":
             conn.execute("UPDATE vpn_keys SET expires_at=datetime('now'),panel_disabled_at=datetime('now') WHERE id=?", (key_id,))
+            synchronize_panel = True
         elif action == "regenerate_url":
             conn.execute("UPDATE vpn_keys SET sub_id=? WHERE id=?", (secrets.token_urlsafe(32), key_id))
             conn.execute("""UPDATE user_devices SET is_active=0,revoked_at=CURRENT_TIMESTAMP,
@@ -4002,7 +4014,26 @@ def api_admin_user_subscription(telegram_id: int):
         else:
             return _api_error("invalid_action", 400)
         result = conn.execute("SELECT id,expires_at FROM vpn_keys WHERE id=?", (key_id,)).fetchone()
-    append_admin_audit("subscription.manage", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="vpn_key", target_id=str(key_id), metadata=metadata)
+    if synchronize_panel:
+        try:
+            panel_synced = ASYNC_EXECUTOR.run(
+                disable_key_on_panel(key_id) if action == "disable" else push_key_to_panel(key_id),
+                timeout=15,
+            )
+        except Exception:
+            logger.exception("Admin subscription panel synchronization failed")
+            panel_synced = False
+        if not panel_synced:
+            try:
+                _append_admin_audit_best_effort(
+                    "subscription.manage", "panel_sync_failed",
+                    actor_id=str(_admin_telegram_id() or "password-session"),
+                    target_type="vpn_key", target_id=str(key_id), metadata=metadata,
+                )
+            except Exception:
+                logger.exception("Admin subscription panel-sync failure audit failed")
+            return _api_error("panel_sync_failed", 502)
+    _append_admin_audit_best_effort("subscription.manage", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="vpn_key", target_id=str(key_id), metadata=metadata)
     return _api_no_store(jsonify({"ok": True, "key_id": key_id, "expires_at": result["expires_at"]}))
 
 
@@ -4813,6 +4844,10 @@ def api_admin_overview():
         "recurring": {
             **get_recurring_summary(),
             "provider_ready": bool(get_setting("yookassa_recurring_enabled", "0") == "1"),
+        },
+        "integrations": {
+            "smtp_ready": bool(SMTP_HOST and SMTP_FROM),
+            "smtp_tls": bool(SMTP_USE_TLS),
         },
         "local_panel": local_panel,
     }))

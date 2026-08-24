@@ -96,7 +96,7 @@ def get_vpn_key_by_id(key_id: int) -> Optional[Dict[str, Any]]:
                 s.login, s.password, s.protocol, s.is_active as server_active,
                 s.panel_type, s.panel_api_url, s.panel_api_token,
                 s.panel_node_uuid, s.panel_squad_uuid, s.panel_write_mode,
-                u.telegram_id, u.username
+                u.telegram_id, u.username, COALESCE(u.device_limit, 2) AS device_limit
             FROM vpn_keys vk
             LEFT JOIN tariffs t ON vk.tariff_id = t.id
             LEFT JOIN servers s ON vk.server_id = s.id
