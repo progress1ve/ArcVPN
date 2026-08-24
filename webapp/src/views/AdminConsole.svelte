@@ -238,4 +238,20 @@
   .console{grid-template-columns:272px minmax(0,1fr)}
   .brand{background:transparent;border-bottom:1px solid rgba(255,255,255,.055);border-radius:0}.brand img{width:38px}.brand span{font-size:20px}
   main{width:min(1560px,calc(100% - 64px));padding-top:26px}main>header{margin-bottom:22px;padding-bottom:18px}h1{font-size:32px;letter-spacing:-.035em}.live-tools{gap:10px}
+  /* Warm infrastructure shell shared with the topology editor. */
+  :global(body.admin-console-open){background:#090708;color:#f1ebed}
+  .console{grid-template-columns:252px minmax(0,1fr);background:#090708;color:#f1ebed}
+  aside{padding:20px 14px;border-right:1px solid #261e20;background:#0d0a0b}
+  .brand{min-height:62px;padding:0 12px;border-color:#261e20}.brand img{width:34px}.brand span{color:#f4edef;font-size:18px}.brand small{color:#756a6d}
+  nav{gap:2px;margin-top:20px}nav button{min-height:44px;border-radius:11px;color:#94878b;font-size:11px}nav button:hover{background:#171214;color:#e9dfe2;transform:none}nav button.active{background:#201719;color:#f0dfe3;box-shadow:inset 2px 0 #df9aa7}
+  .owner{border-color:#2a2023;background:#141012;color:#ded3d6}
+  main{width:min(1480px,calc(100% - 58px));padding-top:25px;background:transparent}
+  main>header{margin-bottom:20px;padding-bottom:17px;border-color:#241c1f}h1{color:#f4edef;font-size:30px}.eyebrow{color:#d99aa5}
+  .telemetry-fresh{color:#8a7c80}.refresh{border-color:#34282b;background:#171214;color:#e7dcdf}.refresh:hover{border-color:#594147;background:#201719}
+  .panel,.metrics article,.network-grid article,.inbound-board,.check-grid article,.scheme-board,.thread-list,.admin-chat{border-color:#2b2225;background:#151113;box-shadow:none}
+  .metrics article,.panel,.scheme-board,.inbound-board,.network-grid article{border-radius:18px}.health{border-color:#2e3c35;border-radius:16px;background:#121a16}.metrics article:first-child{background:#191315}
+  .service-strip article,.scheme-grid>article,.inbound-board article,.device-control article,.referral-metrics article,.network-grid article{border-color:#292124;background:#110e0f}
+  .scheme-grid>article.auto{background:#1b1517}.deep-test{background:#201719;color:#e4cfd4}.refresh,.deep-test,.records>.filters button{border-radius:10px!important}
+  .records>.filters button{background:#171214!important;color:#a99a9e!important}.records>.filters button.active{background:#ead8dc!important;color:#171013!important}
+  @media(max-width:1100px){.console{grid-template-columns:76px minmax(0,1fr)}}
 </style>

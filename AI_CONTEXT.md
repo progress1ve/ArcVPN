@@ -1620,3 +1620,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Node cards now open a real telemetry detail view backed by bounded `server_health_samples`
   queries for 15m/1h/6h/24h/7d. CPU, memory and network charts never fabricate missing agent
   samples; empty telemetry is displayed explicitly.
+- The Connection Units presentation uses a compact warm operations theme and a deliberately
+  simplified topology: one aggregate main pool plus an isolated CDN fallback branch. Scheme
+  selection is a bounded dropdown, the minimap is compact, and individual nodes no longer create
+  crossing edge noise; the editor still retains draggable blocks and validation.
