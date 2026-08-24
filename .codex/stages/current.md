@@ -1,6 +1,6 @@
 # Current stage: local cleanup and node operations
 
-Status: ready for closeout
+Status: complete (production sync deferred)
 
 ## Goal
 
@@ -58,6 +58,14 @@ Make the repository root intentional and make future node/CDN operations reprodu
 - Archived 3x-ui scripts are retained for rollback/history and must not be treated as current Remnawave tooling.
 - DPAPI vault files work only for the same Windows user on this machine; maintain a separate recoverable owner password source.
 - Production pull requires a populated `pl-control` vault entry or SSH key.
+
+## Closeout
+
+- Implementation commit: `cef06ca` (`chore: organize repository and add node ops workflow`).
+- Push: `origin/main` updated successfully.
+- Production deployment: deferred because the local `pl-control` credential vault entry does not exist and SSH key authentication is unavailable.
+- Service restart: not applicable; runtime source and installed unit contents were not changed.
+- Rollback: revert `cef06ca`; removed tracked files remain recoverable from Git history.
 
 ## Next step
 
