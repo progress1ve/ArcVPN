@@ -1,5 +1,5 @@
 param(
-    [ValidateSet('Set', 'List', 'Remove')]
+    [ValidateSet('Set', 'Get', 'List', 'Remove')]
     [string]$Action = 'List',
     [ValidatePattern('^[a-z0-9][a-z0-9-]{1,62}$')]
     [string]$Alias,
@@ -23,6 +23,12 @@ switch ($Action) {
         $target = Join-Path $vaultRoot "$Alias.credential.xml"
         $credential | Export-Clixml -LiteralPath $target
         Write-Output "Stored encrypted credential alias: $Alias"
+    }
+    'Get' {
+        if (-not $Alias) { throw 'Alias is required for Get.' }
+        $target = Join-Path $vaultRoot "$Alias.credential.xml"
+        if (-not (Test-Path -LiteralPath $target)) { throw "Credential alias not found: $Alias" }
+        Import-Clixml -LiteralPath $target
     }
     'Remove' {
         if (-not $Alias) { throw 'Alias is required for Remove.' }
