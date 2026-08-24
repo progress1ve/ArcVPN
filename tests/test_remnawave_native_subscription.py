@@ -79,6 +79,20 @@ def test_catalog_never_publishes_retired_finland(monkeypatch):
     assert "de.arccnet.space" in result[0]
 
 
+def test_happ_json_never_keeps_retired_finland_as_hidden_outbound(monkeypatch):
+    monkeypatch.setattr(api, "_catalog_overrides", lambda: {})
+    links = "\n".join([
+        "vless://00000000-0000-4000-8000-000000000001@fin.arccnet.space:443?security=reality#Финляндия%20%231",
+        "vless://00000000-0000-4000-8000-000000000002@de.arccnet.space:443?security=reality#Германия%20%231",
+    ])
+
+    prepared = api._prepare_subscription(_key(), links, "json")
+
+    assert "fin.arccnet.space" not in prepared.body.lower()
+    assert "финлянд" not in prepared.body.lower()
+    assert "de.arccnet.space" in prepared.body.lower()
+
+
 def test_canada_replaces_france_and_keeps_transport_labels():
     assert api._subscription_source_name("🇨🇦 Канада #1") == "Канада #1"
     assert api._subscription_source_name("🇫🇷 Франция #1") == "Канада #1"

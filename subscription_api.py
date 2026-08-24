@@ -1470,17 +1470,17 @@ def _prepare_subscription(
 ) -> PreparedSubscription:
     routing_link = routing_link_override if routing_link_override is not None else ROUTING_LINK
     userinfo_header = _build_subscription_userinfo(key)
+    visible_links = _apply_subscription_catalog(
+        item for item in link.splitlines() if item.strip()
+    )
 
     if output_format == "json":
         return PreparedSubscription(
-            body=_build_happ_json_subscription(key, link),
+            body=_build_happ_json_subscription(key, "\n".join(visible_links)),
             content_type="application/json; charset=utf-8",
             userinfo_header=userinfo_header,
         )
 
-    visible_links = _apply_subscription_catalog(
-        item for item in link.splitlines() if item.strip()
-    )
     plain_text_subscription = _build_plain_text_subscription(
         "\n".join(visible_links), routing_link, userinfo_header
     )
