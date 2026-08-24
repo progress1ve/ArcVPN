@@ -4,6 +4,27 @@ Status: in progress
 Started: 2026-08-24
 Expanded: 2026-08-24 after the Support deployment, before further runtime edits
 
+## Follow-up correction: dashboard hierarchy and Schemes removal
+
+User evidence on 2026-08-24 invalidated the visual usefulness of the deployed overview and Schemes screen. Before this correction, desktop production shows unequal KPI columns, an independently positioned logout control under the refresh cluster, stretched infrastructure whitespace, and unstructured device metrics. The Schemes editor has no ArcVPN apply/version/rollback contract and does not justify its navigation or bundle cost.
+
+Acceptance fixed before the correction:
+
+1. Remove Schemes from authorized navigation, rendering, source components, generated bundle, and the now-unused graph dependency. Direct stale section state must fall back to an available section; no placeholder or dead CSS remains.
+2. Remove the overview logout control from the refresh/header composition; authentication expiration and the login surface remain functional.
+3. Desktop/wide overview uses a consistent four-column KPI grid and a 12-column operational panel grid. Nodes and attention panels align at the top instead of stretching each other; device metrics have an explicit internal grid.
+4. Tablet/mobile collapse predictably without horizontal document overflow; all remaining sections stay reachable.
+5. Build and local tests pass with zero new touched accessibility/unused-CSS warnings; before/after browser evidence covers four viewport classes.
+6. Exact diff is committed/pushed, production fast-forwards, only the subscription service restarts for the rebuilt admin bundle, and authenticated production browser verification confirms the removed route/navigation and corrected grid.
+
+Correction evidence before deployment:
+
+- Schemes navigation/rendering and both graph components are removed; `@xyflow/svelte` plus its graph/D3 dependency tree is removed from the package lock.
+- Final bundle changed from `608.96 kB` JS / `231.06 kB` CSS to `381.71 kB` JS / `201.82 kB` CSS. The build passed; the only Svelte warnings remain the two pre-existing warnings in untouched `HomeFlowPreview.svelte`.
+- Four-viewport overview geometry: desktop/wide KPI cards resolve to four equal columns; the operational surface resolves to 12 equal tracks; Nodes and Attention have identical top coordinates; device metrics resolve to five columns, then two on tablet and one on mobile.
+- Responsive smoke covered the 10 remaining sections x four viewports (`40` combinations): no document overflow, Schemes navigation, or overview logout control. Screenshots: `.codex/stages/evidence/admin-dashboard-correction/{mobile,tablet,desktop,wide}-overview.png`.
+- Full local Python regression remains `68 passed`; `git diff --check` passed.
+
 ## Goal
 
 Turn every ArcVPN admin section into one coherent, original, production-grade operations panel. Preserve the already deployed Support workspace and real ArcVPN operations, close demonstrated functional gaps using existing or explicitly implemented ArcVPN contracts, and make the whole panel responsive, accessible, observable, and recoverable from failures.
