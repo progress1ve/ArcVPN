@@ -3742,6 +3742,35 @@ def api_admin_diagnostics_run():
         return _api_error(type(exc).__name__, 503)
 
 
+@app.route('/api/admin/nodes/metrics', methods=['GET'])
+def api_admin_node_metrics():
+    """Return bounded real agent telemetry for the node detail charts."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    host = _clean_text(request.args.get("host"), 255).strip().lower()
+    period = str(request.args.get("range") or "1h")
+    windows = {"15m": "-15 minutes", "1h": "-1 hour", "6h": "-6 hours", "24h": "-24 hours", "7d": "-7 days"}
+    if not host or period not in windows:
+        return _api_error("invalid_metrics_query", 400)
+    try:
+        with get_db() as conn:
+            rows = conn.execute("""
+                SELECT sampled_at,state,latency_ms,cpu_pct,cpu_steal_pct,mem_pct,
+                       load_1m,disk_used_pct,net_rx_bps,net_tx_bps,tcp_established,
+                       uptime_seconds,packet_loss_pct,jitter_ms,dns_ms,https_ms
+                FROM server_health_samples
+                WHERE host=? AND source='agent' AND sampled_at >= datetime('now', ?)
+                ORDER BY sampled_at ASC LIMIT 1200
+            """, (host, windows[period])).fetchall()
+        return _api_no_store(jsonify({
+            "ok": True, "host": host, "range": period,
+            "samples": [dict(row) for row in rows],
+        }))
+    except sqlite3.Error:
+        logger.exception("Admin node metrics query failed")
+        return _api_error("metrics_unavailable", 503)
+
+
 @app.route('/api/admin/nodes/preflight', methods=['POST'])
 def api_admin_node_preflight():
     """Validate a new public VPS and SSH credentials without persisting them."""

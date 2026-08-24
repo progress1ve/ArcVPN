@@ -1617,3 +1617,6 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   Axottle page: palette-created draft blocks, editable connections, reset, dirty/blocked states and
   an inline topology linter. Applying a draft to Remnawave remains gated until versioning, rollback
   and post-deploy verification are implemented.
+- Node cards now open a real telemetry detail view backed by bounded `server_health_samples`
+  queries for 15m/1h/6h/24h/7d. CPU, memory and network charts never fabricate missing agent
+  samples; empty telemetry is displayed explicitly.
