@@ -4844,10 +4844,15 @@ def api_admin_support_thread(thread_id: int):
         if not body or len(body) > 4000:
             return _api_error("invalid_message", 400)
         message = add_admin_support_message(thread_id, 0, body)
-        append_admin_audit(
-            "support.reply", "success", actor_id=str(_admin_telegram_id() or "password-session"),
-            target_type="support_thread", target_id=str(thread_id), metadata={"length": len(body)},
-        )
+        try:
+            append_admin_audit(
+                "support.reply", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+                target_type="support_thread", target_id=str(thread_id), metadata={"length": len(body)},
+            )
+        except Exception:
+            # The reply is already persisted. Returning 500 here encourages an
+            # operator retry and can create a duplicate message for the user.
+            logger.exception("Не удалось записать audit для ответа поддержки thread=%s", thread_id)
         token = getattr(config, 'BOT_TOKEN', '')
         if token:
             try:

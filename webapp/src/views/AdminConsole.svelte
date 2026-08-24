@@ -25,6 +25,16 @@
   let supportMessages = []
   let replyBody = ''
   let sendingReply = false
+  let supportLoading = false
+  let supportError = ''
+  let threadLoading = false
+  let threadError = ''
+  let replyError = ''
+  let replyStatus = ''
+  let supportQuery = ''
+  let supportView = 'list'
+  let pendingThreadId = null
+  let threadRequest = 0
   let refreshTimer = null
   let lastUpdated = null
   let diagnosticNode = ''
@@ -39,8 +49,10 @@
   const rub = (v) => `${new Intl.NumberFormat('ru-RU').format(Number(v || 0))} ₽`
   const num = (v) => new Intl.NumberFormat('ru-RU').format(Number(v || 0))
   const mbps = (v) => `${(Number(v || 0) / 1_000_000).toFixed(Number(v || 0) >= 10_000_000 ? 0 : 2)} Мбит/с`
+  const supportName = (thread) => thread?.first_name || (thread?.username ? `@${thread.username}` : `ID ${thread?.telegram_id || thread?.id || '—'}`)
   $: visibleUsers = (data?.recent_users || []).filter((u) => userFilter === 'all' || (userFilter === 'online' ? Number(u.online_devices) > 0 : userFilter === 'inactive' ? !u.active : userFilter === 'referral' ? Number(u.invited_count) > 0 : true)).sort((a,b) => userFilter === 'top' ? Number(b.paid_rub)-Number(a.paid_rub) : userFilter === 'referral' ? Number(b.invited_count)-Number(a.invited_count) : new Date(b.created_at)-new Date(a.created_at))
   $: visiblePayments = (data?.recent_payments || []).filter((p) => paymentFilter === 'all' || (paymentFilter === 'paid' ? ['paid','succeeded'].includes(p.status) : !['paid','succeeded'].includes(p.status)))
+  $: filteredSupportThreads = supportThreads.filter((thread) => `${supportName(thread)} ${thread.last_message || ''}`.toLocaleLowerCase('ru-RU').includes(supportQuery.trim().toLocaleLowerCase('ru-RU')))
 
   async function load(silent = false) {
     if (!silent) loading = true
@@ -65,11 +77,77 @@
     finally { diagnosticNode = '' }
   }
   async function openSupport() {
-    active = 'support'; const result = await fetchAdminSupportThreads(); supportThreads = result.threads || []
-    if (supportThreads[0]) await selectThread(supportThreads[0].id)
+    active = 'support'
+    supportView = 'list'
+    supportLoading = true
+    supportError = ''
+    replyStatus = ''
+    try {
+      const result = await fetchAdminSupportThreads()
+      supportThreads = result.threads || []
+      const preserved = supportThreads.find((thread) => thread.id === selectedThread?.id)
+      if (!supportThreads.length) {
+        selectedThread = null
+        supportMessages = []
+      } else if (preserved) {
+        await selectThread(preserved.id, false)
+      } else {
+        await selectThread(supportThreads[0].id, false)
+      }
+    } catch (e) {
+      supportError = 'Не удалось загрузить обращения. Проверьте соединение и повторите попытку.'
+    } finally {
+      supportLoading = false
+    }
   }
-  async function selectThread(id) { const result = await fetchAdminSupportThread(id); selectedThread = result.thread; supportMessages = result.messages || [] }
-  async function sendReply() { if (!selectedThread || !replyBody.trim() || sendingReply) return; sendingReply = true; try { await sendAdminSupportReply(selectedThread.id, replyBody.trim()); replyBody=''; await selectThread(selectedThread.id) } finally { sendingReply=false } }
+  async function selectThread(id, showDetail = true) {
+    if (!id) return
+    const request = ++threadRequest
+    pendingThreadId = id
+    threadLoading = true
+    threadError = ''
+    replyError = ''
+    replyStatus = ''
+    if (showDetail) supportView = 'detail'
+    try {
+      const result = await fetchAdminSupportThread(id)
+      if (request !== threadRequest) return
+      selectedThread = result.thread
+      supportMessages = result.messages || []
+      supportThreads = supportThreads.map((thread) => thread.id === id ? { ...thread, unread: 0 } : thread)
+    } catch (e) {
+      if (request !== threadRequest) return
+      selectedThread = null
+      supportMessages = []
+      threadError = 'Диалог не открылся. Повторите загрузку.'
+    } finally {
+      if (request === threadRequest) {
+        threadLoading = false
+        if (!threadError) pendingThreadId = null
+      }
+    }
+  }
+  async function sendReply() {
+    const body = replyBody.trim()
+    const threadId = selectedThread?.id
+    if (!threadId || !body || sendingReply) return
+    sendingReply = true
+    replyError = ''
+    replyStatus = 'Отправляем ответ…'
+    try {
+      await sendAdminSupportReply(threadId, body)
+      replyBody = ''
+      replyStatus = 'Ответ отправлен и добавлен в диалог.'
+      supportThreads = supportThreads.map((thread) => thread.id === threadId ? { ...thread, last_message: body } : thread)
+      await selectThread(threadId, false)
+      replyStatus = 'Ответ отправлен и добавлен в диалог.'
+    } catch (e) {
+      replyError = 'Ответ не отправлен. Текст сохранён — попробуйте ещё раз.'
+      replyStatus = ''
+    } finally {
+      sendingReply = false
+    }
+  }
   onMount(() => {
     document.body.classList.add('admin-console-open')
     load()
@@ -86,12 +164,12 @@
 <div class="console">
   <aside>
     <a class="brand" href="/admin"><img src="/app/assets/arc-flow/arc-logo.svg" alt="" /><span>ArcVPN</span></a>
-    <nav>{#each nav as item}<button class:active={active === item[0]} on:click={() => item[0] === 'support' ? openSupport() : active = item[0]} title={item[2]}><ArcIcon name={item[1]} size={20} weight="duotone" /><span>{item[2]}</span></button>{/each}</nav>
+    <nav aria-label="Разделы админ-панели">{#each nav as item}<button class:active={active === item[0]} aria-current={active === item[0] ? 'page' : undefined} aria-label={item[2]} on:click={() => item[0] === 'support' ? openSupport() : active = item[0]} title={item[2]}><ArcIcon name={item[1]} size={20} weight="duotone" /><span>{item[2]}</span></button>{/each}</nav>
     <div class="owner"><i>К</i><span>Владелец<small>Полный доступ</small></span></div>
   </aside>
 
   <main class={`section-${active}`}>
-    <header><div><h1>{active === 'overview' ? 'Главная' : nav.find(item => item[0] === active)?.[2] || 'ArcVPN'}</h1></div><div class="live-tools"><span class="telemetry-fresh"><i></i>{lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}` : 'Подключаем данные'}</span><button class="refresh" on:click={() => load(true)}><ArcIcon name="pulse" size={18} />Проверить</button></div></header>
+    <header><div><h1>{active === 'overview' ? 'Главная' : nav.find(item => item[0] === active)?.[2] || 'ArcVPN'}</h1></div><div class="live-tools"><span class="telemetry-fresh"><i></i>{lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}` : 'Подключаем данные'}</span><button class="refresh" aria-label={active === 'support' ? 'Обновить обращения' : 'Проверить данные'} on:click={() => active === 'support' ? openSupport() : load(true)}><ArcIcon name="pulse" size={18} />{active === 'support' ? 'Обновить' : 'Проверить'}</button></div></header>
     {#if loading}
       <section class="state"><i class="loader"></i><p>Собираем показатели ArcVPN…</p></section>
     {:else if error}
@@ -140,7 +218,55 @@
       </section>
         <section class="inbound-board"><header><div><span class="eyebrow">Качество провайдеров</span><h3>Независимые сетевые пробы</h3></div><strong>каждые 10 минут</strong></header><div>{#each data.servers || [] as server}<article><i class:off={!server.agent_online}></i><span><b>{server.name}</b><small>loss {server.packet_loss_pct ?? '—'}% · jitter {server.jitter_ms ?? '—'} мс · DNS {server.dns_ms ?? '—'} мс · HTTPS {server.https_ms ?? '—'} мс</small></span><em>↓ {server.download_mbps ?? '—'} Мбит/с</em></article>{/each}</div></section>
     {:else if active === 'support'}
-      <section class="support-workspace"><aside class="thread-list"><div class="section-title"><div><span class="eyebrow">Поддержка</span><h2>Диалоги</h2></div><button on:click={openSupport}>↻</button></div>{#each supportThreads as thread}<button class:active={selectedThread?.id===thread.id} on:click={()=>selectThread(thread.id)}><i>{(thread.first_name || thread.username || '?')[0]}</i><span><b>{thread.first_name || `@${thread.username}` || `ID ${thread.telegram_id}`}</b><small>{thread.last_message || 'Нет сообщений'}</small></span>{#if thread.unread}<em>{thread.unread}</em>{/if}</button>{/each}</aside><section class="admin-chat">{#if selectedThread}<header><div><b>{selectedThread.first_name || selectedThread.username || `ID ${selectedThread.telegram_id}`}</b><small>@{selectedThread.username || selectedThread.telegram_id}</small></div></header><div class="chat-messages">{#each supportMessages as message}<article class:admin={message.sender==='admin'}><span>{message.body}</span><small>{message.created_at}</small></article>{/each}</div><form on:submit|preventDefault={sendReply}><textarea bind:value={replyBody} placeholder="Ответить пользователю" maxlength="4000"></textarea><button disabled={sendingReply || !replyBody.trim()}>Отправить</button></form>{:else}<div class="chat-empty">Выберите диалог слева</div>{/if}</section></section>
+      <section class:detail-open={supportView === 'detail'} class="support-workspace" aria-label="Рабочее пространство поддержки">
+        <aside class="thread-list" aria-label="Обращения пользователей">
+          <div class="support-list-head">
+            <div><span class="eyebrow">Очередь обращений</span><h2>Диалоги <small>{supportThreads.length}</small></h2></div>
+            <button class="support-icon-button" on:click={openSupport} disabled={supportLoading} aria-label="Обновить список обращений" title="Обновить список"><span aria-hidden="true">↻</span></button>
+          </div>
+          <label class="support-search"><span class="sr-only">Поиск по обращениям</span><input bind:value={supportQuery} type="search" placeholder="Имя или текст сообщения" autocomplete="off" /></label>
+          <div class="support-list-status" aria-live="polite">{#if supportLoading}<i class="support-spinner" aria-hidden="true"></i><span>Загружаем обращения…</span>{/if}</div>
+          {#if supportError}
+            <div class="support-state error" role="alert"><b>Очередь недоступна</b><p>{supportError}</p><button on:click={openSupport}>Повторить</button></div>
+          {:else if !supportLoading && !supportThreads.length}
+            <div class="support-state"><ArcIcon name="headset" size={24} /><b>Новых обращений нет</b><p>Здесь появятся диалоги пользователей.</p></div>
+          {:else if !supportLoading && supportQuery && !filteredSupportThreads.length}
+            <div class="support-state"><b>Ничего не найдено</b><p>Измените запрос или очистите поиск.</p><button on:click={() => supportQuery = ''}>Очистить поиск</button></div>
+          {:else}
+            <div class="thread-items" aria-label="Список диалогов">
+              {#each filteredSupportThreads as thread}
+                <button disabled={sendingReply} class:active={(pendingThreadId || selectedThread?.id) === thread.id} aria-current={(pendingThreadId || selectedThread?.id) === thread.id ? 'true' : undefined} on:click={() => selectThread(thread.id)}>
+                  <i aria-hidden="true">{supportName(thread)[0]}</i><span><b>{supportName(thread)}</b><small>{thread.last_message || 'Сообщений пока нет'}</small></span>{#if thread.unread}<em aria-label={`Непрочитанных: ${thread.unread}`}>{thread.unread}</em>{/if}
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </aside>
+        <section class="admin-chat" aria-label="Выбранный диалог">
+          {#if threadLoading}
+            <div class="support-state conversation-state" aria-live="polite"><i class="support-spinner" aria-hidden="true"></i><b>Открываем диалог…</b><p>Загружаем актуальную историю сообщений.</p></div>
+          {:else if threadError}
+            <div class="support-state conversation-state error" role="alert"><b>Диалог недоступен</b><p>{threadError}</p><button on:click={() => selectThread(pendingThreadId || selectedThread?.id || supportThreads[0]?.id)}>Повторить</button><button class="quiet" on:click={() => supportView = 'list'}>К списку</button></div>
+          {:else if selectedThread}
+            <header class="conversation-head"><button class="support-back" on:click={() => supportView = 'list'} aria-label="Вернуться к списку обращений">← <span>Обращения</span></button><div><b>{supportName(selectedThread)}</b><small>{selectedThread.username ? `@${selectedThread.username}` : `Telegram ID ${selectedThread.telegram_id}`}</small></div><span class="conversation-badge">Диалог</span></header>
+            <div class="chat-messages" aria-label="История сообщений">
+              {#if supportMessages.length}
+                {#each supportMessages as message}<article class:admin={message.sender==='admin'}><span>{message.body}</span><small>{message.sender === 'admin' ? 'ArcVPN · ' : ''}{message.created_at}</small></article>{/each}
+              {:else}
+                <div class="support-state conversation-empty"><b>История пуста</b><p>Начните диалог первым ответом.</p></div>
+              {/if}
+            </div>
+            <form class="reply-box" on:submit|preventDefault={sendReply} aria-busy={sendingReply}>
+              <label for="support-reply">Ответ пользователю</label>
+              <textarea id="support-reply" bind:value={replyBody} placeholder="Введите сообщение…" maxlength="4000" aria-describedby="reply-help reply-status"></textarea>
+              <div class="reply-meta"><small id="reply-help">{replyBody.length}/4000 · Enter переносит строку</small><button disabled={sendingReply || !replyBody.trim()}>{sendingReply ? 'Отправляем…' : 'Отправить'}</button></div>
+              <p id="reply-status" class:error-text={replyError} class="reply-status" aria-live="polite">{replyError || replyStatus}</p>
+            </form>
+          {:else}
+            <div class="support-state conversation-state"><ArcIcon name="headset" size={28} /><b>Выберите обращение</b><p>Откройте диалог из очереди слева.</p><button class="mobile-list-action" on:click={() => supportView = 'list'}>Показать обращения</button></div>
+          {/if}
+        </section>
+      </section>
     {:else if active !== 'overview'}
       <section class="state"><ArcIcon name="gift" size={30} /><h2>{nav.find(i => i[0] === active)?.[2]}</h2><p>Раздел готовится к следующему обновлению.</p></section>
     {:else}
@@ -197,16 +323,17 @@
   .device-control{margin-top:16px}.device-control>.panel-head>strong{padding:8px 12px;border-radius:14px;background:rgba(97,216,165,.09);color:#78e1b4;font-size:11px}.device-control>div:last-child{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.device-control article{display:flex;min-height:82px;flex-direction:column;justify-content:center;padding:16px;border-radius:20px;background:rgba(3,9,16,.48)}.device-control article b{font-size:25px}.device-control article span{margin-top:5px;color:#7890a5;font-size:11px;line-height:1.35}.device-control article.warn b{color:#ff9c9c}
   .referral-ops{margin-top:16px}.referral-ops>.panel-head>strong{padding:8px 12px;border-radius:14px;background:rgba(155,217,255,.09);color:#9bd9ff;font-size:11px}.referral-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.referral-metrics article{display:flex;min-height:78px;flex-direction:column;justify-content:center;padding:16px;border-radius:20px;background:rgba(3,9,16,.5)}.referral-metrics b{font-size:26px}.referral-metrics span,.referral-leaders small{margin-top:4px;color:#7890a5;font-size:11px}.referral-leaders{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:10px}.referral-leaders article{display:flex;align-items:center;gap:10px;padding:12px;border-radius:18px;background:#0b1724}.referral-leaders i{display:grid;flex:0 0 34px;height:34px;place-items:center;border-radius:50%;background:#17314a;color:#9bd9ff;font-style:normal;font-weight:800}.referral-leaders span{display:flex;min-width:0;flex-direction:column}.referral-leaders b,.referral-leaders small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .scheme-board{margin:18px 0;padding:24px;border:1px solid var(--line);border-radius:28px;background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96))}.scheme-board>header{align-items:center;margin-bottom:18px}.scheme-board h3{margin:5px 0 0;font-size:21px}.scheme-board>header>strong{padding:8px 12px;border-radius:14px;background:rgba(155,217,255,.08);color:#9bd9ff;font-size:11px}.scheme-grid{display:grid;grid-template-columns:1.35fr 1fr 1fr;gap:12px}.scheme-grid>article{min-width:0;padding:18px;border-radius:20px;background:rgba(3,9,16,.52)}.scheme-grid>article.auto{background:linear-gradient(135deg,rgba(31,79,113,.28),rgba(3,9,16,.6))}.scheme-title{display:flex;align-items:center;gap:10px}.scheme-title>i{width:9px;height:9px;border-radius:50%;background:#61d8a5;box-shadow:0 0 0 6px rgba(97,216,165,.07)}.scheme-title>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:3px}.scheme-title small,.scheme-grid p,.route-flow small{color:#7890a5;font-size:11px}.scheme-title em{padding:6px 9px;border-radius:12px;background:rgba(155,217,255,.07);color:#9bd9ff;font-size:9px;font-style:normal;font-weight:800}.route-flow{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}.route-flow span{display:flex;align-items:center;gap:6px;padding:7px 9px;border-radius:13px;background:#101f2d;color:#9eb3c5;font-size:10px}.route-flow b{color:#9bd9ff;font-size:14px}.scheme-grid p{margin:14px 0 0;line-height:1.45}.route-meta{display:grid;gap:8px;margin-top:16px}.route-meta span{padding:8px 10px;border-radius:13px;background:#0d1b28;color:#91a9bc;font-size:10px}
-  .console:has(.records) main{height:100vh;overflow:hidden;box-sizing:border-box}.records{max-width:980px;height:calc(100vh - 150px);display:flex;flex-direction:column;overflow:hidden}.record-list{min-height:0;overflow-y:auto;overscroll-behavior:contain;padding-right:8px;scrollbar-width:none}.record-list::-webkit-scrollbar{display:none}.record-list>article{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:15px 4px;border-bottom:1px solid var(--line)}.record-list>article:last-child{border-bottom:0}.records article div{display:flex;flex-direction:column;gap:4px}.records small{color:#70879b}.records article>span{padding:7px 11px;border-radius:14px;background:rgba(255,121,121,.08);color:#ff9c9c;font-size:11px;font-weight:800}.records article>span.ok{background:rgba(97,216,165,.09);color:#78e1b4}.records>.filters{display:flex!important;flex:0 0 auto!important;flex-direction:row!important;align-items:center!important;min-height:44px!important;gap:8px!important;margin:0 0 14px!important;overflow-x:auto;scrollbar-width:none}.records>.filters::-webkit-scrollbar{display:none}.records>.filters button{display:block!important;min-height:40px!important;opacity:1!important;white-space:nowrap;border:0!important;border-radius:20px!important;padding:0 16px!important;background:#101c2a!important;color:#9aafc2!important;font-size:12px!important;font-weight:800!important;cursor:pointer}.records>.filters button.active{background:#9bd9ff!important;color:#08111d!important}
   .state{min-height:55vh;display:grid;place-content:center;justify-items:center;text-align:center;color:#8196a9}.state h2{color:#fff}.loader{width:34px;height:34px;border:3px solid #183047;border-top-color:#9bd9ff;border-radius:50%;animation:spin 1s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
   .login-card{min-height:0;width:min(440px,calc(100% - 48px));margin:12vh auto 0;padding:40px 32px;border:1px solid var(--line);border-radius:30px;background:linear-gradient(145deg,rgba(14,26,41,.98),rgba(8,15,25,.98));box-shadow:0 32px 90px rgba(0,0,0,.35)}.login-card>img{width:48px}.login-card p{max-width:340px;line-height:1.5}.login-card form{width:100%;display:grid;gap:12px;margin-top:14px}.login-card input,.login-card button{box-sizing:border-box;width:100%;min-height:52px;border-radius:18px;font:inherit}.login-card input{border:1px solid var(--line);padding:0 17px;background:#07101b;color:#fff;outline:none}.login-card input:focus{border-color:rgba(155,217,255,.55);box-shadow:0 0 0 4px rgba(155,217,255,.07)}.login-card button{border:0;background:#9bd9ff;color:#07111d;font-weight:800;cursor:pointer}.login-card button:disabled{opacity:.55}.logout{float:right;margin:-54px 118px 0 0;border:0;background:transparent;color:#7890a5;cursor:pointer}
   @media(max-width:900px){.console{grid-template-columns:76px 1fr}aside{padding:20px 10px}.brand span,nav span,.owner span{display:none}.brand{justify-content:center;padding-inline:0}nav button{justify-content:center;padding:0}.owner{justify-content:center;background:transparent}.metrics,.referral-metrics{grid-template-columns:1fr 1fr}.referral-leaders{grid-template-columns:1fr 1fr}.grid,.scheme-grid{grid-template-columns:1fr}main{width:calc(100% - 32px);padding-top:28px}}
   @media(max-width:560px){.console{display:block}aside{position:fixed;z-index:10;top:auto;bottom:12px;left:12px;right:12px;height:64px;flex-direction:row;padding:8px;border:1px solid var(--line);border-radius:24px}.brand,.owner{display:none}nav{display:flex;width:100%;justify-content:space-around}nav button{width:48px;min-height:48px;border-radius:18px}nav button:nth-child(n+5){display:none}main{padding:26px 0 100px}header{align-items:flex-start}.refresh{width:44px;padding:0;justify-content:center;font-size:0}.health>strong{display:none}.metrics{gap:10px}.metrics article{min-height:105px;padding:17px}.metrics strong{font-size:24px}.nodes{grid-template-columns:1fr}.panel{padding:19px;border-radius:24px}}
-  main{box-sizing:border-box;height:100vh;overflow-y:auto;scrollbar-width:none}main::-webkit-scrollbar{display:none}.console:has(.records) main{overflow:hidden}
-  .workspace-section{max-width:1120px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.section-title h2{font-size:30px}.section-title p{margin:7px 0 0;color:#7890a5;font-size:13px}.service-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.service-strip article{display:flex;align-items:center;gap:11px;padding:15px 16px;border:1px solid var(--line);border-radius:20px;background:#0b1623}.service-strip article>i{width:9px;height:9px;border-radius:50%;background:#ff7474;box-shadow:0 0 0 6px rgba(255,116,116,.07)}.service-strip article.ok>i{background:#61d8a5;box-shadow:0 0 0 6px rgba(97,216,165,.07)}.service-strip span{display:flex;min-width:0;flex-direction:column;gap:3px}.service-strip small{overflow:hidden;color:#7890a5;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.network-grid article,.inbound-board,.check-grid article{border:1px solid var(--line);background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96))}.network-grid article{padding:24px;border-radius:28px}.network-grid article>strong{display:block;margin-top:36px;font-size:38px}.network-grid article>small{color:#7890a5}.network-grid article.offline{opacity:.64}.inbound-board{margin-top:16px;padding:22px;border-radius:28px}.inbound-board>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.inbound-board h3{margin:5px 0 0;font-size:20px}.inbound-board>header>strong{padding:8px 12px;border-radius:14px;background:rgba(97,216,165,.08);color:#78e1b4;font-size:11px}.inbound-board>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.inbound-board article{display:grid;grid-template-columns:9px minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 14px;border-radius:18px;background:rgba(3,9,16,.48)}.inbound-board article>i{width:8px;height:8px;border-radius:50%;background:#61d8a5}.inbound-board article>i.off{background:#ff7474}.inbound-board article>span{display:flex;min-width:0;flex-direction:column;gap:3px}.inbound-board article b,.inbound-board article small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbound-board article small{color:#71879a;font-size:10px}.inbound-board article em{color:#9bd9ff;font-size:10px;font-style:normal;font-weight:800}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.check-grid article{display:flex;align-items:center;gap:14px;padding:20px;border-radius:24px}.check-grid article>i{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#172433;color:#8ca1b4;font-style:normal;font-weight:900}.check-grid article.done>i{background:rgba(97,216,165,.12);color:#78e1b4}.check-grid article div{display:flex;flex-direction:column;gap:4px}.check-grid span{color:#7890a5;font-size:12px}@media(max-width:900px){.service-strip{grid-template-columns:1fr 1fr}}@media(max-width:720px){.network-grid,.check-grid,.inbound-board>div{grid-template-columns:1fr}.service-strip{grid-template-columns:1fr 1fr}}
+  main{box-sizing:border-box;height:100vh;overflow-y:auto;scrollbar-width:none}main::-webkit-scrollbar{display:none}
+  .workspace-section{max-width:1120px}.section-title{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px}.section-title h2{font-size:30px}.section-title p{margin:7px 0 0;color:#7890a5;font-size:13px}.service-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:16px}.service-strip article{display:flex;align-items:center;gap:11px;padding:15px 16px;border:1px solid var(--line);border-radius:20px;background:#0b1623}.service-strip article>i{width:9px;height:9px;border-radius:50%;background:#ff7474;box-shadow:0 0 0 6px rgba(255,116,116,.07)}.service-strip article.ok>i{background:#61d8a5;box-shadow:0 0 0 6px rgba(97,216,165,.07)}.service-strip span{display:flex;min-width:0;flex-direction:column;gap:3px}.service-strip small{overflow:hidden;color:#7890a5;font-size:10px;text-overflow:ellipsis;white-space:nowrap}.network-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.network-grid article,.inbound-board,.check-grid article{border:1px solid var(--line);background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96))}.network-grid article{padding:24px;border-radius:28px}.network-grid article>strong{display:block;margin-top:36px;font-size:38px}.network-grid article>small{color:#7890a5}.network-grid article.offline{opacity:.64}.inbound-board{margin-top:16px;padding:22px;border-radius:28px}.inbound-board>header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.inbound-board h3{margin:5px 0 0;font-size:20px}.inbound-board>header>strong{padding:8px 12px;border-radius:14px;background:rgba(97,216,165,.08);color:#78e1b4;font-size:11px}.inbound-board>div{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.inbound-board article{display:grid;grid-template-columns:9px minmax(0,1fr) auto;align-items:center;gap:12px;padding:13px 14px;border-radius:18px;background:rgba(3,9,16,.48)}.inbound-board article>i{width:8px;height:8px;border-radius:50%;background:#61d8a5}.inbound-board article>i.off{background:#ff7474}.inbound-board article>span{display:flex;min-width:0;flex-direction:column;gap:3px}.inbound-board article b,.inbound-board article small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.inbound-board article small{color:#71879a;font-size:10px}.inbound-board article em{color:#9bd9ff;font-size:10px;font-style:normal;font-weight:800}.check-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.check-grid article{display:flex;align-items:center;gap:14px;padding:20px;border-radius:24px}.check-grid article>i{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#172433;color:#8ca1b4;font-style:normal;font-weight:900}.check-grid article div{display:flex;flex-direction:column;gap:4px}.check-grid span{color:#7890a5;font-size:12px}@media(max-width:900px){.service-strip{grid-template-columns:1fr 1fr}}@media(max-width:720px){.network-grid,.check-grid,.inbound-board>div{grid-template-columns:1fr}.service-strip{grid-template-columns:1fr 1fr}}
   .network-grid article>p{margin:9px 0 0;color:#71879a;font-size:11px}.node-name>em{margin-left:auto;padding:6px 9px;border-radius:12px;background:rgba(97,216,165,.09);color:#78e1b4;font-size:9px;font-style:normal;font-weight:900;text-transform:uppercase}.node-name>em.bad{background:rgba(255,116,116,.09);color:#ff9c9c}.node-day{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}.node-day>span{padding:6px 9px;border-radius:11px;background:rgba(155,217,255,.06);color:#8da7bc;font-size:9px;font-weight:800}
   .deep-test{width:100%;min-height:38px;margin-top:14px;border:0;border-radius:15px;background:#14283a;color:#a9dfff;font-weight:800;cursor:pointer}.deep-test:hover{background:#1b354b}.deep-test:disabled{opacity:.55}.diagnostic-result{padding:9px 11px!important;border-radius:12px;background:rgba(255,116,116,.07);color:#ff9c9c!important}.diagnostic-result.good{background:rgba(97,216,165,.07);color:#78e1b4!important}
-  .support-workspace{height:calc(100vh - 150px);display:grid;grid-template-columns:340px minmax(0,1fr);gap:16px}.thread-list,.admin-chat{min-height:0;border:1px solid var(--line);border-radius:28px;background:linear-gradient(145deg,rgba(14,26,41,.96),rgba(8,15,25,.96));overflow:hidden}.thread-list{padding:20px;overflow-y:auto;scrollbar-width:none}.thread-list::-webkit-scrollbar{display:none}.thread-list>.section-title{position:sticky;top:-20px;z-index:2;padding:18px 0 14px;background:#0d1927}.thread-list>.section-title button{border:0;background:transparent;color:#9bd9ff;font-size:20px}.thread-list>button{box-sizing:border-box;width:100%;display:grid;grid-template-columns:42px 1fr auto;align-items:center;gap:12px;padding:12px;border:0;border-radius:20px;background:transparent;color:#eaf4fc;text-align:left}.thread-list>button.active{background:#14283a}.thread-list>button>i{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#1b3852;color:#9bd9ff;font-style:normal;font-weight:900}.thread-list span{min-width:0;display:flex;flex-direction:column;gap:4px}.thread-list small{overflow:hidden;color:#7890a5;text-overflow:ellipsis;white-space:nowrap}.thread-list em{display:grid;place-items:center;min-width:22px;height:22px;border-radius:50%;background:#9bd9ff;color:#07111d;font-size:11px;font-style:normal;font-weight:900}.admin-chat{display:grid;grid-template-rows:auto 1fr auto}.admin-chat header{padding:20px 24px;border-bottom:1px solid var(--line)}.admin-chat header div{display:flex;flex-direction:column}.admin-chat header small{color:#7890a5}.chat-messages{min-height:0;padding:22px;overflow-y:auto;scrollbar-width:none}.chat-messages::-webkit-scrollbar{display:none}.chat-messages article{max-width:72%;display:flex;flex-direction:column;gap:5px;margin:0 auto 12px 0;padding:13px 16px;border-radius:20px 20px 20px 7px;background:#142333}.chat-messages article.admin{margin-left:auto;margin-right:0;border-radius:20px 20px 7px 20px;background:#1c405a}.chat-messages small{color:#7990a4;font-size:10px}.admin-chat form{display:grid;grid-template-columns:1fr auto;gap:10px;padding:16px;border-top:1px solid var(--line)}.admin-chat textarea{min-height:46px;max-height:120px;resize:none;border:0;border-radius:18px;padding:14px;background:#111e2c;color:#fff;font:inherit;outline:0}.admin-chat form button{border:0;border-radius:18px;padding:0 20px;background:#9bd9ff;color:#07111d;font-weight:900}.chat-empty{display:grid;place-content:center;color:#7890a5}@media(max-width:900px){.support-workspace{grid-template-columns:1fr}.thread-list{display:none}}
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.support-workspace{height:min(760px,calc(100vh - 132px));min-height:500px;display:grid;grid-template-columns:minmax(280px,360px) minmax(0,1fr);gap:14px}.thread-list,.admin-chat{min-width:0;min-height:0;border:1px solid var(--line);border-radius:22px;background:#10141c;overflow:hidden}.thread-list{position:static;height:auto;display:grid;grid-template-rows:auto auto auto minmax(0,1fr);padding:18px}.support-list-head{display:flex;align-items:center;justify-content:space-between;gap:12px}.support-list-head h2{display:flex;align-items:center;gap:8px;margin-top:5px}.support-list-head h2 small{display:grid;min-width:22px;height:22px;place-items:center;border-radius:8px;background:rgba(145,214,255,.1);color:#9bd9ff;font-size:11px}.support-icon-button{width:42px;height:42px;border:1px solid rgba(145,214,255,.16);border-radius:13px;background:#151c26;color:#bfe8ff;font-size:20px;cursor:pointer}.support-search{display:block;margin-top:15px}.support-search input{box-sizing:border-box;width:100%;height:44px;border:1px solid rgba(255,255,255,.07);border-radius:13px;padding:0 14px;background:#0b1017;color:#eef7ff;font:inherit;font-size:13px}.support-search input::placeholder{color:#667383}.support-list-status{min-height:28px;display:flex;align-items:center;gap:8px;color:#8799aa;font-size:11px}.support-spinner{display:inline-block;width:15px;height:15px;border:2px solid rgba(145,214,255,.2);border-top-color:#9bd9ff;border-radius:50%;animation:spin .75s linear infinite}.thread-items{min-height:0;margin:0 -6px;padding-right:3px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#253442 transparent}.thread-items>button{box-sizing:border-box;width:100%;display:grid;grid-template-columns:42px minmax(0,1fr) auto;align-items:center;gap:11px;min-height:68px;padding:10px;border:1px solid transparent;border-radius:16px;background:transparent;color:#eaf4fc;text-align:left;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}.thread-items>button:hover{background:#141b25;border-color:rgba(145,214,255,.08);transform:translateY(-1px)}.thread-items>button.active{border-color:rgba(145,214,255,.16);background:linear-gradient(90deg,rgba(145,214,255,.13),rgba(145,214,255,.035))}.thread-items>button>i{display:grid;place-items:center;width:42px;height:42px;border-radius:14px;background:#172b3c;color:#aeddff;font-style:normal;font-weight:900}.thread-items span{min-width:0;display:flex;flex-direction:column;gap:5px}.thread-items b,.thread-items small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.thread-items small{color:#7f91a2;font-size:11px}.thread-items em{display:grid;place-items:center;min-width:22px;height:22px;padding:0 4px;border-radius:8px;background:#9bd9ff;color:#07111d;font-size:10px;font-style:normal;font-weight:900}.admin-chat{display:grid;grid-template-rows:auto minmax(0,1fr) auto}.conversation-head{min-height:70px;align-items:center;margin:0!important;padding:0 22px;border-bottom:1px solid rgba(255,255,255,.06)}.conversation-head>div{display:flex;min-width:0;flex:1;flex-direction:column;gap:4px}.conversation-head b,.conversation-head small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.conversation-head small{color:#77899a;font-size:11px}.conversation-badge{padding:6px 9px;border-radius:9px;background:rgba(97,216,165,.08);color:#78e1b4;font-size:9px;font-weight:800;text-transform:uppercase}.support-back{display:none;border:0;background:transparent;color:#9bd9ff;font:inherit;font-weight:800;cursor:pointer}.chat-messages{min-width:0;min-height:0;padding:22px;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#253442 transparent}.chat-messages article{box-sizing:border-box;width:fit-content;max-width:min(72%,680px);display:flex;flex-direction:column;gap:6px;margin:0 auto 12px 0;padding:12px 15px;border:1px solid rgba(255,255,255,.045);border-radius:17px 17px 17px 5px;background:#151d28;color:#eaf2f9;overflow-wrap:anywhere;line-height:1.5}.chat-messages article.admin{margin-left:auto;margin-right:0;border-color:rgba(145,214,255,.12);border-radius:17px 17px 5px 17px;background:#18354a}.chat-messages small{color:#879aaa;font-size:10px}.reply-box{display:grid!important;grid-template-columns:minmax(0,1fr) auto!important;gap:8px 12px!important;padding:14px 16px!important;border-top:1px solid rgba(255,255,255,.06)!important}.reply-box>label{grid-column:1/-1;color:#aabac8;font-size:11px;font-weight:800}.reply-box textarea{box-sizing:border-box;grid-column:1/-1;width:100%;min-height:72px;max-height:150px;resize:vertical;border:1px solid rgba(255,255,255,.075)!important;border-radius:14px!important;padding:12px 14px!important;background:#0b1118!important;color:#fff;font:inherit;line-height:1.45;outline:0}.reply-meta{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px}.reply-meta small{color:#697c8d;font-size:10px}.reply-meta button{min-width:116px;min-height:42px;border:0;border-radius:12px!important;padding:0 18px!important;background:#9bd9ff;color:#07111d;font-weight:900;cursor:pointer}.reply-status{grid-column:1/-1;min-height:15px;margin:0;color:#78e1b4;font-size:11px}.reply-status.error-text{color:#ffaaaa}.support-state{display:grid;place-content:center;justify-items:center;min-height:170px;padding:24px;text-align:center;color:#8092a3}.support-state b{color:#eaf4fc}.support-state p{max-width:340px;margin:7px 0 13px;font-size:12px;line-height:1.5}.support-state button{min-height:38px;border:1px solid rgba(145,214,255,.16);border-radius:11px;padding:0 14px;background:#172433;color:#bfe8ff;font-weight:800;cursor:pointer}.support-state.error{color:#d59a9a}.support-state.error b{color:#ffb5b5}.support-state .quiet{margin-top:7px;border-color:transparent;background:transparent;color:#8ba1b4}.conversation-state{grid-row:1/-1;min-height:100%}.conversation-empty{min-height:100%}.mobile-list-action{display:none}.support-workspace button:focus-visible,.support-workspace input:focus-visible,.support-workspace textarea:focus-visible,nav button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.support-workspace button:disabled{cursor:not-allowed;opacity:.42;filter:saturate(.45)}
+  @media(max-width:900px){.support-workspace{height:calc(100vh - 126px);min-height:460px;grid-template-columns:1fr}.support-workspace>.thread-list,.support-workspace>.admin-chat{grid-area:1/1}.support-workspace>.admin-chat{display:none}.support-workspace.detail-open>.thread-list{display:none}.support-workspace.detail-open>.admin-chat{display:grid}.support-back{display:flex;align-items:center;gap:7px}.conversation-head{padding:0 16px}.conversation-badge{display:none}.mobile-list-action{display:block}}
+  @media(max-width:560px){nav{justify-content:space-between}nav button{display:none!important}nav button:nth-child(1),nav button:nth-child(2),nav button:nth-child(4),nav button:nth-child(8),nav button:nth-child(11){display:flex!important}.support-workspace{height:calc(100dvh - 180px);min-height:420px;gap:0}.thread-list,.admin-chat{border-radius:18px}.thread-list{padding:14px}.support-list-head h2{font-size:19px}.chat-messages{padding:15px}.chat-messages article{max-width:88%}.reply-box{padding:12px!important}.reply-meta{align-items:flex-end}.reply-meta small{max-width:50%}.reply-meta button{min-width:108px}.conversation-head{min-height:62px;gap:12px}.support-back span{display:none}}
   /* Arc Operations 2.0 — dense, calm and operational rather than decorative. */
   :global(body.admin-console-open){background:#07090d}
   .console{grid-template-columns:286px minmax(0,1fr);background:radial-gradient(900px 600px at 78% -15%,rgba(81,155,205,.12),transparent 58%),#07090d}
@@ -238,4 +365,7 @@
   .console{grid-template-columns:272px minmax(0,1fr)}
   .brand{background:transparent;border-bottom:1px solid rgba(255,255,255,.055);border-radius:0}.brand img{width:38px}.brand span{font-size:20px}
   main{width:min(1560px,calc(100% - 64px));padding-top:26px}main>header{margin-bottom:22px;padding-bottom:18px}h1{font-size:32px;letter-spacing:-.035em}.live-tools{gap:10px}
+  :global(body.admin-console-open #app){max-width:none}
+  @media(max-width:1100px){.console{grid-template-columns:82px minmax(0,1fr)}main{width:calc(100% - 32px)}}
+  @media(max-width:560px){.console{display:block}.console>aside>nav{height:48px;margin-top:0;overflow:visible}}
 </style>

@@ -140,9 +140,82 @@ const MOCK = {
       { id: 1, sender: 'admin', body: 'Здравствуйте! Опишите вопрос — ответ придёт сюда и уведомлением в Telegram.', created_at: '2026-07-29 13:00:00' },
     ],
   },
+  adminSupportThreads: [
+    { id: 31, telegram_id: 318471122, first_name: 'Алексей', username: 'alex_k', status: 'open', unread: 2, last_message: 'На ноутбуке перестал открываться профиль, а телефон работает.', updated_at: '2026-08-24 16:42:00' },
+    { id: 28, telegram_id: 774215009, first_name: 'Марина', username: 'marina_vpn', status: 'open', unread: 0, last_message: 'Спасибо, после повторного импорта всё подключилось.', updated_at: '2026-08-24 15:18:00' },
+    { id: 19, telegram_id: 990120044, first_name: '', username: 'north_wind', status: 'open', unread: 1, last_message: 'Подскажите, как добавить второе устройство?', updated_at: '2026-08-23 21:06:00' },
+  ],
+  adminSupportMessages: {
+    31: [
+      { id: 311, sender: 'user', body: 'Здравствуйте. На ноутбуке перестал открываться профиль, а телефон работает.', created_at: '2026-08-24 16:37:00' },
+      { id: 312, sender: 'admin', body: 'Добрый день! Уточните, пожалуйста, операционную систему и версию Happ.', created_at: '2026-08-24 16:39:00' },
+      { id: 313, sender: 'user', body: 'Windows 11, Happ 2.5.1. Повторный импорт пока не делал.', created_at: '2026-08-24 16:42:00' },
+    ],
+    28: [
+      { id: 281, sender: 'user', body: 'После обновления не подключался телефон.', created_at: '2026-08-24 14:52:00' },
+      { id: 282, sender: 'admin', body: 'Удалите старый профиль и импортируйте подписку ещё раз из ArcVPN.', created_at: '2026-08-24 15:03:00' },
+      { id: 283, sender: 'user', body: 'Спасибо, после повторного импорта всё подключилось.', created_at: '2026-08-24 15:18:00' },
+    ],
+    19: [],
+  },
 }
 
 const mock = (key) => new Promise((r) => setTimeout(() => r(MOCK[key]), 250))
+const devSupportState = () => typeof window === 'undefined'
+  ? ''
+  : new URLSearchParams(window.location.search).get('support-state') || ''
+const mockSupportError = (reason) => {
+  const error = new Error(reason)
+  error.code = 503
+  error.reason = reason
+  return error
+}
+
+const mockAdminSupportThreads = () => new Promise((resolve, reject) => setTimeout(() => {
+  if (devSupportState() === 'list-error') {
+    reject(mockSupportError('support_threads_unavailable'))
+    return
+  }
+  resolve({
+    ok: true,
+    threads: devSupportState() === 'empty' ? [] : MOCK.adminSupportThreads.map((thread) => ({ ...thread })),
+  })
+}, 420))
+
+const mockAdminSupportThread = (threadId) => new Promise((resolve, reject) => setTimeout(() => {
+  if (devSupportState() === 'detail-error') {
+    reject(mockSupportError('support_detail_unavailable'))
+    return
+  }
+  const thread = MOCK.adminSupportThreads.find((item) => item.id === Number(threadId))
+  if (!thread) {
+    const error = new Error('support_thread_not_found')
+    error.code = 404
+    reject(error)
+    return
+  }
+  thread.unread = 0
+  resolve({ ok: true, thread: { ...thread }, messages: (MOCK.adminSupportMessages[thread.id] || []).map((message) => ({ ...message })) })
+}, 320))
+
+const mockAdminSupportReply = (threadId, body) => new Promise((resolve, reject) => setTimeout(() => {
+  if (devSupportState() === 'send-error') {
+    reject(mockSupportError('support_reply_unavailable'))
+    return
+  }
+  const thread = MOCK.adminSupportThreads.find((item) => item.id === Number(threadId))
+  if (!thread) {
+    const error = new Error('support_thread_not_found')
+    error.code = 404
+    reject(error)
+    return
+  }
+  const message = { id: Date.now(), sender: 'admin', body, created_at: new Date().toISOString() }
+  MOCK.adminSupportMessages[thread.id] = [...(MOCK.adminSupportMessages[thread.id] || []), message]
+  thread.last_message = body
+  thread.updated_at = message.created_at
+  resolve({ ok: true, message: { ...message } })
+}, 500))
 
 export const fetchStatus = () => (import.meta.env.DEV ? mock('status') : get('/api/status'))
 export const fetchAdminOverview = () => (import.meta.env.DEV
@@ -154,6 +227,7 @@ export const fetchAdminOverview = () => (import.meta.env.DEV
       conversion: { conversion_rate: 28.4, trial_users: 972, converted: 276 },
       activity: { online_now: 93, d3: 508, week: 617, month: 705 },
       operations: { open_support_threads: 7, pending_payments: 14 },
+      recurring: { provider_ready: false, active: 0 },
       local_panel: { healthy: true, inbounds: 8, detail: 'ok' },
       servers: [
         { id: 10, name: 'Германия', is_active: 1, active_clients: 402, clients_count: 510 },
@@ -169,9 +243,15 @@ export const preflightAdminNode = (payload) => post('/api/admin/nodes/preflight'
 export const fetchAdminBackups = () => get('/api/admin/backups')
 export const createAdminBackup = () => post('/api/admin/backups')
 export const fetchAdminAudit = (limit = 100) => get(`/api/admin/audit?limit=${encodeURIComponent(limit)}`)
-export const fetchAdminSupportThreads = () => get('/api/admin/support/threads')
-export const fetchAdminSupportThread = (threadId) => get(`/api/admin/support/threads/${threadId}`)
-export const sendAdminSupportReply = (threadId, body) => post(`/api/admin/support/threads/${threadId}`, { body })
+export const fetchAdminSupportThreads = () => (import.meta.env.DEV
+  ? mockAdminSupportThreads()
+  : get('/api/admin/support/threads'))
+export const fetchAdminSupportThread = (threadId) => (import.meta.env.DEV
+  ? mockAdminSupportThread(threadId)
+  : get(`/api/admin/support/threads/${threadId}`))
+export const sendAdminSupportReply = (threadId, body) => (import.meta.env.DEV
+  ? mockAdminSupportReply(threadId, body)
+  : post(`/api/admin/support/threads/${threadId}`, { body }))
 export const fetchAdminCatalog = () => get('/api/admin/subscription-catalog')
 export const saveAdminCatalog = (profiles) => mutate('/api/admin/subscription-catalog', 'PATCH', { profiles })
 export const fetchAdminExpenses = () => get('/api/admin/expenses')
