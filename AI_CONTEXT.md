@@ -1610,3 +1610,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - The first static Connection Units diagram was replaced with the MIT-licensed Svelte Flow
   renderer compatible with Svelte 4. It supports node dragging, pan/zoom, minimap and stable edge
   routing; production mutations remain intentionally separate from the visual draft.
+- On 2026-08-24 the owner dropped the Canada rollout; do not spend further work or expose its
+  disabled Hosts unless this decision is explicitly reversed. WARP is approved only as a measured,
+  domain-scoped egress canary (for example TikTok/AI access), never as the default route.
+- The Connection Units editor now follows the functional model observed in the owner-supplied
+  Axottle page: palette-created draft blocks, editable connections, reset, dirty/blocked states and
+  an inline topology linter. Applying a draft to Remnawave remains gated until versioning, rollback
+  and post-deploy verification are implemented.
