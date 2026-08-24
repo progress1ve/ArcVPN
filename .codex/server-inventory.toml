@@ -27,12 +27,3 @@ host = "193.233.82.42"
 ssh_user = "root"
 credential_alias = "nl-dhost"
 status = "active"
-
-[[servers]]
-alias = "fi-legacy"
-role = "vpn-node"
-location = "Finland"
-host = "195.226.92.37"
-ssh_user = "root"
-credential_alias = "fi-legacy"
-status = "retirement-candidate"

@@ -1,23 +1,34 @@
 # ArcVPN
 
-Telegram бот для управления VPN подписками.
+ArcVPN is a Telegram sales bot, a Remnawave-backed subscription API, and an operator console for managing users, payments, nodes, support, and service health. Existing public subscription URLs and user UUIDs are compatibility contracts.
 
-## Subscription система
-
-Для работы subscription системы нужно запустить `subscription_api.py`:
+## Local setup
 
 ```bash
-# Установить Flask
-pip3 install flask
-
-# Запустить API
-nohup python3 subscription_api.py > subscription.log 2>&1 &
-
-# Проверить
-curl http://localhost:8080/health
+python -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+python -m pytest
 ```
 
-Пользователи получают subscription URL через кнопку "🔗 Subscription ссылка" в боте.
+On Windows activate with `.venv\Scripts\Activate.ps1`. The Svelte admin WebApp is built separately:
+
+```bash
+cd webapp
+npm ci
+npm run build
+```
+
+Copy `.env.example` to an untracked `.env` and fill it from the owner credential source. Never put production secrets in documentation, commits, screenshots, or command output.
+
+## Production
+
+Production runs from `/root/ArcVPN` using `arcvpn-bot.service` and `arcvpn-subscription.service`. Units tracked under `deploy/systemd/` are the canonical install sources. A runtime change is complete only after local checks, commit, push, production `git pull --ff-only`, the affected service restart, and public verification.
+
+```bash
+sudo systemctl restart arcvpn-bot.service arcvpn-subscription.service
+curl --fail http://127.0.0.1:8080/health
+```
 
 ## Структура
 
@@ -25,7 +36,6 @@ curl http://localhost:8080/health
 - `webapp/` — пользовательский WebApp.
 - `subscription_api.py` — публичная выдача подписок.
 - `scripts/maintenance/` — ручные операции обслуживания.
-- `scripts/legacy/3xui/` — архивные инструменты старого 3x-ui контура.
 - `deploy/systemd/` и `monitoring/` — production units и мониторинг.
 - `docs/roadmaps/` — актуальные планы; `docs/archive/` — исторические документы.
 - `.codex/` — актуальный handoff, контракты и non-secret inventory для рабочих агентов.

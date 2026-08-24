@@ -1635,3 +1635,6 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   `scripts/maintenance` or `scripts/legacy/3xui`. The root is reserved for real runtime entrypoints
   and project configuration. `$arcvpn-node-ops`, `.codex/server-inventory.toml`, and the DPAPI vault
   convention are the authority for future node/CDN access and provisioning; secrets stay outside Git.
+- 2026-08-24: Finland is retired from ArcVPN public delivery. Its two catalog overrides are disabled in the production database and `subscription_api.py` applies a final deny filter for Finland labels, domains, and the legacy address. Do not reintroduce Finland through Remnawave synchronization, legacy 3x-ui rows, UI inventory, or fallback generation.
+- 2026-08-24: Active server passwords are stored only in the local Windows DPAPI vault under `.secrets/server-credentials/` with aliases `pl-control`, `de-dhost`, and `nl-dhost`; values must never enter Git, documentation, summaries, or command output. Non-secret topology is `.codex/server-inventory.toml`; use `$arcvpn-node-ops` and host-key verification.
+- 2026-08-24: New Reality client profiles must not default to the Chrome fingerprint on affected Happ/mobile routes. The verified compatibility choices are Firefox or Edge; consult `.codex/references/node-config-contract.md` before provisioning or changing node profiles.

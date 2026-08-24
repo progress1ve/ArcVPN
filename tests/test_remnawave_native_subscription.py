@@ -25,15 +25,13 @@ def test_netherlands_profiles_sort_before_lte_and_accept_flag_prefix():
     assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
 
 
-def test_customer_catalog_order_is_netherlands_germany_finland_then_lte():
+def test_customer_catalog_order_is_netherlands_germany_then_lte():
     links = [
         "vless://id@host#Обход%20глушилок%20(LTE)",
-        "vless://id@host#Финляндия%20%232",
         "vless://id@host#Германия%20%231",
         "vless://id@host#Нидерланды%20%232",
         "vless://id@host#Нидерланды%20%231",
         "vless://id@host#Германия%20%232",
-        "vless://id@host#Финляндия%20%231",
     ]
 
     names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in sorted(links, key=api._subscription_link_order)]
@@ -41,7 +39,6 @@ def test_customer_catalog_order_is_netherlands_germany_finland_then_lte():
     assert names == [
         "Нидерланды #1", "Нидерланды #2",
         "Германия #1", "Германия #2",
-        "Финляндия #1", "Финляндия #2",
         "Обход глушилок (LTE)",
     ]
 
@@ -67,13 +64,28 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
     assert result[0].split("#", 1)[0] == result[1].split("#", 1)[0]
 
 
+def test_catalog_never_publishes_retired_finland(monkeypatch):
+    monkeypatch.setattr(api, "_catalog_overrides", lambda: {})
+    links = [
+        "vless://id@fin.arccnet.space:443#Финляндия%20%231",
+        "vless://id@195.226.92.37:443#Legacy",
+        "vless://id@cdn-fi.arccnet.space:443#LTE",
+        "vless://id@de.arccnet.space:443#Германия%20%231",
+    ]
+
+    result = api._apply_subscription_catalog(links)
+
+    assert len(result) == 1
+    assert "de.arccnet.space" in result[0]
+
+
 def test_canada_replaces_france_and_keeps_transport_labels():
     assert api._subscription_source_name("🇨🇦 Канада #1") == "Канада #1"
     assert api._subscription_source_name("🇫🇷 Франция #1") == "Канада #1"
     assert api._profile_country_flag("Канада #2") == "🇨🇦"
     assert api._subscription_protocol_label("Канада #1") == "VLESS · TCP · Reality"
     assert api._subscription_protocol_label("Канада #2") == "Hysteria2 · QUIC · TLS"
-    assert api._subscription_inbound_order("Канада #1") < api._subscription_inbound_order("Финляндия #1")
+    assert api._subscription_inbound_order("Канада #1") < api._subscription_inbound_order("Обход глушилок #4")
     legacy = "vless://id@example.com:443?security=reality#%F0%9F%87%AB%F0%9F%87%B7%20%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F%20%231"
     assert urllib.parse.unquote(api._normalize_customer_profile_label(legacy).rsplit("#", 1)[-1]) == "🇨🇦 Канада #1"
 
@@ -159,11 +171,11 @@ def test_native_links_keep_arcvpn_happ_wrapper(monkeypatch):
     assert "example.com" in prepared.body
 
 
-def test_native_lte_link_gets_happ_fingerprint_and_padding():
+def test_native_dhost_lte_link_gets_happ_fingerprint_and_padding():
     link = (
-        "vless://11111111-1111-4111-8111-111111111111@cdn-fi.arccnet.space:443"
-        "?encryption=none&type=xhttp&path=%2Fapi-test&host=cdn-fi.arccnet.space"
-        "&mode=packet-up&security=tls&sni=cdn-fi.arccnet.space&fp=chrome#LTE"
+        "vless://11111111-1111-4111-8111-111111111111@cdn-de.arccnet.space:443"
+        "?encryption=none&type=xhttp&path=%2Fapi-test&host=cdn-de.arccnet.space"
+        "&mode=packet-up&security=tls&sni=cdn-de.arccnet.space&fp=chrome#LTE"
     )
 
     normalized = api._normalize_native_share_link(link)
@@ -178,7 +190,7 @@ def test_native_lte_link_gets_happ_fingerprint_and_padding():
 
 
 @pytest.mark.parametrize("host", ["cdn-de.arccnet.space", "cdn-nd.arccnet.space"])
-def test_dhost_lte_links_match_finland_options_transport(host):
+def test_dhost_lte_links_use_options_transport(host):
     link = (
         f"vless://11111111-1111-4111-8111-111111111111@{host}:443"
         f"?encryption=none&type=xhttp&path=%2Fapi-test&host={host}"

@@ -1,51 +1,38 @@
-# Unignore specific files
-!README.MD
-!.gitignore
-
-# Explicitly ignore these (redundant due to * but good for clarity/overrides if I change * later)
+# Local runtime state and credentials
 config.py
+.env
+.env.*
+!.env.example
+.secrets/
 logs/
 .arcshots/
 .codex-worktrees/
 *.log
 __diag.py
 results.md
-!AGENTS.md
-.agents/*
-!.agents/skills/
-.agents/skills/*
-!.agents/skills/arcvpn-stage/
-!.agents/skills/arcvpn-stage/**
-!.agents/skills/arcvpn-frontend-qa/
-!.agents/skills/arcvpn-frontend-qa/**
-!.agents/skills/arcvpn-closeout/
-!.agents/skills/arcvpn-closeout/**
-!.agents/skills/arcvpn-node-ops/
-!.agents/skills/arcvpn-node-ops/**
 .codex/stages/*.local.md
 **/__pycache__/
-.vscode
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.vscode/
+.idea/
 
 # База данных (создаётся автоматически при запуске)
 database/vpn_bot.db
 
 # Локальные бэкапы (создаются автоматически планировщиком)
 backup/
+database/backups/
 
 # Virtual Environment
+.venv/
 venv/
 env/
-.venv/
-.env/
-env*/
-venv*/
-.env
-.secrets/
 
-debug-vpn-slow-speed.md
-ARCHITECTURE_NEXT_CHAT_BRIEF.md
+# Transient agent notes; durable context remains tracked.
 WORKING_NOTES.md
-AI_CONTEXT.md
 
 # One-shot local diagnostics may contain temporary infrastructure credentials.
 .*_tmp.py

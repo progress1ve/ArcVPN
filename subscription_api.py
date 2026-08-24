@@ -197,20 +197,6 @@ REMNAWAVE_PUBLIC_NODES = (
         "hy2_number": 2,
     },
     {
-        "enabled": bool(getattr(config, "REMNAWAVE_FINLAND_ENABLED", False)),
-        "country": "FI",
-        "flag": "🇫🇮",
-        "label": "Финляндия",
-        "host": "fin.arccnet.space",
-        "reality_sni": "fin.arccnet.space",
-        "tcp_port": 22201,
-        "hy2_port": 22202,
-        "public_key": "q0fq0bbIj61zgT2ybYQKqv5UxA1Y0d6uzc53R2CL-Ds",
-        "short_id": "41fb55d5b8ebefda",
-        "tcp_number": 1,
-        "hy2_number": 2,
-    },
-    {
         "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)),
         "country": "DE",
         "flag": "🇩🇪",
@@ -239,7 +225,6 @@ REMNAWAVE_PUBLIC_NODES = (
     },
 )
 REMNAWAVE_LTE_ENABLED = bool(getattr(config, "REMNAWAVE_LTE_ENABLED", False))
-REMNAWAVE_LTE_HOST = "cdn-fi.arccnet.space"
 REMNAWAVE_LTE_GERMANY_HOST = "cdn.arccnet.space"
 REMNAWAVE_LTE_DHOST_HOSTS = {"cdn-de.arccnet.space", "cdn-nd.arccnet.space"}
 LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a"
@@ -254,16 +239,11 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Германия #2⚡",
     "Канада #1",
     "Канада #2 ⚡",
-    "Финляндия #1",
-    "Финляндия #2⚡",
     "Обход глушилок (LTE, трафик ×10) #1",
     "Обход глушилок (LTE, трафик ×10) #2",
     "Обход глушилок #4",
     "Обход глушилок #5",
 ])
-_SUBSCRIPTION_INBOUND_ORDER_INDEX = {
-    name: index for index, name in enumerate(SUBSCRIPTION_INBOUND_ORDER)
-}
 _CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
 
 
@@ -288,6 +268,14 @@ def _subscription_source_name(name: str) -> str:
     return re.sub(r"\s+", " ", normalized).strip()
 
 
+# Store the same canonical form used at lookup time. In particular the source
+# normalizer strips optional lightning suffixes from Hysteria names.
+_SUBSCRIPTION_INBOUND_ORDER_INDEX = {
+    _subscription_source_name(name): index
+    for index, name in enumerate(SUBSCRIPTION_INBOUND_ORDER)
+}
+
+
 def _profile_country_flag(name: str) -> str:
     value = str(name or "")
     if re.search(r"Обход глушилок\s*#\s*4\b", value):
@@ -295,7 +283,7 @@ def _profile_country_flag(name: str) -> str:
     if re.search(r"Обход глушилок\s*#\s*5\b", value):
         return "🇩🇪"
     for marker, flag in (
-        ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"), ("Финляндия", "🇫🇮"),
+        ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
         ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
@@ -375,6 +363,15 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
             continue
         raw_name = urllib.parse.unquote(link.rsplit("#", 1)[-1])
         source_name = _subscription_source_name(raw_name)
+        normalized_link = urllib.parse.unquote(link).lower()
+        if (
+            "финляндия" in source_name.lower()
+            or "finland" in source_name.lower()
+            or "fin.arccnet.space" in normalized_link
+            or "cdn-fi.arccnet.space" in normalized_link
+            or "195.226.92.37" in normalized_link
+        ):
+            continue
         override = overrides.get(source_name)
         if override and not bool(override["enabled"]):
             continue
@@ -398,8 +395,6 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
         country_order = 10
     elif "Германия" in name:
         country_order = 20
-    elif "Финляндия" in name:
-        country_order = 30
     elif "Канада" in name or "Франция" in name:
         country_order = 40
     elif "Польша" in name:
@@ -423,7 +418,6 @@ def _normalize_customer_profile_label(link: str) -> str:
     countries = (
         ("Нидерланды", "🇳🇱"),
         ("Германия", "🇩🇪"),
-        ("Финляндия", "🇫🇮"),
         ("Канада", "🇨🇦"),
     )
     for country, flag in countries:
@@ -488,7 +482,6 @@ HAPP_LOWEST_DELAY_AUTOCONNECT = bool(
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
-    "195.226.92.37": {"provider": "rdp-onedash.ru", "location": "Финляндия", "monthly_cost_rub": 365, "capacity_mbps": 10000},
     "159.200.230.224": {"provider": "Dataforest reseller trial", "location": "Германия", "monthly_cost_rub": 0, "capacity_mbps": 1000},
     # The advertised 10 Gbit/s uplink is shared; use a conservative planning
     # capacity until sustained production telemetry proves otherwise.
@@ -1822,15 +1815,15 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 network = str(stream.get("network") or "").lower()
                 protocol = str(config.get("protocol") or "").lower()
 
-                # Stop publishing legacy 3x-ui rows after the corresponding
-                # country has passed its Remnawave canary. The Finnish LTE
-                # origin remains legacy until its isolated x10 migration.
+                # Stop publishing retired Finland and legacy 3x-ui rows after
+                # the corresponding country has passed its Remnawave canary.
                 is_lte = "Обход глушилок" in display_name
+                if "Финляндия" in display_name:
+                    continue
                 if is_lte and REMNAWAVE_LTE_ENABLED:
                     continue
                 if not is_lte and (
-                    ("Финляндия" in display_name and "FI" in migrated_countries)
-                    or ("Германия" in display_name and "DE" in migrated_countries)
+                    "Германия" in display_name and "DE" in migrated_countries
                 ):
                     continue
 
@@ -1845,14 +1838,6 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         continue
                     display_name = "🇩🇪 Германия"
 
-                # Customer-facing names are deliberately protocol-agnostic.
-                elif "Финляндия" in display_name:
-                    if network == "xhttp":
-                        display_name = "🇫🇮 Финляндия #1"
-                    elif network in {"tcp", "raw"}:
-                        display_name = "🇫🇮 Финляндия #2"
-                    elif protocol in {"hysteria", "hysteria2"} or network == "hysteria":
-                        display_name = "🇫🇮 Финляндия #3"
                 display_name = _subscription_display_name(display_name)
             link_payload["server_name"] = display_name
             link_payload["remark"] = display_name
@@ -2002,25 +1987,6 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                         f"hysteria2://{credential}@{node['host']}:{node['hy2_port']}?"
                         f"{hy2_query}#{hy2_name}"
                     )
-
-            if REMNAWAVE_LTE_ENABLED:
-                lte_extra = json.dumps({
-                    "uplinkHTTPMethod": "OPTIONS", "scMaxEachPostBytes": 5000000,
-                    "scMinPostsIntervalMs": 10, "scMaxBufferedPosts": 50,
-                    "xPaddingObfsMode": True, "xPaddingKey": "dc",
-                    "xPaddingBytes": "100-1000", "xPaddingHeader": "X-Cache",
-                    "xPaddingMethod": "tokenish", "xPaddingPlacement": "queryInHeader",
-                }, separators=(",", ":"))
-                for lte_number, lte_host in enumerate((REMNAWAVE_LTE_HOST,), start=1):
-                    lte_query = urllib.parse.urlencode({
-                        "type": "xhttp", "encryption": "none", "path": "/api-test",
-                        "host": lte_host, "mode": "packet-up", "x_padding_bytes": "100-1000",
-                        "security": "tls", "sni": lte_host, "alpn": "h2,http/1.1",
-                        "extra": lte_extra,
-                    })
-                    lte_label = "🇷🇺 " + LTE_NAME_MARKER + " (" + "\u0442\u0440\u0430\u0444\u0438\u043a \u00d710, LTE)"
-                    lte_name = urllib.parse.quote(f"{lte_label} #{lte_number}", safe="")
-                    links.append(f"vless://{credential}@{lte_host}:443?{lte_query}#{lte_name}")
 
         # Compatibility block for the first France canary. It stays disabled
         # after the production France profile has moved into
@@ -2184,7 +2150,6 @@ def _normalize_native_share_link(link: str) -> str:
 
     host = (parsed.hostname or "").lower()
     if params.get("type", [""])[0] == "xhttp" and host in {
-        REMNAWAVE_LTE_HOST.lower(),
         REMNAWAVE_LTE_GERMANY_HOST.lower(),
         *(value.lower() for value in REMNAWAVE_LTE_DHOST_HOSTS),
     }:
@@ -4478,12 +4443,6 @@ def api_admin_overview():
             })
     except Exception:
         logger.exception("Не удалось получить телеметрию 3x-ui nodes")
-    if not any(str(node.get("host")) == "195.226.92.37" for node in server_stats):
-        server_stats.append({"id": "fi-external", "name": "Финляндия", "host": "195.226.92.37", "is_active": 0,
-                             "clients_count": None, "active_clients": None, "total_traffic_gb": 0,
-                             "managed_externally": True, "telemetry_available": False,
-                             **NODE_INVENTORY["195.226.92.37"]})
-
     # Prefer fresh independent agent data for host resources. Panel telemetry
     # remains the source for clients/inbounds and a fallback if an agent is stale.
     try:

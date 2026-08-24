@@ -11,7 +11,7 @@ The repository root is reserved for runtime entrypoints and project-level config
 | `deploy/` | production asset | Installable systemd/deployment material. |
 | `docs/` | documentation | Roadmaps, operations, design references, and explicitly marked archive. |
 | `monitoring/` | production asset | Fleet health and telemetry units/scripts. |
-| `scripts/` | operations/source | Maintained automation, maintenance, legacy tools, and secret-vault helper. |
+| `scripts/` | operations/source | Maintained automation, maintenance, deployment helpers, and the secret-vault helper. |
 | `tests/` | source | Automated verification. |
 | `webapp/` | source | User WebApp. |
 | `webapp_dist/` | production asset | Tracked deployable WebApp build output. |
@@ -23,10 +23,10 @@ The repository root is reserved for runtime entrypoints and project-level config
 | `main.py` | runtime entrypoint | Bot service entrypoint. |
 | `NEXT_CHAT_HANDOFF.md` | compatibility pointer | Redirects old workflows to `.codex/handoff.md`. |
 | `README.md` | documentation | Human entrypoint. |
-| `skills-lock.json` | configuration | Skill dependency lock. |
+| `requirements.txt` | configuration | Reproducible production Python dependency set. |
+| `requirements-dev.txt` | configuration | Local test dependencies layered over production. |
 | `subscription_api.py` | runtime entrypoint | Public subscription/API service. |
 | `subscription_pages.py` | source | Imported by subscription API. |
-| `xui_health_guard.py` | runtime entrypoint | Legacy guard still referenced by its systemd unit. |
 
 Local-only retained paths are `.secrets/` (encrypted credentials), `config.py` (deployment configuration), `.codex-worktrees/`, and editor/tool state. They must remain ignored.
 
@@ -34,5 +34,7 @@ Local-only retained paths are `.secrets/` (encrypted credentials), `config.py` (
 
 - Deleted as obsolete: unused root device SVGs, a report screenshot, `subscription_api.py.backup`, stale chat/support notes, 75 one-off `.agents/*.py` diagnostics/mutators, old video reference, and extracted video dependencies.
 - Deleted as generated: root `__pycache__`, empty logs, and Vite logs.
-- Moved as documentation: roadmaps to `docs/roadmaps/`; old 3x-ui plans/problems to `docs/archive/`; UI references to `docs/design-previews/`.
-- Moved as operations: systemd units to `deploy/systemd/`, maintenance scripts to `scripts/maintenance/`, and old 3x-ui tools to `scripts/legacy/3xui/`.
+- Moved as documentation: roadmaps to `docs/roadmaps/`, operations to `docs/operations/`, research to `docs/research/`, and old 3x-ui plans/problems to `docs/archive/`. Obsolete design screenshots were removed.
+- Removed as retired operations: inactive x-ui guard/staging units, duplicate generic bot unit, staging probe, and old 3x-ui mutation tools. Git history remains the rollback source.
+- Moved as operations: canonical systemd units to `deploy/systemd/` and supported manual scripts to `scripts/maintenance/`.
+- Retained locally: `config.py` and the DPAPI credential vault are ignored runtime inputs; `.venv/`, caches, and editor state are generated and ignored.
