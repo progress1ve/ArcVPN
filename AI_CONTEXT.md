@@ -1624,3 +1624,8 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   typed custom blocks with visible input/output handles, one aggregate main pool and an isolated
   CDN fallback branch. Scheme selection is bounded, the minimap is compact, and individual nodes
   no longer create crossing edge noise; dragging, connections and validation remain available.
+- Axottle's public installer/release does not ship source: v1.6.1 installs an obfuscated unified
+  binary with an embedded frontend plus PostgreSQL/Redis/Remnawave infrastructure. Do not run it
+  on ArcVPN production to look for UI sources. ArcVPN's editor instead renders scheme-specific
+  paths for ordinary auto-selection, guarded CDN fallback and direct-CDN profiles; selecting a
+  block exposes its current route metadata.
