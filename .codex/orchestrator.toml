@@ -1,0 +1,29 @@
+version = 1
+
+[truth]
+handoff = ".codex/handoff.md"
+project_index = ".codex/project-index.md"
+durable_history = "AI_CONTEXT.md"
+current_stage = ".codex/stages/current.md"
+
+[routing]
+simple = "isolated, reversible, low-risk"
+medium_complex = "cross-component, production, migration, security, or visual acceptance"
+visible_subagents_require_user_authorization = true
+
+[medium_complex]
+require_acceptance_before_implementation = true
+require_component_map = true
+require_risk_and_rollback = true
+require_stage_artifact = true
+
+[frontend]
+require_browser_inspection = true
+require_before_after_evidence = true
+viewports = ["mobile", "tablet", "desktop", "wide"]
+completion_is_not_acceptance = true
+
+[production]
+steps = ["local_check", "staged_diff", "commit", "push", "pull_ff_only", "restart_affected", "public_verify"]
+bot_service = "arcvpn-bot.service"
+subscription_service = "arcvpn-subscription.service"

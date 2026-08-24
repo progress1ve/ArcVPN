@@ -12,8 +12,17 @@ __diag.py
 tests/
 docs/
 results.md
-AGENTS.md
-.agents/
+!AGENTS.md
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/arcvpn-stage/
+!.agents/skills/arcvpn-stage/**
+!.agents/skills/arcvpn-frontend-qa/
+!.agents/skills/arcvpn-frontend-qa/**
+!.agents/skills/arcvpn-closeout/
+!.agents/skills/arcvpn-closeout/**
+.codex/stages/*.local.md
 **/__pycache__/
 .vscode
 
