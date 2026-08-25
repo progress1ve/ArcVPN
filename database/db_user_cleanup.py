@@ -20,8 +20,7 @@ def cleanup_candidates(conn: sqlite3.Connection, *, created_before: str, exclude
         f"""
         SELECT u.id, u.telegram_id, u.username, u.created_at, u.used_trial
         FROM users u
-        WHERE COALESCE(u.is_active, 1) = 0
-          AND u.created_at < ?
+        WHERE u.created_at < ?
           {excluded_clause}
           AND NOT EXISTS (
               SELECT 1 FROM payments p WHERE p.user_id = u.id
