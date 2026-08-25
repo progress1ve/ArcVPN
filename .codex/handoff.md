@@ -6,11 +6,25 @@ Updated: 2026-08-24. This file is current state, not a diary.
 
 - Production/control plane: Poland `217.60.33.38`.
 - Remnawave owns active subscription delivery; preserve existing URLs and UUIDs.
-- Main DHost nodes: Germany and Netherlands. LTE profiles are separate, traffic multiplier 10.
+- Main DHost nodes: Germany and Netherlands. Product LTE allowance is now modeled
+  independently (0/45/115 GB per 30-day cycle); do not restore the old customer
+  `x10` model.
 - Canada was dropped. Vyrex canary was cancelled. Finland was retired from public delivery on 2026-08-24 and must not be reintroduced implicitly.
 
 ## Current product state
 
+- Growth/billing/LTE runtime is deployed through `f6b3156`: Economy, Standard and
+  Family have 1/3/6/12-month products; trials are durable Standard entitlements;
+  campaign attribution, configurable bonuses, promo activation, independent LTE,
+  two-step bot purchase UI, and the WebApp family/period flow are implemented.
+- Production schema is v56. Thirteen active keys were migrated to Standard without
+  changing UUIDs/public subscription URLs. The explicitly authorized inactive
+  never-paid cleanup deleted 135 users after dry-run and separate backups; both
+  post-operation previews returned zero.
+- Subscription assembly is hybrid by design: Remnawave is the authoritative
+  share-link source while ArcVPN remains the stable URL/device/announce/Happ
+  compatibility gateway. Legacy generation is an observable fallback and must
+  remain until production source metrics demonstrate a zero-fallback soak.
 - Whole-admin operations redesign is deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; production evidence is recorded in `.codex/stages/current.md` and its docs follow-up `b0458b95b8bde59deae4fd093afff5d54f07605f`.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
@@ -22,7 +36,13 @@ Updated: 2026-08-24. This file is current state, not a diary.
 
 ## Next recommended stage
 
-Close the three remaining acceptance gates in `.codex/stages/current.md`. Use a user-authorized non-sensitive Support reply and a designated already-disabled test identity only; verify persistence/delivery and authoritative Remnawave `DISABLED` state without changing the UUID or subscription URL. Complete a real keyboard-only pass across navigation, Support, and representative forms. Then use `$arcvpn-closeout`; do not repeat the completed whole-panel audit.
+Obtain a fresh owner-authenticated browser session and complete the production
+four-viewport Growth/purchase pass plus real keyboard activation. Exercise one
+safe trial/payment/promo/campaign path, reconcile LTE against Remnawave usage, and
+observe native-vs-fallback subscription source metrics through a soak before
+retiring fallback. Retain the earlier Support reply and designated Remnawave
+disable gates. Then use `$arcvpn-closeout`; do not claim the stage complete while
+any of these evidence gates remains open.
 
 ## Starting a new chat
 

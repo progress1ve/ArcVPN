@@ -278,5 +278,30 @@ subscription URLs, UUIDs, or active access.
   browser automation (focus remained on the selected navigation control); semantic
   buttons/inputs and `:focus-visible` rules are present, but this acceptance item
   remains open for production keyboard verification.
+- Runtime commit `91ba74a` and production-schema hotfix `f6b3156` were pushed and
+  fast-forwarded on Poland. The pre-existing production dirty/untracked files and
+  the local owner change `webapp_dist/assets/payments/sbp.svg` were preserved.
+- A pre-deploy copy of `database/vpn_bot.db` and separate operation-level SQLite
+  backups were created under production `backups/release-*` with restricted modes.
+- Automatic bot startup had not yet reached its migration hook after restart;
+  the checked-in idempotent migration runner was invoked explicitly. Production
+  then reported schema v56, 12 active products across 3 families, both services
+  active, and subscription health `OK`.
+- Production dry-runs found 13 active non-Standard keys and 135 inactive,
+  never-paid, non-admin users with no current key. The cleanup dry-run exposed a
+  production-schema mismatch before mutation; hotfix `f6b3156` removed the
+  nonexistent `users.is_active` dependency and its production-shaped regression
+  suite passed (`35 passed`).
+- After exact confirmation and backup, 13 active keys were migrated to Standard
+  without UUID or URL replacement and 135 explicitly authorized cleanup records
+  were deleted. Repeated dry-runs returned `active_keys=0` and
+  `eligible_users=0`.
+- Public `https://panel.arccnet.space/app` returned HTTP 200 and references the
+  deployed `index-DBrs44gk.js` and `index-C2adVayo.css`; public/local health was
+  `OK`. The browser's previous one-time owner verification is expired, so a new
+  authenticated production four-viewport visual/keyboard pass remains open.
+- The native Remnawave source is deployed behind the stable ArcVPN gateway, but
+  legacy fallback retirement remains gated on production source metrics and a
+  zero-fallback soak. This is not yet a direct public-URL cutover.
 
 ---
