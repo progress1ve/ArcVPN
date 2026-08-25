@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dict | None:
+async def provision_trial_for_user(user: dict) -> dict | None:
     """
     Ядро активации пробной подписки: создаёт ключи на всех активных серверах.
 
@@ -33,8 +33,9 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
         создать ни одного ключа.
     """
     from database.requests import (
-        mark_trial_used, create_vpn_key_admin,
-        get_trial_days, get_trial_traffic_gb, get_active_servers,
+        create_vpn_key_admin, get_trial_days, get_trial_traffic_gb,
+        get_active_servers, get_standard_trial_tariff, acquire_trial_entitlement,
+        activate_trial_entitlement, fail_trial_entitlement,
     )
     from bot.services.vpn_api import get_client_from_server_data, VPNAPIError
 
@@ -43,9 +44,31 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
     trial_days = get_trial_days()
     trial_traffic_gb = get_trial_traffic_gb()
 
+    tariff = get_standard_trial_tariff()
+    if not tariff:
+        logger.error('provision_trial_for_user: активный тариф Standard не настроен')
+        return None
+
+    entitlement = acquire_trial_entitlement(internal_user_id, tariff['id'])
+    if entitlement['status'] == 'active':
+        key_id = entitlement.get('vpn_key_id')
+        return {
+            'created_keys': ([{'key_id': key_id, 'server_name': 'ArcVPN'}] if key_id else []),
+            'failed_servers': [],
+            'first_key_id': key_id,
+            'order_id': None,
+            'trial_days': trial_days,
+            'trial_traffic_gb': trial_traffic_gb,
+            'already_active': True,
+        }
+    if not entitlement.get('acquired'):
+        logger.info('provision_trial_for_user: trial уже создаётся для user_id=%s', internal_user_id)
+        return None
+
     servers = get_active_servers()
     if not servers:
         logger.warning('provision_trial_for_user: нет активных серверов')
+        fail_trial_entitlement(internal_user_id, 'no active servers')
         return None
 
     traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
@@ -70,7 +93,7 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
             key_id = create_vpn_key_admin(
                 user_id=internal_user_id,
                 server_id=server['id'],
-                tariff_id=None,  # None = пробный ключ
+                tariff_id=tariff['id'],
                 panel_inbound_id=result['primary_inbound_id'],
                 panel_email=email,
                 client_uuid=result['uuid'],
@@ -88,14 +111,16 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
             failed_servers.append(f"{server['name']} (ошибка)")
 
     if not created_keys:
+        fail_trial_entitlement(internal_user_id, '; '.join(failed_servers) or 'all servers failed')
         return None
 
     first_key_id = created_keys[0]['key_id']
     # Trial — бесплатная выдача доступа, а не покупка или платёж на 0 ₽.
     order_id = None
 
-    if mark_used:
-        mark_trial_used(internal_user_id)
+    if not activate_trial_entitlement(internal_user_id, first_key_id):
+        logger.error('Триал создан, но entitlement не активирован для user_id=%s', internal_user_id)
+        return None
 
     # Реферальный бонус рефереру за запуск приглашённого друга (+N дн., раз на друга).
     try:
@@ -117,7 +142,7 @@ async def provision_trial_for_user(user: dict, *, mark_used: bool = True) -> dic
 @router.callback_query(F.data == 'trial_subscription')
 async def show_trial_subscription(callback: CallbackQuery):
     """Показывает страницу пробной подписки."""
-    from database.requests import is_trial_enabled, get_trial_tariff_id, has_used_trial, get_setting
+    from database.requests import is_trial_enabled, get_standard_trial_tariff, has_used_trial, get_setting
     from bot.keyboards.user import trial_sub_kb
     from bot.keyboards.admin import home_only_kb
     user_id = callback.from_user.id
@@ -128,9 +153,9 @@ async def show_trial_subscription(callback: CallbackQuery):
         logger.warning(f'Пробная подписка отключена для пользователя {user_id}')
         await callback.answer('❌ Пробная подписка недоступна', show_alert=True)
         return
-    if get_trial_tariff_id() is None:
-        logger.warning(f'Тариф не настроен для пробной подписки (пользователь {user_id})')
-        await callback.answer('❌ Тариф не настроен', show_alert=True)
+    if get_standard_trial_tariff() is None:
+        logger.warning(f'Тариф Standard не настроен для пробной подписки (пользователь {user_id})')
+        await callback.answer('❌ Тариф Standard не настроен', show_alert=True)
         return
 
     trial_used = has_used_trial(user_id)

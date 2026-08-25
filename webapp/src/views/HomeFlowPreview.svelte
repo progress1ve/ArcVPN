@@ -77,6 +77,7 @@
   let purchaseOpen = false
   let planStrip
   let selectedPlanId = null
+  let selectedProduct = 'standard'
   let purchaseDevices = 2
   let purchaseLteGb = 20
   let paymentBusy = false
@@ -93,9 +94,6 @@
   let recurring = { enabled: false, method: null, provider_ready: false }
   let recurringBusy = false
   let recurringConfirm = false
-  const extraDeviceMonthlyRub = 25
-  const includedLteGb = 20
-  const extraLteGbMonthlyRub = Math.max(0, Number(import.meta.env.VITE_EXTRA_LTE_GB_MONTHLY_RUB || 2))
   const stableDeviceToken = deviceToken()
 
   Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices(), fetchRecurringPayment()]).then(([accountResult, preferenceResult, deviceResult, recurringResult]) => {
@@ -105,8 +103,6 @@
       registeredDevices = deviceResult.value.devices || []
       deviceOnlineTotal = Number(deviceResult.value.online_total || 0)
       deviceLimit = Math.max(2, Number(deviceResult.value.device_limit || 2))
-      purchaseDevices = Math.max(2, Number(deviceResult.value.device_limit || 2))
-      purchaseLteGb = Math.max(20, Number(deviceResult.value.lte_quota_gb || 20))
     }
     if (recurringResult.status === 'fulfilled') recurring = recurringResult.value
     accountLoading = false
@@ -117,15 +113,16 @@
   $: primary = activeKeys[0] ?? keys[0] ?? null
   $: links = $status.data?.links ?? {}
   $: plans = $tariffs.data?.tariffs ?? []
-  $: preferredPlan = plans.length >= 3 ? plans[1] : plans[0]
+  $: productPlans = plans.filter((plan) => (plan.product_code || 'standard') === selectedProduct)
+  $: preferredPlan = productPlans.find((plan) => Number(plan.period_months) === 3) || productPlans[0] || plans[0]
   $: if (!selectedPlanId && plans.length) selectedPlanId = preferredPlan?.id || plans[0].id
   $: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) || preferredPlan || null
-  $: purchaseMonths = Math.max(1, Math.round(Number(selectedPlan?.duration_days || 30) / 30))
+  $: purchaseMonths = Math.max(1, Number(selectedPlan?.period_months) || Math.round(Number(selectedPlan?.duration_days || 30) / 30))
   $: purchaseBaseRub = Number(selectedPlan?.price_rub || 0)
-  $: purchaseTrafficGb = Math.max(500, Number(selectedPlan?.traffic_limit_gb || 500))
-  $: purchaseDeviceRub = Math.max(0, purchaseDevices - 2) * extraDeviceMonthlyRub * purchaseMonths
-  $: purchaseLteRub = 0 // Enabled together with the verified weighted LTE meter.
-  $: purchaseTotalRub = purchaseBaseRub + purchaseDeviceRub + purchaseLteRub
+  $: purchaseTrafficGb = Number(selectedPlan?.traffic_limit_gb || 0)
+  $: purchaseDevices = Number(selectedPlan?.device_limit || 2)
+  $: purchaseLteGb = Number(selectedPlan?.lte_quota_gb || 0)
+  $: purchaseTotalRub = purchaseBaseRub
   $: purchaseMonthlyRub = Math.round(purchaseTotalRub / purchaseMonths)
   $: supportTimeline = supportMessages.map((message, index) => {
     const day = chatDayKey(message.created_at)
@@ -137,6 +134,9 @@
     ? Math.max(0, Number(primary.traffic_limit) - Number(primary.traffic_used || 0))
     : 0
   $: trafficValue = primary?.traffic_limit ? formatBytes(trafficRemaining) : '∞'
+  $: lteQuotaBytes = Number(primary?.lte_quota_gb || account?.lte_quota_gb || 0) * 1024 ** 3
+  $: lteUsedBytes = Number(primary?.lte_used_bytes || account?.lte_used_bytes || 0)
+  $: lteValue = lteQuotaBytes ? formatBytes(Math.max(0, lteQuotaBytes - lteUsedBytes)) : '—'
   $: ref = $referral.data ?? {}
   $: referralBonus = Number(ref.purchase_bonus_days || 15)
   $: referralEntryBonus = Number(ref.trial_bonus_days || 5)
@@ -334,9 +334,7 @@
         ? 'СБП временно недоступна. Попробуйте через минуту.'
         : error.reason === 'recurring_method_not_enabled'
           ? 'ЮKassa ещё подключает автопродление для выбранного способа. Выберите оплату картой или отключите автопродление.'
-        : error.reason === 'lte_addons_not_available'
-          ? 'Покупка дополнительного LTE-трафика появится после запуска точного счётчика.'
-          : 'Не удалось создать платёж. Попробуйте ещё раз.'
+        : 'Не удалось создать платёж. Попробуйте ещё раз.'
     } finally { paymentBusy = false }
   }
 
@@ -522,6 +520,14 @@
     openTelegram(`${botUrl}?start=buy_${selectedPlan?.id || ''}`)
   }
 
+  function closePaymentBackdrop(event) {
+    if (event.target === event.currentTarget) paymentMethodOpen = false
+  }
+
+  function paymentBackdropKey(event) {
+    if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') paymentMethodOpen = false
+  }
+
   function openPurchase() {
     haptic('medium')
     purchaseOpen = true
@@ -540,12 +546,20 @@
     selectedPlanId = id
   }
 
+  function chooseProduct(code) {
+    const period = Number(selectedPlan?.period_months || purchaseMonths || 1)
+    selectedProduct = code
+    const match = plans.find((plan) => plan.product_code === code && Number(plan.period_months) === period)
+      || plans.find((plan) => plan.product_code === code)
+    if (match) choosePlan(match.id)
+  }
+
   function movePlan(direction) {
-    if (!plans.length) return
-    const currentIndex = Math.max(0, plans.findIndex((plan) => plan.id === selectedPlanId))
-    const nextIndex = Math.min(plans.length - 1, Math.max(0, currentIndex + direction))
+    if (!productPlans.length) return
+    const currentIndex = Math.max(0, productPlans.findIndex((plan) => plan.id === selectedPlanId))
+    const nextIndex = Math.min(productPlans.length - 1, Math.max(0, currentIndex + direction))
     if (nextIndex === currentIndex) return
-    choosePlan(plans[nextIndex].id)
+    choosePlan(productPlans[nextIndex].id)
     requestAnimationFrame(() => {
       planStrip?.querySelector(`[data-plan-index="${nextIndex}"]`)?.scrollIntoView({
         behavior: 'smooth',
@@ -555,19 +569,9 @@
     })
   }
 
-  function changePurchaseDevices(delta) {
-    purchaseDevices = Math.min(10, Math.max(2, purchaseDevices + delta))
-    selectionHaptic()
-  }
-
-  function changeLteTraffic(delta) {
-    purchaseLteGb = Math.min(500, Math.max(includedLteGb, purchaseLteGb + delta * 5))
-    selectionHaptic()
-  }
-
   function planMonthly(plan) {
-    const months = Math.max(1, Math.round(Number(plan?.duration_days || 30) / 30))
-    return Math.round(Number(plan?.price_rub || 0) / months)
+    const months = Math.max(1, Number(plan?.period_months) || Math.round(Number(plan?.duration_days || 30) / 30))
+    return Math.floor(Number(plan?.price_rub || 0) / months)
   }
 
   function planBadge(plan) {
@@ -578,7 +582,7 @@
   }
 
   function planPeriod(plan) {
-    const months = Math.max(1, Math.round(Number(plan?.duration_days || 30) / 30))
+    const months = Math.max(1, Number(plan?.period_months) || Math.round(Number(plan?.duration_days || 30) / 30))
     return `${months} ${months === 1 ? 'месяц' : months >= 2 && months <= 4 ? 'месяца' : 'месяцев'}`
   }
 
@@ -675,6 +679,16 @@
     startPaymentPolling()
   }
 
+  function productTitle(code) {
+    return ({ economy: 'Эконом', standard: 'Стандарт', family: 'Семейный' })[code] || 'Стандарт'
+  }
+
+  function productDescription(plan) {
+    if (plan?.product_code === 'economy') return '⚡ Скорость до 100 Мбит/с · 📦 500 ГБ · 📱 2 устройства'
+    if (plan?.product_code === 'family') return '🔥 Максимальный безлимит · 👑 Premium-линия · 📱 До 10 устройств'
+    return '🚀 VIP-серверы · 📦 1024 ГБ (1 ТБ) · 📱 3 устройства'
+  }
+
   onMount(() => {
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
@@ -730,9 +744,9 @@
 
           {#if plans.length}
             <div class="plan-viewport">
-              <button class="plan-arrow previous" aria-label="Предыдущий тариф" disabled={plans.findIndex((plan) => plan.id === selectedPlanId) <= 0} on:click={() => movePlan(-1)}><ArcIcon name="back" size={22} weight="bold" /></button>
+              <button class="plan-arrow previous" aria-label="Предыдущий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) <= 0} on:click={() => movePlan(-1)}><ArcIcon name="back" size={22} weight="bold" /></button>
               <div class="plan-strip" bind:this={planStrip} aria-label="Выбор тарифа">
-                {#each plans as plan, planIndex}
+                {#each productPlans as plan, planIndex}
                   <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
                     <span>{planPeriod(plan)}</span>
                     {#if planBadge(plan)}<em>{planBadge(plan)}</em>{/if}
@@ -742,34 +756,26 @@
                   </button>
                 {/each}
               </div>
-              <button class="plan-arrow next" aria-label="Следующий тариф" disabled={plans.findIndex((plan) => plan.id === selectedPlanId) >= plans.length - 1} on:click={() => movePlan(1)}><ArcIcon name="arrow" size={22} weight="bold" /></button>
+              <button class="plan-arrow next" aria-label="Следующий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) >= productPlans.length - 1} on:click={() => movePlan(1)}><ArcIcon name="arrow" size={22} weight="bold" /></button>
             </div>
           {:else}
             <p class="purchase-empty">Тарифы загружаются…</p>
           {/if}
 
-          <section class="purchase-config">
-            <div class="config-copy"><span>Устройства</span><h2>Сколько устройств подключить?</h2><p>Включено 2 устройства.<br />Дополнительные устройства: +25₽ / месяц каждое</p></div>
-            <div class="stepper" aria-label="Количество устройств">
-              <button aria-label="Уменьшить количество устройств" disabled={purchaseDevices <= 2} on:click={() => changePurchaseDevices(-1)}>−</button>
-              <strong>{purchaseDevices}</strong>
-              <button aria-label="Увеличить количество устройств" disabled={purchaseDevices >= 10} on:click={() => changePurchaseDevices(1)}>+</button>
-            </div>
+          <section class="purchase-config plan-summary" aria-live="polite">
+            <div class="config-copy"><span>{productTitle(selectedProduct)}</span><h2>{productTitle(selectedProduct)}</h2><p>{productDescription(selectedPlan)}</p></div>
           </section>
 
-          <section class="purchase-config traffic-config">
-            <div class="config-copy"><span>Трафик</span><h2>Дополнительный трафик</h2><p>{purchaseTrafficGb} ГБ уже включено. Дополнительные пакеты появятся здесь после запуска биллинга трафика.</p></div>
-            <div class="stepper wide" aria-label="Дополнительный трафик">
-              <button aria-label="Уменьшить дополнительный трафик" disabled>−</button>
-              <strong>0<small>ГБ</small></strong>
-              <button aria-label="Увеличить дополнительный трафик" disabled>+</button>
-            </div>
-          </section>
+          <nav class="product-switch" aria-label="Выбор тарифа">
+            {#each [['economy','Эконом'],['standard','Стандарт'],['family','Семейный']] as product}
+              <button class:active={selectedProduct===product[0]} aria-pressed={selectedProduct===product[0]} on:click={()=>chooseProduct(product[0])}>{product[1]}</button>
+            {/each}
+          </nav>
 
           <section class="purchase-total">
             <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
-            <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} устройства</span><small>{purchaseDeviceRub ? `+${rub(purchaseDeviceRub)}` : 'включено'}</small></div>
-            <div class="total-row"><span><ArcIcon name="lte" size={19} />Трафик {purchaseTrafficGb} ГБ</span><small>включено</small></div>
+            <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} {purchaseDevices === 3 ? 'устройства' : 'устройств'}</span><small>включено</small></div>
+            <div class="total-row"><span><ArcIcon name="lte" size={19} />{purchaseTrafficGb ? `${purchaseTrafficGb} ГБ` : 'Безлимит'} · LTE {purchaseLteGb} ГБ</span><small>включено</small></div>
             {#if paymentState !== 'idle'}
               <div class="payment-state" class:success={paymentState === 'success'} class:canceled={paymentState === 'canceled'} class:review={paymentState === 'review'} role="status" aria-live="polite">
                 <span class="payment-state-icon">
@@ -794,8 +800,8 @@
           </section>
 
           {#if paymentMethodOpen}
-            <div class="payment-method-backdrop" role="presentation" on:click={() => paymentMethodOpen = false} transition:fade={{duration:140}}>
-              <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" on:click|stopPropagation transition:fly={{y:28,duration:220,easing:cubicOut}}>
+            <div class="payment-method-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор способа оплаты" on:click={closePaymentBackdrop} on:keydown={paymentBackdropKey} transition:fade={{duration:140}}>
+              <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" transition:fly={{y:28,duration:220,easing:cubicOut}}>
                 <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
                 <div class="payment-options">
                   <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{#if selectedPaymentMethod==='sbp'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button>
@@ -849,7 +855,7 @@
             </button>
             <button class="stat">
               <ArcIcon name="signal" size={18} weight="duotone" />
-              <span><b>∞</b><small>LTE</small></span>
+              <span><b>{lteValue}</b><small>LTE осталось</small></span>
             </button>
           </div>
 
@@ -1486,15 +1492,10 @@
   .plan-card i { position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 8px; color: #07131f; background: #91d7fb; }
   .purchase-empty { margin-top: 28px; padding: 24px; border-radius: 22px; color: var(--muted); background: var(--surface); text-align: center; }
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
+  .plan-summary{grid-template-columns:1fr}.plan-summary p{max-width:620px}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
   .config-copy > span { color: #7bc8f2; font-size: 8.5px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
   .config-copy h2 { max-width: 235px; margin: 7px 0 0; font-size: 16px; line-height: 1.25; letter-spacing: -.025em; }
   .config-copy p { max-width: 235px; margin: 10px 0 0; color: var(--muted); font-size: 9.5px; line-height: 1.5; }
-  .stepper { display: grid; grid-template-columns: 38px 38px 38px; align-items: center; padding: 4px; border-radius: 16px; background: #101b29; }
-  .stepper button { width: 38px; height: 38px; border-radius: 11px; color: #93d9fc; background: #172638; font-size: 20px; font-weight: 500; }
-  .stepper button:disabled { color: #506073; background: transparent; opacity: .65; }
-  .stepper strong { text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
-  .stepper.wide { grid-template-columns: 38px 56px 38px; }
-  .stepper strong small { margin-left: 2px; color: var(--muted); font-size: 8px; }
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }
   .total-row { display: flex; align-items: center; justify-content: space-between; min-height: 34px; color: #d8e3ed; }
   .total-row span { display: flex; align-items: center; gap: 9px; font-size: 10.5px; font-weight: 700; }
@@ -1529,8 +1530,6 @@
     .stat { padding-inline: 6px; }
     .referral-hero, .support-hero { padding-inline: 19px; }
     .purchase-config { grid-template-columns: 1fr; }
-    .stepper { justify-self: stretch; grid-template-columns: 44px 1fr 44px; }
-    .stepper.wide { grid-template-columns: 44px 1fr 44px; }
   }
   @media (min-width: 900px) {
     .flow-preview {

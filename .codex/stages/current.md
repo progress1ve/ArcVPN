@@ -183,3 +183,100 @@ The public Axottle documentation is used only to compare operator outcomes and s
 ## Next step
 
 The implementation and deploy are accepted except for three explicitly destructive/manual gates: a real keyboard-only activation pass, one authorized production Support reply with persistence/delivery evidence, and a designated safe disabled Remnawave test identity for live revoke confirmation. Do not mark the stage complete until those gates are confirmed or explicitly waived.
+# Current stage — growth, billing, LTE, and Remnawave-native cutover
+
+Started: 2026-08-25. Status: in progress.
+
+## Goal
+
+Prepare ArcVPN for paid acquisition: reliable Standard trial, Economy/Standard/
+Family products, real independent LTE quota, campaign attribution, web promo
+management, and Remnawave-native subscription authority without changing public
+subscription URLs, UUIDs, or active access.
+
+## Non-goals
+
+- No copying Axottle source or proprietary implementation.
+- No unverified protocol/node topology changes.
+- No direct client migration to new public subscription URLs.
+- No deletion outside the explicitly authorized inactive never-paid user class.
+
+## Component map
+
+- Product/DB: `database/`, tariff, trial, payment, promo, campaign migrations.
+- Bot: onboarding/trial and two-step tariff/payment UI.
+- Web/API: `subscription_api.py`, `webapp/`, `webapp_dist/`.
+- Subscription plane: native Remnawave fetch, thin ArcVPN compatibility gateway,
+  legacy fallback telemetry and later retirement.
+- Production: Poland control plane; Germany/Netherlands RemnaNode delivery.
+
+## Acceptance
+
+- Trial is idempotent, uses Standard entitlements, and partial failure is retryable.
+- Economy/Standard/Family prices and 1/3/6/12-month periods have one source of truth.
+- LTE is a real 0/45/115 GB quota resetting every 30 days; no `x10` customer model.
+- WebApp contains no add-traffic purchase and shows real remaining LTE.
+- Campaign links have immutable first-touch attribution, named comparison metrics,
+  and configurable entry/payment bonuses.
+- Promo usage is consumed only after successful idempotent fulfillment.
+- Remnawave supplies all share links; ArcVPN only preserves stable URL, device
+  controls, metadata/catalog, announce, and Happ rendering. Fallback is measured.
+- Existing active users retain URL/UUID/access; migration preview and rollback exist.
+- A destructive never-paid cleanup requires backup, dry-run counts and relational
+  integrity verification before an explicitly scoped production apply.
+- Touched UI passes mobile/tablet/laptop/desktop composition, no horizontal
+  overflow, keyboard navigation, focus/hover/disabled/loading/error/empty states,
+  accessibility checks, and before/after screenshots.
+- Local tests/build pass; exact staged diff is reviewed; commit/push/pull/restart
+  and public/browser verification are recorded.
+
+## Risks and rollback
+
+- Entitlement migration can revoke access: snapshot rows and Remnawave state,
+  update without UUID/subscription changes, recheck every affected identity.
+- LTE counters can reset upstream: store monotonic checkpoints and never subtract
+  negative deltas; keep enforcement disabled until shadow reconciliation passes.
+- Trial retries can duplicate access: deterministic operation key and transaction.
+- Hard deletion is irreversible: encrypted backup plus dry-run manifest; rollback
+  restores the DB before services resume.
+- Native subscription outage: short cache and observable legacy fallback until a
+  zero-fallback soak allows removal.
+
+## Verification matrix
+
+| Area | Local | Production/public evidence |
+|---|---|---|
+| DB/trial/tariffs | migration + unit/integration tests | aggregate preview, test identity |
+| LTE | counter/reset tests, shadow fixtures | Remnawave usage reconciliation |
+| Bot/payments | handler and fulfillment tests | authorized test purchase/trial |
+| Web/admin | typecheck, tests, build | four viewport browser screenshots |
+| Subscription | native/fallback contract tests | stable URL, UUID and real client fetch |
+| Capacity | load-test scripts | CPU/RAM/latency/error baseline |
+
+## Evidence log
+
+- Pre-change worktree: only pre-existing owner change
+  `webapp_dist/assets/payments/sbp.svg`; it is excluded from this stage.
+- Baseline architecture: native Remnawave links are fetched by
+  `_native_remnawave_links`, then rendered by the ArcVPN gateway; legacy generation
+  remains a fallback.
+- Implemented migrations v54-v56: durable Standard trial, product/LTE model,
+  first-touch campaigns and promo activation state.
+- Combined local verification: `84 passed`; modified Python modules compile.
+- `webapp` production build completed with 87 modules and no Svelte accessibility
+  or unused-CSS warnings.
+- Local browser acceptance used authenticated DEV mocks. Growth and purchase flows
+  have no horizontal overflow at 1440x900, 1180x760, 820x1180 and 390x844.
+  Browser screenshots were emitted for desktop Growth, mobile Growth (top/bottom),
+  and mobile tariff purchase. Mobile internal scroll reaches all campaign cards.
+- Browser integration caught and fixed a late-device-response bug that had shown
+  Standard as 2 devices / 0 LTE; recheck shows 3 devices / 45 GB LTE and correct
+  Economy/Family switching. Monthly display now follows the approved floor values.
+- Local browser console has no ArcVPN errors; warnings come only from Telegram's
+  SDK reporting unsupported color/swipe methods in its DEV version 6.0 shim.
+- Real keyboard Tab focus movement could not be demonstrated through the in-app
+  browser automation (focus remained on the selected navigation control); semantic
+  buttons/inputs and `:focus-visible` rules are present, but this acceptance item
+  remains open for production keyboard verification.
+
+---

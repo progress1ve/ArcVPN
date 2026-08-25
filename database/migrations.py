@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 53
+LATEST_VERSION = 56
 
 
 def get_current_version() -> int:
@@ -2118,6 +2118,130 @@ def migration_53(conn: sqlite3.Connection) -> None:
     logger.info("Migration v53 applied")
 
 
+def migration_54(conn: sqlite3.Connection) -> None:
+    """Durable, idempotent lifecycle for one Standard trial per user."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS trial_entitlements (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            tariff_id INTEGER NOT NULL REFERENCES tariffs(id),
+            status TEXT NOT NULL DEFAULT 'provisioning'
+                CHECK(status IN ('provisioning','active','failed')),
+            vpn_key_id INTEGER REFERENCES vpn_keys(id) ON DELETE SET NULL,
+            attempt_count INTEGER NOT NULL DEFAULT 1,
+            last_error TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            activated_at DATETIME
+        );
+        CREATE INDEX IF NOT EXISTS idx_trial_entitlements_status
+            ON trial_entitlements(status, updated_at);
+    """)
+    logger.info("Migration v54 applied")
+
+
+def migration_55(conn: sqlite3.Connection) -> None:
+    """Product families and independent renewable LTE allowances.
+
+    Existing tariff rows and references are retained. Legacy commercial rows
+    are hidden from new sales, never rewritten or deleted.
+    """
+    _add_column(conn, "tariffs", "product_code TEXT")
+    _add_column(conn, "tariffs", "period_months INTEGER")
+    _add_column(conn, "tariffs", "device_limit INTEGER")
+    _add_column(conn, "tariffs", "lte_quota_gb INTEGER")
+    _add_column(conn, "tariffs", "lte_cycle_days INTEGER NOT NULL DEFAULT 30")
+    _add_column(conn, "users", "lte_cycle_started_at DATETIME")
+    _add_column(conn, "users", "lte_cycle_reset_at DATETIME")
+    conn.execute("""CREATE UNIQUE INDEX IF NOT EXISTS idx_tariffs_product_period
+        ON tariffs(product_code, period_months)
+        WHERE product_code IS NOT NULL AND period_months IS NOT NULL""")
+
+    regular = conn.execute("""SELECT group_id FROM tariffs
+        WHERE name != 'Admin Tariff' AND COALESCE(group_id, 0) > 0
+        ORDER BY is_active DESC, display_order, id LIMIT 1""").fetchone()
+    group_id = int(regular["group_id"] or 1) if regular else 1
+    products = (
+        ("economy", "Эконом", 500, 0, 2, (93, 259, 499, 931)),
+        ("standard", "Стандарт", 1024, 45, 3, (145, 399, 759, 1469)),
+        ("family", "Семейный", 0, 115, 10, (345, 939, 1789, 3389)),
+    )
+    periods = ((1, 30), (3, 90), (6, 180), (12, 365))
+    for product_order, (code, title, traffic_gb, lte_gb, devices, prices) in enumerate(products, 1):
+        for period_order, ((months, days), price_rub) in enumerate(zip(periods, prices), 1):
+            existing = conn.execute(
+                "SELECT id FROM tariffs WHERE product_code=? AND period_months=?",
+                (code, months),
+            ).fetchone()
+            values = (
+                f"{title} · {months} мес.", days, price_rub,
+                product_order * 100 + period_order * 10, traffic_gb, group_id,
+                code, months, devices, lte_gb,
+            )
+            if existing:
+                conn.execute("""UPDATE tariffs SET
+                    name=?, duration_days=?, price_rub=?, display_order=?,
+                    traffic_limit_gb=?, group_id=?, product_code=?, period_months=?,
+                    device_limit=?, lte_quota_gb=?, lte_cycle_days=30, is_active=1
+                    WHERE id=?""", values + (existing["id"],))
+            else:
+                conn.execute("""INSERT INTO tariffs (
+                    name, duration_days, price_cents, price_stars, price_rub,
+                    external_id, display_order, is_active, traffic_limit_gb,
+                    group_id, product_code, period_months, device_limit,
+                    lte_quota_gb, lte_cycle_days
+                ) VALUES (?, ?, 0, 0, ?, NULL, ?, 1, ?, ?, ?, ?, ?, ?, 30)""", values)
+
+    conn.execute("""UPDATE tariffs SET is_active = 0
+        WHERE name != 'Admin Tariff' AND product_code IS NULL""")
+    conn.execute("""UPDATE users SET
+        lte_cycle_started_at=COALESCE(lte_cycle_started_at, CURRENT_TIMESTAMP),
+        lte_cycle_reset_at=COALESCE(lte_cycle_reset_at, datetime('now', '+30 days'))
+        WHERE COALESCE(lte_quota_gb, 0) > 0""")
+    logger.info("Migration v55 applied")
+
+
+def migration_56(conn: sqlite3.Connection) -> None:
+    """First-touch advertising attribution and disable-safe promo management."""
+    _add_column(conn, "promocodes", "is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1))")
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS ad_campaigns (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            code TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            is_active INTEGER NOT NULL DEFAULT 1 CHECK(is_active IN (0,1)),
+            entry_bonus_days INTEGER NOT NULL DEFAULT 0 CHECK(entry_bonus_days BETWEEN 0 AND 365),
+            payment_bonus_days INTEGER NOT NULL DEFAULT 0 CHECK(payment_bonus_days BETWEEN 0 AND 365),
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS user_campaign_attribution (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            campaign_id INTEGER NOT NULL REFERENCES ad_campaigns(id) ON DELETE RESTRICT,
+            attributed_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_campaign_attribution_campaign
+            ON user_campaign_attribution(campaign_id, attributed_at);
+        CREATE INDEX IF NOT EXISTS idx_campaign_attribution_date
+            ON user_campaign_attribution(attributed_at);
+        CREATE TABLE IF NOT EXISTS campaign_bonus_grants (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            campaign_id INTEGER NOT NULL REFERENCES ad_campaigns(id) ON DELETE RESTRICT,
+            kind TEXT NOT NULL CHECK(kind IN ('entry','payment')),
+            days INTEGER NOT NULL CHECK(days BETWEEN 1 AND 365),
+            status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','applied','failed')),
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            applied_at DATETIME,
+            PRIMARY KEY(user_id,kind)
+        );
+        CREATE INDEX IF NOT EXISTS idx_campaign_bonus_status
+            ON campaign_bonus_grants(status,updated_at);
+    """)
+    logger.info("Migration v56 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2172,6 +2296,9 @@ MIGRATIONS = {
     51: migration_51,
     52: migration_52,
     53: migration_53,
+    54: migration_54,
+    55: migration_55,
+    56: migration_56,
 }
 
 

@@ -536,8 +536,12 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
     if operation_type == 'topup':
         return await _apply_topup_order(order_id, order)
     if operation_type in {'renew', 'upgrade'}:
-        return await _apply_renew_order(order_id, order)
-    return await _apply_new_subscription_order(order_id, order)
+        result = await _apply_renew_order(order_id, order)
+    else:
+        result = await _apply_new_subscription_order(order_id, order)
+    if result[0] and result[2] and result[2].get('fulfillment_status') == 'applied':
+        await process_campaign_bonus(order['user_id'], 'payment')
+    return result
 
 
 async def process_payment_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
@@ -1010,6 +1014,23 @@ async def grant_bonus_days(user_internal_id: int, days: int) -> bool:
         logger.error("grant_bonus_days: ключ %s не запушен на панель: %s", primary['id'], e)
     logger.info("Бонус +%s дн. применён к ключу %s (user %s)", days, primary['id'], user_internal_id)
     return True
+
+
+async def process_campaign_bonus(user_internal_id: int, kind: str) -> bool:
+    """Apply a configured ad-campaign bonus once, with retryable durable state."""
+    from database.db_campaigns import finish_campaign_bonus, reserve_campaign_bonus
+
+    grant = reserve_campaign_bonus(user_internal_id, kind)
+    if not grant:
+        return False
+    try:
+        applied = await grant_bonus_days(user_internal_id, int(grant["days"]))
+        finish_campaign_bonus(user_internal_id, kind, applied, None if applied else "no_active_key")
+        return applied
+    except Exception as exc:
+        finish_campaign_bonus(user_internal_id, kind, False, type(exc).__name__)
+        logger.exception("Campaign bonus failed user=%s kind=%s", user_internal_id, kind)
+        return False
 
 
 async def process_referral_reward(

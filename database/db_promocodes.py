@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 __all__ = [
     'create_promocode',
     'get_promocode_by_code',
+    'get_promocode_by_id',
     'get_all_promocodes',
     'delete_promocode',
     'use_promocode',
@@ -19,6 +20,7 @@ __all__ = [
     'get_promocode_usage_count',
     'compute_discount_rub',
     'format_promocode_discount',
+    'update_promocode',
 ]
 
 
@@ -103,6 +105,35 @@ def get_promocode_by_code(code: str) -> Optional[Dict[str, Any]]:
         return dict(row) if row else None
 
 
+def get_promocode_by_id(promocode_id: int) -> Optional[Dict[str, Any]]:
+    with get_db() as conn:
+        row = conn.execute("SELECT * FROM promocodes WHERE id=?", (int(promocode_id),)).fetchone()
+    return dict(row) if row else None
+
+
+def update_promocode(promocode_id: int, **changes: Any) -> Optional[Dict[str, Any]]:
+    """Update mutable admin fields without deleting redemption history."""
+    allowed = {"max_uses", "expires_at", "is_active"}
+    values = {key: value for key, value in changes.items() if key in allowed}
+    if "max_uses" in values:
+        values["max_uses"] = int(values["max_uses"])
+        if values["max_uses"] < 1:
+            raise ValueError("invalid_max_uses")
+    if "is_active" in values:
+        values["is_active"] = int(bool(values["is_active"]))
+    if "expires_at" in values:
+        values["expires_at"] = datetime.fromisoformat(str(values["expires_at"])).isoformat()
+    with get_db() as conn:
+        if values:
+            assignments = ",".join(f"{field}=?" for field in values)
+            conn.execute(
+                f"UPDATE promocodes SET {assignments} WHERE id=?",
+                (*values.values(), int(promocode_id)),
+            )
+        row = conn.execute("SELECT * FROM promocodes WHERE id=?", (int(promocode_id),)).fetchone()
+    return dict(row) if row else None
+
+
 def get_all_promocodes() -> List[Dict[str, Any]]:
     """
     Получает все промокоды.
@@ -183,6 +214,9 @@ def is_promocode_valid(code: str, user_id: int) -> tuple[bool, Optional[str], Op
     
     if not promocode:
         return False, "❌ Промокод не найден", None
+
+    if not bool(promocode.get('is_active', 1)):
+        return False, "❌ Промокод отключен", None
     
     # Проверяем срок действия
     expires_at = datetime.fromisoformat(promocode['expires_at'])

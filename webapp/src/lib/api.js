@@ -70,7 +70,11 @@ const MOCK = {
         is_trial: false,
         expires_at_unix: Math.floor(Date.now() / 1000) + 41 * 86400,
         traffic_used: 23 * 1024 ** 3,
-        traffic_limit: 0,
+        traffic_limit: 1024 * 1024 ** 3,
+        lte_quota_gb: 45,
+        lte_used_bytes: 13 * 1024 ** 3,
+        lte_remaining_bytes: 32 * 1024 ** 3,
+        lte_cycle_reset_at: '2026-09-18 10:00:00',
         online_devices: 2,
         has_sub: true,
         import_url: 'happ://add/https://sub.arccnet.space/sub/demo?format=json',
@@ -87,10 +91,8 @@ const MOCK = {
   tariffs: {
     ok: true,
     tariffs: [
-      { id: 1, name: '1 месяц', duration_days: 30, price_rub: 125, price_stars: 0, traffic_limit_gb: 0 },
-      { id: 2, name: '3 месяца', duration_days: 90, price_rub: 300, price_stars: 0, traffic_limit_gb: 0 },
-      { id: 3, name: '6 месяцев', duration_days: 180, price_rub: 540, price_stars: 0, traffic_limit_gb: 0 },
-      { id: 4, name: '12 месяцев', duration_days: 365, price_rub: 960, price_stars: 0, traffic_limit_gb: 0 },
+      ...[['economy','Эконом',500,0,2,[93,259,499,931]],['standard','Стандарт',1024,45,3,[145,399,759,1469]],['family','Семейный',0,115,10,[345,939,1789,3389]]]
+        .flatMap(([product_code,label,traffic_limit_gb,lte_quota_gb,device_limit,prices], familyIndex) => [1,3,6,12].map((period_months,index) => ({ id: familyIndex*4+index+1, name: `${label} · ${period_months} мес.`, product_code, period_months, duration_days: period_months===12?365:period_months*30, price_rub: prices[index], price_stars: 0, traffic_limit_gb, lte_quota_gb, device_limit, lte_cycle_days: 30 }))),
     ],
   },
   referral: {
@@ -169,9 +171,9 @@ const devAdminState = (key) => typeof window === 'undefined'
   : new URLSearchParams(window.location.search).get(key) || ''
 const DEV_ADMIN_PERMISSIONS = {
   owner: ['*'],
-  operator: ['audit.read', 'backups.create', 'backups.read', 'catalog.manage', 'nodes.diagnose', 'overview.read', 'subscriptions.manage', 'support.read', 'support.reply'],
+  operator: ['audit.read', 'backups.create', 'backups.read', 'campaigns.manage', 'catalog.manage', 'nodes.diagnose', 'overview.read', 'promocodes.manage', 'subscriptions.manage', 'support.read', 'support.reply'],
   support: ['support.read', 'support.reply'],
-  finance: ['expenses.manage', 'overview.read'],
+  finance: ['campaigns.manage', 'expenses.manage', 'overview.read', 'promocodes.manage'],
   viewer: ['backups.read', 'overview.read', 'support.read'],
 }
 const mockAdminError = (reason, code = 503) => {
@@ -224,7 +226,7 @@ const mockAdminOverview = () => new Promise((resolve, reject) => setTimeout(() =
         { uuid: 'de-node', name: 'Germany Edge', country_code: 'DE', address: 'edge-de.example.test', connected: true, disabled: false, users_online: 58, traffic_used_gb: 812, memory_used_pct: 43, rx_bps: 2400000, tx_bps: 980000, xray_uptime_seconds: 812000, inbounds: [{ network: 'tcp', port: 443, tag: 'DE Reality' }] },
         { uuid: 'nl-node', name: 'Netherlands Edge', country_code: 'NL', address: 'edge-nl.example.test', connected: true, disabled: false, users_online: 35, traffic_used_gb: 507, memory_used_pct: 38, rx_bps: 1900000, tx_bps: 760000, xray_uptime_seconds: 604000, inbounds: [{ network: 'tcp', port: 443, tag: 'NL Reality' }] },
       ],
-      lte_edges: [{ id: 'lte-de', country_code: 'DE', name: 'DE CDN edge', profile_name: 'Обход блокировок', public_host: 'cdn-de.example.test', origin: 'edge-de.example.test', port: 443, network: 'xhttp', path: '/api', traffic_factor: 10, users_online: 3, inbound_active: true, healthy: true }],
+      lte_edges: [{ id: 'lte-de', country_code: 'DE', name: 'DE CDN edge', profile_name: 'Обход блокировок', public_host: 'cdn-de.example.test', origin: 'edge-de.example.test', port: 443, network: 'xhttp', path: '/api', users_online: 3, inbound_active: true, healthy: true }],
       connection_schemes: [{ id: 'auto', name: 'Основная схема', kind: 'client_balancer', probe_interval_seconds: 20 }, { id: 'fallback', name: 'Аварийный CDN', kind: 'client_cdn_fallback', origins: ['cdn-de.example.test'], probe_interval_seconds: 20 }],
     },
   })
@@ -294,6 +296,14 @@ let mockCatalogProfiles = [
   { source_name: 'Germany LTE', display_name: 'Обход блокировок', protocol_label: 'XHTTP CDN', enabled: true, include_in_auto: false, sort_order: 2 },
 ]
 let mockExpenses = [{ id: 1, title: 'Нода DE', category: 'hosting', amount_rub: 2200, incurred_on: '2026-08-01', recurring_monthly: true, note: 'Месячная аренда' }]
+let mockCampaigns = [
+  { id: 1, name: 'Яндекс · поиск', code: 'yandex_search', link: 'https://t.me/arcvpn1?start=ad_yandex_search', is_active: 1, entry_bonus_days: 0, payment_bonus_days: 0, arrivals: 184, paying_users: 39, paid_orders: 47, repeat_paid_orders: 8, revenue_cents: 1264000, conversion_percent: 21.2 },
+  { id: 2, name: 'Telegram · канал VPN', code: 'tg_vpn_channel', link: 'https://t.me/arcvpn1?start=ad_tg_vpn_channel', is_active: 1, entry_bonus_days: 2, payment_bonus_days: 0, arrivals: 76, paying_users: 22, paid_orders: 24, repeat_paid_orders: 2, revenue_cents: 724300, conversion_percent: 28.95 },
+]
+let mockPromocodes = [
+  { id: 1, code: 'START20', discount_type: 'percent', discount_percent: 20, discount_rub: 0, max_uses: 250, used_count: 68, expires_at: '2026-10-01T00:00:00', is_active: 1 },
+  { id: 2, code: 'BACK50', discount_type: 'fixed', discount_percent: 0, discount_rub: 50, max_uses: 100, used_count: 100, expires_at: '2026-09-01T00:00:00', is_active: 0 },
+]
 let mockBackups = [{ name: 'vpn_bot-20260824-120000.db', size_bytes: 7340032, created_at: '2026-08-24T12:00:00Z' }]
 const mockUsers = [
   { telegram_id: 700001, first_name: 'Алексей', username: 'alex', paid_rub: 1250, expires_at: '2026-09-20 12:00:00', active: 1, online_devices: 1, online_node: 'Germany Edge' },
@@ -341,6 +351,12 @@ export const saveAdminCatalog = (profiles) => (import.meta.env.DEV ? mockAdminSe
 export const fetchAdminExpenses = () => (import.meta.env.DEV ? mockAdminSection('finance', { ok: true, expenses: mockExpenses, summary: { month_revenue_rub: 126400, month_expenses_rub: mockExpenses.reduce((sum, item) => sum + item.amount_rub, 0), month_net_rub: 124200 } }, { ok: true, expenses: [], summary: { month_revenue_rub: 0, month_expenses_rub: 0, month_net_rub: 0 } }) : get('/api/admin/expenses'))
 export const createAdminExpense = (expense) => (import.meta.env.DEV ? mockAdminSection('finance', { ok: true, expenses: (mockExpenses = [{ id: Date.now(), ...expense }, ...mockExpenses]), summary: { month_revenue_rub: 126400, month_expenses_rub: mockExpenses.reduce((sum, item) => sum + Number(item.amount_rub || 0), 0), month_net_rub: 126400 - mockExpenses.reduce((sum, item) => sum + Number(item.amount_rub || 0), 0) } }, {}) : post('/api/admin/expenses', expense))
 export const deleteAdminExpense = (expenseId) => (import.meta.env.DEV ? mockAdminSection('finance', { ok: true, expenses: (mockExpenses = mockExpenses.filter((item) => item.id !== expenseId)), summary: { month_revenue_rub: 126400, month_expenses_rub: mockExpenses.reduce((sum, item) => sum + Number(item.amount_rub || 0), 0), month_net_rub: 126400 - mockExpenses.reduce((sum, item) => sum + Number(item.amount_rub || 0), 0) } }, {}) : mutate(`/api/admin/expenses/${encodeURIComponent(expenseId)}`, 'DELETE'))
+export const fetchAdminCampaigns = () => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, campaigns: mockCampaigns }, { ok: true, campaigns: [] }) : get('/api/admin/campaigns'))
+export const createAdminCampaign = (payload) => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, campaigns: (mockCampaigns = [{ id: Date.now(), code: payload.code || `campaign_${Date.now()}`, link: `https://t.me/arcvpn1?start=ad_${payload.code || `campaign_${Date.now()}`}`, is_active: 1, arrivals: 0, paying_users: 0, paid_orders: 0, repeat_paid_orders: 0, revenue_cents: 0, conversion_percent: 0, ...payload }, ...mockCampaigns]) }, { ok: true, campaigns: [] }) : post('/api/admin/campaigns', payload))
+export const updateAdminCampaign = (campaignId, payload) => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, campaigns: (mockCampaigns = mockCampaigns.map((item) => item.id === campaignId ? { ...item, ...payload } : item)) }, { ok: true, campaigns: [] }) : mutate(`/api/admin/campaigns/${encodeURIComponent(campaignId)}`, 'PATCH', payload))
+export const fetchAdminPromocodes = () => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, promocodes: mockPromocodes }, { ok: true, promocodes: [] }) : get('/api/admin/promocodes'))
+export const createAdminPromocode = (payload) => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, promocodes: (mockPromocodes = [{ id: Date.now(), code: payload.code, discount_type: payload.discount_type, discount_percent: payload.discount_type === 'percent' ? payload.discount_value : 0, discount_rub: payload.discount_type === 'fixed' ? payload.discount_value : 0, max_uses: payload.max_uses, used_count: 0, expires_at: new Date(Date.now() + payload.duration_days * 86400000).toISOString(), is_active: 1 }, ...mockPromocodes]) }, { ok: true, promocodes: [] }) : post('/api/admin/promocodes', payload))
+export const updateAdminPromocode = (promocodeId, payload) => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, promocodes: (mockPromocodes = mockPromocodes.map((item) => item.id === promocodeId ? { ...item, ...payload } : item)) }, { ok: true, promocodes: [] }) : mutate(`/api/admin/promocodes/${encodeURIComponent(promocodeId)}`, 'PATCH', payload))
 export const manageAdminSubscription = (telegramId, action) => (import.meta.env.DEV ? mockAdminSection('users', { ok: true, key_id: 10, expires_at: action.action === 'disable' ? new Date().toISOString() : '2026-09-20T12:00:00Z' }, {}) : mutate(`/api/admin/users/${encodeURIComponent(telegramId)}/subscription`, 'PATCH', action))
 export const fetchAdminUserDetail = (telegramId) => (import.meta.env.DEV ? mockAdminSection('users', mockUserDetail(telegramId), {}) : get(`/api/admin/users/${encodeURIComponent(telegramId)}`))
 export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', cursor = 0, limit = 40 } = {}) => {
@@ -368,9 +384,9 @@ export const registerImportDevice = (subId, device) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, device_name: device?.model || device?.platform || 'Устройство' })
     : post(`/api/device/import/${encodeURIComponent(subId)}`, device, { keepalive: true }))
-export const createSbpPayment = (tariffId, devices = 2, lteGb = 20, promocode = '', autoRenew = true) =>
+export const createSbpPayment = (tariffId, devices = 2, lteGb = 0, promocode = '', autoRenew = true) =>
   post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
-export const createCardPayment = (tariffId, devices = 2, lteGb = 20, promocode = '', autoRenew = true) =>
+export const createCardPayment = (tariffId, devices = 2, lteGb = 0, promocode = '', autoRenew = true) =>
   post('/api/payments/card', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
 export const fetchSbpPayment = (orderId) =>
   (import.meta.env.DEV

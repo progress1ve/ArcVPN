@@ -6,7 +6,7 @@
   export let canManageRoles = false
   export let currentRole = ''
   const label={
-    'overview.read':'Обзор и метрики','nodes.diagnose':'Диагностика нод','catalog.manage':'Каталог подписки','subscriptions.manage':'Управление подписками','expenses.manage':'Расходы','support.read':'Чтение поддержки','support.reply':'Ответы поддержки','audit.read':'Журнал аудита','backups.read':'Просмотр снимков','backups.create':'Создание снимков','roles.manage':'Роли администраторов'
+    'overview.read':'Обзор и метрики','nodes.diagnose':'Диагностика нод','catalog.manage':'Каталог подписки','subscriptions.manage':'Управление подписками','campaigns.manage':'Рекламные кампании','promocodes.manage':'Промокоды','expenses.manage':'Расходы','support.read':'Чтение поддержки','support.reply':'Ответы поддержки','audit.read':'Журнал аудита','backups.read':'Просмотр снимков','backups.create':'Создание снимков','roles.manage':'Роли администраторов'
   }
   const roleLabel={owner:'Владелец',operator:'Оператор',support:'Поддержка',finance:'Финансы',viewer:'Наблюдатель'}
   let assignments=[];let rolesLoading=false;let rolesError='';let rolesNotice='';let telegramId='';let selectedRole='viewer';let assigning=false

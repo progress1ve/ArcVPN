@@ -239,8 +239,8 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Германия #2⚡",
     "Канада #1",
     "Канада #2 ⚡",
-    "Обход глушилок (LTE, трафик ×10) #1",
-    "Обход глушилок (LTE, трафик ×10) #2",
+    "Обход глушилок (LTE) #1",
+    "Обход глушилок (LTE) #2",
     "Обход глушилок #4",
     "Обход глушилок #5",
 ])
@@ -258,12 +258,12 @@ def _subscription_source_name(name: str) -> str:
         number = number_match.group(1) if number_match else "1"
         if number in {"4", "5"}:
             return f"Обход глушилок #{number}"
-        return f"Обход глушилок (LTE, трафик ×10) #{number}"
+        return f"Обход глушилок (LTE) #{number}"
     # The former wCloud France pair was physically replaced by Canada. Keep
     # accepting the old Host remarks during the Remnawave cutover, but never
     # expose the retired country to customers or create a second catalog row.
     normalized = normalized.replace("Франция", "Канада")
-    normalized = normalized.replace("(LTE)", "(LTE, трафик ×10)")
+    normalized = normalized.replace("(LTE, трафик ×10)", "(LTE)")
     normalized = re.sub(r"\s*⚡\s*", " ", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
 
@@ -350,7 +350,7 @@ def _subscription_display_name(name: str) -> str:
             return "🇳🇱 Обход глушилок #4"
         if number == "5":
             return "🇩🇪 Обход глушилок #5"
-        return "🇷🇺 Обход глушилок (трафик ×10, LTE)"
+        return "🇷🇺 Обход глушилок (LTE)"
     return value
 
 
@@ -636,6 +636,53 @@ class PreparedSubscription:
     content_type: str
     userinfo_header: str
     routing_link: Optional[str] = None
+    announce_base64: str = SUBSCRIPTION_ANNOUNCE_BASE64
+
+
+@dataclass(frozen=True)
+class SubscriptionSourceResolution:
+    """Final ArcVPN response plus the authority used to obtain share links."""
+
+    prepared: PreparedSubscription
+    source: str
+    fallback_reason: Optional[str] = None
+
+
+class SubscriptionSourceMetrics:
+    """Process-local aggregate telemetry; never stores user identifiers or URLs."""
+
+    def __init__(self) -> None:
+        self._lock = threading.RLock()
+        self._native_success = 0
+        self._legacy_fallback = 0
+        self._fallback_reasons: Dict[str, int] = defaultdict(int)
+        self._last_native_success_at: Optional[str] = None
+        self._last_fallback_at: Optional[str] = None
+
+    def record(self, source: str, fallback_reason: Optional[str] = None) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self._lock:
+            if source == "remnawave":
+                self._native_success += 1
+                self._last_native_success_at = now
+                return
+            self._legacy_fallback += 1
+            reason = fallback_reason or "unknown"
+            self._fallback_reasons[reason] += 1
+            self._last_fallback_at = now
+
+    def snapshot(self) -> Dict[str, Any]:
+        with self._lock:
+            return {
+                "native_success": self._native_success,
+                "legacy_fallback": self._legacy_fallback,
+                "fallback_reasons": dict(sorted(self._fallback_reasons.items())),
+                "last_native_success_at": self._last_native_success_at,
+                "last_fallback_at": self._last_fallback_at,
+            }
+
+
+SUBSCRIPTION_SOURCE_METRICS = SubscriptionSourceMetrics()
 
 
 class TTLCache:
@@ -944,6 +991,7 @@ def _prepare_headers_only_subscription(
         content_type=_content_type_for_format(output_format),
         userinfo_header=_build_subscription_userinfo(key),
         routing_link=routing_link if output_format != "json" else None,
+        announce_base64=_subscription_announce_base64(key),
     )
 
 
@@ -968,10 +1016,11 @@ def _build_plain_text_subscription(
     link: str,
     routing_link: Optional[str],
     userinfo_header: str,
+    announce_base64: str = SUBSCRIPTION_ANNOUNCE_BASE64,
 ) -> str:
     lines = [
         f"#profile-title: base64:{PROFILE_TITLE_BASE64}",
-        f"#announce: base64:{SUBSCRIPTION_ANNOUNCE_BASE64}",
+        f"#announce: base64:{announce_base64}",
         f"#profile-update-interval: {PROFILE_UPDATE_INTERVAL_HOURS}",
         f"#subscription-userinfo: {userinfo_header}",
         f"#support-url: {SUPPORT_URL}",
@@ -992,6 +1041,23 @@ def _build_plain_text_subscription(
         lines.append(routing_link)
     lines.append(link)
     return "\n".join(lines) + "\n"
+
+
+def _subscription_announce_base64(key: ActiveKeyRecord) -> str:
+    """Build the customer LTE remainder without exposing identity data."""
+    try:
+        entitlement = get_user_entitlements(int(key.telegram_id))
+        quota = max(0, int(entitlement.get("lte_quota_gb") or 0))
+        remaining = max(0, int(entitlement.get("lte_remaining_bytes") or 0)) / 1024**3
+        lte_line = (
+            f"Обход глушилок (LTE) - {remaining:.1f}гб/{quota}гб"
+            if quota else "Обход глушилок (LTE) - не входит в тариф"
+        )
+        announce = f"{SUBSCRIPTION_ANNOUNCE}\n\n{lte_line}"
+        return base64.b64encode(announce.encode("utf-8")).decode("ascii")
+    except Exception:
+        logger.exception("Не удалось собрать LTE announce")
+        return SUBSCRIPTION_ANNOUNCE_BASE64
 
 
 def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
@@ -1470,6 +1536,7 @@ def _prepare_subscription(
 ) -> PreparedSubscription:
     routing_link = routing_link_override if routing_link_override is not None else ROUTING_LINK
     userinfo_header = _build_subscription_userinfo(key)
+    announce_base64 = _subscription_announce_base64(key)
     visible_links = _apply_subscription_catalog(
         item for item in link.splitlines() if item.strip()
     )
@@ -1479,10 +1546,11 @@ def _prepare_subscription(
             body=_build_happ_json_subscription(key, "\n".join(visible_links)),
             content_type="application/json; charset=utf-8",
             userinfo_header=userinfo_header,
+            announce_base64=announce_base64,
         )
 
     plain_text_subscription = _build_plain_text_subscription(
-        "\n".join(visible_links), routing_link, userinfo_header
+        "\n".join(visible_links), routing_link, userinfo_header, announce_base64
     )
     if output_format == "base64":
         body = base64.b64encode(plain_text_subscription.encode("utf-8")).decode("ascii")
@@ -1496,6 +1564,7 @@ def _prepare_subscription(
         content_type=content_type,
         userinfo_header=userinfo_header,
         routing_link=routing_link,
+        announce_base64=announce_base64,
     )
 
 
@@ -1618,7 +1687,7 @@ def _response_from_prepared(
     response.headers["profile-update-interval"] = str(PROFILE_UPDATE_INTERVAL_HOURS)
     response.headers["subscription-auto-update-enable"] = "1"
     response.headers["profile-title"] = f"base64:{encoded_profile_title}"
-    response.headers["announce"] = f"base64:{SUBSCRIPTION_ANNOUNCE_BASE64}"
+    response.headers["announce"] = f"base64:{prepared.announce_base64}"
     response.headers["support-url"] = SUPPORT_URL
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
     response.headers["Subscription-Userinfo"] = prepared.userinfo_header
@@ -2262,6 +2331,51 @@ def _prepare_native_remnawave_subscription(
     return _prepare_subscription(key, "\n".join(links), output_format)
 
 
+def _prepare_legacy_subscription_fallback(
+    key: ActiveKeyRecord,
+    output_format: str,
+) -> Optional[PreparedSubscription]:
+    """Compatibility adapter kept separate from the Remnawave-authoritative path."""
+    links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
+    selected = _select_links(links, output_format)
+    if not selected:
+        return None
+    return _prepare_subscription(key, selected, output_format)
+
+
+def _resolve_subscription_source(
+    key: ActiveKeyRecord,
+    output_format: str,
+) -> Optional[SubscriptionSourceResolution]:
+    """Prefer Remnawave share links and fail open through one explicit adapter."""
+    fallback_reason: Optional[str] = None
+    try:
+        prepared = _prepare_native_remnawave_subscription(key, output_format)
+    except Exception as exc:
+        fallback_reason = f"native_{type(exc).__name__.lower()}"
+        logger.warning("Native subscription adapter failed: %s", type(exc).__name__)
+        prepared = None
+
+    if prepared is not None:
+        SUBSCRIPTION_SOURCE_METRICS.record("remnawave")
+        return SubscriptionSourceResolution(prepared=prepared, source="remnawave")
+
+    if fallback_reason is None:
+        fallback_reason = (
+            "native_disabled" if not _native_subscription_enabled()
+            else "native_unavailable"
+        )
+    prepared = _prepare_legacy_subscription_fallback(key, output_format)
+    if prepared is None:
+        return None
+    SUBSCRIPTION_SOURCE_METRICS.record("legacy", fallback_reason)
+    return SubscriptionSourceResolution(
+        prepared=prepared,
+        source="legacy",
+        fallback_reason=fallback_reason,
+    )
+
+
 def get_active_key_by_subscription_id(sub_id: str) -> Optional[ActiveKeyRecord]:
     """Находит активный ключ по subscription id."""
     with get_db() as conn:
@@ -2539,22 +2653,18 @@ def subscription(sub_id: str, path_device_token: str = ''):
             )
             return _response_from_prepared(prepared, profile_title)
 
-        prepared = _prepare_native_remnawave_subscription(key, output_format)
-        source = "remnawave"
-        if prepared is None:
-            links = ASYNC_EXECUTOR.run(_generate_links_for_keys([key]))
-            link = _select_links(links, output_format)
-            if not link:
-                logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
-                return _subscription_temporarily_unavailable()
-            prepared = _prepare_subscription(key, link, output_format)
-            source = "fallback"
+        resolution = _resolve_subscription_source(key, output_format)
+        if resolution is None:
+            logger.warning("Не удалось сгенерировать ссылку для %s", masked_sub_id)
+            return _subscription_temporarily_unavailable()
+        prepared = resolution.prepared
         logger.info(
-            "Подписка выдана: %s, client=%s, format=%s, source=%s",
+            "Подписка выдана: %s, client=%s, format=%s, source=%s, fallback_reason=%s",
             masked_sub_id,
             client_family,
             output_format,
-            source,
+            resolution.source,
+            resolution.fallback_reason or "none",
         )
         return _response_from_prepared(prepared, profile_title)
 
@@ -2573,6 +2683,20 @@ def subscription_clean(sub_id: str):
 def health():
     """Health check endpoint."""
     return Response("OK", mimetype='text/plain')
+
+
+@app.route('/api/admin/subscription-sources', methods=['GET'])
+def subscription_source_health():
+    """Safe aggregate visibility into native adoption and legacy fallback use."""
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    snapshot = SUBSCRIPTION_SOURCE_METRICS.snapshot()
+    snapshot.update({
+        "native_enabled": _native_subscription_enabled(),
+        "authority": "remnawave",
+        "gateway": "arcvpn",
+    })
+    return jsonify(snapshot)
 
 
 def _load_logo_svg() -> Optional[str]:
@@ -2965,6 +3089,7 @@ def api_status():
     if telegram_id is None:
         return _api_error("unauthorized", 401)
 
+    entitlements = get_user_entitlements(telegram_id)
     keys = []
     for key in get_user_keys_for_display(telegram_id):
         sub_id = key.get("sub_id")
@@ -2980,6 +3105,10 @@ def api_status():
             "traffic_used": int(key.get("traffic_used") or 0),
             "traffic_limit": int(key.get("traffic_limit") or 0),
             "online_devices": int(key.get("online_devices") or 0),
+            "lte_quota_gb": int(entitlements.get("lte_quota_gb") or 0),
+            "lte_used_bytes": int(entitlements.get("lte_used_bytes") or 0),
+            "lte_remaining_bytes": int(entitlements.get("lte_remaining_bytes") or 0),
+            "lte_cycle_reset_at": entitlements.get("lte_cycle_reset_at"),
             "has_sub": bool(sub_id),
             "import_url": _import_url_for(sub_id),
             "sub_url": f"{SUBSCRIPTION_URL}/sub/{sub_id}" if sub_id else None,
@@ -3013,6 +3142,11 @@ def api_tariffs():
             "price_rub": int(price_rub or 0),
             "price_stars": int(t.get("price_stars") or 0),
             "traffic_limit_gb": int(t.get("traffic_limit_gb") or 0),
+            "product_code": t.get("product_code") or "standard",
+            "period_months": int(t.get("period_months") or max(1, round(int(t.get("duration_days") or 30) / 30))),
+            "device_limit": int(t.get("device_limit") or 2),
+            "lte_quota_gb": int(t.get("lte_quota_gb") or 0),
+            "lte_cycle_days": int(t.get("lte_cycle_days") or 30),
         })
 
     response = jsonify({"ok": True, "tariffs": tariffs})
@@ -3035,27 +3169,22 @@ def api_create_sbp_payment():
     wants_recurring = recurring_requested and recurring_ready
     try:
         tariff_id = int(payload.get("tariff_id"))
-        devices = int(payload.get("devices") or 2)
-        lte_gb = int(payload.get("lte_gb") or 20)
+        devices = int(payload.get("devices") or 0)
+        lte_gb = int(payload.get("lte_gb") or 0)
     except (TypeError, ValueError):
         return _api_error("invalid_payment_request", 400)
-    if not 2 <= devices <= 10 or not 20 <= lte_gb <= 500 or (lte_gb - 20) % 5:
-        return _api_error("invalid_addons", 400)
     tariff = get_tariff_by_id(tariff_id)
     user_id = get_user_internal_id(telegram_id)
     if not tariff or not user_id:
         return _api_error("tariff_or_user_not_found", 404)
-    current_entitlements = get_user_entitlements(telegram_id)
-    if lte_gb != int(current_entitlements.get("lte_quota_gb") or 20):
-        return _api_error("lte_addons_not_available", 409)
+    devices = int(tariff.get("device_limit") or 2)
+    lte_gb = int(tariff.get("lte_quota_gb") or 0)
     price_rub = int(tariff.get("price_rub") or 0)
     if price_rub <= 0:
         price_rub = round(int(tariff.get("price_cents") or 0) / 100)
     if price_rub <= 0:
         return _api_error("invalid_amount", 400)
-    months = max(1, round(int(tariff.get("duration_days") or 30) / 30))
     total_rub = price_rub
-    total_rub += max(0, devices - 2) * 25 * months
     promocode = None
     promo_code = str(payload.get("promocode") or "").strip().upper()
     if promo_code:
@@ -3064,7 +3193,6 @@ def api_create_sbp_payment():
         if not valid:
             return _api_error(promo_error or "invalid_promocode", 400)
         total_rub = max(1, total_rub - int(compute_discount_rub(promocode, total_rub) or 0))
-    # LTE add-on charging is enabled only after the weighted meter is active.
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
     order = prepare_payment_order(
@@ -3973,6 +4101,99 @@ def api_admin_expenses(expense_id: Optional[int] = None):
         "month_revenue_rub": month_revenue, "month_expenses_rub": month_expenses,
         "month_net_rub": month_revenue - month_expenses,
     }}))
+
+
+@app.route('/api/admin/campaigns', methods=['GET', 'POST'])
+@app.route('/api/admin/campaigns/<int:campaign_id>', methods=['PATCH'])
+def api_admin_campaigns(campaign_id: Optional[int] = None):
+    from database.db_campaigns import create_campaign, list_campaign_stats, update_campaign
+
+    permission = "campaigns.manage" if request.method != "GET" else "overview.read"
+    if not _admin_authorized(permission):
+        return _api_error("admin_forbidden", 403)
+    try:
+        if request.method == "POST":
+            payload = request.get_json(silent=True) or {}
+            created = create_campaign(
+                _clean_text(payload.get("name"), 100),
+                code=_clean_text(payload.get("code"), 40) or None,
+                entry_bonus_days=int(payload.get("entry_bonus_days") or 0),
+                payment_bonus_days=int(payload.get("payment_bonus_days") or 0),
+            )
+            _append_admin_audit_best_effort(
+                "campaign.create", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+                target_type="campaign", target_id=str(created["id"]),
+            )
+        elif request.method == "PATCH":
+            payload = request.get_json(silent=True) or {}
+            changes = {key: payload[key] for key in (
+                "name", "is_active", "entry_bonus_days", "payment_bonus_days"
+            ) if key in payload}
+            updated = update_campaign(int(campaign_id), **changes)
+            if not updated:
+                return _api_error("campaign_not_found", 404)
+            _append_admin_audit_best_effort(
+                "campaign.update", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+                target_type="campaign", target_id=str(campaign_id), metadata={"fields": sorted(changes)},
+            )
+    except (TypeError, ValueError, sqlite3.IntegrityError) as exc:
+        return _api_error(str(exc) if isinstance(exc, ValueError) else "campaign_conflict", 400)
+
+    bot_username = _get_bot_username().lstrip("@")
+    campaigns = list_campaign_stats()
+    for item in campaigns:
+        item["link"] = f"https://t.me/{bot_username}?start=ad_{item['code']}" if bot_username else None
+    return _api_no_store(jsonify({"ok": True, "campaigns": campaigns}))
+
+
+@app.route('/api/admin/promocodes', methods=['GET', 'POST'])
+@app.route('/api/admin/promocodes/<int:promocode_id>', methods=['PATCH'])
+def api_admin_promocodes(promocode_id: Optional[int] = None):
+    from database.db_promocodes import create_promocode, get_all_promocodes, update_promocode
+
+    permission = "promocodes.manage" if request.method != "GET" else "overview.read"
+    if not _admin_authorized(permission):
+        return _api_error("admin_forbidden", 403)
+    try:
+        if request.method == "POST":
+            payload = request.get_json(silent=True) or {}
+            code = _clean_text(payload.get("code"), 32).upper()
+            discount_type = str(payload.get("discount_type") or "fixed").lower()
+            discount_value = int(payload.get("discount_value") or 0)
+            max_uses = int(payload.get("max_uses") or 0)
+            duration_days = int(payload.get("duration_days") or 0)
+            if not re.fullmatch(r"[A-Z0-9_-]{3,32}", code):
+                raise ValueError("invalid_promocode_code")
+            if discount_type not in {"fixed", "percent"} or max_uses < 1 or not 1 <= duration_days <= 3650:
+                raise ValueError("invalid_promocode")
+            if discount_type == "percent" and not 1 <= discount_value <= 100:
+                raise ValueError("invalid_promocode_discount")
+            if discount_type == "fixed" and not 1 <= discount_value <= 1_000_000:
+                raise ValueError("invalid_promocode_discount")
+            created_id = create_promocode(
+                code, discount_value if discount_type == "fixed" else 0, max_uses, duration_days,
+                discount_type=discount_type,
+                discount_percent=discount_value if discount_type == "percent" else 0,
+            )
+            if not created_id:
+                return _api_error("promocode_conflict", 409)
+            _append_admin_audit_best_effort(
+                "promocode.create", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+                target_type="promocode", target_id=str(created_id),
+            )
+        elif request.method == "PATCH":
+            payload = request.get_json(silent=True) or {}
+            changes = {key: payload[key] for key in ("max_uses", "expires_at", "is_active") if key in payload}
+            updated = update_promocode(int(promocode_id), **changes)
+            if not updated:
+                return _api_error("promocode_not_found", 404)
+            _append_admin_audit_best_effort(
+                "promocode.update", "success", actor_id=str(_admin_telegram_id() or "password-session"),
+                target_type="promocode", target_id=str(promocode_id), metadata={"fields": sorted(changes)},
+            )
+    except (TypeError, ValueError) as exc:
+        return _api_error(str(exc) if isinstance(exc, ValueError) else "invalid_promocode", 400)
+    return _api_no_store(jsonify({"ok": True, "promocodes": get_all_promocodes()}))
 
 
 @app.route('/api/admin/users/<int:telegram_id>/subscription', methods=['PATCH'])

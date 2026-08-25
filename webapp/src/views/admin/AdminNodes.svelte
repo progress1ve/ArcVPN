@@ -36,7 +36,7 @@
     <div class="edge-grid">{#if edges.length}{#each edges as edge}<article class:off={!edge.healthy}>
       <div class="edge-title"><i>{edge.country_code}</i><span><b>{edge.name}</b><small>{edge.profile_name}</small></span><em>{edge.healthy ? 'READY' : 'DEGRADED'}</em></div>
       <div class="rail"><span>{edge.public_host}</span><i>CDN</i><span>{edge.origin || 'origin не найден'}</span><i>:{edge.port}</i><span>{String(edge.network || 'xhttp').toUpperCase()}</span></div>
-      <dl><div><dt>Inbound</dt><dd>{edge.inbound_active ? 'активен' : 'не найден'}</dd></div><div><dt>Путь</dt><dd>{edge.path}</dd></div><div><dt>Трафик</dt><dd>×{edge.traffic_factor}</dd></div><div><dt>Онлайн на origin</dt><dd>{edge.users_online || 0}</dd></div></dl>
+      <dl><div><dt>Inbound</dt><dd>{edge.inbound_active ? 'активен' : 'не найден'}</dd></div><div><dt>Путь</dt><dd>{edge.path}</dd></div><div><dt>Учёт трафика</dt><dd>отдельный LTE</dd></div><div><dt>Онлайн на origin</dt><dd>{edge.users_online || 0}</dd></div></dl>
     </article>{/each}{:else}<div class="empty wide"><b>LTE-маршруты не настроены</b><p>Экран не подменяет отсутствующий аварийный контур тестовыми данными.</p></div>{/if}</div>
   </section>
   <nav aria-label="Фильтр нод"><button class:active={filter==='all'} aria-pressed={filter==='all'} on:click={()=>filter='all'}>Все <i>{nodes.length}</i></button><button class:active={filter==='online'} aria-pressed={filter==='online'} on:click={()=>filter='online'}>Онлайн <i>{nodes.filter(n=>n.connected).length}</i></button><button class:active={filter==='problems'} aria-pressed={filter==='problems'} on:click={()=>filter='problems'}>Проблемы <i>{nodes.filter(n=>!n.connected).length}</i></button></nav>

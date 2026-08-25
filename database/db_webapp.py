@@ -251,34 +251,46 @@ def subscription_device_slots_full(sub_id: str) -> bool:
 
 def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
     """Return persisted commercial limits with backwards-compatible defaults."""
+    refresh_lte_cycle(telegram_id)
     with get_db() as conn:
         row = conn.execute(
             """SELECT COALESCE(device_limit, 2) device_limit,
-                      COALESCE(lte_quota_gb, 20) lte_quota_gb,
+                      COALESCE(lte_quota_gb, 0) lte_quota_gb,
                       COALESCE(lte_used_bytes, 0) lte_used_bytes,
                       COALESCE(traffic_monthly_limit_gb, 500) traffic_monthly_limit_gb,
-                      COALESCE(normal_used_bytes, 0) normal_used_bytes
+                      COALESCE(normal_used_bytes, 0) normal_used_bytes,
+                      lte_cycle_started_at, lte_cycle_reset_at
                FROM users WHERE telegram_id = ?""",
             (telegram_id,),
         ).fetchone()
         if not row:
             return {
                 "device_limit": 2,
-                "lte_quota_gb": 20,
+                "lte_quota_gb": 0,
                 "lte_used_bytes": 0,
                 "traffic_monthly_limit_gb": 500,
                 "normal_used_bytes": 0,
-                "weighted_used_bytes": 0,
+                "lte_remaining_bytes": 0,
+                "lte_cycle_started_at": None,
+                "lte_cycle_reset_at": None,
             }
         normal_used = max(0, int(row["normal_used_bytes"] or 0))
         lte_used = max(0, int(row["lte_used_bytes"] or 0))
         return {
             "device_limit": max(2, int(row["device_limit"] or 2)),
-            "lte_quota_gb": max(20, int(row["lte_quota_gb"] or 20)),
+            "lte_quota_gb": max(0, int(row["lte_quota_gb"] or 0)),
             "lte_used_bytes": lte_used,
-            "traffic_monthly_limit_gb": max(1, int(row["traffic_monthly_limit_gb"] or 500)),
+            "traffic_monthly_limit_gb": max(
+                0,
+                int(row["traffic_monthly_limit_gb"])
+                if row["traffic_monthly_limit_gb"] is not None else 500,
+            ),
             "normal_used_bytes": normal_used,
-            "weighted_used_bytes": normal_used + lte_used * 10,
+            "lte_cycle_started_at": row["lte_cycle_started_at"],
+            "lte_cycle_reset_at": row["lte_cycle_reset_at"],
+            "lte_remaining_bytes": max(
+                0, max(0, int(row["lte_quota_gb"] or 0)) * 1024**3 - lte_used
+            ),
         }
 
 
@@ -286,13 +298,13 @@ def get_user_entitlements_by_id(user_id: int) -> Dict[str, int]:
     with get_db() as conn:
         row = conn.execute(
             """SELECT COALESCE(device_limit, 2) device_limit,
-                      COALESCE(lte_quota_gb, 20) lte_quota_gb
+                      COALESCE(lte_quota_gb, 0) lte_quota_gb
                FROM users WHERE id = ?""",
             (user_id,),
         ).fetchone()
         return {
             "device_limit": max(2, int(row["device_limit"] or 2)) if row else 2,
-            "lte_quota_gb": max(20, int(row["lte_quota_gb"] or 20)) if row else 20,
+            "lte_quota_gb": max(0, int(row["lte_quota_gb"] or 0)) if row else 0,
         }
 
 
@@ -306,7 +318,7 @@ def set_payment_requested_entitlements(
             """UPDATE payments
                SET requested_device_limit = ?, requested_lte_quota_gb = ?
                WHERE order_id = ? AND status = 'pending'""",
-            (max(2, int(device_limit)), max(20, int(lte_quota_gb)), order_id),
+            (max(1, int(device_limit)), max(0, int(lte_quota_gb)), order_id),
         )
         return cur.rowcount > 0
 
@@ -315,33 +327,64 @@ def apply_payment_entitlements(order_id: str) -> Optional[Dict[str, int]]:
     """Idempotently apply requested limits from a paid order to its owner."""
     with get_db() as conn:
         order = conn.execute(
-            """SELECT user_id, status, requested_device_limit,
-                      requested_lte_quota_gb, addons_applied_at
-               FROM payments WHERE order_id = ?""",
+            """SELECT p.user_id, p.status, p.requested_device_limit,
+                      p.requested_lte_quota_gb, p.addons_applied_at,
+                      t.device_limit tariff_device_limit,
+                      t.lte_quota_gb tariff_lte_quota_gb,
+                      t.traffic_limit_gb tariff_traffic_limit_gb
+               FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
+               WHERE p.order_id = ?""",
             (order_id,),
         ).fetchone()
         if not order or order["status"] != "paid":
             return None
-        if order["requested_device_limit"] is None and order["requested_lte_quota_gb"] is None:
+        has_tariff_entitlements = (
+            order["tariff_device_limit"] is not None
+            or order["tariff_lte_quota_gb"] is not None
+        )
+        if (order["requested_device_limit"] is None
+                and order["requested_lte_quota_gb"] is None
+                and not has_tariff_entitlements):
             current = conn.execute(
                 """SELECT COALESCE(device_limit, 2) device_limit,
-                          COALESCE(lte_quota_gb, 20) lte_quota_gb
+                          COALESCE(lte_quota_gb, 0) lte_quota_gb
                    FROM users WHERE id = ?""",
                 (order["user_id"],),
             ).fetchone()
             return {
                 "device_limit": max(2, int(current["device_limit"] or 2)),
-                "lte_quota_gb": max(20, int(current["lte_quota_gb"] or 20)),
+                "lte_quota_gb": max(0, int(current["lte_quota_gb"] or 0)),
             } if current else None
-        device_limit = max(2, int(order["requested_device_limit"] or 2))
-        lte_quota_gb = max(20, int(order["requested_lte_quota_gb"] or 20))
+        requested_devices = order["requested_device_limit"]
+        requested_lte = order["requested_lte_quota_gb"]
+        device_limit = max(1, int(
+            requested_devices if requested_devices is not None
+            else order["tariff_device_limit"] or 2
+        ))
+        lte_quota_gb = max(0, int(
+            requested_lte if requested_lte is not None
+            else order["tariff_lte_quota_gb"] or 0
+        ))
         if not order["addons_applied_at"]:
             conn.execute(
                 """UPDATE users
                    SET device_limit = ?, lte_quota_gb = ?,
+                       traffic_monthly_limit_gb = COALESCE(?, traffic_monthly_limit_gb),
+                       lte_used_bytes = CASE
+                           WHEN lte_cycle_reset_at IS NULL
+                             OR lte_cycle_reset_at <= CURRENT_TIMESTAMP THEN 0
+                           ELSE COALESCE(lte_used_bytes, 0) END,
+                       lte_cycle_started_at = CASE
+                           WHEN lte_cycle_reset_at IS NULL
+                             OR lte_cycle_reset_at <= CURRENT_TIMESTAMP
+                           THEN CURRENT_TIMESTAMP ELSE lte_cycle_started_at END,
+                       lte_cycle_reset_at = CASE
+                           WHEN lte_cycle_reset_at IS NULL
+                             OR lte_cycle_reset_at <= CURRENT_TIMESTAMP
+                           THEN datetime('now', '+30 days') ELSE lte_cycle_reset_at END,
                        entitlements_updated_at = CURRENT_TIMESTAMP
                    WHERE id = ?""",
-                (device_limit, lte_quota_gb, order["user_id"]),
+                (device_limit, lte_quota_gb, order["tariff_traffic_limit_gb"], order["user_id"]),
             )
             conn.execute(
                 """UPDATE payments SET addons_applied_at = CURRENT_TIMESTAMP
@@ -349,6 +392,45 @@ def apply_payment_entitlements(order_id: str) -> Optional[Dict[str, int]]:
                 (order_id,),
             )
         return {"device_limit": device_limit, "lte_quota_gb": lte_quota_gb}
+
+
+def refresh_lte_cycle(telegram_id: int) -> Dict[str, int]:
+    """Reset an expired 30-day LTE allowance exactly once and return counters."""
+    with get_db() as conn:
+        conn.execute(
+            """UPDATE users SET lte_used_bytes=0,
+                       lte_cycle_started_at=CURRENT_TIMESTAMP,
+                       lte_cycle_reset_at=datetime('now', '+30 days')
+               WHERE telegram_id=? AND lte_cycle_reset_at IS NOT NULL
+                 AND lte_cycle_reset_at <= CURRENT_TIMESTAMP""",
+            (telegram_id,),
+        )
+        row = conn.execute(
+            """SELECT COALESCE(lte_quota_gb,0) quota,
+                      COALESCE(lte_used_bytes,0) used
+               FROM users WHERE telegram_id=?""",
+            (telegram_id,),
+        ).fetchone()
+        quota = max(0, int(row["quota"] or 0)) if row else 0
+        used = max(0, int(row["used"] or 0)) if row else 0
+        return {
+            "lte_quota_gb": quota,
+            "lte_used_bytes": used,
+            "lte_remaining_bytes": max(0, quota * 1024**3 - used),
+        }
+
+
+def add_lte_usage(telegram_id: int, bytes_used: int) -> Dict[str, int]:
+    """Add raw LTE bytes; LTE is never multiplied into normal traffic."""
+    refresh_lte_cycle(telegram_id)
+    increment = max(0, int(bytes_used))
+    with get_db() as conn:
+        conn.execute(
+            """UPDATE users SET lte_used_bytes=COALESCE(lte_used_bytes,0)+?
+               WHERE telegram_id=?""",
+            (increment, telegram_id),
+        )
+    return refresh_lte_cycle(telegram_id)
 
 
 def get_subscription_device_limit(sub_id: str, default: int = 2) -> int:

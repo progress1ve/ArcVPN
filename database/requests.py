@@ -18,6 +18,7 @@ from database.db_webapp import *
 from database.db_support import *
 from database.db_recurring import *
 from database.db_broadcast_jobs import *
+from database.db_trials import *
 
 
 # Subscription URL

@@ -9,6 +9,7 @@
   import AdminCatalog from './admin/AdminCatalog.svelte'
   import AdminFinance from './admin/AdminFinance.svelte'
   import AdminUsers from './admin/AdminUsers.svelte'
+  import AdminGrowth from './admin/AdminGrowth.svelte'
   import { fetchAdminAccess, fetchAdminOverview, loginAdmin, runAdminNodeDiagnostic, fetchAdminSupportThreads, fetchAdminSupportThread, sendAdminSupportReply } from '../lib/api.js'
 
   let data = null
@@ -41,11 +42,11 @@
   const nav = [
     ['overview', 'home', 'Главная', 'overview.read'], ['health', 'pulse', 'Здоровье', 'overview.read'],
     ['nodes', 'devices', 'Ноды', 'overview.read'],
-    ['catalog', 'route', 'Каталог подписки', 'overview.read'], ['users', 'users', 'Пользователи', 'overview.read'], ['payments', 'wallet', 'Финансы', 'overview.read'],
+    ['catalog', 'route', 'Каталог подписки', 'overview.read'], ['users', 'users', 'Пользователи', 'overview.read'], ['growth', 'signal', 'Growth', 'overview.read'], ['payments', 'wallet', 'Финансы', 'overview.read'],
     ['support', 'headset', 'Поддержка', 'support.read'], ['security', 'shield', 'Безопасность', 'audit.read'],
     ['backups', 'file', 'Резервные копии', 'backups.read'], ['settings', 'settings', 'Настройки', 'overview.read'],
   ]
-  const exposedPermissions = ['overview.read', 'nodes.diagnose', 'catalog.manage', 'subscriptions.manage', 'expenses.manage', 'support.read', 'support.reply', 'audit.read', 'backups.read', 'backups.create', 'roles.manage']
+  const exposedPermissions = ['overview.read', 'nodes.diagnose', 'catalog.manage', 'subscriptions.manage', 'campaigns.manage', 'promocodes.manage', 'expenses.manage', 'support.read', 'support.reply', 'audit.read', 'backups.read', 'backups.create', 'roles.manage']
   const roleLabels = { owner: ['Владелец', 'Полный доступ'], operator: ['Оператор', 'Операционный доступ'], support: ['Поддержка', 'Обращения пользователей'], finance: ['Финансы', 'Финансовый доступ'], viewer: ['Наблюдатель', 'Только чтение'] }
   const allows = (permission, source = access) => Boolean(source && (source.permissions?.includes('*') || source.permissions?.includes(permission)))
   $: visibleNav = nav.filter((item) => allows(item[3], access))
@@ -222,6 +223,8 @@
       <AdminUsers users={data?.recent_users || []} canManage={allows('subscriptions.manage', access)} onRefresh={() => load(true)} />
     {:else if active === 'payments'}
       <AdminFinance {data} canManage={allows('expenses.manage', access)} />
+    {:else if active === 'growth'}
+      <AdminGrowth canManageCampaigns={allows('campaigns.manage', access)} canManagePromocodes={allows('promocodes.manage', access)} />
     {:else if active === 'catalog'}
       <AdminCatalog canManage={allows('catalog.manage', access)} />
     {:else if active === 'health'}

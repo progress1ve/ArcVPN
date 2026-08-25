@@ -3,6 +3,8 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from aiogram.types import FSInputFile
+from aiogram.types import InlineKeyboardButton
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.utils.text import escape_html, safe_edit_or_send
 
@@ -13,6 +15,22 @@ def _pluralize_days(n: int) -> str:
     if n % 10 in [2, 3, 4] and n % 100 not in [12, 13, 14]:
         return f"{n} дня"
     return f"{n} дней"
+
+
+def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
+    builder = InlineKeyboardBuilder()
+    labels = {
+        "economy": "📉 Эконом — от 78 ₽/мес",
+        "standard": "👤 Стандарт — от 122 ₽/мес",
+        "family": "👨‍👩‍👧‍👦 Семейный — от 282 ₽/мес",
+    }
+    available = {str(item.get("product_code") or "standard") for item in tariffs}
+    for code in ("economy", "standard", "family"):
+        if code in available:
+            suffix = str(key_id) if key_id is not None else "new"
+            builder.row(InlineKeyboardButton(text=labels[code], callback_data=f"select_product:{code}:{suffix}"))
+    builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data=f"key:{key_id}" if key_id is not None else "start"))
+    return builder.as_markup()
 
 
 def _format_payment_context_text(
@@ -89,7 +107,7 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
             message,
             text,
             photo=photo_file_id or (FSInputFile(default_cover) if default_cover.exists() else None),
-            reply_markup=tariff_select_kb(tariffs, back_callback='start', order_id=order_id, is_select_only=True)
+            reply_markup=tariff_product_keyboard(tariffs)
         )
         return True
 
@@ -123,7 +141,7 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
         f"Сейчас осталось: <b>{days_text}</b>\n"
         f"Доступ оплачен до: <b>{expires}</b>\n\n"
         "<blockquote>Новый срок прибавится к текущему — оставшиеся дни не сгорят.</blockquote>\n\n"
-        "Выберите период:"
+        "Сначала выберите тариф:"
     )
 
     default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v1.png"
@@ -131,14 +149,7 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
         message,
         text,
         photo=FSInputFile(default_cover) if default_cover.exists() else None,
-        reply_markup=tariff_select_kb(
-            tariffs,
-            back_callback=f'key:{key_id}',
-            order_id=order_id,
-            is_select_only=True,
-            select_callback_prefix='key_renew_tariff',
-            select_callback_suffix=f':{key_id}',
-        )
+        reply_markup=tariff_product_keyboard(tariffs, key_id=key_id)
     )
     return True
 

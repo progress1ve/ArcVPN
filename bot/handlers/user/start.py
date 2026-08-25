@@ -243,6 +243,16 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     primary_key = get_user_primary_key(user_id)
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=primary_key)
     args = command.args
+    if args and args.startswith('ad_'):
+        from database.db_campaigns import attribute_user_to_campaign
+        campaign_code = args[3:]
+        attributed, campaign = attribute_user_to_campaign(user['id'], campaign_code)
+        if attributed:
+            logger.info(
+                "User %s attributed to advertising campaign %s",
+                user_id,
+                campaign.get('id') if campaign else 'unknown',
+            )
     if args and args.startswith('bill'):
         from bot.services.billing import process_crypto_payment
         from bot.handlers.user.payments.base import finalize_payment_ui
@@ -350,6 +360,12 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
                 logger.warning(f"Авто-триал не создан для {user_id} (серверы недоступны?)")
     except Exception as e:
         logger.error(f"Ошибка авто-триала при /start для {user_id}: {e}")
+
+    try:
+        from bot.services.billing import process_campaign_bonus
+        await process_campaign_bonus(user['id'], 'entry')
+    except Exception:
+        logger.exception("Advertising entry bonus failed for user %s", user_id)
 
     # Ключ мог появиться только что при авто-триале — собираем приветствие после
     # выдачи, чтобы пользователь сразу увидел актуальное состояние подписки.

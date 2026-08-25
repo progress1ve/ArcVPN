@@ -21,7 +21,7 @@ router = Router()
 async def buy_key_handler(callback: CallbackQuery):
     """Показывает список тарифов для покупки."""
     from database.requests import get_all_tariffs, get_user_primary_key
-    from bot.keyboards.user import tariff_select_kb
+    from bot.utils.payment_flow_ui import tariff_product_keyboard
     from bot.keyboards.admin import home_only_kb
     from bot.utils.message_editor import get_message_data
 
@@ -59,14 +59,50 @@ async def buy_key_handler(callback: CallbackQuery):
     if custom_text:
         text = custom_text
     else:
-        text = '💳 <b>Купить подписку</b>\n\nВыберите тариф:'
+        text = (
+            '🌍 <b>Выберите подходящий тариф VPN:</b>\n\n'
+            '📉 <b>Эконом</b> — 500 ГБ, 2 устройства. От 78 ₽/мес.\n\n'
+            '👤 <b>Стандарт</b> — 1 ТБ, 45 ГБ LTE, 3 устройства. От 122 ₽/мес.\n\n'
+            '👨‍👩‍👧‍👦 <b>Семейный</b> — безлимит, 115 ГБ LTE, 10 устройств. От 282 ₽/мес.'
+        )
     
     await safe_edit_or_send(
         callback.message,
         text,
         photo=photo_file_id,
-        reply_markup=tariff_select_kb(tariffs, back_callback='start', is_select_only=True)
+        reply_markup=tariff_product_keyboard(tariffs)
     )
+    await callback.answer()
+
+
+@router.callback_query(F.data.startswith('select_product:'))
+async def select_product_handler(callback: CallbackQuery):
+    """Step two: show periods only for the selected product family."""
+    from database.requests import get_all_tariffs
+    from bot.keyboards.user import tariff_select_kb
+
+    _, product_code, target = callback.data.split(':', 2)
+    tariffs = [item for item in get_all_tariffs(include_hidden=False) if item.get('product_code') == product_code]
+    if not tariffs:
+        await callback.answer('Тариф временно недоступен', show_alert=True)
+        return
+    key_id = int(target) if target.isdigit() else None
+    selected = tariffs[0]
+    traffic = 'безлимит' if not selected.get('traffic_limit_gb') else f"{selected['traffic_limit_gb']} ГБ"
+    text = (
+        f"<b>{selected.get('name', '').split('·')[0].strip()}</b>\n"
+        f"{traffic} · LTE {selected.get('lte_quota_gb', 0)} ГБ · "
+        f"{selected.get('device_limit', 2)} устройств\n\n"
+        "Выберите период. Чем длиннее срок, тем ниже цена за месяц."
+    )
+    markup = tariff_select_kb(
+        tariffs,
+        back_callback='buy_key' if key_id is None else f'key_renew:{key_id}',
+        is_select_only=True,
+        select_callback_prefix='select_tariff' if key_id is None else 'key_renew_tariff',
+        select_callback_suffix='' if key_id is None else f':{key_id}',
+    )
+    await safe_edit_or_send(callback.message, text, reply_markup=markup)
     await callback.answer()
 
 

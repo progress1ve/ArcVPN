@@ -169,6 +169,64 @@ def test_native_failure_keeps_legacy_fallback_available(monkeypatch):
     assert api._prepare_native_remnawave_subscription(_key(), "plain") is None
 
 
+def test_source_resolver_does_not_call_legacy_when_native_succeeds(monkeypatch):
+    prepared = api.PreparedSubscription("native", "text/plain", "upload=0; download=0")
+    metrics = api.SubscriptionSourceMetrics()
+    monkeypatch.setattr(api, "SUBSCRIPTION_SOURCE_METRICS", metrics)
+    monkeypatch.setattr(api, "_prepare_native_remnawave_subscription", lambda *_args: prepared)
+    monkeypatch.setattr(
+        api,
+        "_prepare_legacy_subscription_fallback",
+        lambda *_args: pytest.fail("legacy generator must not run after native success"),
+    )
+
+    resolution = api._resolve_subscription_source(_key(), "plain")
+
+    assert resolution is not None
+    assert resolution.prepared is prepared
+    assert resolution.source == "remnawave"
+    assert resolution.fallback_reason is None
+    assert metrics.snapshot()["native_success"] == 1
+    assert metrics.snapshot()["legacy_fallback"] == 0
+
+
+def test_source_resolver_isolates_and_counts_legacy_fallback(monkeypatch):
+    prepared = api.PreparedSubscription("legacy", "text/plain", "upload=0; download=0")
+    metrics = api.SubscriptionSourceMetrics()
+    monkeypatch.setattr(api, "SUBSCRIPTION_SOURCE_METRICS", metrics)
+    monkeypatch.setattr(api, "_native_subscription_enabled", lambda: True)
+    monkeypatch.setattr(api, "_prepare_native_remnawave_subscription", lambda *_args: None)
+    monkeypatch.setattr(api, "_prepare_legacy_subscription_fallback", lambda *_args: prepared)
+
+    resolution = api._resolve_subscription_source(_key(), "plain")
+
+    assert resolution is not None
+    assert resolution.prepared is prepared
+    assert resolution.source == "legacy"
+    assert resolution.fallback_reason == "native_unavailable"
+    assert metrics.snapshot()["fallback_reasons"] == {"native_unavailable": 1}
+
+
+def test_subscription_source_health_contains_only_aggregate_state(monkeypatch):
+    metrics = api.SubscriptionSourceMetrics()
+    metrics.record("remnawave")
+    metrics.record("legacy", "native_unavailable")
+    monkeypatch.setattr(api, "SUBSCRIPTION_SOURCE_METRICS", metrics)
+    monkeypatch.setattr(api, "_native_subscription_enabled", lambda: True)
+    monkeypatch.setattr(api, "_admin_authorized", lambda _permission: True)
+
+    response = api.app.test_client().get("/api/admin/subscription-sources")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["authority"] == "remnawave"
+    assert payload["gateway"] == "arcvpn"
+    assert payload["native_success"] == 1
+    assert payload["legacy_fallback"] == 1
+    assert "url" not in response.get_data(as_text=True).lower()
+    assert "uuid" not in response.get_data(as_text=True).lower()
+
+
 def test_native_links_keep_arcvpn_happ_wrapper(monkeypatch):
     native_link = "vless://11111111-1111-4111-8111-111111111111@example.com:443?security=reality#DE"
     def fake_run(coroutine):

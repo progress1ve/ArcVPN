@@ -72,14 +72,16 @@ def get_all_tariffs(include_hidden: bool = False) -> List[Dict[str, Any]]:
         if include_hidden:
             cursor = conn.execute("""
                 SELECT id, name, duration_days, price_cents, price_stars, price_rub, 
-                       external_id, display_order, is_active, traffic_limit_gb, group_id
+                       external_id, display_order, is_active, traffic_limit_gb, group_id,
+                       product_code, period_months, device_limit, lte_quota_gb, lte_cycle_days
                 FROM tariffs
                 ORDER BY display_order, id
             """)
         else:
             cursor = conn.execute("""
                 SELECT id, name, duration_days, price_cents, price_stars, price_rub, 
-                       external_id, display_order, is_active, traffic_limit_gb, group_id
+                       external_id, display_order, is_active, traffic_limit_gb, group_id,
+                       product_code, period_months, device_limit, lte_quota_gb, lte_cycle_days
                 FROM tariffs
                 WHERE is_active = 1
                 ORDER BY display_order, id
@@ -99,7 +101,8 @@ def get_tariff_by_id(tariff_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, duration_days, price_cents, price_stars, price_rub, 
-                   external_id, display_order, is_active, traffic_limit_gb, group_id
+                   external_id, display_order, is_active, traffic_limit_gb, group_id,
+                   product_code, period_months, device_limit, lte_quota_gb, lte_cycle_days
             FROM tariffs
             WHERE id = ?
         """, (tariff_id,))
@@ -119,7 +122,8 @@ def get_tariff_by_external_id(external_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         cursor = conn.execute("""
             SELECT id, name, duration_days, price_cents, price_stars, price_rub, 
-                   external_id, display_order, is_active, traffic_limit_gb, group_id
+                   external_id, display_order, is_active, traffic_limit_gb, group_id,
+                   product_code, period_months, device_limit, lte_quota_gb, lte_cycle_days
             FROM tariffs
             WHERE external_id = ? AND is_active = 1
         """, (external_id,))
@@ -135,7 +139,12 @@ def add_tariff(
     external_id: Optional[int] = None,
     display_order: int = 0,
     traffic_limit_gb: int = 0,
-    group_id: int = 1
+    group_id: int = 1,
+    product_code: Optional[str] = None,
+    period_months: Optional[int] = None,
+    device_limit: Optional[int] = None,
+    lte_quota_gb: Optional[int] = None,
+    lte_cycle_days: int = 30,
 ) -> int:
     """
     Добавляет новый тариф.
@@ -157,9 +166,12 @@ def add_tariff(
     with get_db() as conn:
         cursor = conn.execute("""
             INSERT INTO tariffs (name, duration_days, price_cents, price_stars, price_rub, 
-                                external_id, display_order, is_active, traffic_limit_gb, group_id)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-        """, (name, duration_days, price_cents, price_stars, price_rub, external_id, display_order, traffic_limit_gb, group_id))
+                                external_id, display_order, is_active, traffic_limit_gb, group_id,
+                                product_code, period_months, device_limit, lte_quota_gb, lte_cycle_days)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+        """, (name, duration_days, price_cents, price_stars, price_rub, external_id,
+              display_order, traffic_limit_gb, group_id, product_code, period_months,
+              device_limit, lte_quota_gb, lte_cycle_days))
         tariff_id = cursor.lastrowid
         logger.info(f"Добавлен тариф: {name} (ID: {tariff_id}, трафик: {traffic_limit_gb} ГБ, группа: {group_id})")
         return tariff_id
@@ -176,7 +188,9 @@ def update_tariff(tariff_id: int, **fields) -> bool:
         True если обновление успешно
     """
     allowed_fields = {'name', 'duration_days', 'price_cents', 'price_stars', 'price_rub',
-                      'external_id', 'display_order', 'is_active', 'group_id', 'traffic_limit_gb'}
+                      'external_id', 'display_order', 'is_active', 'group_id', 'traffic_limit_gb',
+                      'product_code', 'period_months', 'device_limit', 'lte_quota_gb',
+                      'lte_cycle_days'}
     fields = {k: v for k, v in fields.items() if k in allowed_fields}
     
     if not fields:
