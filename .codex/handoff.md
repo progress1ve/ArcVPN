@@ -28,7 +28,8 @@ Updated: 2026-08-26. This file is current state, not a diary.
   share-link source while ArcVPN remains the stable URL/device/announce/Happ
   compatibility gateway. Legacy generation is an observable fallback and must
   remain until production source metrics demonstrate a zero-fallback soak.
-- Trial provisioning now creates/reuses one Standard Remnawave identity. Exact
+- Trial provisioning now creates/reuses one unlimited-main Standard Remnawave
+  identity plus a separate 5-GiB LTE identity. Exact
   production backfill provisioned 2 missing trials after a separate backup;
   repeated preview is zero. Protected Remnawave config has the explicit
   `production` write gate; secrets remain outside Git.
@@ -48,11 +49,25 @@ Updated: 2026-08-26. This file is current state, not a diary.
   limited to the two reviewed XHTTP inbounds and 0/45/115 GiB entitlement.
   Scheduler reconciliation mirrors LTE Remnawave usage into WebApp/header state.
   Public URLs and main UUIDs are unchanged.
-- Happ delivery is exactly: `Автовыбор | Самый быстрый`, Netherlands, Germany,
-  then five `🇪🇺 Обход глушилок #1..#5` rows. Main/LTE credential crossover is
+- Customer/LTE follow-up is deployed through `d71af08`. Happ delivery is exactly:
+  AutoSelect, Netherlands VLESS/Hysteria2, Germany VLESS/Hysteria2, then five
+  `🇪🇺 Обход глушилок #1..#5` rows. LTE #1-#3 are main least-load profiles with
+  LTE XHTTP fallback; #4-#5 are direct LTE profiles. Main/LTE credential crossover is
   rejected and covered by credential-safe production verification. Finland is
   hidden from subscriptions and admin surfaces; disconnected Remnawave records
   remain intentionally undeleted.
+- Three active legacy trials were reconciled after a separate backup: all now
+  have unlimited main traffic, exactly 5 GiB LTE and a separate LTE identity.
+  DNS v2 is enabled only for Telegram ID `2075630349`; the global profile remains
+  legacy pending the owner's short Wi-Fi/LTE canary.
+- Purchase UI now defaults to SBP, vertically centers the wide flow, and all tariff
+  descriptions/customer cabinet surfaces state unlimited main traffic plus a
+  separate LTE allowance. `panel.arccnet.space` serves admin only (`/app` is 404).
+  Apex customer-domain nginx/metadata support is committed but not activated:
+  `arccnet.space` still has no A record or certificate.
+- Self-hosted SMTP on Poland is currently infeasible: no MTA is installed and
+  outbound TCP/25 is blocked. Use a relay SMTP, or first obtain provider unblock,
+  PTR/rDNS and DNS records; do not claim email delivery before that gate.
 - Whole-admin operations redesign is deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; production evidence is recorded in `.codex/stages/current.md` and its docs follow-up `b0458b95b8bde59deae4fd093afff5d54f07605f`.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.

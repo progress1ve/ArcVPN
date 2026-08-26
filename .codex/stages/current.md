@@ -60,6 +60,33 @@ Local evidence:
   TCP/25 is blocked, so a self-hosted SMTP cannot be truthfully deployed there.
   A relay SMTP or provider unblock/PTR is still an external prerequisite.
 
+Production rollout and acceptance status:
+
+- Runtime commits `08fd884`, `610b261` and routing correction `d71af08` were
+  pushed and fast-forwarded on Poland. Bot/subscription services are active and
+  health is OK. Public admin root is HTTP 200, customer `/app` on the panel host
+  is HTTP 404, the signed customer asset/legal page are HTTP 200.
+- Criterion 1 passed: credential-safe verification reports five main and five
+  direct LTE share links, zero identity crossover, exact 10-row Happ order and
+  intact announce/header. The first three EU LTE JSON rows carry the tested
+  main→LTE balancer contract; Hysteria2 is visible for NL and DE.
+- Criterion 2 is configured and server-generated canary JSON for the selected ID
+  uses DNS v2 while the global profile remains legacy. Real Wi-Fi/LTE client use
+  is deliberately left to the owner.
+- Criterion 3 passed for new provisioning and the three active legacy trials.
+  Production backup `backups/vpn_bot.pre-trial-lte5-20260826.db` preceded the
+  reconciliation; all three now satisfy unlimited main + 5-GiB separate LTE.
+- Criterion 4 passed locally at all four viewports and production assets are live;
+  the owner retains the authenticated real-device purchase scenario.
+- Criterion 5 is prepared but deferred: REG.RU apex A record and TLS do not yet
+  exist, so nginx apex activation and `WEBAPP_URL=https://arccnet.space` remain
+  intentionally off. Stable subscription URLs are unchanged.
+- Criterion 6 legal copy passed. SMTP is blocked by outbound TCP/25 and absent
+  PTR/SPF/DKIM/DMARC; no fake or undeliverable SMTP was installed.
+- Criterion 7 passed automated/local browser checks. Remaining external checks
+  are the short owner DNS canary, apex DNS propagation/TLS, and one real email
+  delivery after a relay or port/PTR solution. Stage remains in progress.
+
 ## 2026-08-26 LTE isolation and truthful quota rollout
 
 Goal: make ordinary VPN traffic unlimited while metering and enforcing only the
