@@ -351,11 +351,6 @@ def _subscription_display_name(name: str) -> str:
         number_match = re.search(r"#\s*([1-9][0-9]*)", value)
         number = number_match.group(1) if number_match else "1"
         return f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
-        if number == "4":
-            return "🇳🇱 Обход глушилок #4"
-        if number == "5":
-            return "🇩🇪 Обход глушилок #5"
-        return "🇷🇺 Обход глушилок (LTE)"
     return value
 
 

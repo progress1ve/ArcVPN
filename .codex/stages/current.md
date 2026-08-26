@@ -43,6 +43,27 @@ public format inspection and real tunneled main/LTE canary.
 
 Status: in progress
 
+Rollout evidence (2026-08-26):
+
+- Production SQLite was backed up to the explicit pre-LTE artifact before schema
+  v58. Migration preview selected 14 active users with zero errors; apply created
+  14 LTE identities, updated 14 unlimited main identities, and the idempotent
+  repeat updated 14/14 with zero errors.
+- `ArcVPN Staging` now contains only the four reviewed DE/NL main inbounds.
+  `ArcVPN LTE` contains exactly `DE_DHOST_LTE_XHTTP` and
+  `NL_DHOST_LTE_XHTTP`. Existing main UUIDs and public ArcVPN URLs were retained.
+- Credential-safe production inspection passed: five main share links use only
+  the main identity; five LTE share links use only the LTE identity; header total
+  equals the LTE quota; announce matches; Happ JSON contains exactly eight rows
+  ordered AutoSelect, Netherlands, Germany, five EU LTE profiles.
+- Finland is excluded from subscription delivery and from both backend/admin node
+  surfaces. Its disconnected Remnawave records were not destructively deleted.
+- Local regression passed `107 passed`; WebApp build passed with 87 modules.
+  Production health is OK and bot/subscription services are active.
+- Criteria 1-6 passed by migration/API/profile evidence. Criterion 7 remains
+  partially external: generated production profiles passed, but a real tunneled
+  Standard-user LTE exhaustion/main-survival canary still requires a user device.
+
 ## 2026-08-26 follow-up: login, tariff clarity, branding and LTE-only quota
 
 Goal: remove the newly reported purchase/login friction and make the customer
