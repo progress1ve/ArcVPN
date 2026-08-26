@@ -900,6 +900,16 @@ async def process_due_traffic_cycle_resets(*, resetter=None, now=None) -> dict:
             for key_id in cycle["key_ids"]:
                 if not await resetter(key_id):
                     raise RuntimeError(f"authoritative reset rejected key {key_id}")
+            from database.db_webapp import get_lte_identity_by_id
+            lte = get_lte_identity_by_id(user_id) or {}
+            if lte.get("lte_panel_username"):
+                from bot.services.remnawave_stats import remnawave_authority_config
+                lte_client = get_client_from_server_data(remnawave_authority_config())
+                try:
+                    if not await lte_client.reset_client_traffic(0, lte["lte_panel_username"]):
+                        raise RuntimeError("authoritative LTE reset rejected")
+                finally:
+                    await lte_client.close()
             if not complete_traffic_cycle_reset(user_id, boundary, completed_at=now):
                 raise RuntimeError("cycle boundary changed during reset")
             result["applied"] += 1
@@ -907,6 +917,32 @@ async def process_due_traffic_cycle_resets(*, resetter=None, now=None) -> dict:
             fail_traffic_cycle_reset(user_id, boundary, type(exc).__name__)
             result["failed"] += 1
             logger.warning("Traffic cycle reset failed user=%s: %s", user_id, exc)
+    return result
+
+
+async def reconcile_lte_usage() -> dict:
+    """Mirror the isolated LTE identities into the account/announce counters."""
+    from database.db_webapp import list_lte_identities, set_lte_usage
+    from bot.services.remnawave_stats import remnawave_authority_config
+    identities = list_lte_identities()
+    result = {"updated": 0, "failed": 0}
+    if not identities:
+        return result
+    client = get_client_from_server_data(remnawave_authority_config())
+    try:
+        for identity in identities:
+            try:
+                user = await client.get_user(identity["lte_panel_username"])
+                if not user or str(user.get("vlessUuid") or "") != str(identity["lte_client_uuid"]):
+                    raise RuntimeError("LTE identity mismatch")
+                used = int((user.get("userTraffic") or {}).get("usedTrafficBytes") or 0)
+                set_lte_usage(int(identity["telegram_id"]), used)
+                result["updated"] += 1
+            except Exception:
+                result["failed"] += 1
+                logger.exception("LTE usage reconciliation failed user=%s", identity["user_id"])
+    finally:
+        await client.close()
     return result
 
 
@@ -1310,6 +1346,7 @@ async def run_traffic_sync_scheduler(bot: Bot) -> None:
     while True:
         try:
             await process_due_traffic_cycle_resets()
+            await reconcile_lte_usage()
             await sync_traffic_stats(bot)
             
             # Уведомление и счётчик устройств должны быть практически свежими.

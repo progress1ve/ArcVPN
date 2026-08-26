@@ -44,7 +44,7 @@ from bot.utils.key_generator import generate_link
 from bot.utils.telegram_webapp import get_telegram_id
 import config
 from database.connection import DB_PATH, get_db
-from database.db_webapp import adopt_import_device_identity
+from database.db_webapp import adopt_import_device_identity, get_lte_identity, get_user_entitlements
 from database.db_servers import get_server_by_id
 from database.db_admin_audit import append_admin_audit, list_admin_audit
 from database.db_admin_roles import (
@@ -501,10 +501,10 @@ VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 PROFILE_TITLE = "ArcVPN"
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
 SUBSCRIPTION_ANNOUNCE = (
-    "❗ Не работает VPN? Жми кнопку - 🔁 обновить подписку.\n"
-    "🔥РФ сервисы РАБОТАЮТ с VPN\n\n"
-    "🎁 Приглашайте друзей\n"
-    "+5 дней — за вход друга в бот\n"
+    "❗Лимит ГБ тратится только на Обход глушилок.❗\n"
+    "Не работает VPN? Жми кнопку —  🔁 Обновить подписку.\n"
+    "🔥РФ сервисы РАБОТАЮТ с VPN\n"
+    "🎁 Приглашайте друзей: +5 дней — за вход друга в бот\n"
     "+15 дней каждому — когда друг продлит подписку"
 )
 SUBSCRIPTION_ANNOUNCE_BASE64 = base64.b64encode(
@@ -908,12 +908,18 @@ def _row_to_active_key(row: Any) -> ActiveKeyRecord:
 
 
 def _build_subscription_userinfo(key: ActiveKeyRecord) -> str:
+    try:
+        entitlement = get_user_entitlements(int(key.telegram_id))
+    except sqlite3.OperationalError:
+        # Narrow compatibility for old unit-test/pre-migration schemas.
+        entitlement = {"lte_used_bytes": 0, "lte_quota_gb": 0}
+    used = max(0, int(entitlement.get("lte_used_bytes") or 0))
+    quota = max(0, int(entitlement.get("lte_quota_gb") or 0)) * 1024**3
     parts = [
         "upload=0",
-        f"download={max(0, key.traffic_used)}",
+        f"download={used}",
     ]
-    if key.traffic_limit > 0:
-        parts.append(f"total={key.traffic_limit}")
+    parts.append(f"total={quota}")
     if key.expires_at_unix > 0:
         parts.append(f"expire={key.expires_at_unix}")
     return "; ".join(parts)
@@ -1049,21 +1055,8 @@ def _build_plain_text_subscription(
 
 
 def _subscription_announce_base64(key: ActiveKeyRecord) -> str:
-    """Build the customer LTE remainder without exposing identity data."""
-    try:
-        entitlement = get_user_entitlements(int(key.telegram_id))
-        quota = max(0, int(entitlement.get("lte_quota_gb") or 0))
-        remaining = max(0, int(entitlement.get("lte_remaining_bytes") or 0)) / 1024**3
-        remaining_text = f"{remaining:.1f}".replace(".", ",")
-        lte_line = (
-            f"Обход глушилок (LTE): {remaining_text} из {quota} ГБ"
-            if quota else "Обход глушилок (LTE): не входит в тариф"
-        )
-        announce = f"{SUBSCRIPTION_ANNOUNCE}\n\n{lte_line}"
-        return base64.b64encode(announce.encode("utf-8")).decode("ascii")
-    except Exception:
-        logger.exception("Не удалось собрать LTE announce")
-        return SUBSCRIPTION_ANNOUNCE_BASE64
+    """The usage bar carries the live LTE remainder; announce stays stable."""
+    return SUBSCRIPTION_ANNOUNCE_BASE64
 
 
 def _uses_dns_v2(key: ActiveKeyRecord) -> bool:
@@ -2290,33 +2283,9 @@ def _native_links_match_key(links: Iterable[str], client_uuid: str) -> bool:
     )
 
 
-async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
-    """Resolve and fetch a user's native Remnawave subscription with short caches."""
-    if not _native_subscription_enabled() or not key.client_uuid:
+async def _fetch_native_identity_links(subscription_url: str, client_uuid: str) -> list[str]:
+    if not _public_https_subscription_url(subscription_url):
         return []
-
-    identity_hash = hashlib.sha256(str(key.client_uuid).encode("utf-8")).hexdigest()
-    subscription_url = REMNAWAVE_NATIVE_URL_CACHE.get(identity_hash)
-    if subscription_url is None:
-        runtime = _load_remnawave_runtime_config()
-        if not runtime["REMNAWAVE_PANEL_URL"] or not runtime["REMNAWAVE_API_TOKEN"]:
-            return []
-        client = RemnawaveClient({
-            "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
-            "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
-        })
-        try:
-            user = await client.get_user(key.panel_email)
-        finally:
-            await client.close()
-        if not user or str(user.get("vlessUuid") or "") != str(key.client_uuid):
-            return []
-        subscription_url = str(user.get("subscriptionUrl") or "").strip()
-        if not _public_https_subscription_url(subscription_url):
-            logger.warning("Remnawave returned an invalid native subscription URL")
-            return []
-        REMNAWAVE_NATIVE_URL_CACHE.set(identity_hash, subscription_url)
-
     body_cache_key = hashlib.sha256(subscription_url.encode("utf-8")).hexdigest()
     cached_body = REMNAWAVE_NATIVE_BODY_CACHE.get(body_cache_key)
     if cached_body is None:
@@ -2333,11 +2302,43 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
                     raise VPNAPIError("native subscription is too large")
         REMNAWAVE_NATIVE_BODY_CACHE.set(body_cache_key, cached_body)
     links = [_normalize_native_share_link(link) for link in _decode_native_subscription_links(cached_body)]
-    if not _native_links_match_key(links, str(key.client_uuid)):
+    if not _native_links_match_key(links, client_uuid):
         logger.warning("Native Remnawave credentials mismatch; using the stable ArcVPN fallback")
         return []
     links = [_normalize_customer_profile_label(link) for link in links]
-    return _with_youtube_without_ads_alias(links)
+    return links
+
+
+async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
+    """Merge unlimited main and independently metered LTE identities."""
+    if not _native_subscription_enabled() or not key.client_uuid:
+        return []
+    runtime = _load_remnawave_runtime_config()
+    if not runtime["REMNAWAVE_PANEL_URL"] or not runtime["REMNAWAVE_API_TOKEN"]:
+        return []
+    client = RemnawaveClient({
+        "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
+        "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
+    })
+    try:
+        main_user = await client.get_user(key.panel_email)
+        if not main_user or str(main_user.get("vlessUuid") or "") != str(key.client_uuid):
+            return []
+        main_links = await _fetch_native_identity_links(
+            str(main_user.get("subscriptionUrl") or "").strip(), str(key.client_uuid)
+        )
+        identity = get_lte_identity(int(key.telegram_id)) or {}
+        lte_links: list[str] = []
+        if int(identity.get("lte_quota_gb") or 0) > 0 and identity.get("lte_panel_username"):
+            lte_user = await client.get_user(str(identity["lte_panel_username"]))
+            expected_uuid = str(identity.get("lte_client_uuid") or "")
+            if lte_user and expected_uuid and str(lte_user.get("vlessUuid") or "") == expected_uuid:
+                lte_links = await _fetch_native_identity_links(
+                    str(lte_user.get("subscriptionUrl") or "").strip(), expected_uuid
+                )
+        return _with_youtube_without_ads_alias([*main_links, *lte_links])
+    finally:
+        await client.close()
 
 
 def _prepare_native_remnawave_subscription(

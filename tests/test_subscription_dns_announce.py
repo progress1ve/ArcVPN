@@ -14,13 +14,19 @@ def _key(telegram_id=42):
     return ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "Стандарт", telegram_id)
 
 
-def test_lte_announce_is_complete_and_uses_customer_format():
+def test_lte_announce_is_complete_and_explains_usage_bar():
     with patch("subscription_api.get_user_entitlements", return_value={
         "lte_quota_gb": 45,
         "lte_remaining_bytes": int(44.2 * 1024**3),
     }):
         text = base64.b64decode(_subscription_announce_base64(_key())).decode("utf-8")
-    assert "Обход глушилок (LTE): 44,2 из 45 ГБ" in text
+    assert text == (
+        "❗Лимит ГБ тратится только на Обход глушилок.❗\n"
+        "Не работает VPN? Жми кнопку —  🔁 Обновить подписку.\n"
+        "🔥РФ сервисы РАБОТАЮТ с VPN\n"
+        "🎁 Приглашайте друзей: +5 дней — за вход друга в бот\n"
+        "+15 дней каждому — когда друг продлит подписку"
+    )
 
 
 def test_dns_v2_is_canary_gated_and_has_no_google_or_cloudflare():

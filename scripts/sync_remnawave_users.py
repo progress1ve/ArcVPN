@@ -124,7 +124,9 @@ async def synchronize(apply: bool, db_path: Path) -> dict:
                 payload = {
                     "username": username,
                     "status": "ACTIVE",
-                    "trafficLimitBytes": int(key["traffic_limit"]),
+                    # Main identity is intentionally unlimited. LTE has its own
+                    # identity and Remnawave-enforced 0/45/115 GiB allowance.
+                    "trafficLimitBytes": 0,
                     "trafficLimitStrategy": "NO_RESET",
                     "expireAt": iso_expiry(key["expires_at"]),
                     "hwidDeviceLimit": max(0, int(key["device_limit"])),

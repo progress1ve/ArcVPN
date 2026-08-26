@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 57
+LATEST_VERSION = 58
 
 
 def get_current_version() -> int:
@@ -2332,6 +2332,17 @@ def migration_57(conn: sqlite3.Connection) -> None:
     logger.info("Migration v57 applied")
 
 
+def migration_58(conn: sqlite3.Connection) -> None:
+    """Persist the independent Remnawave identity used only by LTE inbounds."""
+    _add_column(conn, "users", "lte_client_uuid TEXT")
+    _add_column(conn, "users", "lte_panel_username TEXT")
+    _add_column(conn, "users", "lte_remnawave_user_id TEXT")
+    _add_column(conn, "users", "lte_usage_synced_at DATETIME")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lte_client_uuid ON users(lte_client_uuid) WHERE lte_client_uuid IS NOT NULL")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_lte_panel_username ON users(lte_panel_username) WHERE lte_panel_username IS NOT NULL")
+    logger.info("Migration v58 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2390,6 +2401,7 @@ MIGRATIONS = {
     55: migration_55,
     56: migration_56,
     57: migration_57,
+    58: migration_58,
 }
 
 

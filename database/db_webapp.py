@@ -430,6 +430,58 @@ def add_lte_usage(telegram_id: int, bytes_used: int) -> Dict[str, int]:
     return refresh_lte_cycle(telegram_id)
 
 
+def set_lte_usage(telegram_id: int, bytes_used: int) -> Dict[str, int]:
+    """Reconcile the absolute Remnawave LTE-identity counter."""
+    refresh_lte_cycle(telegram_id)
+    with get_db() as conn:
+        conn.execute(
+            """UPDATE users SET lte_used_bytes=?, lte_usage_synced_at=CURRENT_TIMESTAMP
+               WHERE telegram_id=?""",
+            (max(0, int(bytes_used)), telegram_id),
+        )
+    return refresh_lte_cycle(telegram_id)
+
+
+def get_lte_identity(telegram_id: int) -> Optional[Dict[str, Any]]:
+    with get_db() as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "lte_client_uuid" not in columns:
+            return None
+        row = conn.execute(
+            """SELECT id user_id, telegram_id, lte_client_uuid,
+                      lte_panel_username, lte_remnawave_user_id,
+                      COALESCE(lte_quota_gb,0) lte_quota_gb,
+                      COALESCE(lte_used_bytes,0) lte_used_bytes
+               FROM users WHERE telegram_id=?""",
+            (telegram_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    with get_db() as conn:
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "lte_client_uuid" not in columns:
+            return None
+        row = conn.execute(
+            """SELECT id user_id, telegram_id, lte_client_uuid,
+                      lte_panel_username, lte_remnawave_user_id,
+                      COALESCE(lte_quota_gb,0) lte_quota_gb
+               FROM users WHERE id=?""", (user_id,),
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def list_lte_identities() -> list[Dict[str, Any]]:
+    with get_db() as conn:
+        return [dict(row) for row in conn.execute(
+            """SELECT id user_id, telegram_id, lte_panel_username,
+                      lte_client_uuid, COALESCE(lte_quota_gb,0) lte_quota_gb
+               FROM users WHERE lte_panel_username IS NOT NULL
+                 AND lte_client_uuid IS NOT NULL"""
+        ).fetchall()]
+
+
 def get_subscription_device_limit(sub_id: str, default: int = 2) -> int:
     with get_db() as conn:
         row = conn.execute(

@@ -119,6 +119,27 @@ class RemnawaveClient(BaseVPNClient):
                 return None
         raise VPNAPIError("VLESS UUID lookup exceeded 5000 users; migrate caller to panel user ID")
 
+    async def set_user_squads_and_limit(
+        self, username: str, squad_uuids: List[str], traffic_limit_bytes: int,
+        *, expiry_at: Optional[str] = None, enabled: bool = True,
+    ) -> Dict[str, Any]:
+        """Apply the complete isolated access boundary and verify it."""
+        user = await self._user_for_write(username)
+        payload: Dict[str, Any] = {
+            "id": user["id"],
+            "status": "ACTIVE" if enabled else "DISABLED",
+            "trafficLimitBytes": max(0, int(traffic_limit_bytes)),
+            "trafficLimitStrategy": "NO_RESET",
+            "activeInternalSquads": list(dict.fromkeys(squad_uuids)),
+        }
+        if expiry_at:
+            payload["expireAt"] = expiry_at
+        await self._request("PATCH", "/api/users", json=payload)
+        verified = await self.get_user(username)
+        if not verified:
+            raise VPNAPIError("Remnawave user disappeared after update")
+        return verified
+
     async def add_client(self, inbound_id: int, email: str, total_gb: int = 0, expire_days: int = 30,
                          limit_ip: int = 1, enable: bool = True, tg_id: str = "", flow: str = "") -> Dict[str, Any]:
         username = self._username(email)
@@ -126,7 +147,8 @@ class RemnawaveClient(BaseVPNClient):
         payload: Dict[str, Any] = {
             "username": username,
             "status": "ACTIVE" if enable else "DISABLED",
-            "trafficLimitBytes": max(0, int(total_gb)) * 1024 ** 3,
+            # ArcVPN meters only the separately provisioned LTE identity.
+            "trafficLimitBytes": 0,
             "trafficLimitStrategy": "NO_RESET",
             "expireAt": (datetime.now(timezone.utc) + timedelta(days=expire_days)).isoformat(),
             "hwidDeviceLimit": max(0, int(limit_ip)),
@@ -201,7 +223,7 @@ class RemnawaveClient(BaseVPNClient):
 
     async def update_client_limit(self, inbound_id: int, client_uuid: str, email: str, total_gb_bytes: int) -> bool:
         user = await self._user_for_write(email)
-        await self._request("PATCH", "/api/users", json={"id": user["id"], "trafficLimitBytes": max(0, total_gb_bytes)})
+        await self._request("PATCH", "/api/users", json={"id": user["id"], "trafficLimitBytes": 0})
         return True
 
     async def update_client_full(self, inbound_id: int, client_uuid: str, email: str, expiry_time_ms: int,
@@ -209,7 +231,7 @@ class RemnawaveClient(BaseVPNClient):
         user = await self._user_for_write(email)
         payload: Dict[str, Any] = {
             "id": user["id"], "status": "ACTIVE" if enable else "DISABLED",
-            "trafficLimitBytes": max(0, int(total_gb_bytes)), "hwidDeviceLimit": max(0, int(limit_ip)),
+            "trafficLimitBytes": 0, "hwidDeviceLimit": max(0, int(limit_ip)),
         }
         if expiry_time_ms:
             payload["expireAt"] = datetime.fromtimestamp(expiry_time_ms / 1000, timezone.utc).isoformat()
