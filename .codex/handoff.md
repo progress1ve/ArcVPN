@@ -37,6 +37,16 @@ Updated: 2026-08-26. This file is current state, not a diary.
   code consumption, calendar reset fields, legal-consent versioning, full LTE
   announce, favicon and manifest are deployed. Crypto and Stars are absent from
   customer payment UI/routers.
+- Login/branding/tariff follow-up is deployed at `33fad1e`: the supplied white
+  Arc mark is used by the app/manifest, standalone login offers Telegram plus
+  email with centered composition, tariff copy explicitly states LTE allowance
+  and device count without emoji, the promo input no longer draws a rectangular
+  focus highlight, and admin password cookies persist for 30 days.
+- Do not advertise main traffic as unlimited or replace the subscription usage
+  bar with LTE yet. Remnawave currently meters one aggregate user identity and
+  local `lte_used_bytes` is not reconciled from per-node production usage. The
+  safe next design needs LTE node usage ingestion plus a separately revocable
+  LTE identity/squad while preserving the public subscription URL and main UUID.
 - Whole-admin operations redesign is deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; production evidence is recorded in `.codex/stages/current.md` and its docs follow-up `b0458b95b8bde59deae4fd093afff5d54f07605f`.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
@@ -52,7 +62,8 @@ Provide production SMTP credentials and verified operator/legal details, then ru
 a real linked-email delivery/login and authenticated promo/payment pass. Execute
 the DNS v2 client canary on Wi-Fi/mobile and at least two Happ platforms before
 enabling `ARCVPN_DNS_PROFILE=v2`. Reconcile one real user's local/Remnawave/WebApp
-normal and LTE usage at their anniversary, and complete keyboard-only production
+normal and LTE usage at their anniversary; design the separate LTE enforcement
+identity before changing quota presentation; and complete keyboard-only production
 acceptance. Do not claim the stage complete while these gates remain open.
 
 ## Starting a new chat

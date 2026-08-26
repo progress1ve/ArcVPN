@@ -60,6 +60,22 @@ Evidence before rollout (2026-08-26):
   work requires an LTE node UUID allowlist, node/user usage ingestion and a
   separately revocable LTE identity/squad before the text/header switch.
 
+Rollout evidence:
+
+- Runtime commit `33fad1e` was pushed to `origin/main`, production fast-forwarded
+  from `afea781`, and only `arcvpn-subscription.service` restarted. Subscription
+  and bot services are active.
+- Public health, `/api/public/config`, the 23,332-byte WebP mark, manifest and
+  admin HTML all returned HTTP 200. Production browser showed the standalone
+  Telegram/email login and the distinct `Вход в ArcVPN Admin` password surface.
+- Password persistence is proven by the 30-day cookie test/header contract; a
+  manual existing-password browser login was intentionally not attempted.
+- Acceptance 1-5 passed. Acceptance 7 passed for local four-viewport composition
+  and public route/asset semantics; a real keyboard-only password-login pass is
+  still external. Acceptance 6 is deferred for the enforcement reason above.
+- Rollback is `git revert 33fad1e` followed by subscription-service restart; no
+  schema, subscription URL, UUID or node topology changed in this release.
+
 Status: in progress
 Started: 2026-08-24
 Expanded: 2026-08-24 after the Support deployment, before further runtime edits
