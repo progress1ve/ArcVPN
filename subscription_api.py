@@ -13,7 +13,6 @@ import hashlib
 import hmac
 import html
 import ipaddress
-import copy
 import json
 import logging
 import os
@@ -351,6 +350,7 @@ def _subscription_display_name(name: str) -> str:
     if "Обход глушилок" in value:
         number_match = re.search(r"#\s*([1-9][0-9]*)", value)
         number = number_match.group(1) if number_match else "1"
+        return f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
         if number == "4":
             return "🇳🇱 Обход глушилок #4"
         if number == "5":
@@ -387,6 +387,20 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         mapped = link.rsplit("#", 1)[0] + "#" + urllib.parse.quote(display_name, safe="")
         result.append((order, mapped))
     return [link for _, link in sorted(result, key=lambda item: item[0])]
+
+
+def _expand_lte_profile_links(links: list[str]) -> list[str]:
+    """Expose exactly five stable EU-labelled LTE choices over reviewed routes."""
+    main = [link for link in links if not _is_lte_subscription_link(link)]
+    lte = [link for link in links if _is_lte_subscription_link(link)]
+    if not lte:
+        return main
+    expanded = []
+    for index in range(5):
+        source = lte[index % len(lte)].rsplit("#", 1)[0]
+        label = f"\U0001f1ea\U0001f1fa Обход глушилок #{index + 1}"
+        expanded.append(source + "#" + urllib.parse.quote(label, safe=""))
+    return [*main, *expanded]
 
 
 def _subscription_link_order(link: str) -> tuple[int, int, str]:
@@ -501,9 +515,8 @@ VALID_SUBSCRIPTION_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 PROFILE_TITLE = "ArcVPN"
 PROFILE_TITLE_BASE64 = base64.b64encode(PROFILE_TITLE.encode("utf-8")).decode("ascii")
 SUBSCRIPTION_ANNOUNCE = (
-    "❗Лимит ГБ тратится только на Обход глушилок.❗\n"
-    "Не работает VPN? Жми кнопку —  🔁 Обновить подписку.\n"
-    "🔥РФ сервисы РАБОТАЮТ с VPN\n"
+    "❗Лимит ГБ тратиться только на Обход глушилок.❗\n"
+    "Не работает VPN? Жми кнопку —  🔁 Обновить подписку.\n\n"
     "🎁 Приглашайте друзей: +5 дней — за вход друга в бот\n"
     "+15 дней каждому — когда друг продлит подписку"
 )
@@ -1414,7 +1427,9 @@ def _happ_direct_rules() -> list[Dict[str, Any]]:
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
     links = sorted(
-        (item.strip() for item in links_text.splitlines() if item.strip()),
+        _expand_lte_profile_links([
+            item.strip() for item in links_text.splitlines() if item.strip()
+        ]),
         key=_subscription_link_order,
     )
     regular: list[Dict[str, Any]] = []
@@ -1494,7 +1509,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "settings": {"inboundTag": "FROM_LOOPBACK_BACK"},
             }] if lte_outbounds else []),
         ],
-        "remarks": "🇪🇺 Автовыбор | Самый быстрый",
+        "remarks": "Автовыбор | Самый быстрый",
         "routing": {
             "balancers": [{
                 # A balancer cannot directly use another balancer as fallback.
@@ -1519,27 +1534,32 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             ],
         },
     }
-    # These visible entries intentionally share one topology. They make the
-    # emergency route discoverable in Happ while keeping CDN outbounds hidden
-    # and completely idle until every main candidate has failed.
-    bypass_profiles: list[Dict[str, Any]] = []
-    if lte_outbounds:
-        for number in range(1, 4):
-            bypass = copy.deepcopy(auto_profile)
-            bypass["remarks"] = f"🇷🇺 Обход глушилок #{number}"
-            bypass["meta"] = {
-                "arcvpnProfileKind": "cdn-fallback",
-                "arcvpnProfileCopy": number,
-            }
-            bypass_profiles.append(bypass)
-
-    direct_cdn_profiles = [
+    lte_profiles = [
         profile for profile in regular
-        if re.search(r"Обход глушилок\s*#\s*[45]\b", str(profile.get("remarks") or ""))
+        if "Обход глушилок" in str(profile.get("remarks") or "")
     ]
-    normal_profiles = [profile for profile in regular if profile not in direct_cdn_profiles]
+    normal_profiles = [profile for profile in regular if profile not in lte_profiles]
+
+    def visible_country(country: str) -> Optional[Dict[str, Any]]:
+        aliases = {
+            "Нидерланды": ("Нидерланды", "Netherlands"),
+            "Германия": ("Германия", "Germany"),
+        }[country]
+        candidates = [
+            profile for profile in normal_profiles
+            if any(alias in str(profile.get("remarks") or "") for alias in aliases)
+            and "Ютуб без рекламы" not in str(profile.get("remarks") or "")
+        ]
+        return next((
+            profile for profile in candidates
+            if (profile.get("outbounds") or [{}])[0].get("protocol") == "vless"
+        ), candidates[0] if candidates else None)
+
+    visible_main = [profile for profile in (
+        visible_country("Нидерланды"), visible_country("Германия")
+    ) if profile is not None]
     return json.dumps(
-        [auto_profile, *normal_profiles, *bypass_profiles, *direct_cdn_profiles],
+        [auto_profile, *visible_main, *lte_profiles],
         ensure_ascii=False,
         separators=(",", ":"),
     )
@@ -1554,9 +1574,9 @@ def _prepare_subscription(
     routing_link = routing_link_override if routing_link_override is not None else ROUTING_LINK
     userinfo_header = _build_subscription_userinfo(key)
     announce_base64 = _subscription_announce_base64(key)
-    visible_links = _apply_subscription_catalog(
+    visible_links = _expand_lte_profile_links(_apply_subscription_catalog(
         item for item in link.splitlines() if item.strip()
-    )
+    ))
 
     if output_format == "json":
         return PreparedSubscription(
@@ -5015,7 +5035,7 @@ def api_admin_overview():
         remnawave["nodes"] = [
             node for node in remnawave["nodes"]
             if not node.get("disabled")
-            and "finland lte" not in str(node.get("name") or "").lower()
+            and "finland" not in str(node.get("name") or "").lower()
         ]
         lte_specs = (
             {

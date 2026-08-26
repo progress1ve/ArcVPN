@@ -5,7 +5,7 @@
   let filter = 'all'
   let builderOpen = false; let host=''; let username='root'; let password=''; let preset='direct'; let checking=false; let preflight=null; let builderError=''
   let selectedNode=null; let metricRange='1h'; let metricSamples=[]; let metricsLoading=false; let metricsError=''
-  $: nodes = (data?.remnawave?.nodes || []).filter(node => !/finland lte/i.test(node.name || ''))
+  $: nodes = (data?.remnawave?.nodes || []).filter(node => !/finland/i.test(node.name || ''))
   $: edges = data?.remnawave?.lte_edges || []
   $: visible = nodes.filter(node => filter === 'all' || (filter === 'online' ? node.connected : !node.connected))
   const bitRate = value => Number(value || 0) >= 1_000_000 ? `${(Number(value) / 1_000_000).toFixed(1)} Мбит/с` : `${Math.round(Number(value || 0) / 1000)} Кбит/с`

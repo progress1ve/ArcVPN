@@ -13,6 +13,23 @@ else:
 
 @unittest.skipIf(IMPORT_ERROR is not None, f"subscription API dependencies unavailable: {IMPORT_ERROR}")
 class HappFallbackBalancerTests(unittest.TestCase):
+    def test_customer_profile_order_is_auto_nl_de_then_five_eu_lte(self):
+        key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
+        links = "\n".join([
+            "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Нидерланды%20%231",
+            "vless://22222222-2222-2222-2222-222222222222@de.example:443?security=none&type=tcp#Германия%20%231",
+            "vless://33333333-3333-3333-3333-333333333333@lte-nl.example:443?security=tls&type=xhttp#Обход%20глушилок%20%234",
+            "vless://44444444-4444-4444-4444-444444444444@lte-de.example:443?security=tls&type=xhttp#Обход%20глушилок%20%235",
+        ])
+        with patch("subscription_api._catalog_overrides", return_value={}):
+            profiles = json.loads(_build_happ_json_subscription(key, links))
+        self.assertEqual([item["remarks"] for item in profiles], [
+            "Автовыбор | Самый быстрый", "Нидерланды #1", "Германия #1",
+            "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
+            "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
+            "🇪🇺 Обход глушилок #5",
+        ])
+
     def test_main_falls_through_loopback_to_all_lte_outbounds(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
@@ -35,25 +52,24 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual(balancers["balancer_back"]["fallbackTag"], "direct")
         self.assertEqual(balancers["balancer_back"]["strategy"]["type"], "roundRobin")
         self.assertEqual(auto["burstObservatory"]["subjectSelector"], ["proxy-main"])
-        self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 2)
+        self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 5)
         self.assertEqual(auto["routing"]["rules"][0]["inboundTag"], ["FROM_LOOPBACK_BACK"])
         profiles = json.loads(built)
         self.assertEqual(len(profiles), 7)
         self.assertEqual(
-            [item["remarks"] for item in profiles[-3:]],
+            [item["remarks"] for item in profiles[-5:]],
             [
-                "🇷🇺 Обход глушилок #1",
-                "🇷🇺 Обход глушилок #2",
-                "🇷🇺 Обход глушилок #3",
+                "🇪🇺 Обход глушилок #1",
+                "🇪🇺 Обход глушилок #2",
+                "🇪🇺 Обход глушилок #3",
+                "🇪🇺 Обход глушилок #4",
+                "🇪🇺 Обход глушилок #5",
             ],
         )
-        for bypass in profiles[-3:]:
+        self.assertEqual(profiles[0]["remarks"], "Автовыбор | Самый быстрый")
+        for bypass in profiles[-5:]:
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
-            bypass_balancers = {item["tag"]: item for item in bypass["routing"]["balancers"]}
-            self.assertEqual(bypass["burstObservatory"]["subjectSelector"], ["proxy-main"])
-            self.assertEqual(bypass_balancers["balancer_main"]["fallbackTag"], "LOOPBACK_TO_BACK")
-            self.assertIn("proxy-back-1", bypass_outbounds)
-            self.assertIn("proxy-back-2", bypass_outbounds)
+            self.assertIn("proxy", bypass_outbounds)
 
     def test_direct_cdn_profiles_are_last_and_keep_country_flags(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
@@ -66,7 +82,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
 
-        self.assertEqual(
-            [item["remarks"] for item in profiles[-2:]],
-            ["🇳🇱 Обход глушилок #4", "🇩🇪 Обход глушилок #5"],
-        )
+        self.assertEqual([item["remarks"] for item in profiles[-5:]], [
+            "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
+            "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
+            "🇪🇺 Обход глушилок #5",
+        ])

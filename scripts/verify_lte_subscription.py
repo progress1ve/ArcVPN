@@ -43,6 +43,7 @@ def main() -> int:
     result = {
         "ok": credentials_match(main_links, row["client_uuid"])
               and credentials_match(lte_links, row["lte_client_uuid"])
+              and len(lte_links) == 5
               and f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo
               and expected_announce in announce,
         "main_links": len(main_links), "lte_links": len(lte_links),
