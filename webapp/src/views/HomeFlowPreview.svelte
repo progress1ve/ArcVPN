@@ -89,7 +89,7 @@
   let paymentMessage = ''
   let paymentPoll = null
   let paymentMethodOpen = false
-  let selectedPaymentMethod = 'card'
+  let selectedPaymentMethod = 'sbp'
   let autoRenew = true
   let promoCode = ''
   let promoQuote = null
@@ -124,7 +124,6 @@
   $: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) || preferredPlan || null
   $: purchaseMonths = Math.max(1, Number(selectedPlan?.period_months) || Math.round(Number(selectedPlan?.duration_days || 30) / 30))
   $: purchaseBaseRub = Number(selectedPlan?.price_rub || 0)
-  $: purchaseTrafficGb = Number(selectedPlan?.traffic_limit_gb || 0)
   $: purchaseDevices = Number(selectedPlan?.device_limit || 2)
   $: purchaseLteGb = Number(selectedPlan?.lte_quota_gb || 0)
   $: purchaseTotalRub = promoQuote && selectedPlan && promoQuote.tariff_id === selectedPlan.id
@@ -137,10 +136,7 @@
   })
   $: remainingDays = primary?.is_active ? daysLeft(primary.expires_at_unix) : 0
   $: onlineDevices = activeKeys.reduce((total, key) => total + Number(key.online_devices || 0), 0)
-  $: trafficRemaining = primary?.traffic_limit
-    ? Math.max(0, Number(primary.traffic_limit) - Number(primary.traffic_used || 0))
-    : 0
-  $: trafficValue = primary?.traffic_limit ? formatBytes(trafficRemaining) : '∞'
+  $: trafficValue = 'Безлимит'
   $: lteQuotaBytes = Number(primary?.lte_quota_gb || account?.lte_quota_gb || 0) * 1024 ** 3
   $: lteUsedBytes = Number(primary?.lte_used_bytes || account?.lte_used_bytes || 0)
   $: lteValue = lteQuotaBytes ? formatBytes(Math.max(0, lteQuotaBytes - lteUsedBytes)) : '—'
@@ -513,7 +509,7 @@
     if (paymentState === 'awaiting') return reopenPayment()
     if (paymentState === 'canceled') resetPayment()
     paymentMethodOpen = true
-    selectedPaymentMethod = 'card'
+    selectedPaymentMethod = 'sbp'
     haptic('light')
   }
 
@@ -714,9 +710,9 @@
   }
 
   function productDescription(plan) {
-    if (plan?.product_code === 'economy') return 'Основной трафик: 500 ГБ · Обход глушилок: нет · 2 устройства'
+    if (plan?.product_code === 'economy') return 'Основной трафик: безлимит · Обход глушилок: нет · 2 устройства'
     if (plan?.product_code === 'family') return 'Основной трафик: безлимит · Обход глушилок: 115 ГБ · до 10 устройств'
-    return 'Основной трафик: 1024 ГБ (1 ТБ) · Обход глушилок: 45 ГБ · 3 устройства'
+    return 'Основной трафик: безлимит · Обход глушилок: 45 ГБ · 3 устройства'
   }
 
   onMount(() => {
@@ -805,7 +801,8 @@
           <section class="purchase-total">
             <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
             <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} {purchaseDevices === 3 ? 'устройства' : 'устройств'}</span><small>включено</small></div>
-            <div class="total-row"><span><ArcIcon name="lte" size={19} />{purchaseTrafficGb ? `${purchaseTrafficGb} ГБ` : 'Безлимит'} · LTE {purchaseLteGb} ГБ</span><small>включено</small></div>
+            <div class="total-row"><span><ArcIcon name="lte" size={19} />Основной трафик: безлимит</span><small>включено</small></div>
+            <div class="total-row"><span><ArcIcon name="lte" size={19} />Обход глушилок: {purchaseLteGb ? `${purchaseLteGb} ГБ` : 'нет'}</span><small>{purchaseLteGb ? 'включено' : '—'}</small></div>
             {#if paymentState !== 'idle'}
               <div class="payment-state" class:success={paymentState === 'success'} class:canceled={paymentState === 'canceled'} class:review={paymentState === 'review'} role="status" aria-live="polite">
                 <span class="payment-state-icon">
@@ -1654,7 +1651,7 @@
       border-radius: 19px;
     }
     .dock button.active { flex: none; }
-    .purchase-screen { width: min(100%, 980px); }
+    .purchase-screen { width: min(100%, 980px); display: flex; justify-content: center; flex-direction: column; padding-top: clamp(88px,12vh,150px); padding-bottom: clamp(64px,9vh,120px); }
     .connect-sheet { max-width: 620px; }
     .inner-screen { width: min(100%, 620px); }
   }

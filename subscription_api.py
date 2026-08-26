@@ -8,6 +8,7 @@ Subscription API для VPN бота.
 
 import asyncio
 import base64
+import copy
 import concurrent.futures
 import hashlib
 import hmac
@@ -113,6 +114,7 @@ from subscription_pages import render_import_page, render_silent_import_page, re
 # версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
 # какой-либо новой опции. Обязательным остаётся только SUBSCRIPTION_URL.
 SUBSCRIPTION_URL = config.SUBSCRIPTION_URL
+WEBAPP_URL = os.getenv("WEBAPP_URL", SUBSCRIPTION_URL).rstrip("/")
 ENABLE_SPLIT_TUNNELING = getattr(config, "ENABLE_SPLIT_TUNNELING", True)
 SPLIT_TUNNELING_DIRECT_IP = getattr(config, "SPLIT_TUNNELING_DIRECT_IP", ["geoip:ru", "geoip:private"])
 SPLIT_TUNNELING_DIRECT_SITES = getattr(config, "SPLIT_TUNNELING_DIRECT_SITES", ["geosite:category-ru"])
@@ -1535,7 +1537,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     ]
     normal_profiles = [profile for profile in regular if profile not in lte_profiles]
 
-    def visible_country(country: str) -> Optional[Dict[str, Any]]:
+    def visible_country(country: str) -> list[Dict[str, Any]]:
         aliases = {
             "Нидерланды": ("Нидерланды", "Netherlands"),
             "Германия": ("Германия", "Germany"),
@@ -1545,16 +1547,29 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             if any(alias in str(profile.get("remarks") or "") for alias in aliases)
             and "Ютуб без рекламы" not in str(profile.get("remarks") or "")
         ]
-        return next((
-            profile for profile in candidates
-            if (profile.get("outbounds") or [{}])[0].get("protocol") == "vless"
-        ), candidates[0] if candidates else None)
+        protocol_rank = {"vless": 0, "hysteria": 1}
+        return sorted(
+            candidates,
+            key=lambda profile: protocol_rank.get(
+                str((profile.get("outbounds") or [{}])[0].get("protocol") or ""), 9
+            ),
+        )
 
-    visible_main = [profile for profile in (
-        visible_country("Нидерланды"), visible_country("Германия")
-    ) if profile is not None]
+    visible_main = [
+        *visible_country("Нидерланды"),
+        *visible_country("Германия"),
+    ]
+    fallback_lte_profiles = []
+    for number in range(1, 4):
+        profile = copy.deepcopy(auto_profile)
+        profile["remarks"] = f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
+        fallback_lte_profiles.append(profile)
+    direct_lte_profiles = [
+        profile for profile in lte_profiles
+        if re.search(r"#\s*[45]\b", str(profile.get("remarks") or ""))
+    ]
     return json.dumps(
-        [auto_profile, *visible_main, *lte_profiles],
+        [auto_profile, *visible_main, *fallback_lte_profiles, *direct_lte_profiles],
         ensure_ascii=False,
         separators=(",", ":"),
     )
@@ -3055,7 +3070,7 @@ def _notify_payment_applied(user_id: int, message: str) -> None:
         "reply_markup": {
             "inline_keyboard": [[{
                 "text": "Открыть ArcVPN",
-                "web_app": {"url": f"{SUBSCRIPTION_URL.rstrip('/')}/app/"},
+                "web_app": {"url": f"{WEBAPP_URL}/app/"},
             }]],
         },
     }
@@ -3132,7 +3147,7 @@ def _public_links() -> Dict[str, str]:
     username = _get_bot_username()
     return {
         "support_url": support,
-        "legal_url": f"{SUBSCRIPTION_URL.rstrip('/')}/legal/user-agreement",
+        "legal_url": f"{WEBAPP_URL}/legal/user-agreement",
         "channel_url": channel,
         "bot_url": f"https://t.me/{username}" if username else "",
         "bot_username": username,
@@ -3272,7 +3287,7 @@ def api_create_sbp_payment():
             description=f"ArcVPN — {tariff.get('name') or 'подписка'}",
             bot_name=_get_bot_username(),
             metadata={"telegram_id": str(telegram_id), "source": "webapp"},
-            return_url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/?payment={order['order_id']}",
+            return_url=f"{WEBAPP_URL}/app/?payment={order['order_id']}",
             save_payment_method=wants_recurring,
             payment_method_type=method_type,
         ), timeout=45)
@@ -3468,7 +3483,7 @@ def api_referral():
         "enabled": True,
         "code": code,
         "link": link,
-        "site_link": f"{SUBSCRIPTION_URL.rstrip('/')}/invite/{urllib.parse.quote(code, safe='')}",
+        "site_link": f"{WEBAPP_URL}/invite/{urllib.parse.quote(code, safe='')}",
         "balance_cents": int(get_user_balance(user_id) or 0),
         "reward_type": get_referral_reward_type(),
         "earned_days": int(get_referral_earned_days(user_id) or 0),
@@ -5300,6 +5315,8 @@ def webapp(path: str = ""):
     Любой неизвестный путь возвращает index.html — клиентский роутинг разрулит
     его сам. send_from_directory защищает от path traversal.
     """
+    if not path and request.host.split(":", 1)[0].lower() == "panel.arccnet.space":
+        return Response("Not found", status=404, mimetype="text/plain")
     if path:
         candidate = os.path.join(WEBAPP_DIST_DIR, path)
         if os.path.isfile(candidate):

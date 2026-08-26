@@ -1,5 +1,65 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-26 customer profile, LTE fallback and apex-domain correction
+
+Goal: restore the useful Hysteria2 choices and the documented three-profile
+main-to-LTE fallback behavior, make unlimited ordinary traffic truthful in every
+customer surface, improve the wide purchase composition, and prepare the apex
+domain/DNS/mail rollout without changing stable subscription URLs or UUIDs.
+
+Mapped components: Happ subscription assembly and verification, DNS canary
+selection, trial LTE entitlement, customer bot copy, WebApp purchase/account UI,
+public metadata/domain configuration, legal copy, production environment and
+REG.RU/mail operations guide.
+
+Acceptance fixed before implementation:
+
+1. Happ rows are ordered AutoSelect, Netherlands VLESS/Hysteria2, Germany
+   VLESS/Hysteria2, then five EU LTE-labelled rows. LTE #1-#3 are independent
+   main least-load balancers with LTE XHTTP fallback; LTE #4-#5 remain direct LTE
+   profiles. Main/LTE credentials and stable URLs/UUIDs are preserved.
+2. DNS v2 is enabled only for Telegram ID `2075630349`; global clients remain on
+   the rollback profile until the user's real-device canary.
+3. Trial remains Standard for seven days but receives exactly 5 GiB of LTE quota;
+   ordinary traffic is unlimited. Paid Economy/Standard/Family descriptions all
+   state unlimited main traffic and the exact LTE/device allowance.
+4. WebApp account replaces the obsolete 1024-GB main display with `Безлимит` and
+   a separate LTE remaining/quota line. Standard purchase defaults to SBP. At
+   laptop/wide sizes the tariff/payment composition is vertically centered/lower,
+   with no mobile/tablet overflow or interaction regression.
+5. `arccnet.space` is the customer cabinet canonical origin and
+   `panel.arccnet.space` remains admin-only. Deployment must not request a
+   certificate before DNS ownership resolves to Poland.
+6. Legal copy visibly explains no voluntary refunds and liability limitations,
+   while preserving rights that cannot legally be waived. SMTP is accepted only
+   with working outbound delivery, PTR/SPF/DKIM/DMARC and secrets outside Git; an
+   infeasible self-hosted configuration is reported as an external blocker, not
+   presented as working.
+7. Focused/full tests and build pass; browser before/after acceptance covers
+   390x844, 768x1024, 1366x768 and 1920x1080 without horizontal overflow. Runtime
+   rollout follows commit/push/pull/restart/public verification.
+
+Risks and rollback: malformed balancer JSON can break Happ imports or consume LTE
+traffic unexpectedly; apex DNS/certificate or mail changes can disrupt public
+access/deliverability. Rollback restores the previous subscription JSON builder,
+DNS canary environment and nginx origin; it never rotates identities or URLs.
+
+Status: in progress.
+
+Local evidence:
+
+- Full regression: `107 passed`; WebApp production build: 87 modules with no
+  compiler warning; `git diff --check` passed.
+- Browser pass at 390x844, 768x1024, 1366x768 and 1920x1080 found no horizontal
+  overflow. Purchase copy shows unlimited main traffic plus the separate 45-GB
+  LTE allowance, and SBP is active when the payment sheet first opens. Wide
+  composition is vertically centered instead of pinned to the top.
+- Happ unit coverage confirms Hysteria2 rows and three fallback LTE profiles;
+  direct LTE remains only in rows 4-5. Trial coverage confirms a 5-GB LTE grant.
+- Apex DNS currently has no A/MX/TXT record. Poland has no active MTA and outbound
+  TCP/25 is blocked, so a self-hosted SMTP cannot be truthfully deployed there.
+  A relay SMTP or provider unblock/PTR is still an external prerequisite.
+
 ## 2026-08-26 LTE isolation and truthful quota rollout
 
 Goal: make ordinary VPN traffic unlimited while metering and enforcing only the

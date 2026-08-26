@@ -40,7 +40,8 @@ async def provision_trial_for_user(user: dict) -> dict | None:
     if not tariff:
         logger.error('provision_trial_for_user: активный тариф Standard не настроен')
         return None
-    trial_traffic_gb = int(tariff.get('traffic_limit_gb') or 0)
+    # Ordinary traffic is unlimited. Trial meters only 5 GiB on LTE/XHTTP.
+    trial_traffic_gb = 5
 
     entitlement = acquire_trial_entitlement(internal_user_id, tariff['id'])
     if entitlement['status'] == 'active':
@@ -88,7 +89,7 @@ async def provision_trial_for_user(user: dict) -> dict | None:
     # безопасным, даже если API успел создать пользователя до локального commit.
     panel_email = f"arc_user_{internal_user_id}"
 
-    traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
+    traffic_limit_bytes = 0
 
     client = None
     try:
@@ -120,6 +121,15 @@ async def provision_trial_for_user(user: dict) -> dict | None:
             client_uuid = str(result.get('vlessUuid') or '')
             if not client_uuid:
                 raise VPNAPIError('Remnawave create response has no vlessUuid')
+
+        from bot.services.lte_identity import provision_lte_identity
+        await provision_lte_identity(
+            client,
+            user=user,
+            expires_at=datetime.now(timezone.utc) + timedelta(days=trial_days),
+            quota_gb=trial_traffic_gb,
+            device_limit=int(tariff.get('device_limit') or DEFAULT_LIMIT_IP),
+        )
 
         # If a previous attempt reached Remnawave and inserted the local key but
         # failed before activating the entitlement, reuse it instead of issuing

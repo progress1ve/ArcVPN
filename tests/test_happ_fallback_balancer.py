@@ -13,18 +13,21 @@ else:
 
 @unittest.skipIf(IMPORT_ERROR is not None, f"subscription API dependencies unavailable: {IMPORT_ERROR}")
 class HappFallbackBalancerTests(unittest.TestCase):
-    def test_customer_profile_order_is_auto_nl_de_then_five_eu_lte(self):
+    def test_customer_profile_order_restores_hysteria_then_five_eu_lte(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
             "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Нидерланды%20%231",
+            "hysteria2://aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa@nl.example:8443?insecure=1#Нидерланды%20%232%20%E2%9A%A1",
             "vless://22222222-2222-2222-2222-222222222222@de.example:443?security=none&type=tcp#Германия%20%231",
+            "hysteria2://bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb@de.example:8443?insecure=1#Германия%20%232%20%E2%9A%A1",
             "vless://33333333-3333-3333-3333-333333333333@lte-nl.example:443?security=tls&type=xhttp#Обход%20глушилок%20%234",
             "vless://44444444-4444-4444-4444-444444444444@lte-de.example:443?security=tls&type=xhttp#Обход%20глушилок%20%235",
         ])
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
-            "Автовыбор | Самый быстрый", "Нидерланды #1", "Германия #1",
+            "Автовыбор | Самый быстрый", "Нидерланды #1", "Нидерланды #2 ⚡",
+            "Германия #1", "Германия #2 ⚡",
             "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
             "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
             "🇪🇺 Обход глушилок #5",
@@ -67,7 +70,11 @@ class HappFallbackBalancerTests(unittest.TestCase):
             ],
         )
         self.assertEqual(profiles[0]["remarks"], "Автовыбор | Самый быстрый")
-        for bypass in profiles[-5:]:
+        for bypass in profiles[-5:-2]:
+            bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
+            self.assertIn("LOOPBACK_TO_BACK", bypass_outbounds)
+            self.assertEqual(bypass["routing"]["balancers"][0]["tag"], "balancer_main")
+        for bypass in profiles[-2:]:
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
             self.assertIn("proxy", bypass_outbounds)
 

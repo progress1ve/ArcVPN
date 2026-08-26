@@ -78,7 +78,7 @@ async def select_product_handler(callback: CallbackQuery):
         return
     key_id = int(target) if target.isdigit() else None
     selected = tariffs[0]
-    traffic = 'безлимит' if not selected.get('traffic_limit_gb') else f"{selected['traffic_limit_gb']} ГБ"
+    traffic = 'основной трафик безлимитный'
     text = (
         f"<b>{selected.get('name', '').split('·')[0].strip()}</b>\n"
         f"{traffic} · LTE {selected.get('lte_quota_gb', 0)} ГБ · "

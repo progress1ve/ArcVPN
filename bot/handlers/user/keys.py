@@ -20,7 +20,8 @@ router = Router()
 
 def _subscription_urls(sub_id: str) -> tuple[str, str]:
     """Return the raw subscription URL and the HTTPS Happ import bridge."""
-    from config import SUBSCRIPTION_URL
+    import os, config
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL)
 
     base = SUBSCRIPTION_URL.rstrip("/")
     subscription_url = f"{base}/sub/{sub_id}"
@@ -57,7 +58,7 @@ async def show_my_keys(
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🚀 Открыть ArcVPN",
-        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app"),
+        web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app"),
         style="primary",
     ))
 

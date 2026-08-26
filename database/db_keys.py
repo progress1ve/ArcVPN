@@ -379,6 +379,8 @@ def get_user_primary_key(telegram_id: int) -> Optional[Dict[str, Any]]:
         cursor = conn.execute("""
             SELECT vk.id, vk.sub_id, vk.expires_at, vk.tariff_id, vk.custom_name,
                    vk.traffic_used, vk.traffic_limit,
+                   COALESCE(u.lte_quota_gb,0) lte_quota_gb,
+                   COALESCE(u.lte_used_bytes,0) lte_used_bytes,
                    CASE WHEN vk.expires_at > datetime('now') THEN 1 ELSE 0 END as is_active
             FROM vpn_keys vk
             JOIN users u ON vk.user_id = u.id

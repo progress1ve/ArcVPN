@@ -63,7 +63,8 @@ async def finish_support_reply(message: Message, state: FSMContext) -> None:
         await message.answer("Не удалось сохранить ответ.")
         return
 
-    webapp_url = getattr(config, "WEBAPP_URL", "") or f"{config.SUBSCRIPTION_URL.rstrip('/')}/app/?design=flow"
+    import os
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL).rstrip("/") + "/app/?design=flow"
     keyboard = InlineKeyboardMarkup(inline_keyboard=[[
         InlineKeyboardButton(text="Открыть диалог", web_app=WebAppInfo(url=webapp_url))
     ]])

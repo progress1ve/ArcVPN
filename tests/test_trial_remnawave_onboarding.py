@@ -65,11 +65,13 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
 
     monkeypatch.setattr(requests, "create_vpn_key_admin", create_key)
     monkeypatch.setattr(vpn_api, "get_client_from_server_data", lambda _: client)
+    monkeypatch.setattr("bot.services.lte_identity.provision_lte_identity", lambda *_, **__: _noop())
     monkeypatch.setattr("bot.services.billing.process_referral_trial_reward", lambda *_: _noop())
 
     result = asyncio.run(provision_trial_for_user({"id": 41, "telegram_id": 1001}))
 
     assert result["trial_days"] == 7
+    assert result["trial_traffic_gb"] == 5
     assert result["created_keys"] == [{"key_id": 1, "server_name": "ArcVPN"}]
     assert client.add_calls == 1
     assert client.closed is True

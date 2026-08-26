@@ -36,9 +36,9 @@ def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
 def build_tariff_catalog_text(tariffs) -> str:
     """Canonical product copy; legacy editable text must not hide products."""
     details = {
-        "economy": ("📉", "Эконом", "500 ГБ трафика · 2 устройства"),
-        "standard": ("👤", "Стандарт", "1 ТБ трафика · 45 ГБ LTE · 3 устройства"),
-        "family": ("👨‍👩‍👧‍👦", "Семейный", "безлимитный трафик · 115 ГБ LTE · 10 устройств"),
+        "economy": ("📉", "Эконом", "основной трафик безлимитный · без LTE · 2 устройства"),
+        "standard": ("👤", "Стандарт", "основной трафик безлимитный · 45 ГБ LTE · 3 устройства"),
+        "family": ("👨‍👩‍👧‍👦", "Семейный", "основной трафик безлимитный · 115 ГБ LTE · 10 устройств"),
     }
     by_code = {}
     for item in tariffs:

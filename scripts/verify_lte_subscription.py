@@ -44,7 +44,8 @@ def main() -> int:
     with urllib.request.urlopen(json_url, timeout=15) as response:
         profile_names = [item.get("remarks") for item in json.loads(response.read().decode("utf-8"))]
     expected_names = [
-        "Автовыбор | Самый быстрый", "🇳🇱 Нидерланды #1", "🇩🇪 Германия #1",
+        "Автовыбор | Самый быстрый", "🇳🇱 Нидерланды #1", "🇳🇱 Нидерланды #2 ⚡",
+        "🇩🇪 Германия #1", "🇩🇪 Германия #2 ⚡",
         "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
         "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
         "🇪🇺 Обход глушилок #5",

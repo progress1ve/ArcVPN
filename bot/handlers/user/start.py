@@ -76,13 +76,14 @@ def build_fallback_home_text(user: dict, primary_key: Optional[Dict[str, Any]]) 
     days = _days_left(primary_key.get("expires_at"))
     status = "Подписка активна" if active else "Подписка закончилась"
     status_icon = "●" if active else "○"
-    traffic_used = int(primary_key.get("traffic_used") or 0)
-    traffic_limit = int(primary_key.get("traffic_limit") or 0)
-    if traffic_limit > 0:
-        remaining = max(0, traffic_limit - traffic_used)
-        traffic_line = f"Трафик: <b>{_format_bytes(remaining)}</b> осталось"
-    else:
-        traffic_line = "Трафик: <b>без ограничений</b>"
+    lte_quota = max(0, int(primary_key.get("lte_quota_gb") or 0)) * 1024**3
+    lte_used = max(0, int(primary_key.get("lte_used_bytes") or 0))
+    traffic_line = "Основной трафик: <b>безлимит</b>"
+    lte_line = (
+        f"Обход глушилок: <b>{_format_bytes(max(0, lte_quota - lte_used))}</b> из "
+        f"<b>{_format_bytes(lte_quota)}</b>"
+        if lte_quota else "Обход глушилок: <b>не входит в тариф</b>"
+    )
 
     if active:
         access_line = f"Осталось: <b>{_plural_days(days)}</b>"
@@ -95,7 +96,8 @@ def build_fallback_home_text(user: dict, primary_key: Optional[Dict[str, Any]]) 
         f"<b>ArcVPN</b>\n\n"
         f"{status_icon} <b>{status}</b>\n"
         f"{access_line}\n"
-        f"{traffic_line}\n\n"
+        f"{traffic_line}\n"
+        f"{lte_line}\n\n"
         f"<blockquote>{hint}</blockquote>"
     )
 
@@ -103,11 +105,12 @@ def build_fallback_home_text(user: dict, primary_key: Optional[Dict[str, Any]]) 
 def create_onboarding_kb() -> InlineKeyboardMarkup:
     """Минимальный вход: Mini App и резервный интерфейс в чате."""
     from aiogram.types import WebAppInfo
-    from config import SUBSCRIPTION_URL
+    import os, config
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🚀 Подключиться",
-        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app/"),
+        web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app/"),
         style="primary",
     ))
     builder.row(InlineKeyboardButton(
@@ -376,10 +379,10 @@ def create_main_menu_kb(
     # Пробный период выдаётся автоматически при первом /start — отдельной кнопки нет.
 
     # Ряд 1: Mini App — основная точка входа.
-    # web_app-кнопке нужен HTTPS-URL; берём из SUBSCRIPTION_URL + /app.
+    # Кабинет живёт на apex-домене; subscription URL остаётся стабильным.
     from aiogram.types import WebAppInfo
-    from config import SUBSCRIPTION_URL
-    webapp_url = f"{SUBSCRIPTION_URL.rstrip('/')}/app"
+    import os, config
+    webapp_url = f"{os.getenv('WEBAPP_URL', config.SUBSCRIPTION_URL).rstrip('/')}/app"
     builder.row(InlineKeyboardButton(text="🚀 Открыть ArcVPN", web_app=WebAppInfo(url=webapp_url), style="primary"))
 
     # Самые частые резервные действия держим в первом ряду.
@@ -461,11 +464,12 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
 
 def _fallback_back_kb(*, primary_label: str, primary_callback: str) -> InlineKeyboardMarkup:
     from aiogram.types import WebAppInfo
-    from config import SUBSCRIPTION_URL
+    import os, config
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL)
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="🚀 Открыть ArcVPN",
-        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app"),
+        web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app"),
         style="primary",
     ))
     builder.row(InlineKeyboardButton(text=primary_label, callback_data=primary_callback))
@@ -512,12 +516,13 @@ def _bot_settings_keyboard(user_internal_id: int, *, is_admin: bool = False) -> 
 @router.callback_query(F.data == "bot_settings")
 async def bot_settings_menu_handler(callback: CallbackQuery):
     from aiogram.types import WebAppInfo
-    from config import SUBSCRIPTION_URL
+    import os, config
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL)
 
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="📱 Устройства",
-        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/app?screen=devices"),
+        web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app?screen=devices"),
     ))
     builder.row(InlineKeyboardButton(
         text="🔁 Автопродление",
