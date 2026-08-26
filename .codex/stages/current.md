@@ -1,5 +1,48 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-26 LTE isolation and truthful quota rollout
+
+Goal: make ordinary VPN traffic unlimited while metering and enforcing only the
+0/45/115 GB LTE bypass allowance through Remnawave, without changing the stable
+ArcVPN subscription URL or the existing main user UUID.
+
+Mapped components: Remnawave adapter and sync scripts, user/key schema, billing
+provisioning, calendar reset scheduler, subscription link transformation and
+headers/announce, account API, focused LTE/subscription tests, production squads
+and their inbound bindings.
+
+Acceptance fixed before implementation:
+
+1. Main and LTE usage are isolated by distinct Remnawave user identities; the
+   current `client_uuid` remains the unlimited main identity and a new durable LTE
+   UUID is used only on LTE XHTTP links.
+2. Main squad contains no LTE inbounds; LTE squad contains only the reviewed
+   `NL_DHOST_LTE_XHTTP` and `DE_DHOST_LTE_XHTTP` inbounds. No public subscription
+   URL or main UUID changes.
+3. Economy receives no LTE links. Standard and Family receive LTE links with the
+   separate identity and Remnawave limits of 45/115 GiB. Renewal/reset is aligned
+   to the existing personal calendar anniversary and is idempotent.
+4. Subscription `upload/download/total` represents LTE usage/quota only. The
+   approved five-line announce is emitted intact in HTTP/plain/base64/Happ output.
+5. WebApp/API and announce reconcile against the same LTE usage. Quota exhaustion
+   removes/disables only LTE access while ordinary VPN remains active.
+6. Migration has backup plus preview/apply modes, provisions missing LTE identities,
+   verifies UUID/squad/limit, and never deletes or rotates current identities.
+7. Unit/integration/subscription tests pass; production requires squad/user
+   verification, generated profile inspection and a real Standard-user LTE canary.
+
+Risks: wrong squad edits can remove active access; using node-level usage is invalid
+because both ordinary and LTE inbounds currently share DE/NL nodes. Implementation
+therefore uses identity isolation, fail-closed topology validation and preview by
+default. Rollback restores the previous main squad bindings/limits and generated
+bundle while preserving both UUIDs.
+
+Verification matrix: topology read-only audit, migration dry-run, focused tests,
+full pytest, exact diff/secret scan, backup, production apply, service restart,
+public format inspection and real tunneled main/LTE canary.
+
+Status: in progress
+
 ## 2026-08-26 follow-up: login, tariff clarity, branding and LTE-only quota
 
 Goal: remove the newly reported purchase/login friction and make the customer
