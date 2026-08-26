@@ -39,13 +39,23 @@ def main() -> int:
         (lte_links if "Обход глушилок" in name or "LTE" in name else main_links).append(link)
     def credentials_match(items, expected):
         return bool(items) and all(urllib.parse.urlparse(item).username == expected for item in items)
-    expected_announce = "❗Лимит ГБ тратится только на Обход глушилок.❗"
+    expected_announce = "❗Лимит ГБ тратиться только на Обход глушилок.❗"
+    json_url = f"http://127.0.0.1:8080/sub/{urllib.parse.quote(row['sub_id'], safe='')}?format=json"
+    with urllib.request.urlopen(json_url, timeout=15) as response:
+        profile_names = [item.get("remarks") for item in json.loads(response.read().decode("utf-8"))]
+    expected_names = [
+        "Автовыбор | Самый быстрый", "🇳🇱 Нидерланды #1", "🇩🇪 Германия #1",
+        "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
+        "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
+        "🇪🇺 Обход глушилок #5",
+    ]
     result = {
         "ok": credentials_match(main_links, row["client_uuid"])
               and credentials_match(lte_links, row["lte_client_uuid"])
               and len(lte_links) == 5
               and f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo
-              and expected_announce in announce,
+              and expected_announce in announce
+              and profile_names == expected_names,
         "main_links": len(main_links), "lte_links": len(lte_links),
         "main_identity_ok": credentials_match(main_links, row["client_uuid"]),
         "lte_identity_ok": credentials_match(lte_links, row["lte_client_uuid"]),
@@ -57,6 +67,8 @@ def main() -> int:
         ),
         "lte_userinfo_ok": f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo,
         "announce_ok": expected_announce in announce,
+        "profile_order_ok": profile_names == expected_names,
+        "profile_count": len(profile_names),
     }
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result["ok"] else 1
