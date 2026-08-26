@@ -90,6 +90,7 @@ async def provision_trial_for_user(user: dict) -> dict | None:
 
     traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
 
+    client = None
     try:
         client = get_client_from_server_data(server)
         result = await client.get_user(panel_email)
@@ -143,6 +144,9 @@ async def provision_trial_for_user(user: dict) -> dict | None:
         logger.error('Remnawave trial provisioning failed for user_id=%s: %s', internal_user_id, exc)
         fail_trial_entitlement(internal_user_id, str(exc))
         return None
+    finally:
+        if client is not None:
+            await client.close()
 
     first_key_id = key_id
     # Trial — бесплатная выдача доступа, а не покупка или платёж на 0 ₽.
