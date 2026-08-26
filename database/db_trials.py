@@ -13,7 +13,18 @@ __all__ = [
     "fail_trial_entitlement",
     "get_trial_entitlement",
     "get_standard_trial_tariff",
+    "get_trial_key_by_panel_email",
 ]
+
+
+def get_trial_key_by_panel_email(user_id: int, panel_email: str) -> Optional[Dict[str, Any]]:
+    """Find a prior partial provisioning result for retry-safe activation."""
+    with get_db() as conn:
+        row = conn.execute(
+            "SELECT * FROM vpn_keys WHERE user_id = ? AND panel_email = ? ORDER BY id LIMIT 1",
+            (int(user_id), str(panel_email)),
+        ).fetchone()
+        return dict(row) if row else None
 
 
 def get_standard_trial_tariff() -> Optional[Dict[str, Any]]:

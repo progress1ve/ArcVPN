@@ -16,6 +16,7 @@ import qrcode
 import io
 import math
 import socket
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, Tuple
 
 import config
@@ -30,6 +31,7 @@ from database.requests import (
     update_referral_stat, get_user_by_id, update_order_fulfillment,
     infer_order_operation_type, apply_payment_entitlements,
     get_user_entitlements_by_id,
+    start_or_preserve_traffic_cycle,
 )
 from bot.services.exchange_rate import get_usd_rub_rate
 
@@ -338,6 +340,17 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
         update_order_fulfillment(order_id, 'failed', 'renew order without vpn_key_id')
         return False, "❌ Ошибка исполнения заказа.", order
 
+    before = get_vpn_key_by_id(key_id)
+    before_expiry = before.get('expires_at') if before else None
+    was_active = False
+    if before_expiry:
+        try:
+            parsed_expiry = datetime.fromisoformat(str(before_expiry).replace('Z', '+00:00'))
+            parsed_expiry = parsed_expiry.replace(tzinfo=parsed_expiry.tzinfo or timezone.utc)
+            was_active = parsed_expiry > datetime.now(timezone.utc)
+        except (TypeError, ValueError):
+            logger.warning("Invalid expiry for key %s; renewal starts a new traffic cycle", key_id)
+
     if days and extend_vpn_key(key_id, days):
         logger.info("Ключ %s продлён на %s дней (order=%s)", key_id, days, order_id)
         if order.get('tariff_id'):
@@ -346,7 +359,9 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
             update_key_tariff(key_id, order['tariff_id'], traffic_limit_bytes)
 
         restore_traffic_limit_in_db(key_id)
-        panel_updated = await push_key_to_panel(key_id, reset_traffic=True)
+        # Early renewal must not silently discard the current month's quota.
+        # A lapsed key starts clean and receives a new calendar anchor.
+        panel_updated = await push_key_to_panel(key_id, reset_traffic=not was_active)
         if not panel_updated:
             logger.error(
                 "Ключ %s продлён в БД, но панель не обновлена (order=%s)",
@@ -362,6 +377,9 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
                 "✅ Оплата принята!\n\n"
                 "⚠️ Подписка продлена, но её активация требует проверки поддержки."
             ), _reload_order(order_id)
+        start_or_preserve_traffic_cycle(
+            user_internal_id, preserve_existing=was_active
+        )
         update_order_fulfillment(order_id, 'applied')
 
         if order.get('payment_type') == 'crypto':
@@ -461,6 +479,9 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
                         continue
 
                 if created_keys:
+                    start_or_preserve_traffic_cycle(
+                        user_internal_id, preserve_existing=False
+                    )
                     logger.info("🎉 Успешно создано %s ключей для заказа %s", len(created_keys), order_id)
                 else:
                     logger.error("❌ Не удалось создать ни одного ключа на панелях для заказа %s", order_id)

@@ -1,17 +1,9 @@
 import logging
-import uuid
-import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command, CommandObject, StateFilter
+from aiogram.types import CallbackQuery
 from aiogram.fsm.context import FSMContext
-from aiogram.exceptions import TelegramForbiddenError
-from config import ADMIN_IDS, DEFAULT_LIMIT_IP
-from database.requests import get_or_create_user, is_user_banned, get_all_servers, get_setting, is_referral_enabled, get_user_by_referral_code, set_user_referrer
-from bot.keyboards.user import main_menu_kb
-from bot.states.user_states import RenameKey, ReplaceKey
-from bot.utils.text import escape_html, safe_edit_or_send
+from config import DEFAULT_LIMIT_IP
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +12,7 @@ router = Router()
 
 async def provision_trial_for_user(user: dict) -> dict | None:
     """
-    Ядро активации пробной подписки: создаёт ключи на всех активных серверах.
+    Ядро активации пробной подписки: создаёт одного пользователя в Remnawave.
 
     Переиспользуется и кнопкой «Активировать», и АВТО-активацией при первом
     /start (обязательный триал). Не зависит от callback/UI.
@@ -33,21 +25,22 @@ async def provision_trial_for_user(user: dict) -> dict | None:
         создать ни одного ключа.
     """
     from database.requests import (
-        create_vpn_key_admin, get_trial_days, get_trial_traffic_gb,
-        get_active_servers, get_standard_trial_tariff, acquire_trial_entitlement,
-        activate_trial_entitlement, fail_trial_entitlement,
+        create_vpn_key_admin, get_trial_days,
+        get_all_servers, get_standard_trial_tariff, acquire_trial_entitlement,
+        activate_trial_entitlement, fail_trial_entitlement, get_trial_key_by_panel_email,
     )
-    from bot.services.vpn_api import get_client_from_server_data, VPNAPIError
+    from bot.services.vpn_api import get_client_from_server_data
+    from bot.services.panels.base import VPNAPIError
 
     internal_user_id = user['id']
     telegram_id = user['telegram_id']
     trial_days = get_trial_days()
-    trial_traffic_gb = get_trial_traffic_gb()
 
     tariff = get_standard_trial_tariff()
     if not tariff:
         logger.error('provision_trial_for_user: активный тариф Standard не настроен')
         return None
+    trial_traffic_gb = int(tariff.get('traffic_limit_gb') or 0)
 
     entitlement = acquire_trial_entitlement(internal_user_id, tariff['id'])
     if entitlement['status'] == 'active':
@@ -65,56 +58,93 @@ async def provision_trial_for_user(user: dict) -> dict | None:
         logger.info('provision_trial_for_user: trial уже создаётся для user_id=%s', internal_user_id)
         return None
 
-    servers = get_active_servers()
-    if not servers:
-        logger.warning('provision_trial_for_user: нет активных серверов')
-        fail_trial_entitlement(internal_user_id, 'no active servers')
+    remnawave_servers = sorted(
+        (
+            item for item in get_all_servers()
+            if item.get('is_active') and str(item.get('panel_type') or '').lower() == 'remnawave'
+        ),
+        key=lambda item: int(item.get('id') or 0),
+    )
+    using_registered_server = bool(remnawave_servers)
+    if using_registered_server:
+        server = remnawave_servers[0]
+    else:
+        from bot.services.remnawave_stats import remnawave_authority_config
+        authority = remnawave_authority_config()
+        compatibility_servers = sorted(
+            (item for item in get_all_servers() if item.get('is_active')),
+            key=lambda item: int(item.get('id') or 0),
+        )
+        server = {**authority, 'id': compatibility_servers[0]['id']} if compatibility_servers else authority
+    if not server.get('id') or (not using_registered_server and (
+        not server.get('panel_api_url') or not server.get('panel_api_token')
+    )):
+        logger.warning('provision_trial_for_user: Remnawave control plane не настроен')
+        fail_trial_entitlement(internal_user_id, 'remnawave authority unavailable')
         return None
+
+    # Remnawave user-centric: один пользователь получает squad, а не отдельный
+    # клиент на каждом legacy-сервере. Детерминированное имя делает retry
+    # безопасным, даже если API успел создать пользователя до локального commit.
+    panel_email = f"arc_user_{internal_user_id}"
 
     traffic_limit_bytes = trial_traffic_gb * (1024 ** 3) if trial_traffic_gb > 0 else 0
 
-    def _gen_email(u: dict) -> str:
-        base = f"user_{u['username']}" if u.get('username') else f"user_{u['telegram_id']}"
-        return f'{base}_{uuid.uuid4().hex[:8]}'
-
-    created_keys = []
-    failed_servers = []
-    for server in servers:
-        try:
-            email = _gen_email(user)
-            client = get_client_from_server_data(server)
-            result = await client.provision_client_all_inbounds(
-                email=email,
+    try:
+        client = get_client_from_server_data(server)
+        result = await client.get_user(panel_email)
+        if result:
+            client_uuid = str(result.get('vlessUuid') or '')
+            if not client_uuid:
+                raise VPNAPIError('Remnawave user has no vlessUuid')
+            await client.update_client_full(
+                inbound_id=0,
+                client_uuid=client_uuid,
+                email=panel_email,
+                expiry_time_ms=int((datetime.now(timezone.utc) + timedelta(days=trial_days)).timestamp() * 1000),
+                total_gb_bytes=traffic_limit_bytes,
+                enable=True,
+                limit_ip=int(tariff.get('device_limit') or DEFAULT_LIMIT_IP),
+            )
+        else:
+            result = await client.add_client(
+                inbound_id=0,
+                email=panel_email,
                 total_gb=trial_traffic_gb,
                 expire_days=trial_days,
-                limit_ip=DEFAULT_LIMIT_IP,
+                limit_ip=int(tariff.get('device_limit') or DEFAULT_LIMIT_IP),
+                enable=True,
                 tg_id=str(telegram_id),
             )
+            client_uuid = str(result.get('vlessUuid') or '')
+            if not client_uuid:
+                raise VPNAPIError('Remnawave create response has no vlessUuid')
+
+        # If a previous attempt reached Remnawave and inserted the local key but
+        # failed before activating the entitlement, reuse it instead of issuing
+        # a second stable subscription URL.
+        existing = get_trial_key_by_panel_email(internal_user_id, panel_email)
+        if existing:
+            key_id = int(existing['id'])
+        else:
             key_id = create_vpn_key_admin(
                 user_id=internal_user_id,
                 server_id=server['id'],
                 tariff_id=tariff['id'],
-                panel_inbound_id=result['primary_inbound_id'],
-                panel_email=email,
-                client_uuid=result['uuid'],
+                panel_inbound_id=0,
+                panel_email=panel_email,
+                client_uuid=client_uuid,
                 days=trial_days,
                 traffic_limit=traffic_limit_bytes,
                 custom_name=None,
             )
-            created_keys.append({'key_id': key_id, 'server_name': server['name']})
-            logger.info("✅ Пробный ключ %s на сервере %s (%s дн., %s ГБ)", key_id, server['name'], trial_days, trial_traffic_gb)
-        except VPNAPIError as e:
-            logger.error('❌ Триал: ошибка на сервере %s: %s', server.get('name'), e)
-            failed_servers.append(f"{server['name']} ({e})")
-        except Exception as e:
-            logger.error('❌ Триал: неожиданная ошибка на сервере %s: %s', server.get('name'), e)
-            failed_servers.append(f"{server['name']} (ошибка)")
-
-    if not created_keys:
-        fail_trial_entitlement(internal_user_id, '; '.join(failed_servers) or 'all servers failed')
+        logger.info("✅ Standard trial key %s provisioned through Remnawave", key_id)
+    except Exception as exc:
+        logger.error('Remnawave trial provisioning failed for user_id=%s: %s', internal_user_id, exc)
+        fail_trial_entitlement(internal_user_id, str(exc))
         return None
 
-    first_key_id = created_keys[0]['key_id']
+    first_key_id = key_id
     # Trial — бесплатная выдача доступа, а не покупка или платёж на 0 ₽.
     order_id = None
 
@@ -130,8 +160,8 @@ async def provision_trial_for_user(user: dict) -> dict | None:
         logger.error('Триал: ошибка начисления реф-бонуса: %s', e)
 
     return {
-        'created_keys': created_keys,
-        'failed_servers': failed_servers,
+        'created_keys': [{'key_id': key_id, 'server_name': 'ArcVPN'}],
+        'failed_servers': [],
         'first_key_id': first_key_id,
         'order_id': order_id,
         'trial_days': trial_days,

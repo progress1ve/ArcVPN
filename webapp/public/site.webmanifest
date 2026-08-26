@@ -1,0 +1,11 @@
+{
+  "name": "ArcVPN",
+  "short_name": "ArcVPN",
+  "description": "Личный кабинет ArcVPN",
+  "start_url": "/app/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#07111d",
+  "theme_color": "#07111d",
+  "icons": [{ "src": "/app-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

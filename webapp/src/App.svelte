@@ -27,8 +27,20 @@
   const previewVariant = typeof location !== 'undefined'
     ? new URLSearchParams(location.search).get('design')
     : null
-  const isAdminConsole = typeof location !== 'undefined'
-    && (location.hostname === 'panel.arccnet.space' || location.pathname.startsWith('/admin') || location.pathname.startsWith('/app/admin'))
+  const isAdminConsole = typeof location !== 'undefined' && (
+    location.pathname.startsWith('/admin')
+    || (import.meta.env.DEV && location.pathname.startsWith('/app/admin'))
+  )
+  if (typeof document !== 'undefined') {
+    let robots = document.querySelector('meta[name="robots"]')
+    if (!robots) {
+      robots = document.createElement('meta')
+      robots.name = 'robots'
+      document.head.appendChild(robots)
+    }
+    robots.content = isAdminConsole ? 'noindex,nofollow' : 'index,follow'
+    document.title = isAdminConsole ? 'Админ-панель ArcVPN' : 'ArcVPN — личный кабинет'
+  }
 </script>
 
 {#if isAdminConsole}

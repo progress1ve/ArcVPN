@@ -19,6 +19,8 @@ from database.db_support import *
 from database.db_recurring import *
 from database.db_broadcast_jobs import *
 from database.db_trials import *
+from database.db_legal_consent import *
+from database.db_traffic_cycles import *
 
 
 # Subscription URL

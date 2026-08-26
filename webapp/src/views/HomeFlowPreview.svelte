@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -91,6 +91,9 @@
   let selectedPaymentMethod = 'card'
   let autoRenew = true
   let promoCode = ''
+  let promoQuote = null
+  let promoBusy = false
+  let promoMessage = ''
   let recurring = { enabled: false, method: null, provider_ready: false }
   let recurringBusy = false
   let recurringConfirm = false
@@ -122,7 +125,9 @@
   $: purchaseTrafficGb = Number(selectedPlan?.traffic_limit_gb || 0)
   $: purchaseDevices = Number(selectedPlan?.device_limit || 2)
   $: purchaseLteGb = Number(selectedPlan?.lte_quota_gb || 0)
-  $: purchaseTotalRub = purchaseBaseRub
+  $: purchaseTotalRub = promoQuote && selectedPlan && promoQuote.tariff_id === selectedPlan.id
+    ? Number(promoQuote.final_amount_rub)
+    : purchaseBaseRub
   $: purchaseMonthlyRub = Math.round(purchaseTotalRub / purchaseMonths)
   $: supportTimeline = supportMessages.map((message, index) => {
     const day = chatDayKey(message.created_at)
@@ -511,13 +516,34 @@
   }
 
   function confirmPaymentMethod() {
-    if (selectedPaymentMethod === 'sbp' || selectedPaymentMethod === 'card') {
-      paymentMethodOpen = false
-      return buy(selectedPlan, selectedPaymentMethod)
-    }
-    const botUrl = links.bot_url || 'https://t.me/arcvpnnbot'
     paymentMethodOpen = false
-    openTelegram(`${botUrl}?start=buy_${selectedPlan?.id || ''}`)
+    return buy(selectedPlan, selectedPaymentMethod)
+  }
+
+  function editPromo() {
+    promoQuote = null
+    promoMessage = ''
+  }
+
+  async function applyPromocode() {
+    if (!selectedPlan || promoBusy || !promoCode.trim()) return
+    promoBusy = true
+    promoMessage = ''
+    try {
+      const quote = await validatePromocode(selectedPlan.id, promoCode.trim())
+      promoQuote = { ...quote, tariff_id: selectedPlan.id }
+      promoCode = quote.code
+      promoMessage = `Скидка ${quote.discount_label}: −${rub(quote.discount_rub)}`
+      haptic('success')
+    } catch (error) {
+      promoQuote = null
+      promoMessage = ({
+        promocode_not_found: 'Промокод не найден.', promocode_disabled: 'Промокод отключён.',
+        promocode_expired: 'Срок действия промокода истёк.', promocode_exhausted: 'Промокод уже исчерпан.',
+        promocode_already_used: 'Вы уже использовали этот промокод.',
+      })[error.reason] || 'Промокод не удалось применить.'
+      haptic('warning')
+    } finally { promoBusy = false }
   }
 
   function closePaymentBackdrop(event) {
@@ -544,6 +570,8 @@
   function choosePlan(id) {
     selectionHaptic()
     selectedPlanId = id
+    promoQuote = null
+    promoMessage = promoCode ? 'Примените промокод заново для выбранного периода.' : ''
   }
 
   function chooseProduct(code) {
@@ -750,8 +778,8 @@
                   <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
                     <span>{planPeriod(plan)}</span>
                     {#if planBadge(plan)}<em>{planBadge(plan)}</em>{/if}
-                    <strong>{rub(plan.price_rub)}</strong>
-                    <small>{rub(planMonthly(plan))} / мес</small>
+                    <strong>{rub(planMonthly(plan))} <b>/ мес</b></strong>
+                    <small>{planPeriod(plan)} · всего {rub(plan.price_rub)}</small>
                     {#if selectedPlanId === plan.id}<i><ArcIcon name="check" size={15} weight="bold" /></i>{/if}
                   </button>
                 {/each}
@@ -763,7 +791,7 @@
           {/if}
 
           <section class="purchase-config plan-summary" aria-live="polite">
-            <div class="config-copy"><span>{productTitle(selectedProduct)}</span><h2>{productTitle(selectedProduct)}</h2><p>{productDescription(selectedPlan)}</p></div>
+            <div class="config-copy"><h2>{productTitle(selectedProduct)}</h2><p>{productDescription(selectedPlan)}</p></div>
           </section>
 
           <nav class="product-switch" aria-label="Выбор тарифа">
@@ -806,11 +834,11 @@
                 <div class="payment-options">
                   <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{#if selectedPaymentMethod==='sbp'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button>
                   <button class:active={selectedPaymentMethod==='card'} on:click={() => { selectedPaymentMethod='card'; autoRenew=true }}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Мир, Visa и Mastercard · можно сохранить</small></span><em>{#if selectedPaymentMethod==='card'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button>
-                  <button class:active={selectedPaymentMethod==='crypto'} on:click={() => selectedPaymentMethod='crypto'}><i><span class="dollar">$</span></i><span><b>Криптовалютой</b><small>USDT и другие валюты</small></span><em>{#if selectedPaymentMethod==='crypto'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button>
                 </div>
-                <label class="promo-field"><ArcIcon name="gift" size={20}/><input bind:value={promoCode} maxlength="32" placeholder="Промокод" autocomplete="off"/><span>Применить</span></label>
-                {#if selectedPaymentMethod!=='crypto'}<button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>{#if autoRenew}<ArcIcon name="check" size={15} weight="bold" />{/if}</i><span><b>Автопродление</b><small>{autoRenew ? (selectedPaymentMethod==='sbp' ? 'Счёт СБП сохранится, отключить можно в настройках' : 'Карта сохранится, отключить можно в настройках') : 'Способ оплаты не будет сохранён'}</small></span></button>{/if}
-                <button class="method-confirm" on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':selectedPaymentMethod==='card'?'картой':'криптовалютой'} · {rub(purchaseTotalRub)}</button>
+                <div class="promo-field"><ArcIcon name="gift" size={20}/><input aria-label="Промокод" bind:value={promoCode} on:input={editPromo} maxlength="32" placeholder="Промокод" autocomplete="off"/><button disabled={promoBusy || !promoCode.trim()} on:click={applyPromocode}>{promoBusy ? 'Проверяем…' : 'Применить'}</button></div>
+                {#if promoMessage}<p class:success={Boolean(promoQuote)} class="promo-message" role={promoQuote ? 'status' : 'alert'}>{promoMessage}</p>{/if}
+                <button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>{#if autoRenew}<ArcIcon name="check" size={15} weight="bold" />{/if}</i><span><b>Автопродление</b><small>{autoRenew ? (selectedPaymentMethod==='sbp' ? 'Счёт СБП сохранится, отключить можно в настройках' : 'Карта сохранится, отключить можно в настройках') : 'Способ оплаты не будет сохранён'}</small></span></button>
+                <button class="method-confirm" disabled={paymentBusy} on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':'картой'} · {rub(purchaseTotalRub)}</button>
                 <p>Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a></p>
               </section>
             </div>
@@ -1488,14 +1516,14 @@
   .plan-card > span { font-size: 12px; font-weight: 800; }
   .plan-card em { margin-top: 8px; padding: 5px 7px; border-radius: 8px; color: #a6ddfb; background: rgba(107,191,239,.09); font-size: 8px; font-style: normal; font-weight: 800; }
   .plan-card strong { margin-top: auto; font-size: 25px; line-height: 1; letter-spacing: -.045em; }
-  .plan-card small { margin-top: 7px; color: var(--muted); font-size: 9.5px; }
+  .plan-card strong b { color:#ccecff; font-size:11px; letter-spacing:0; }
+  .plan-card small { margin-top: 9px; color: #b3c2d0; font-size: 10.5px; font-weight:700; }
   .plan-card i { position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 8px; color: #07131f; background: #91d7fb; }
   .purchase-empty { margin-top: 28px; padding: 24px; border-radius: 22px; color: var(--muted); background: var(--surface); text-align: center; }
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
   .plan-summary{grid-template-columns:1fr}.plan-summary p{max-width:620px}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
-  .config-copy > span { color: #7bc8f2; font-size: 8.5px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
-  .config-copy h2 { max-width: 235px; margin: 7px 0 0; font-size: 16px; line-height: 1.25; letter-spacing: -.025em; }
-  .config-copy p { max-width: 235px; margin: 10px 0 0; color: var(--muted); font-size: 9.5px; line-height: 1.5; }
+  .config-copy h2 { max-width: 520px; margin: 0; font-size: 18px; line-height: 1.25; letter-spacing: -.025em; }
+  .config-copy p { max-width: 620px; margin: 10px 0 0; color: #c0ceda; font-size: 12px; font-weight:650; line-height: 1.55; }
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }
   .total-row { display: flex; align-items: center; justify-content: space-between; min-height: 34px; color: #d8e3ed; }
   .total-row span { display: flex; align-items: center; gap: 9px; font-size: 10.5px; font-weight: 700; }
@@ -1620,7 +1648,7 @@
     .connect-sheet { max-width: 620px; }
     .inner-screen { width: min(100%, 620px); }
   }
-  .promo-field{box-sizing:border-box;display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;min-height:58px;margin:4px 0 10px;padding:0 16px;border:1px solid rgba(166,211,244,.13);border-radius:18px;background:rgba(139,196,235,.055);color:#a9dcfb}.promo-field input{min-width:0;border:0;outline:0;background:transparent;color:#f8fbff;font:inherit;font-weight:700;text-transform:uppercase}.promo-field input::placeholder{color:#9cafc0;text-transform:none}.promo-field span{font-size:11px;font-weight:850;color:#a9dcfb}.payment-method-sheet{overflow:hidden}.payment-options>button{cursor:pointer}.method-confirm{box-shadow:inset 0 1px rgba(255,255,255,.5),0 16px 36px rgba(65,158,214,.18)}
+  .promo-field{box-sizing:border-box;display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;min-height:58px;margin:4px 0 4px;padding:0 10px 0 16px;border:1px solid rgba(166,211,244,.13);border-radius:18px;background:rgba(139,196,235,.055);color:#a9dcfb}.promo-field input{min-width:0;border:0;outline:0;background:transparent;color:#f8fbff;font:inherit;font-weight:700;text-transform:uppercase}.promo-field input::placeholder{color:#9cafc0;text-transform:none}.promo-field button{min-height:38px;padding:0 12px;border:0;border-radius:11px;background:#18334a;color:#bde8ff;font-size:11px;font-weight:850}.promo-field button:disabled{cursor:not-allowed;opacity:.5}.promo-field input:focus-visible,.promo-field button:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}.promo-message{margin:5px 12px 11px!important;color:#ffb1b6!important;font-size:11px!important;text-align:left!important}.promo-message.success{color:#78e1b4!important}.payment-method-sheet{overflow:hidden}.payment-options>button{cursor:pointer}.method-confirm{box-shadow:inset 0 1px rgba(255,255,255,.5),0 16px 36px rgba(65,158,214,.18)}
   /* Soft-capsule scale pass: larger touch geometry and a distinct ArcVPN silhouette. */
   .home-screen { padding-inline: 16px; }
   .days strong { font-size: 66px; }
@@ -2069,5 +2097,5 @@
     .aurora-blob, .flow-preview::before { animation: none; }
     button:active { transform: none; }
   }
-  .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}.dollar{color:#fff;font-size:25px;font-weight:800;line-height:1}
+  .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}
 </style>

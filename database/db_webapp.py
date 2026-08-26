@@ -370,18 +370,10 @@ def apply_payment_entitlements(order_id: str) -> Optional[Dict[str, int]]:
                 """UPDATE users
                    SET device_limit = ?, lte_quota_gb = ?,
                        traffic_monthly_limit_gb = COALESCE(?, traffic_monthly_limit_gb),
-                       lte_used_bytes = CASE
-                           WHEN lte_cycle_reset_at IS NULL
-                             OR lte_cycle_reset_at <= CURRENT_TIMESTAMP THEN 0
-                           ELSE COALESCE(lte_used_bytes, 0) END,
-                       lte_cycle_started_at = CASE
-                           WHEN lte_cycle_reset_at IS NULL
-                             OR lte_cycle_reset_at <= CURRENT_TIMESTAMP
-                           THEN CURRENT_TIMESTAMP ELSE lte_cycle_started_at END,
-                       lte_cycle_reset_at = CASE
-                           WHEN lte_cycle_reset_at IS NULL
-                             OR lte_cycle_reset_at <= CURRENT_TIMESTAMP
-                           THEN datetime('now', '+30 days') ELSE lte_cycle_reset_at END,
+                       lte_used_bytes = CASE WHEN lte_cycle_reset_at IS NULL
+                           THEN 0 ELSE COALESCE(lte_used_bytes,0) END,
+                       lte_cycle_started_at = COALESCE(lte_cycle_started_at, CURRENT_TIMESTAMP),
+                       lte_cycle_reset_at = COALESCE(lte_cycle_reset_at, datetime('now','+30 days')),
                        entitlements_updated_at = CURRENT_TIMESTAMP
                    WHERE id = ?""",
                 (device_limit, lte_quota_gb, order["tariff_traffic_limit_gb"], order["user_id"]),
@@ -395,19 +387,23 @@ def apply_payment_entitlements(order_id: str) -> Optional[Dict[str, int]]:
 
 
 def refresh_lte_cycle(telegram_id: int) -> Dict[str, int]:
-    """Reset an expired 30-day LTE allowance exactly once and return counters."""
+    """Return LTE counters; authoritative cycle resets run in the scheduler."""
     with get_db() as conn:
-        conn.execute(
-            """UPDATE users SET lte_used_bytes=0,
-                       lte_cycle_started_at=CURRENT_TIMESTAMP,
-                       lte_cycle_reset_at=datetime('now', '+30 days')
-               WHERE telegram_id=? AND lte_cycle_reset_at IS NOT NULL
-                 AND lte_cycle_reset_at <= CURRENT_TIMESTAMP""",
-            (telegram_id,),
-        )
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        if "traffic_cycle_anchor_at" not in columns:
+            # Compatibility for pre-v57/test databases only. Production v57
+            # never advances locally before the Remnawave acknowledgement.
+            conn.execute(
+                """UPDATE users SET lte_used_bytes=0,
+                          lte_cycle_started_at=CURRENT_TIMESTAMP,
+                          lte_cycle_reset_at=datetime('now','+30 days')
+                   WHERE telegram_id=? AND lte_cycle_reset_at<=CURRENT_TIMESTAMP""",
+                (telegram_id,),
+            )
         row = conn.execute(
             """SELECT COALESCE(lte_quota_gb,0) quota,
-                      COALESCE(lte_used_bytes,0) used
+                      COALESCE(lte_used_bytes,0) used,
+                      lte_cycle_reset_at reset_at
                FROM users WHERE telegram_id=?""",
             (telegram_id,),
         ).fetchone()
@@ -417,6 +413,7 @@ def refresh_lte_cycle(telegram_id: int) -> Dict[str, int]:
             "lte_quota_gb": quota,
             "lte_used_bytes": used,
             "lte_remaining_bytes": max(0, quota * 1024**3 - used),
+            "traffic_cycle_reset_at": row["reset_at"] if row else None,
         }
 
 

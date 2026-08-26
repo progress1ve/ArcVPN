@@ -187,6 +187,84 @@ The implementation and deploy are accepted except for three explicitly destructi
 
 Started: 2026-08-25. Status: in progress.
 
+## 2026-08-26 accepted expansion: onboarding, anniversary quotas and public cabinet
+
+The user accepted a decision-complete implementation plan before runtime edits.
+This expansion supersedes any conflicting 30-day/global-first-of-month reset
+language below; all prior evidence remains historical.
+
+### Goal and component map
+
+- `database/` and scheduler: one calendar-month anniversary for normal and LTE
+  quota, idempotent due-cycle processing, legal-consent version/time.
+- Remnawave adapter and trial: one Standard Remnawave identity, retryable
+  entitlement, safe preview/backfill without URL or UUID replacement.
+- bot onboarding/purchase/admin: consent-aware channel gate, one image-free trial
+  welcome, structured tariff copy, current cabinet, retire the visible legacy
+  Telegram admin and all user-facing crypto/Stars affordances.
+- `subscription_api.py`: coherent traffic/LTE status and announce, promo quote,
+  public cabinet routing, SMTP-backed standalone email login, DNS/routing profile.
+- `webapp/` and generated `webapp_dist/`: monthly-price hierarchy, one tariff
+  title, contrast, real promo states, email/site metadata and route separation.
+
+### Fixed acceptance
+
+1. A purchase at an arbitrary timestamp resets normal and LTE quota on the same
+   calendar day next month; days 29-31 clamp to month end without permanently
+   changing the anchor. Early renewal preserves the active cycle; a lapsed new
+   purchase starts a new cycle.
+2. Each due cycle is processed exactly once locally and confirmed in Remnawave;
+   retryable remote failure cannot silently advance the durable reset boundary.
+3. Trial provisions one Standard user through the production Remnawave contract.
+   Failed/stale entitlement retries are idempotent. Production backfill is
+   backup + dry-run + exact confirmation and only targets the accepted eligible
+   class.
+4. Channel consent -> trial -> one image-free welcome with Connect/Continue;
+   repeated start opens the current cabinet. Structured tariff descriptions
+   cannot be hidden by stale message-editor text.
+5. Promo Apply performs an authenticated quote, visibly updates base/discount/
+   final price, preserves errors, and usage is recorded only by successful
+   idempotent fulfillment. Crypto and Stars are absent from customer UI.
+6. `/admin` is the admin SPA; `/app` and `/` are the customer cabinet. Public
+   cabinet has favicon, manifest, canonical/OG/Twitter metadata; admin is noindex.
+7. SMTP secrets remain outside Git. Standalone email codes are rate-limited,
+   one-use, expiring and non-enumerating; live delivery is a deployment gate
+   until the owner supplies the custom SMTP/DNS settings.
+8. LTE announce is complete in response header, base64 profile and Happ JSON.
+   DNS uses only reviewed supported categories and avoids public Google/
+   Cloudflare UDP/DoH defaults; exact generated JSON is parsed in regression.
+9. Browser before/after proof covers 390x844, 768x1024, 1366x768 and 1920x1080,
+   with no document overflow and explicit hover/focus/disabled/loading/error/
+   empty/success states. Build success alone is not visual acceptance.
+10. Local full/focused tests and build pass; exact diff is reviewed and secret
+    scanned; commit/push/pull/restart/public verification follow the production
+    workflow. DNS global activation requires a real two-platform Wi-Fi/mobile
+    client canary and rollback proof; the stage stays open if unavailable.
+
+### Risks and rollback
+
+- Quota double reset/access loss: store due state, use an operation lock, advance
+  only after authoritative reset; restore the pre-migration DB and previous
+  Remnawave counters on mismatch.
+- Trial duplication: deterministic entitlement/identity lookup before create;
+  never replace a live UUID/subscription URL.
+- DNS regression: retain the previous routing payload, parse all formats, perform
+  client canary before global default, revert payload without identity changes.
+- Legal/SMTP incompleteness: do not claim live acceptance while operator fields
+  are placeholders or SMTP delivery/DNS authentication is unverified.
+- Existing owner change `webapp_dist/assets/payments/sbp.svg` remains excluded.
+
+### Verification matrix
+
+| Area | Local gate | Production gate |
+|---|---|---|
+| Anniversary quota | month-end/leap/renew/retry tests | aggregate due preview + one safe reset/reconciliation |
+| Trial/onboarding | adapter/idempotency/bot flow tests | backup, preview/backfill, one new-user flow |
+| Promo/payments | quote/race/fulfillment tests | one safe promo payment path |
+| Email/site | auth tests, metadata/build/browser | custom SMTP delivery and public route/assets |
+| Subscription/DNS | decoded header/profile/JSON tests | stable URL fetch + two-platform network canary |
+| Responsive UI | four viewport before/after + keyboard/states | authenticated public cabinet four-view pass |
+
 ## Goal
 
 Prepare ArcVPN for paid acquisition: reliable Standard trial, Economy/Standard/
@@ -214,7 +292,8 @@ subscription URLs, UUIDs, or active access.
 
 - Trial is idempotent, uses Standard entitlements, and partial failure is retryable.
 - Economy/Standard/Family prices and 1/3/6/12-month periods have one source of truth.
-- LTE is a real 0/45/115 GB quota resetting every 30 days; no `x10` customer model.
+- LTE is a real 0/45/115 GB quota resetting on the shared calendar-month
+  anniversary; no `x10` customer model.
 - WebApp contains no add-traffic purchase and shows real remaining LTE.
 - Campaign links have immutable first-touch attribution, named comparison metrics,
   and configurable entry/payment bonuses.
@@ -254,6 +333,22 @@ subscription URLs, UUIDs, or active access.
 | Capacity | load-test scripts | CPU/RAM/latency/error baseline |
 
 ## Evidence log
+
+- Current implementation regression suite: `102 passed`; Python compile succeeds.
+- Browser-first integration found and fixed a standalone `/app` first-render crash
+  caused by an empty promo quote comparing equal to an empty tariff selection.
+- Post-fix responsive measurements at 390x844, 768x1024, 1366x768 and
+  1920x1080 all report `scrollWidth == innerWidth`; mobile and desktop screenshots
+  were captured. The tariff sheet exposes `126 ₽ / мес` above
+  `6 месяцев · всего 759 ₽`, shows one Standard heading, and has no crypto/Stars.
+- Promo browser states verified: disabled empty Apply, invalid `INVALID` error,
+  valid DEV canary `START10` discount and recalculated payment total.
+- `/app/admin` DEV route renders the actual admin console with
+  `noindex,nofollow`; production routes remain `/app` customer and `/admin` admin.
+- Production preflight reports schema v56 and usable Remnawave credentials in the
+  protected runtime file, but no registered Remnawave server row and no explicit
+  write mode. The implementation now supports the protected authority as a
+  fallback while requiring `REMNAWAVE_WRITE_MODE=production` before any write.
 
 - Pre-change worktree: only pre-existing owner change
   `webapp_dist/assets/payments/sbp.svg`; it is excluded from this stage.

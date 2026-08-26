@@ -620,10 +620,6 @@ async def run_daily_tasks(bot: Bot) -> None:
             logger.info("📦 Запуск создания и отправки бэкапа...")
             await send_backup_archive(bot)
             
-            # Ежемесячный сброс трафика (1-е число каждого месяца)
-            if datetime.now().day == 1:
-                await monthly_traffic_reset(bot)
-            
             # Ждём немного чтобы не запуститься повторно в ту же минуту
             await asyncio.sleep(60)
             
@@ -879,9 +875,44 @@ async def run_recurring_payment_scheduler(bot: Bot) -> None:
 TRAFFIC_THRESHOLDS = [10, 5, 3, 2, 1, 0]
 
 
+async def process_due_traffic_cycle_resets(*, resetter=None, now=None) -> dict:
+    """Reset due users in Remnawave, then atomically advance local counters."""
+    from database.db_traffic_cycles import (
+        claim_traffic_cycle_reset,
+        complete_traffic_cycle_reset,
+        fail_traffic_cycle_reset,
+        get_due_traffic_cycles,
+    )
+    if resetter is None:
+        from bot.services.vpn_api import reset_key_traffic_if_active
+        resetter = reset_key_traffic_if_active
+
+    result = {"applied": 0, "failed": 0, "skipped": 0}
+    for cycle in get_due_traffic_cycles(now=now):
+        user_id, boundary = cycle["user_id"], cycle["boundary_at"]
+        if not claim_traffic_cycle_reset(user_id, boundary):
+            result["skipped"] += 1
+            continue
+        try:
+            # One ArcVPN user may still have several historical key rows. Every
+            # live panel identity must acknowledge the reset before local state
+            # advances; repeated Remnawave resets are safe after a crash.
+            for key_id in cycle["key_ids"]:
+                if not await resetter(key_id):
+                    raise RuntimeError(f"authoritative reset rejected key {key_id}")
+            if not complete_traffic_cycle_reset(user_id, boundary, completed_at=now):
+                raise RuntimeError("cycle boundary changed during reset")
+            result["applied"] += 1
+        except Exception as exc:
+            fail_traffic_cycle_reset(user_id, boundary, type(exc).__name__)
+            result["failed"] += 1
+            logger.warning("Traffic cycle reset failed user=%s: %s", user_id, exc)
+    return result
+
+
 async def monthly_traffic_reset(bot: Bot) -> None:
     """
-    Ежемесячные задачи (1-е число каждого месяца):
+    Устаревшая ежемесячная сверка. Сброс 1-го числа отключён навсегда:
     
     1. Сброс трафика (если monthly_traffic_reset_enabled = 1)
     2. Сверка БД и панели (ВСЕГДА) — исправление расхождений expiryTime и totalGB
@@ -897,7 +928,10 @@ async def monthly_traffic_reset(bot: Bot) -> None:
     )
     from bot.services.vpn_api import push_key_to_panel
     
-    reset_enabled = get_setting('monthly_traffic_reset_enabled', '0') == '1'
+    # Calendar-anniversary resets are exclusively owned by
+    # process_due_traffic_cycle_resets. Keep this legacy reconciliation helper
+    # incapable of reviving the destructive first-of-month behavior.
+    reset_enabled = False
     
     # === ЧАСТЬ 1: Сброс трафика (если включён) ===
     reset_success = 0
@@ -1275,6 +1309,7 @@ async def run_traffic_sync_scheduler(bot: Bot) -> None:
     
     while True:
         try:
+            await process_due_traffic_cycle_resets()
             await sync_traffic_stats(bot)
             
             # Уведомление и счётчик устройств должны быть практически свежими.

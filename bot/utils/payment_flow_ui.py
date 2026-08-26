@@ -33,6 +33,31 @@ def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
     return builder.as_markup()
 
 
+def build_tariff_catalog_text(tariffs) -> str:
+    """Canonical product copy; legacy editable text must not hide products."""
+    details = {
+        "economy": ("📉", "Эконом", "500 ГБ трафика · 2 устройства"),
+        "standard": ("👤", "Стандарт", "1 ТБ трафика · 45 ГБ LTE · 3 устройства"),
+        "family": ("👨‍👩‍👧‍👦", "Семейный", "безлимитный трафик · 115 ГБ LTE · 10 устройств"),
+    }
+    by_code = {}
+    for item in tariffs:
+        code = str(item.get("product_code") or "standard")
+        by_code.setdefault(code, []).append(item)
+    blocks = ["🌍 <b>Выберите подходящий тариф VPN:</b>"]
+    for code in ("economy", "standard", "family"):
+        products = by_code.get(code)
+        if not products:
+            continue
+        icon, title, description = details[code]
+        monthly = min(
+            round(float(item.get("price_rub") or 0) / max(1, int(item.get("period_months") or 1)))
+            for item in products if float(item.get("price_rub") or 0) > 0
+        )
+        blocks.append(f"{icon} <b>{title}</b>\n{description}\n💰 от <b>{monthly} ₽/мес</b>")
+    return "\n\n".join(blocks)
+
+
 def _format_payment_context_text(
     tariff: Dict[str, Any],
     key: Optional[Dict[str, Any]] = None,
@@ -98,9 +123,8 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
             return False
 
         tariff_select_data = get_message_data('tariff_select_text', '')
-        custom_text = tariff_select_data.get('text', '').strip()
         photo_file_id = tariff_select_data.get('photo_file_id')
-        text = custom_text or '💳 <b>Купить подписку</b>\n\nВыберите тариф:'
+        text = build_tariff_catalog_text(tariffs)
 
         default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v1.png"
         await safe_edit_or_send(
@@ -165,13 +189,12 @@ async def show_payment_method_selection_screen(
 ) -> Optional[Dict[str, Any]]:
     from bot.keyboards.admin import home_only_kb
     from bot.keyboards.user import payment_method_kb, renew_payment_method_kb, back_and_home_kb
-    from bot.services.billing import build_crypto_payment_url, extract_item_id_from_url
     from bot.utils.message_editor import get_message_data
     from database.requests import (
         get_key_details_for_user, get_setting, get_tariff_by_id, get_user_balance,
-        get_user_internal_id, get_crypto_integration_mode, is_cards_enabled,
-        is_crypto_configured, is_demo_payment_enabled, is_referral_enabled,
-        is_stars_enabled, is_yookassa_qr_configured, get_referral_reward_type,
+        get_user_internal_id, is_cards_enabled,
+        is_demo_payment_enabled, is_referral_enabled,
+        is_yookassa_qr_configured, get_referral_reward_type,
         prepare_payment_order,
     )
 
@@ -185,8 +208,8 @@ async def show_payment_method_selection_screen(
         if not key:
             return None
 
-    crypto_configured = is_crypto_configured()
-    crypto_mode = get_crypto_integration_mode()
+    crypto_configured = False
+    crypto_mode = 'disabled'
     stars_enabled = False  # Stars убраны из пользовательского UI ArcVPN.
     cards_enabled = is_cards_enabled()
     yookassa_qr_enabled = is_yookassa_qr_configured()
@@ -216,16 +239,6 @@ async def show_payment_method_selection_screen(
         )
         order_id = prepared_order['order_id']
 
-        if crypto_configured and crypto_mode == 'standard':
-            crypto_item_url = get_setting('crypto_item_url')
-            item_id = extract_item_id_from_url(crypto_item_url)
-            if item_id:
-                crypto_url = build_crypto_payment_url(
-                    item_id=item_id,
-                    invoice_id=order_id,
-                    tariff_external_id=tariff.get('external_id'),
-                    price_cents=tariff['price_cents']
-                )
 
     # Баланс выведен из обращения (рефералка теперь начисляет дни, не баланс).
     show_balance_button = False

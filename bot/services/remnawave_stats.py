@@ -8,7 +8,8 @@ from bot.services.panels.remnawave import RemnawaveClient
 from database.requests import get_all_servers
 
 
-def _credentials() -> dict[str, Any]:
+def remnawave_authority_config() -> dict[str, Any]:
+    """Return the single control-plane config, with secrets kept out of logs/DB."""
     for server in get_all_servers():
         if str(server.get("panel_type") or "").lower() == "remnawave" and server.get("panel_api_token"):
             return server
@@ -25,7 +26,14 @@ def _credentials() -> dict[str, Any]:
         "panel_type": "remnawave",
         "panel_api_url": values.get("REMNAWAVE_PANEL_URL", ""),
         "panel_api_token": values.get("REMNAWAVE_API_TOKEN", ""),
+        "panel_node_uuid": values.get("REMNAWAVE_NODE_UUID", ""),
+        "panel_squad_uuid": values.get("REMNAWAVE_SQUAD_UUID", ""),
+        "panel_write_mode": values.get("REMNAWAVE_WRITE_MODE", "disabled"),
     }
+
+
+def _credentials() -> dict[str, Any]:
+    return remnawave_authority_config()
 
 
 def remnawave_authority_enabled() -> bool:

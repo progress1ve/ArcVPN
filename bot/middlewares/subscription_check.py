@@ -68,9 +68,13 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
     
     async def send_subscription_required(self, message: Message):
         """Отправляет сообщение о необходимости подписки."""
+        from config import SUBSCRIPTION_URL
+        agreement_url = f"{SUBSCRIPTION_URL.rstrip('/')}/legal/user-agreement"
         text = (
             "👋 <b>Добро пожаловать в ArcVPN!</b>\n\n"
-            "<blockquote>Для использования бота необходимо подписаться на наш канал 👇</blockquote>"
+            "<blockquote>Для использования бота необходимо подписаться на наш канал 👇</blockquote>\n\n"
+            "Нажимая «Я подписался», вы принимаете "
+            f'<a href="{agreement_url}">Пользовательское соглашение</a>.'
         )
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[

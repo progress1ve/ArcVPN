@@ -33,23 +33,15 @@ def home_only_kb() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 def admin_main_menu_kb() -> InlineKeyboardMarkup:
-    """Главное меню админ-панели."""
+    """Compact launcher for the supported Web Admin."""
+    from aiogram.types import WebAppInfo
+    from config import SUBSCRIPTION_URL
     builder = InlineKeyboardBuilder()
-    builder.row(
-        InlineKeyboardButton(text='🖥️ Сервера', callback_data='admin_servers'),
-        InlineKeyboardButton(text='💳 Оплаты', callback_data='admin_payments')
-    )
-    builder.row(
-        InlineKeyboardButton(text='👥 Пользователи', callback_data='admin_users'),
-        InlineKeyboardButton(text='📊 Статистика', callback_data='admin_statistics')
-    )
-    builder.row(
-        InlineKeyboardButton(text='📢 Рассылка', callback_data='admin_broadcast'),
-        InlineKeyboardButton(text='⚙️ Настройки бота', callback_data='admin_bot_settings')
-    )
-    builder.row(
-        InlineKeyboardButton(text='📥 Скачать логи', callback_data='admin_logs_menu')
-    )
+    builder.row(InlineKeyboardButton(
+        text='📊 Открыть Web Admin',
+        web_app=WebAppInfo(url=f"{SUBSCRIPTION_URL.rstrip('/')}/admin"),
+        style='primary',
+    ))
     builder.row(home_button())
     return builder.as_markup()
 

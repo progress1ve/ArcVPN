@@ -11,7 +11,6 @@ from aiogram.fsm.context import FSMContext
 
 from config import ADMIN_IDS
 from database.requests import get_all_servers
-from bot.services.vpn_api import get_client_from_server_data, format_traffic
 from bot.states.admin_states import AdminStates
 from bot.keyboards.admin import admin_main_menu_kb
 from bot.utils.admin import is_admin
@@ -34,55 +33,20 @@ router = Router()
 # ============================================================================
 
 async def get_admin_stats_text() -> str:
-    """
-    Формирует текст со статистикой всех серверов.
-    
-    Returns:
-        Отформатированный текст для сообщения
-    """
+    """Small status surface; all mutations live in Web Admin."""
     servers = get_all_servers()
-    
-    if not servers:
-        return (
-            "⚙️ <b>Админ-панель</b>\n\n"
-            "🖥️ Серверов пока нет.\n"
-            "Добавьте первый сервер в разделе «Сервера»."
-        )
-    
-    lines = ["⚙️ <b>Админ-панель</b>\n"]
-    
-    for server in servers:
-        status_emoji = "🟢" if server['is_active'] else "🔴"
-        lines.append(f"{status_emoji} <b>{server['name']}</b> (<code>{server['host']}:{server['port']}</code>)")
-        
-        if server['is_active']:
-            # Пробуем получить статистику
-            try:
-                client = get_client_from_server_data(server)
-                stats = await client.get_stats()
-                
-                if stats.get('online'):
-                    traffic = format_traffic(stats.get('total_traffic_bytes', 0))
-                    active = stats.get('active_clients', 0)
-                    online = stats.get('online_clients', 0)
-                    
-                    cpu_text = ""
-                    if stats.get('cpu_percent') is not None:
-                        cpu_text = f" | 💻 {stats['cpu_percent']}% CPU"
-                    
-                    lines.append(f"   🔑 {online} онлайн | 📊 {traffic}{cpu_text}")
-                else:
-                    error = stats.get('error', 'Нет подключения')
-                    lines.append(f"   ⚠️ {error}")
-            except Exception as e:
-                logger.warning(f"Ошибка получения статистики {server['name']}: {e}")
-                lines.append(f"   ⚠️ Ошибка подключения")
-        else:
-            lines.append("   ⏸️ Деактивирован")
-        
-        lines.append("")  # Пустая строка между серверами
-    
-    return "\n".join(lines)
+    active = sum(1 for item in servers if item.get('is_active'))
+    remnawave = sum(
+        1 for item in servers
+        if item.get('is_active') and str(item.get('panel_type') or '').lower() == 'remnawave'
+    )
+    authority = "🟢 настроен" if remnawave else "🔴 не настроен"
+    return (
+        "⚙️ <b>ArcVPN · состояние</b>\n\n"
+        f"Remnawave: <b>{authority}</b>\n"
+        f"Активных узлов: <b>{active}</b>\n\n"
+        "<blockquote>Операции, платежи, тарифы и поддержка перенесены в Web Admin.</blockquote>"
+    )
 
 
 from aiogram.exceptions import TelegramBadRequest

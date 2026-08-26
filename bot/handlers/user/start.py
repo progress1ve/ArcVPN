@@ -253,61 +253,6 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
                 user_id,
                 campaign.get('id') if campaign else 'unknown',
             )
-    if args and args.startswith('bill'):
-        from bot.services.billing import process_crypto_payment
-        from bot.handlers.user.payments.base import finalize_payment_ui
-        from database.requests import find_order_by_order_id, add_to_balance, get_user_balance
-        from bot.services.user_locks import user_locks
-        from aiogram.types import InlineKeyboardButton
-        from aiogram.utils.keyboard import InlineKeyboardBuilder
-        
-        try:
-            (success, text, order) = await process_crypto_payment(args, user_id=user['id'])
-            
-            if success and order:
-                # Проверяем, это пополнение баланса или покупка подписки
-                if order.get('tariff_id') is None and order.get('vpn_key_id') is None:
-                    # Это пополнение баланса
-                    logger.info(f"Обработка крипто-пополнения баланса: order_id={order['order_id']}")
-                    
-                    amount_cents = order.get('amount_cents', 0)
-                    
-                    # Баланс уже пополнен в process_payment_order, просто показываем результат
-                    new_balance = get_user_balance(user['id'])
-                    
-                    def format_price_compact(cents: int) -> str:
-                        if cents >= 10000:
-                            return f"{cents // 100} ₽"
-                        else:
-                            return f"{cents / 100:.2f} ₽".replace(".", ",")
-                    
-                    builder = InlineKeyboardBuilder()
-                    builder.row(InlineKeyboardButton(text="💎 Мой баланс", callback_data="referral_system"))
-                    builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
-                    
-                    await message.answer(
-                        f"✅ <b>Баланс успешно пополнен!</b>\n\n"
-                        f"💰 <b>Зачислено:</b> {format_price_compact(amount_cents)}\n"
-                        f"💎 <b>Ваш баланс:</b> {format_price_compact(new_balance)}",
-                        reply_markup=builder.as_markup(),
-                        parse_mode="HTML"
-                    )
-                else:
-                    # Обычная покупка подписки
-                    await finalize_payment_ui(message, state, text, order, user_id=message.from_user.id)
-            else:
-                await safe_edit_or_send(message, text, force_new=True)
-        except Exception as e:
-            from bot.errors import TariffNotFoundError
-            if isinstance(e, TariffNotFoundError):
-                from database.requests import get_setting
-                from bot.keyboards.user import support_kb
-                support_link = get_setting('support_channel_link', 'https://t.me/ArcVPN_support')
-                await safe_edit_or_send(message, str(e), reply_markup=support_kb(support_link), force_new=True)
-            else:
-                logger.exception(f'Ошибка обработки платежа: {e}')
-                await safe_edit_or_send(message, '❌ Произошла ошибка при обработке платежа.', force_new=True)
-        return
     # Глубокая ссылка из Mini App: ?start=buy_<tariff_id> — сразу открываем
     # оплату выбранного тарифа (или продление, если подписка уже есть).
     if args and args.startswith('buy_'):
@@ -379,9 +324,9 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     if is_new:
         text = trial_welcome_text(user, trial_result)
         kb = create_onboarding_kb()
-        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-welcome-v1.png"
-        if cabinet_banner.exists():
-            welcome_photo = FSInputFile(cabinet_banner)
+        # Первое сообщение после согласия и подписки намеренно без картинки:
+        # пользователь сразу видит выданный trial и два понятных действия.
+        welcome_photo = None
     else:
         # Старые main_page_text/photo_file_id больше не управляют пользовательским UI.
         # /start и callback «На главную» обязаны показывать один новый кабинет.
@@ -464,7 +409,7 @@ def create_main_menu_kb(
             web_app=WebAppInfo(url="https://panel.arccnet.space/"),
             style="primary",
         ))
-        builder.row(InlineKeyboardButton(text="⚙️ Старая админка", callback_data="admin_panel"))
+        builder.row(InlineKeyboardButton(text="Состояние сервисов", callback_data="admin_panel"))
 
     return builder.as_markup()
 
@@ -865,14 +810,21 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
             return
         
-        # Пользователь подписан
-        await callback.answer("✅ Спасибо за подписку!")
-        
-        # Получаем или создаем пользователя
+        # Middleware intercepts the first /start before the normal handler, so
+        # the user may not exist yet when this callback arrives.
         user, created = get_or_create_user(
             telegram_id=user_id,
             username=callback.from_user.username
         )
+
+        from database.db_legal_consent import record_legal_consent
+        from database.requests import get_setting
+        consent_version = get_setting('legal_consent_version', '2026-08-26')
+        if not record_legal_consent(user_id, consent_version, 'telegram_channel_gate'):
+            logger.error("Не удалось сохранить согласие пользователя %s", user_id)
+            await callback.answer("Не удалось сохранить согласие. Попробуйте ещё раз.", show_alert=True)
+            return
+        await callback.answer("✅ Спасибо за подписку!")
         
         # После проверки обязательного канала триал тоже выдаётся сам. Это
         # покрывает пользователя, которого middleware успел создать раньше
@@ -897,9 +849,6 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         keyboard = create_onboarding_kb()
         
         # Получаем правильное приветственное сообщение
-        from database.requests import get_user_primary_key
-        pk = get_user_primary_key(user_id)
-        (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=False, primary_key=pk)
         text = trial_welcome_text(user, trial_result)
         
         # Удаляем старое сообщение
@@ -909,19 +858,11 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             logger.warning(f"Не удалось удалить сообщение: {e}")
         
         # Отправляем главное меню
-        if welcome_photo:
-            await callback.message.answer_photo(
-                photo=welcome_photo,
-                caption=text,
-                reply_markup=keyboard,
-                parse_mode='HTML'
-            )
-        else:
-            await callback.message.answer(
-                text=text,
-                reply_markup=keyboard,
-                parse_mode='HTML'
-            )
+        await callback.message.answer(
+            text=text,
+            reply_markup=keyboard,
+            parse_mode='HTML'
+        )
         
     except Exception as e:
         logger.error(f"Ошибка проверки подписки: {e}", exc_info=True)

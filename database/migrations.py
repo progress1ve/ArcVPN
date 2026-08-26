@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 56
+LATEST_VERSION = 57
 
 
 def get_current_version() -> int:
@@ -2242,6 +2242,96 @@ def migration_56(conn: sqlite3.Connection) -> None:
     logger.info("Migration v56 applied")
 
 
+def migration_57(conn: sqlite3.Connection) -> None:
+    """Calendar-anniversary traffic cycles and versioned legal consent."""
+    from calendar import monthrange
+    from datetime import datetime, timezone
+
+    _add_column(conn, "users", "traffic_cycle_anchor_at DATETIME")
+    _add_column(conn, "users", "legal_consent_version TEXT")
+    _add_column(conn, "users", "legal_consent_at DATETIME")
+    _add_column(conn, "users", "legal_consent_source TEXT")
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS legal_consents (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            version TEXT NOT NULL,
+            source TEXT NOT NULL,
+            accepted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY(user_id, version)
+        );
+        CREATE TABLE IF NOT EXISTS traffic_cycle_resets (
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            boundary_at DATETIME NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending','processing','failed','applied')),
+            attempt_count INTEGER NOT NULL DEFAULT 0,
+            last_error TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            applied_at DATETIME,
+            PRIMARY KEY(user_id, boundary_at)
+        );
+        CREATE INDEX IF NOT EXISTS idx_traffic_cycle_resets_status
+            ON traffic_cycle_resets(status, updated_at);
+        CREATE INDEX IF NOT EXISTS idx_users_traffic_cycle_due
+            ON users(traffic_cycle_reset_at)
+            WHERE traffic_cycle_reset_at IS NOT NULL;
+    """)
+
+    def parse(value):
+        if not value:
+            return None
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=parsed.tzinfo or timezone.utc)
+
+    def add_month(anchor, months):
+        absolute = anchor.year * 12 + anchor.month - 1 + months
+        year, month0 = divmod(absolute, 12)
+        month = month0 + 1
+        return anchor.replace(
+            year=year, month=month,
+            day=min(anchor.day, monthrange(year, month)[1]),
+        )
+
+    now = datetime.now(timezone.utc)
+    rows = conn.execute("""
+        SELECT u.id, u.traffic_cycle_anchor_at, u.traffic_cycle_started_at,
+               u.lte_cycle_started_at, u.traffic_cycle_reset_at,
+               MIN(vk.created_at) first_key_at
+        FROM users u LEFT JOIN vpn_keys vk ON vk.user_id=u.id
+        GROUP BY u.id
+    """).fetchall()
+    for row in rows:
+        anchor = (parse(row["traffic_cycle_anchor_at"])
+                  or parse(row["traffic_cycle_started_at"])
+                  or parse(row["lte_cycle_started_at"])
+                  or parse(row["first_key_at"]))
+        if not anchor:
+            continue
+        existing_boundary = parse(row["traffic_cycle_reset_at"])
+        # Never skip an already-due reset during migration: the scheduler must
+        # first receive an authoritative Remnawave acknowledgement.
+        if existing_boundary and existing_boundary <= now:
+            boundary = existing_boundary
+        else:
+            boundary = add_month(anchor, 1)
+            while boundary <= now:
+                boundary = add_month(anchor, ((boundary.year - anchor.year) * 12
+                                              + boundary.month - anchor.month) + 1)
+        anchor_sql = anchor.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        boundary_sql = boundary.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute("""UPDATE users SET traffic_cycle_anchor_at=?,
+            traffic_cycle_started_at=COALESCE(traffic_cycle_started_at, ?),
+            traffic_cycle_reset_at=?,
+            lte_cycle_started_at=COALESCE(lte_cycle_started_at, ?),
+            lte_cycle_reset_at=? WHERE id=?""",
+            (anchor_sql, anchor_sql, boundary_sql, anchor_sql, boundary_sql, row["id"]))
+    conn.execute("""INSERT INTO settings(key,value)
+        VALUES('monthly_traffic_reset_enabled','0')
+        ON CONFLICT(key) DO UPDATE SET value='0'""")
+    logger.info("Migration v57 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2299,6 +2389,7 @@ MIGRATIONS = {
     54: migration_54,
     55: migration_55,
     56: migration_56,
+    57: migration_57,
 }
 
 

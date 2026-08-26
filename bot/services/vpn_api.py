@@ -139,7 +139,12 @@ async def reset_key_traffic_if_active(key_id: int) -> bool:
         else:
             email = f"user_{key['telegram_id']}"
     try:
-        client = get_client_from_server_data(server_data)
+        # Remnawave is the user authority even while legacy key rows retain
+        # their historical server_id for URL/UUID compatibility.
+        from bot.services.remnawave_stats import remnawave_authority_config
+        authority = remnawave_authority_config()
+        target = authority if authority.get('panel_api_url') and authority.get('panel_api_token') else server_data
+        client = get_client_from_server_data(target)
         success = await client.reset_client_traffic(inbound_id, email)
         if success:
             logger.info(f'Трафик ключа {key_id} успешно сброшен при продлении.')
@@ -147,6 +152,9 @@ async def reset_key_traffic_if_active(key_id: int) -> bool:
     except Exception as e:
         logger.error(f'Не удалось сбросить трафик ключа {key_id} при продлении: {e}')
         return False
+    finally:
+        if 'client' in locals():
+            await client.close()
 
 async def extend_key_on_server(key_id: int, days: int) -> bool:
     """

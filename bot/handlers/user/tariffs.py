@@ -21,7 +21,7 @@ router = Router()
 async def buy_key_handler(callback: CallbackQuery):
     """Показывает список тарифов для покупки."""
     from database.requests import get_all_tariffs, get_user_primary_key
-    from bot.utils.payment_flow_ui import tariff_product_keyboard
+    from bot.utils.payment_flow_ui import tariff_product_keyboard, build_tariff_catalog_text
     from bot.keyboards.admin import home_only_kb
     from bot.utils.message_editor import get_message_data
 
@@ -50,21 +50,11 @@ async def buy_key_handler(callback: CallbackQuery):
         await callback.answer()
         return
     
-    # Загружаем редактируемый текст из БД
+    # Фото остаётся редактируемым, но состав и описания тарифов
+    # строятся из каталога, чтобы старый custom text их не скрыл.
     tariff_select_data = get_message_data('tariff_select_text', '')
-    custom_text = tariff_select_data.get('text', '').strip()
     photo_file_id = tariff_select_data.get('photo_file_id')
-    
-    # Формируем текст
-    if custom_text:
-        text = custom_text
-    else:
-        text = (
-            '🌍 <b>Выберите подходящий тариф VPN:</b>\n\n'
-            '📉 <b>Эконом</b> — 500 ГБ, 2 устройства. От 78 ₽/мес.\n\n'
-            '👤 <b>Стандарт</b> — 1 ТБ, 45 ГБ LTE, 3 устройства. От 122 ₽/мес.\n\n'
-            '👨‍👩‍👧‍👦 <b>Семейный</b> — безлимит, 115 ГБ LTE, 10 устройств. От 282 ₽/мес.'
-        )
+    text = build_tariff_catalog_text(tariffs)
     
     await safe_edit_or_send(
         callback.message,

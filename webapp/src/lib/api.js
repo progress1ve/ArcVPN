@@ -388,6 +388,19 @@ export const createSbpPayment = (tariffId, devices = 2, lteGb = 0, promocode = '
   post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
 export const createCardPayment = (tariffId, devices = 2, lteGb = 0, promocode = '', autoRenew = true) =>
   post('/api/payments/card', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
+export const validatePromocode = async (tariffId, code) => {
+  if (!import.meta.env.DEV) return post('/api/promocodes/validate', { tariff_id: tariffId, code })
+  const normalized = code.trim().toUpperCase()
+  if (normalized !== 'START10') {
+    const error = new Error('promocode_not_found')
+    error.reason = 'promocode_not_found'
+    throw error
+  }
+  const catalog = await mock('tariffs')
+  const base = Number(catalog.tariffs.find((tariff) => tariff.id === tariffId)?.price_rub || 0)
+  const discount = Math.floor(base * 0.1)
+  return { ok: true, code: normalized, base_amount_rub: base, discount_type: 'percent', discount_value: 10, discount_label: '10%', discount_rub: discount, final_amount_rub: base - discount }
+}
 export const fetchSbpPayment = (orderId) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, status: 'succeeded', applied: true })

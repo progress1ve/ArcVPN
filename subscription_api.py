@@ -120,6 +120,11 @@ SPLIT_TUNNELING_DIRECT_SITES = getattr(config, "SPLIT_TUNNELING_DIRECT_SITES", [
 SPLIT_TUNNELING_MODE = getattr(config, "SPLIT_TUNNELING_MODE", "speed")
 SPLIT_TUNNELING_REMOTE_DNS_DOMAIN = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_DOMAIN", "https://cloudflare-dns.com/dns-query")
 SPLIT_TUNNELING_REMOTE_DNS_IP = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_IP", "1.1.1.1")
+ARCVPN_DNS_PROFILE = os.getenv("ARCVPN_DNS_PROFILE", "legacy").strip().lower()
+ARCVPN_DNS_CANARY_TELEGRAM_IDS = {
+    int(value) for value in os.getenv("ARCVPN_DNS_CANARY_TELEGRAM_IDS", "").split(",")
+    if value.strip().isdigit()
+}
 RESERVE_ACCESS_ENABLED = getattr(config, "RESERVE_ACCESS_ENABLED", False)
 RESERVE_CLIENT_EMAIL = getattr(config, "RESERVE_CLIENT_EMAIL", "reserve_shared_fallback")
 RESERVE_PROXY_SITES = getattr(config, "RESERVE_PROXY_SITES", ["geosite:telegram"])
@@ -1049,15 +1054,34 @@ def _subscription_announce_base64(key: ActiveKeyRecord) -> str:
         entitlement = get_user_entitlements(int(key.telegram_id))
         quota = max(0, int(entitlement.get("lte_quota_gb") or 0))
         remaining = max(0, int(entitlement.get("lte_remaining_bytes") or 0)) / 1024**3
+        remaining_text = f"{remaining:.1f}".replace(".", ",")
         lte_line = (
-            f"Обход глушилок (LTE) - {remaining:.1f}гб/{quota}гб"
-            if quota else "Обход глушилок (LTE) - не входит в тариф"
+            f"Обход глушилок (LTE): {remaining_text} из {quota} ГБ"
+            if quota else "Обход глушилок (LTE): не входит в тариф"
         )
         announce = f"{SUBSCRIPTION_ANNOUNCE}\n\n{lte_line}"
         return base64.b64encode(announce.encode("utf-8")).decode("ascii")
     except Exception:
         logger.exception("Не удалось собрать LTE announce")
         return SUBSCRIPTION_ANNOUNCE_BASE64
+
+
+def _uses_dns_v2(key: ActiveKeyRecord) -> bool:
+    """Keep the reviewed DNS profile behind an explicit production canary gate."""
+    return ARCVPN_DNS_PROFILE == "v2" or int(key.telegram_id) in ARCVPN_DNS_CANARY_TELEGRAM_IDS
+
+
+def _client_dns_config(key: ActiveKeyRecord) -> Dict[str, Any]:
+    if not _uses_dns_v2(key):
+        return {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]}
+    return {
+        "queryStrategy": "UseIPv4",
+        "servers": [
+            {"address": "77.88.8.8", "port": 53,
+             "domains": ["geosite:category-ru", "geosite:private"], "skipFallback": True},
+            {"address": "https://dns.quad9.net/dns-query", "skipFallback": False},
+        ],
+    }
 
 
 def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
@@ -1104,7 +1128,7 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
         }
 
     payload = {
-        "dns": {
+        "dns": ({**_client_dns_config(key), "tag": "dns_out"} if _uses_dns_v2(key) else {
             "hosts": {"dns.google": "8.8.8.8"},
             "queryStrategy": "IPIfNonMatch",
             "servers": [
@@ -1125,7 +1149,7 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                 },
             ],
             "tag": "dns_out",
-        },
+        }),
         "inbounds": [
             {
                 "listen": "127.0.0.1",
@@ -1417,7 +1441,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             if override else _subscription_display_name(name)
         )
         regular_profile = {
-            "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
+            "dns": _client_dns_config(key),
             "inbounds": _json_local_inbounds(key),
             "log": {"loglevel": "none"},
             "meta": None,
@@ -1463,7 +1487,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             # traffic for every subscriber. Only normal routes are observed.
             "subjectSelector": ["proxy-main"],
         },
-        "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1", "1.0.0.1"]},
+        "dns": _client_dns_config(key),
         "inbounds": _json_local_inbounds(key),
         "log": {"loglevel": "none"},
         "meta": None,
@@ -3185,6 +3209,7 @@ def api_create_sbp_payment():
     if price_rub <= 0:
         return _api_error("invalid_amount", 400)
     total_rub = price_rub
+    discount_rub = 0
     promocode = None
     promo_code = str(payload.get("promocode") or "").strip().upper()
     if promo_code:
@@ -3192,7 +3217,8 @@ def api_create_sbp_payment():
         valid, promo_error, promocode = is_promocode_valid(promo_code, user_id)
         if not valid:
             return _api_error(promo_error or "invalid_promocode", 400)
-        total_rub = max(1, total_rub - int(compute_discount_rub(promocode, total_rub) or 0))
+        discount_rub = min(price_rub - 1, int(compute_discount_rub(promocode, total_rub) or 0))
+        total_rub = max(1, total_rub - discount_rub)
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
     order = prepare_payment_order(
@@ -3224,7 +3250,8 @@ def api_create_sbp_payment():
     return _api_no_store(jsonify({
         "ok": True, "order_id": order["order_id"],
         "confirmation_url": payment["qr_url"], "status": payment["status"],
-        "amount_rub": total_rub,
+        "amount_rub": total_rub, "base_amount_rub": price_rub,
+        "discount_rub": discount_rub, "final_amount_rub": total_rub,
     }))
 
 
@@ -3617,6 +3644,9 @@ def api_email_verify():
         except sqlite3.IntegrityError:
             return _api_error("email_in_use", 409)
     else:
+        # Consume the one-time code before issuing a session. This reuses the
+        # same transactional deletion as email linking and makes replay fail.
+        link_verified_email(int(user["id"]), email)
         raw_token = secrets.token_urlsafe(48)
         create_web_session(int(user["id"]), hashlib.sha256(raw_token.encode("utf-8")).hexdigest())
         response.set_cookie(
@@ -3672,6 +3702,49 @@ def api_admin_login():
     )
     append_admin_audit("admin.login", "success", actor_id=str(_admin_telegram_id() or "password-session"))
     return _api_no_store(response)
+
+
+@app.route('/api/promocodes/validate', methods=['POST'])
+def api_validate_promocode():
+    """Return a price quote without reserving or consuming the promocode."""
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    payload = request.get_json(silent=True) or {}
+    try:
+        tariff_id = int(payload.get("tariff_id"))
+    except (TypeError, ValueError):
+        return _api_error("invalid_tariff", 400)
+    code = str(payload.get("code") or "").strip().upper()
+    tariff = get_tariff_by_id(tariff_id)
+    user_id = get_user_internal_id(telegram_id)
+    if not tariff or not user_id:
+        return _api_error("tariff_or_user_not_found", 404)
+    if not code:
+        return _api_error("promocode_required", 400)
+    from database.db_promocodes import (
+        compute_discount_rub, format_promocode_discount, is_promocode_valid,
+    )
+    valid, promo_error, promocode = is_promocode_valid(code, user_id)
+    if not valid or not promocode:
+        reasons = {
+            "❌ Промокод не найден": "promocode_not_found",
+            "❌ Промокод отключен": "promocode_disabled",
+            "❌ Срок действия промокода истек": "promocode_expired",
+            "❌ Промокод исчерпан": "promocode_exhausted",
+            "❌ Вы уже использовали этот промокод": "promocode_already_used",
+        }
+        return _api_error(reasons.get(str(promo_error), "invalid_promocode"), 400)
+    base_rub = int(tariff.get("price_rub") or round(int(tariff.get("price_cents") or 0) / 100))
+    discount_rub = min(max(0, base_rub - 1), compute_discount_rub(promocode, base_rub))
+    return _api_no_store(jsonify({
+        "ok": True, "code": code, "base_amount_rub": base_rub,
+        "discount_type": promocode.get("discount_type") or "fixed",
+        "discount_value": int(promocode.get("discount_percent") or 0)
+        if promocode.get("discount_type") == "percent" else int(promocode.get("discount_rub") or 0),
+        "discount_label": format_promocode_discount(promocode),
+        "discount_rub": discount_rub, "final_amount_rub": max(1, base_rub - discount_rub),
+    }))
 
 
 @app.route('/api/internal/node-metrics', methods=['POST'])
@@ -5183,6 +5256,7 @@ small{{display:block;margin-top:16px;color:#718296;line-height:1.45}}
     return response
 
 
+@app.route('/')
 @app.route('/app')
 @app.route('/app/')
 @app.route('/app/<path:path>')
@@ -5209,7 +5283,9 @@ def webapp(path: str = ""):
 @app.route('/admin/<path:path>')
 def admin_webapp(path: str = ""):
     """Serve the signed SPA bundle; the client selects the admin console."""
-    return webapp(path)
+    response = webapp(path)
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
 
 
 if __name__ == '__main__':
