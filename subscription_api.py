@@ -2327,6 +2327,7 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
         main_links = await _fetch_native_identity_links(
             str(main_user.get("subscriptionUrl") or "").strip(), str(key.client_uuid)
         )
+        main_links = [link for link in main_links if not _is_lte_subscription_link(link)]
         identity = get_lte_identity(int(key.telegram_id)) or {}
         lte_links: list[str] = []
         if int(identity.get("lte_quota_gb") or 0) > 0 and identity.get("lte_panel_username"):
@@ -2336,9 +2337,15 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
                 lte_links = await _fetch_native_identity_links(
                     str(lte_user.get("subscriptionUrl") or "").strip(), expected_uuid
                 )
+                lte_links = [link for link in lte_links if _is_lte_subscription_link(link)]
         return _with_youtube_without_ads_alias([*main_links, *lte_links])
     finally:
         await client.close()
+
+
+def _is_lte_subscription_link(link: str) -> bool:
+    label = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else ""
+    return "Обход глушилок" in label or "LTE" in label
 
 
 def _prepare_native_remnawave_subscription(
