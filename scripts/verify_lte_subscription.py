@@ -48,6 +48,12 @@ def main() -> int:
         "main_links": len(main_links), "lte_links": len(lte_links),
         "main_identity_ok": credentials_match(main_links, row["client_uuid"]),
         "lte_identity_ok": credentials_match(lte_links, row["lte_client_uuid"]),
+        "lte_links_with_lte_identity": sum(
+            urllib.parse.urlparse(item).username == row["lte_client_uuid"] for item in lte_links
+        ),
+        "lte_links_with_main_identity": sum(
+            urllib.parse.urlparse(item).username == row["client_uuid"] for item in lte_links
+        ),
         "lte_userinfo_ok": f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo,
         "announce_ok": expected_announce in announce,
     }
