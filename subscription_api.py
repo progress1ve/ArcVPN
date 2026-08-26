@@ -5315,7 +5315,11 @@ def webapp(path: str = ""):
     Любой неизвестный путь возвращает index.html — клиентский роутинг разрулит
     его сам. send_from_directory защищает от path traversal.
     """
-    if not path and request.host.split(":", 1)[0].lower() == "panel.arccnet.space":
+    if (
+        not path
+        and request.host.split(":", 1)[0].lower() == "panel.arccnet.space"
+        and request.path.rstrip("/") == "/app"
+    ):
         return Response("Not found", status=404, mimetype="text/plain")
     if path:
         candidate = os.path.join(WEBAPP_DIST_DIR, path)

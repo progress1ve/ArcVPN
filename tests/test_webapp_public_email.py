@@ -13,6 +13,14 @@ def test_root_is_customer_app_and_admin_is_noindex():
     assert admin.headers["X-Robots-Tag"] == "noindex, nofollow"
 
 
+def test_panel_host_keeps_admin_but_rejects_customer_app_shell():
+    client = api.app.test_client()
+    admin = client.get("/admin", headers={"Host": "panel.arccnet.space"})
+    customer = client.get("/app", headers={"Host": "panel.arccnet.space"})
+    assert admin.status_code == 200
+    assert customer.status_code == 404
+
+
 def test_unknown_login_email_has_neutral_success_and_sends_nothing():
     with patch.object(api, "SMTP_HOST", "smtp.example.test"), patch.object(
         api, "SMTP_FROM", "ArcVPN <login@example.test>"
