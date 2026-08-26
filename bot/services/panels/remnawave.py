@@ -129,7 +129,6 @@ class RemnawaveClient(BaseVPNClient):
             "id": user["id"],
             "status": "ACTIVE" if enabled else "DISABLED",
             "trafficLimitBytes": max(0, int(traffic_limit_bytes)),
-            "trafficLimitStrategy": "NO_RESET",
             "activeInternalSquads": list(dict.fromkeys(squad_uuids)),
         }
         if expiry_at:

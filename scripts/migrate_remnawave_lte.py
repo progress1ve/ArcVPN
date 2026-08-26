@@ -7,6 +7,7 @@ import asyncio
 import json
 import sqlite3
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -18,6 +19,13 @@ from bot.services.remnawave_stats import remnawave_authority_config
 LTE_TAGS = {"DE_DHOST_LTE_XHTTP", "NL_DHOST_LTE_XHTTP"}
 MAIN_TAGS = {"VLESS_TCP_REALITY", "DE_DHOST_HYSTERIA2", "NL_DHOST_VLESS_TCP", "NL_DHOST_HYSTERIA2"}
 LTE_SQUAD_NAME = "ArcVPN LTE"
+
+
+def iso_expiry(value: str) -> str:
+    parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc).isoformat()
 
 
 def candidates(db_path: Path) -> list[dict]:
@@ -77,7 +85,7 @@ async def migrate(apply: bool, db_path: Path) -> dict:
                     raise RuntimeError("main identity mismatch")
                 if apply:
                     await client.set_user_squads_and_limit(
-                        row["panel_email"], [main_uuid], 0, expiry_at=row["expires_at"]
+                        row["panel_email"], [main_uuid], 0
                     )
                     result["main_updated"] += 1
                 if int(row["lte_quota_gb"] or 0) <= 0:
@@ -87,14 +95,14 @@ async def migrate(apply: bool, db_path: Path) -> dict:
                 if apply and current:
                     verified = await client.set_user_squads_and_limit(
                         username, [lte_uuid], int(row["lte_quota_gb"]) * 1024**3,
-                        expiry_at=row["expires_at"],
+                        expiry_at=iso_expiry(row["expires_at"]),
                     )
                     result["lte_updated"] += 1
                 elif apply:
                     verified = await client._request("POST", "/api/users", json={
                         "username": username, "status": "ACTIVE",
                         "trafficLimitBytes": int(row["lte_quota_gb"]) * 1024**3,
-                        "trafficLimitStrategy": "NO_RESET", "expireAt": row["expires_at"],
+                        "trafficLimitStrategy": "NO_RESET", "expireAt": iso_expiry(row["expires_at"]),
                         "hwidDeviceLimit": int(row["device_limit"]),
                         "telegramId": int(row["telegram_id"]),
                         "activeInternalSquads": [lte_uuid],
