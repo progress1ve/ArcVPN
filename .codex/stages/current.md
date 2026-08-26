@@ -1,5 +1,65 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-26 follow-up: login, tariff clarity, branding and LTE-only quota
+
+Goal: remove the newly reported purchase/login friction and make the customer
+traffic model explicit: ordinary VPN traffic is unlimited; only the LTE bypass
+allowance is metered.
+
+Affected components: `webapp/src/views/HomeFlowPreview.svelte`, standalone login
+in `webapp/src/App.svelte`, admin session API/database, tariff copy helpers,
+`subscription_api.py` announce/headers, public brand assets and focused tests.
+
+Acceptance fixed before edits:
+
+1. Promo input has no decorative rectangular focus fill/border/outline change;
+   keyboard focus remains indicated by the field glyph, and there is at least
+   12 px separation from recurring.
+2. The supplied ArcVPN mark is used for favicon/manifest and standalone login.
+3. Admin password sessions persist across normal browser restarts for 30 days;
+   `/admin` never renders customer-login wording and logout still revokes access.
+4. Standalone login centers brand/title and offers both Telegram and email paths;
+   Telegram action opens the official bot/WebApp entry without accepting an
+   unverified client identity.
+5. Economy/Standard/Family descriptions contain no decorative emoji and state
+   devices plus `Обход глушилок: нет` or the exact LTE allowance.
+6. Customer-facing ordinary traffic is unlimited while LTE remains metered and
+   reconciled. Announce exactly uses the approved five lines; LTE usage occupies
+   subscription traffic headers/profile metadata without changing stable URLs or
+   UUIDs. HTTP headers, plain/base64 and Happ JSON receive regression coverage.
+7. Browser before/after evidence covers 390x844, 768x1024, 1366x768 and
+   1920x1080; no horizontal overflow, promo disabled/error/success, keyboard focus,
+   admin login/session copy, Telegram/email login and public assets are checked.
+
+Risks/rollback: persistent admin cookies increase stolen-device exposure, so keep
+HttpOnly/Secure/SameSite and server-side expiry/revocation. Traffic presentation
+must not disable LTE enforcement or lie about Remnawave usage. Rollback is the
+runtime commit plus previous generated bundle; no URL/UUID/database deletion.
+
+Verification matrix: focused auth/announce/tariff tests, full pytest, WebApp build,
+local browser four-view pass, staged diff/secret scan, production backup/pull,
+affected-service restart, health/public/browser verification.
+
+Evidence before rollout (2026-08-26):
+
+- Local browser rendered standalone Telegram + email login with centered mark and
+  heading. Purchase DOM exposes `126 ₽ / мес` before
+  `6 месяцев · всего 759 ₽`; Standard copy is exactly
+  `Основной трафик: 1024 ГБ (1 ТБ) · Обход глушилок: 45 ГБ · 3 устройства`.
+- Local responsive pass at 390x844, 768x1024, 1366x768 and 1920x1080 found
+  `scrollWidth == innerWidth`. Promo input CSS has no outline or box shadow and
+  the promo surface has a 16 px bottom separation before recurring.
+- WebApp production build passed: 87 modules, no compiler warning. Full Python
+  regression passed: `104 passed in 4.85s`. `git diff --check` passed.
+- Admin password cookie contract is now persistent for 30 days while retaining
+  Secure, HttpOnly and SameSite=Strict; logout/server-side expiry remain intact.
+- Criterion 6 is deliberately not claimed: current Remnawave identity aggregates
+  normal and LTE links, while `lte_used_bytes` has no production per-node usage
+  reconciliation. Presenting normal traffic as unlimited now would remove the
+  only effective aggregate cap and make the requested announce false. Safe next
+  work requires an LTE node UUID allowlist, node/user usage ingestion and a
+  separately revocable LTE identity/squad before the text/header switch.
+
 Status: in progress
 Started: 2026-08-24
 Expanded: 2026-08-24 after the Support deployment, before further runtime edits

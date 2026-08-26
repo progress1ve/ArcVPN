@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -68,6 +68,7 @@
   let emailStep = 'email'
   let emailBusy = false
   let emailMessage = ''
+  let botLoginUrl = ''
   let supportChatOpen = false
   let supportMessages = []
   let supportInput = ''
@@ -110,6 +111,7 @@
     if (recurringResult.status === 'fulfilled') recurring = recurringResult.value
     accountLoading = false
   })
+  fetchPublicConfig().then((value) => { botLoginUrl = value.bot_url || '' }).catch(() => {})
 
   $: keys = $status.data?.keys ?? []
   $: activeKeys = keys.filter((key) => key.is_active)
@@ -712,9 +714,9 @@
   }
 
   function productDescription(plan) {
-    if (plan?.product_code === 'economy') return '⚡ Скорость до 100 Мбит/с · 📦 500 ГБ · 📱 2 устройства'
-    if (plan?.product_code === 'family') return '🔥 Максимальный безлимит · 👑 Premium-линия · 📱 До 10 устройств'
-    return '🚀 VIP-серверы · 📦 1024 ГБ (1 ТБ) · 📱 3 устройства'
+    if (plan?.product_code === 'economy') return 'Основной трафик: 500 ГБ · Обход глушилок: нет · 2 устройства'
+    if (plan?.product_code === 'family') return 'Основной трафик: безлимит · Обход глушилок: 115 ГБ · до 10 устройств'
+    return 'Основной трафик: 1024 ГБ (1 ТБ) · Обход глушилок: 45 ГБ · 3 устройства'
   }
 
   onMount(() => {
@@ -846,8 +848,10 @@
         </section>
       {:else if $status.error === 'unauthorized'}
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
-          <div class="brand"><img src={`${asset}/arc-logo.svg`} alt="" /><span>ArcVPN</span></div>
-          <div class="login-copy"><h1>Войдите<br />в свой аккаунт</h1><span>Email открывает тот же аккаунт и подписку, которые уже связаны с вашим Telegram.</span></div>
+          <div class="brand"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /><span>ArcVPN</span></div>
+          <div class="login-copy"><h1>Войдите<br />в свой аккаунт</h1><span>Используйте Telegram или подтверждённый email — откроется один и тот же кабинет.</span></div>
+          {#if botLoginUrl}<button class="telegram-login" on:click={() => openTelegram(botLoginUrl)}><ArcIcon name="telegram" size={19} weight="bold" />Войти через Telegram</button>{/if}
+          <div class="login-divider"><span>или по email</span></div>
           <section class="email-form login-form">
             <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
             {#if emailStep === 'code'}<label><span>Код из письма</span><input inputmode="numeric" maxlength="6" autocomplete="one-time-code" bind:value={emailCode} placeholder="000000" /></label>{/if}
@@ -859,7 +863,7 @@
       {:else if active === 'home'}
         <section class="screen home-screen" aria-label="Главная">
           <div class="brand">
-            <img src={`${asset}/arc-logo.svg`} alt="" />
+            <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
             <span>ArcVPN</span>
           </div>
 
@@ -953,11 +957,11 @@
           {#if supportChatOpen}
             <header class="section-head subpage-head chat-head native-back-head"><div><h1>Чат с менеджером</h1></div></header>
             <section class="support-chat" aria-live="polite">
-              {#if !supportMessages.length}<div class="chat-row incoming"><span class="care-avatar"><img src={`${asset}/arc-logo.svg`} alt="" /></span><div class="chat-welcome"><b>Поддержка ArcVPN</b><span>Здравствуйте 👋 Опишите вопрос. Менеджер ответит здесь, а бот пришлёт уведомление.</span></div></div>{/if}
+              {#if !supportMessages.length}<div class="chat-row incoming"><span class="care-avatar"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></span><div class="chat-welcome"><b>Поддержка ArcVPN</b><span>Здравствуйте 👋 Опишите вопрос. Менеджер ответит здесь, а бот пришлёт уведомление.</span></div></div>{/if}
               {#each supportTimeline as message}
                 {#if message.showDay}<div class="chat-day"><span>{message.dayLabel}</span></div>{/if}
                 <div class:mine={message.sender === 'user'} class:incoming={message.sender !== 'user'} class="chat-row">
-                  {#if message.sender !== 'user'}<span class="care-avatar"><img src={`${asset}/arc-logo.svg`} alt="Arc Care" /></span>{/if}
+                  {#if message.sender !== 'user'}<span class="care-avatar"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="Arc Care" /></span>{/if}
                   <article class:mine={message.sender === 'user'} class="chat-message">{#if message.sender !== 'user'}<b>Поддержка ArcVPN</b>{/if}<p>{message.body}</p><small>{chatTime(message.created_at)}</small></article>
                 </div>
               {/each}
@@ -1152,7 +1156,7 @@
 
   {#if $status.error !== 'unauthorized' && !purchaseOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
-      <img src={`${asset}/arc-logo.svg`} alt="" />
+      <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
     </div>
     <nav aria-label="Навигация">
       {#each tabs as tab}
@@ -1467,9 +1471,15 @@
   .agreement p { margin: 0; color: #b7c1cc; font-size: 10.5px; line-height: 1.58; }
   .agreement button { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; border-radius: 15px; color: #b9e2fb; background: var(--surface-raised); font-size: 11px; font-weight: 800; }
   .login-screen { display: flex; justify-content: center; flex-direction: column; max-width: 460px; margin: auto; padding-bottom: calc(42px + var(--safe-bottom-flow)); }
-  .login-screen .brand { justify-content: flex-start; margin-bottom: 42px; }
+  .login-screen .brand { justify-content: center; margin-bottom: 32px; }
+  .login-screen .brand img { width: 30px; height: 30px; object-fit: contain; }
+  .login-copy { text-align: center; }
   .login-copy h1 { margin: 0; font-size: 38px; line-height: 1.04; letter-spacing: -.055em; }
-  .login-copy > span { display: block; max-width: 340px; margin-top: 14px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+  .login-copy > span { display: block; max-width: 340px; margin: 14px auto 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+  .telegram-login { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 28px; border-radius: 16px; color: #06131e; background: #8ed3f7; font-size: 12px; font-weight: 850; }
+  .telegram-login:focus-visible { outline: 2px solid #d8f2ff; outline-offset: 3px; }
+  .login-divider { display: flex; align-items: center; gap: 12px; margin: 18px 4px 0; color: var(--faint); font-size: 9px; }
+  .login-divider::before,.login-divider::after { content: ''; height: 1px; flex: 1; background: var(--hairline); }
   .login-form { margin-top: 28px; }
   .login-help { margin: 13px 5px 0; color: var(--faint); font-size: 9.5px; line-height: 1.45; }
   .support-chat { display: flex; flex-direction: column; gap: 8px; min-height: calc(100dvh - var(--safe-top-flow) - 250px); padding: 22px 0 176px; }
@@ -1648,7 +1658,7 @@
     .connect-sheet { max-width: 620px; }
     .inner-screen { width: min(100%, 620px); }
   }
-  .promo-field{box-sizing:border-box;display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;min-height:58px;margin:4px 0 4px;padding:0 10px 0 16px;border:1px solid rgba(166,211,244,.13);border-radius:18px;background:rgba(139,196,235,.055);color:#a9dcfb}.promo-field input{min-width:0;border:0;outline:0;background:transparent;color:#f8fbff;font:inherit;font-weight:700;text-transform:uppercase}.promo-field input::placeholder{color:#9cafc0;text-transform:none}.promo-field button{min-height:38px;padding:0 12px;border:0;border-radius:11px;background:#18334a;color:#bde8ff;font-size:11px;font-weight:850}.promo-field button:disabled{cursor:not-allowed;opacity:.5}.promo-field input:focus-visible,.promo-field button:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}.promo-message{margin:5px 12px 11px!important;color:#ffb1b6!important;font-size:11px!important;text-align:left!important}.promo-message.success{color:#78e1b4!important}.payment-method-sheet{overflow:hidden}.payment-options>button{cursor:pointer}.method-confirm{box-shadow:inset 0 1px rgba(255,255,255,.5),0 16px 36px rgba(65,158,214,.18)}
+  .promo-field{box-sizing:border-box;display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;min-height:58px;margin:4px 0 16px;padding:0 10px 0 16px;border:1px solid rgba(166,211,244,.13);border-radius:18px;background:rgba(139,196,235,.055);color:#a9dcfb}.promo-field input{min-width:0;border:0;outline:0;box-shadow:none;background:transparent;color:#f8fbff;font:inherit;font-weight:700;text-transform:uppercase}.promo-field input::placeholder{color:#9cafc0;text-transform:none}.promo-field:focus-within{color:#e7f7ff}.promo-field button{min-height:38px;padding:0 12px;border:0;border-radius:11px;background:#18334a;color:#bde8ff;font-size:11px;font-weight:850}.promo-field button:disabled{cursor:not-allowed;opacity:.5}.promo-field button:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}.promo-message{margin:-7px 12px 16px!important;color:#ffb1b6!important;font-size:11px!important;text-align:left!important}.promo-message.success{color:#78e1b4!important}.payment-method-sheet{overflow:hidden}.payment-options>button{cursor:pointer}.method-confirm{box-shadow:inset 0 1px rgba(255,255,255,.5),0 16px 36px rgba(65,158,214,.18)}
   /* Soft-capsule scale pass: larger touch geometry and a distinct ArcVPN silhouette. */
   .home-screen { padding-inline: 16px; }
   .days strong { font-size: 66px; }

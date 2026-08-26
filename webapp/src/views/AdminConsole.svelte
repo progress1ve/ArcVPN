@@ -200,7 +200,7 @@
 
 <div class="console">
   <aside>
-    <a class="brand" href="/admin"><img src="/app/assets/arc-flow/arc-logo.svg" alt="" /><span>ArcVPN</span></a>
+    <a class="brand" href="/admin"><img src="/app/arc-logo-new.webp" alt="" /><span>ArcVPN</span></a>
     <nav aria-label="Разделы админ-панели">{#each visibleNav as item}<button class:active={active === item[0]} aria-current={active === item[0] ? 'page' : undefined} aria-label={item[2]} on:click={() => openSection(item[0])} title={item[2]}><ArcIcon name={item[1]} size={20} weight="duotone" /><span>{item[2]}</span></button>{/each}</nav>
     {#if access}<div class="owner"><i>{roleLabel[0][0]}</i><span>{roleLabel[0]}<small>{roleLabel[1]}</small></span></div>{/if}
   </aside>
@@ -211,7 +211,7 @@
       <section class="state"><i class="loader"></i><p>Собираем показатели ArcVPN…</p></section>
     {:else if error}
       <section class="state login-card">
-        <img src="/app/assets/arc-flow/arc-logo.svg" alt="" />
+        <img src="/app/arc-logo-new.webp" alt="" />
         <h2>Вход в ArcVPN Admin</h2>
         <p>{error === 'auth' ? 'Введите пароль владельца или откройте панель из Telegram.' : error === 'forbidden' ? 'Для вашей роли пока нет доступных разделов.' : error}</p>
         <form on:submit|preventDefault={signIn}>

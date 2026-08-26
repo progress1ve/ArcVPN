@@ -17,6 +17,23 @@ def test_access_requires_admin_session(client, monkeypatch):
     assert response.status_code == 403
 
 
+def test_password_login_sets_persistent_thirty_day_cookie(client, monkeypatch):
+    monkeypatch.setattr(api, "ADMIN_CONSOLE_PASSWORD", "correct-password")
+    monkeypatch.setattr(api, "append_admin_audit", Mock())
+    response = client.post("/api/admin/login", json={"password": "correct-password"})
+    cookie = response.headers.get("Set-Cookie", "")
+    assert response.status_code == 200
+    assert "Max-Age=2592000" in cookie
+    assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
+
+
+def test_public_config_exposes_only_bot_login_url(client, monkeypatch):
+    monkeypatch.setattr(api, "_get_bot_username", lambda: "arcvpn_bot")
+    response = client.get("/api/public/config")
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True, "bot_url": "https://t.me/arcvpn_bot"}
+
+
 def test_support_access_exposes_only_effective_permissions(client, monkeypatch):
     monkeypatch.setattr(
         api,

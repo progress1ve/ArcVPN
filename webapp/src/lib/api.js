@@ -312,7 +312,11 @@ const mockUsers = [
 const mockUserDetail = (telegramId) => ({ ok: true, user: { telegram_id: Number(telegramId), balance_rub: 125, device_limit: 2 }, subscriptions: [{ id: 10, custom_name: 'ArcVPN', expires_at: '2026-09-20 12:00:00', active: 1, traffic_used: 3221225472, online_devices: 1 }], payments: [{ order_id: 'qa-order', payment_type: 'sbp', status: 'succeeded', amount_rub: 125, paid_at: '2026-08-20 10:00:00' }], devices: [{ id: 1, active: 1 }], timeline: [{ kind: 'payment', title: 'Оплата подтверждена', detail: '1 месяц', at: '2026-08-20 10:00:00' }] })
 const mockAuditEvents = [{ id: 1, action: 'catalog.update', outcome: 'success', actor_id: 'owner', target_type: 'subscription_catalog', created_at: '2026-08-24T12:10:00Z' }, { id: 2, action: 'rbac.denied', outcome: 'denied', actor_id: 'viewer', target_type: 'permission', target_id: 'catalog.manage', created_at: '2026-08-24T12:08:00Z' }]
 
-export const fetchStatus = () => (import.meta.env.DEV ? mock('status') : get('/api/status'))
+export const fetchStatus = () => (import.meta.env.DEV
+  ? (new URLSearchParams(location.search).get('auth') === 'login'
+      ? Promise.reject(Object.assign(new Error('unauthorized'), { code: 401 }))
+      : mock('status'))
+  : get('/api/status'))
 export const fetchAdminAccess = () => (import.meta.env.DEV ? mockAdminAccess() : get('/api/admin/access'))
 let mockAdminRoleAssignments = [{ telegram_id: 700001, role: 'operator', assigned_by: 1, updated_at: new Date().toISOString() }]
 export const fetchAdminRoles = () => (import.meta.env.DEV
@@ -370,6 +374,9 @@ export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', cursor =
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))
 export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get('/api/referral'))
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))
+export const fetchPublicConfig = () => (import.meta.env.DEV
+  ? Promise.resolve({ ok: true, bot_url: 'https://t.me/arcvpn_bot' })
+  : get('/api/public/config'))
 export const fetchPreferences = () => (import.meta.env.DEV ? mock('preferences') : get('/api/preferences'))
 export const fetchDevices = () => (import.meta.env.DEV ? mock('devices') : get('/api/devices'))
 export const renameDevice = (deviceId, displayName) =>

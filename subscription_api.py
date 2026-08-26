@@ -520,7 +520,7 @@ WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "weba
 BOT_TOKEN = getattr(config, "BOT_TOKEN", "")
 ADMIN_CONSOLE_PASSWORD = os.getenv("ADMIN_CONSOLE_PASSWORD", "")
 ADMIN_CONSOLE_COOKIE = "arcvpn_admin"
-ADMIN_CONSOLE_SESSION_SECONDS = 12 * 60 * 60
+ADMIN_CONSOLE_SESSION_SECONDS = 30 * 24 * 60 * 60
 # Возраст initData, после которого считаем её протухшей (сек). Mini App
 # переоткрывают часто, сутки — безопасный дефолт.
 WEBAPP_INITDATA_MAX_AGE = getattr(config, "WEBAPP_INITDATA_MAX_AGE", 24 * 60 * 60)
@@ -2875,6 +2875,16 @@ def _admin_access_context() -> Optional[Dict[str, Any]]:
     if _admin_cookie_valid():
         return {"actor_id": "password-session", "role": "owner"}
     return None
+
+
+@app.route('/api/public/config')
+def api_public_config():
+    """Expose only safe login destinations needed before authentication."""
+    username = _get_bot_username()
+    return _api_no_store(jsonify({
+        "ok": True,
+        "bot_url": f"https://t.me/{username}" if username else "",
+    }))
 
 
 def _append_admin_audit_best_effort(action: str, outcome: str, **kwargs: Any) -> None:
