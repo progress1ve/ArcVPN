@@ -12,6 +12,7 @@ class FakeRemnawave:
         self.existing = existing
         self.add_calls = 0
         self.update_calls = 0
+        self.closed = False
 
     async def get_user(self, username):
         return self.existing
@@ -23,6 +24,9 @@ class FakeRemnawave:
     async def update_client_full(self, **kwargs):
         self.update_calls += 1
         return True
+
+    async def close(self):
+        self.closed = True
 
 
 def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
@@ -68,6 +72,7 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
     assert result["trial_days"] == 7
     assert result["created_keys"] == [{"key_id": 1, "server_name": "ArcVPN"}]
     assert client.add_calls == 1
+    assert client.closed is True
     assert conn.execute("SELECT panel_email FROM vpn_keys").fetchone()[0] == "arc_user_41"
 
 
