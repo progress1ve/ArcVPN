@@ -349,6 +349,30 @@ subscription URLs, UUIDs, or active access.
   protected runtime file, but no registered Remnawave server row and no explicit
   write mode. The implementation now supports the protected authority as a
   fallback while requiring `REMNAWAVE_WRITE_MODE=production` before any write.
+- Runtime commits `804ae98`, `237d182`, and `83c3298` were pushed and
+  fast-forwarded on Poland. Pre-existing production files and the local owner
+  change `webapp_dist/assets/payments/sbp.svg` were preserved.
+- Restricted backup `backups/release-20260826T120238Z-onboarding-v57` was created
+  before migration/config changes. Schema v57 applied explicitly; exact trial
+  backfill preview/apply was `2 -> provisioned 2, failed 0 -> preview 0`, with a
+  separate SQLite backup. A live operational warning exposed an unclosed trial
+  HTTP client; follow-up commit `83c3298` fixes it and the full suite is again
+  `102 passed`.
+- Protected Remnawave config now has explicit write mode `production`. Both
+  `arcvpn-subscription.service` and `arcvpn-bot.service` are active, health is
+  `OK`, journal scan has no new error/exception/traceback/unclosed entries, and
+  production HEAD is `83c3298`.
+- Public `/app/app-icon.svg` and `/app/site.webmanifest` return HTTP 200;
+  `/admin` returns `X-Robots-Tag: noindex, nofollow`. Public `/app` renders the
+  standalone email login at 390x844, 768x1024, 1366x768 and 1920x1080 with no
+  horizontal overflow. Public `/admin` resolves to the admin/login surface,
+  no overflow at laptop width, `noindex,nofollow`, and no console errors.
+- Deferred external gates: real SMTP delivery and linked-email login need the
+  owner's SMTP/SPF/DKIM/DMARC setup; legal acceptance needs verified operator
+  details; authenticated payment/promo and keyboard-only passes need a safe test
+  identity; DNS v2 stays disabled until Wi-Fi/mobile plus two-Happ-platform canary;
+  anniversary reconciliation needs a real boundary observation. Stage remains
+  **in progress** and is not declared complete.
 
 - Pre-change worktree: only pre-existing owner change
   `webapp_dist/assets/payments/sbp.svg`; it is excluded from this stage.

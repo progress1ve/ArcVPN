@@ -1,18 +1,21 @@
 # ArcVPN current handoff
 
-Updated: 2026-08-24. This file is current state, not a diary.
+Updated: 2026-08-26. This file is current state, not a diary.
 
 ## Authority and topology
 
 - Production/control plane: Poland `217.60.33.38`.
 - Remnawave owns active subscription delivery; preserve existing URLs and UUIDs.
 - Main DHost nodes: Germany and Netherlands. Product LTE allowance is now modeled
-  independently (0/45/115 GB per 30-day cycle); do not restore the old customer
+  independently (0/45/115 GB on the user's shared calendar-month anniversary); do not restore the old customer
   `x10` model.
 - Canada was dropped. Vyrex canary was cancelled. Finland was retired from public delivery on 2026-08-24 and must not be reintroduced implicitly.
 
 ## Current product state
 
+- Onboarding/billing/quota/WebApp runtime is deployed through `83c3298` on Poland.
+  Production schema is v57; 20 users have calendar anchors, the due-reset preview
+  was zero at deployment, and the old first-of-month reset is disabled.
 - Growth/billing/LTE runtime is deployed through `f6b3156`: Economy, Standard and
   Family have 1/3/6/12-month products; trials are durable Standard entitlements;
   campaign attribution, configurable bonuses, promo activation, independent LTE,
@@ -25,6 +28,15 @@ Updated: 2026-08-24. This file is current state, not a diary.
   share-link source while ArcVPN remains the stable URL/device/announce/Happ
   compatibility gateway. Legacy generation is an observable fallback and must
   remain until production source metrics demonstrate a zero-fallback soak.
+- Trial provisioning now creates/reuses one Standard Remnawave identity. Exact
+  production backfill provisioned 2 missing trials after a separate backup;
+  repeated preview is zero. Protected Remnawave config has the explicit
+  `production` write gate; secrets remain outside Git.
+- `/` and `/app` are the standalone customer login/cabinet; `/admin` is the
+  separate noindex admin surface. Promo validation/revalidation, one-time email
+  code consumption, calendar reset fields, legal-consent versioning, full LTE
+  announce, favicon and manifest are deployed. Crypto and Stars are absent from
+  customer payment UI/routers.
 - Whole-admin operations redesign is deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; production evidence is recorded in `.codex/stages/current.md` and its docs follow-up `b0458b95b8bde59deae4fd093afff5d54f07605f`.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
@@ -36,13 +48,12 @@ Updated: 2026-08-24. This file is current state, not a diary.
 
 ## Next recommended stage
 
-Obtain a fresh owner-authenticated browser session and complete the production
-four-viewport Growth/purchase pass plus real keyboard activation. Exercise one
-safe trial/payment/promo/campaign path, reconcile LTE against Remnawave usage, and
-observe native-vs-fallback subscription source metrics through a soak before
-retiring fallback. Retain the earlier Support reply and designated Remnawave
-disable gates. Then use `$arcvpn-closeout`; do not claim the stage complete while
-any of these evidence gates remains open.
+Provide production SMTP credentials and verified operator/legal details, then run
+a real linked-email delivery/login and authenticated promo/payment pass. Execute
+the DNS v2 client canary on Wi-Fi/mobile and at least two Happ platforms before
+enabling `ARCVPN_DNS_PROFILE=v2`. Reconcile one real user's local/Remnawave/WebApp
+normal and LTE usage at their anniversary, and complete keyboard-only production
+acceptance. Do not claim the stage complete while these gates remain open.
 
 ## Starting a new chat
 
