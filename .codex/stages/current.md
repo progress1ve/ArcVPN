@@ -34,6 +34,35 @@ by profile label would charge main traffic; self-hosted mail without PTR and por
 25 has poor deliverability. Stage remains open if a real client fallback or email
 delivery cannot be proven.
 
+Evidence on 2026-08-27:
+
+- `arccnet.space` resolves to Poland. A Let's Encrypt certificate was issued,
+  nginx syntax passed, and `/` plus `/app` return the customer cabinet over valid
+  HTTPS. `panel.arccnet.space` still serves the noindex admin surface. The prior
+  nginx file is backed up under `/root/arcvpn-config-backups/apex-20260827_0712`.
+- The customer origin is injected as `WEBAPP_URL=https://arccnet.space` into both
+  services. Telegram's persistent menu now reads the same environment variable;
+  production logged `https://arccnet.space/app` after restart. Stable subscription
+  URLs remain on `sub.arccnet.space`.
+- LTE reconciliation previously crashed every cycle because the environment-backed
+  Remnawave authority lacked the numeric cache `id`. Commit `ec6620c` reserves a
+  negative cache identity. The full local suite passed (109 tests), production was
+  pulled/restarted, and the selected account then matched byte-for-byte across
+  Remnawave, local entitlement and `Subscription-Userinfo` (45-GiB quota).
+- LTE #1-#3 use the unlimited main identity while the main balancer is healthy and
+  consume LTE only after real loopback fallback to the separate LTE XHTTP identity.
+  LTE #4-#5 always use that LTE identity. Current aggregate Remnawave accounting
+  proves LTE consumption but cannot attribute past bytes to an individual profile.
+- Browser acceptance passed at 390x844, 768x1024, 1366x768 and 1920x1080 with no
+  horizontal overflow. Title, canonical URL, favicon, logo and theme metadata were
+  present. The only console warnings are Telegram WebApp SDK capability warnings in
+  a standalone browser, not application errors.
+- Direct SMTP remains unsuitable: outbound 25/465/587 are blocked, current PTR is
+  provider-owned, and apex has no mail-authentication records. Mailjet and Brevo
+  port 2525 are reachable. Mailjet Free is the preferred minimal relay gate; an
+  account, verified sending domain, provider-issued SPF/DKIM and SMTP credentials
+  are still external prerequisites before a real email delivery pass.
+
 ## 2026-08-26 customer profile, LTE fallback and apex-domain correction
 
 Goal: restore the useful Hysteria2 choices and the documented three-profile

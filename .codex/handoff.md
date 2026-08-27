@@ -1,6 +1,6 @@
 # ArcVPN current handoff
 
-Updated: 2026-08-26. This file is current state, not a diary.
+Updated: 2026-08-27. This file is current state, not a diary.
 
 ## Authority and topology
 
@@ -63,11 +63,17 @@ Updated: 2026-08-26. This file is current state, not a diary.
 - Purchase UI now defaults to SBP, vertically centers the wide flow, and all tariff
   descriptions/customer cabinet surfaces state unlimited main traffic plus a
   separate LTE allowance. `panel.arccnet.space` serves admin only (`/app` is 404).
-  Apex customer-domain nginx/metadata support is committed but not activated:
-  `arccnet.space` still has no A record or certificate.
-- Self-hosted SMTP on Poland is currently infeasible: no MTA is installed and
-  outbound TCP/25 is blocked. Use a relay SMTP, or first obtain provider unblock,
-  PTR/rDNS and DNS records; do not claim email delivery before that gate.
+  `arccnet.space` now resolves to Poland, has a valid Let's Encrypt certificate,
+  serves the customer cabinet at `/` and `/app`, and is the Telegram Mini App
+  origin through `WEBAPP_URL`. Stable subscriptions remain on `sub.arccnet.space`.
+- LTE scheduler reconciliation is fixed in `ec6620c`: the environment-backed
+  Remnawave authority now has a stable cache identity. For the owner's account,
+  Remnawave usage, local LTE usage and the public subscription header matched
+  byte-for-byte after production deployment. Sync runs every minute.
+- Self-hosted SMTP on Poland remains infeasible: no MTA is installed, outbound
+  25/465/587 are blocked, PTR is provider-owned and mail-auth DNS is absent. SMTP
+  relay port 2525 is reachable for Mailjet and Brevo. Prefer Mailjet Free after the
+  owner creates/verifies the account/domain and supplies credentials outside Git.
 - Whole-admin operations redesign is deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; production evidence is recorded in `.codex/stages/current.md` and its docs follow-up `b0458b95b8bde59deae4fd093afff5d54f07605f`.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
@@ -79,7 +85,8 @@ Updated: 2026-08-26. This file is current state, not a diary.
 
 ## Next recommended stage
 
-Provide production SMTP credentials and verified operator/legal details, then run
+Create and verify the free Mailjet sending domain, publish its exact SPF/DKIM plus
+an initial DMARC policy, provide production SMTP credentials outside Git, then run
 a real linked-email delivery/login and authenticated promo/payment pass. Execute
 the DNS v2 client canary on Wi-Fi/mobile and at least two Happ platforms before
 enabling `ARCVPN_DNS_PROFILE=v2`. Reconcile one real user's local/Remnawave/WebApp
