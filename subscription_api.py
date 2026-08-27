@@ -284,10 +284,8 @@ _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
 
 def _profile_country_flag(name: str) -> str:
     value = str(name or "")
-    if re.search(r"Обход глушилок\s*#\s*4\b", value):
-        return "🇳🇱"
-    if re.search(r"Обход глушилок\s*#\s*5\b", value):
-        return "🇩🇪"
+    if "Обход глушилок" in value or "LTE" in value:
+        return "🇪🇺"
     for marker, flag in (
         ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
@@ -4174,7 +4172,9 @@ def api_admin_subscription_catalog():
         item = overrides.get(source) or {}
         profiles.append({
             "source_name": source,
-            "display_name": _safe_profile_display_name(item.get("display_name", source), source),
+            "display_name": _safe_profile_display_name(
+                item.get("display_name", _subscription_display_name(source)), source
+            ),
             "sort_order": int(item.get("sort_order", fallback_order)),
             "enabled": bool(item.get("enabled", True)),
             "include_in_auto": bool(item.get("include_in_auto", True)),

@@ -105,6 +105,12 @@ def test_retired_canada_and_france_are_not_in_published_catalog():
     assert "Нидерланды" in urllib.parse.unquote(published[0])
 
 
+def test_all_lte_catalog_rows_use_the_eu_flag():
+    assert api._profile_country_flag("Обход глушилок (LTE) #1") == "🇪🇺"
+    assert api._profile_country_flag("Обход глушилок #4") == "🇪🇺"
+    assert api._profile_country_flag("Обход глушилок #5") == "🇪🇺"
+
+
 def _key():
     return api.ActiveKeyRecord(
         id=1,
