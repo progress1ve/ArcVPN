@@ -39,7 +39,7 @@
       document.head.appendChild(robots)
     }
     robots.content = isAdminConsole ? 'noindex,nofollow' : 'index,follow'
-    document.title = isAdminConsole ? 'Админ-панель ArcVPN' : 'ArcVPN — личный кабинет'
+    document.title = isAdminConsole ? 'Админ-панель ArcVPN' : 'ArcVPN (Арк ВПН) — личный кабинет'
   }
 </script>
 

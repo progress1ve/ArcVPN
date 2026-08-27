@@ -754,7 +754,7 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
-  {#if purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen}
+  {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main' || connectOpen)}
     <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
     </button>
@@ -764,6 +764,9 @@
     <main in:fly={{ y: 14, duration: 260, easing: cubicOut }} out:fade={{ duration: 90 }}>
       {#if purchaseOpen}
         <section class="screen purchase-screen" aria-label="Покупка подписки">
+          <button class="purchase-back" aria-label="Назад" on:click={handleNativeBack}>
+            <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
+          </button>
           <header class="purchase-head native-back-head">
             <div><h1>Выберите свой<br />ритм подключения</h1><span>Срок, устройства и запас трафика — в одной подписке.</span></div>
           </header>
@@ -1721,6 +1724,7 @@
     border-radius: 50%;
   }
   .desktop-back { display: none; }
+  .purchase-back { display: none; }
   .faq {
     min-height: 64px;
     align-items: center;
@@ -1866,6 +1870,24 @@
       font-size: 12px;
       font-weight: 750;
     }
+    .purchase-back {
+      width: fit-content;
+      min-height: 46px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 0 0 30px 8px;
+      padding: 0 17px;
+      border: 1px solid var(--hairline);
+      border-radius: var(--radius-pill);
+      color: #dceaf5;
+      background: rgba(9,17,28,.76);
+      font-size: 12px;
+      font-weight: 750;
+      cursor: pointer;
+    }
+    .purchase-back:hover { background: rgba(18,32,49,.92); }
+    .purchase-back:focus-visible { outline: 3px solid #9bd9ff; outline-offset: 3px; }
     .chat-screen {
       width: min(100%, 820px);
       min-height: 100dvh;

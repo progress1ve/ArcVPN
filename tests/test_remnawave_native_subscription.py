@@ -1,6 +1,7 @@
 import base64
 import json
 import urllib.parse
+from unittest.mock import patch
 
 import pytest
 
@@ -93,15 +94,15 @@ def test_happ_json_never_keeps_retired_finland_as_hidden_outbound(monkeypatch):
     assert "de.arccnet.space" in prepared.body.lower()
 
 
-def test_canada_replaces_france_and_keeps_transport_labels():
-    assert api._subscription_source_name("🇨🇦 Канада #1") == "Канада #1"
-    assert api._subscription_source_name("🇫🇷 Франция #1") == "Канада #1"
-    assert api._profile_country_flag("Канада #2") == "🇨🇦"
-    assert api._subscription_protocol_label("Канада #1") == "VLESS · TCP · Reality"
-    assert api._subscription_protocol_label("Канада #2") == "Hysteria2 · QUIC · TLS"
-    assert api._subscription_inbound_order("Канада #1") < api._subscription_inbound_order("Обход глушилок #4")
-    legacy = "vless://id@example.com:443?security=reality#%F0%9F%87%AB%F0%9F%87%B7%20%D0%A4%D1%80%D0%B0%D0%BD%D1%86%D0%B8%D1%8F%20%231"
-    assert urllib.parse.unquote(api._normalize_customer_profile_label(legacy).rsplit("#", 1)[-1]) == "🇨🇦 Канада #1"
+def test_retired_canada_and_france_are_not_in_published_catalog():
+    links = [
+        "vless://id@example.com:443?security=reality#%F0%9F%87%A8%F0%9F%87%A6%20%D0%9A%D0%B0%D0%BD%D0%B0%D0%B4%D0%B0%20%231",
+        "vless://id@example.com:443?security=reality#%F0%9F%87%B3%F0%9F%87%B1%20%D0%9D%D0%B8%D0%B4%D0%B5%D1%80%D0%BB%D0%B0%D0%BD%D0%B4%D1%8B%20%231",
+    ]
+    with patch("subscription_api._catalog_overrides", return_value={}):
+        published = api._apply_subscription_catalog(links)
+    assert len(published) == 1
+    assert "Нидерланды" in urllib.parse.unquote(published[0])
 
 
 def _key():

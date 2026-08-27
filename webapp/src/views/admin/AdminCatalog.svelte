@@ -3,6 +3,7 @@
   import { fetchAdminCatalog, saveAdminCatalog } from '../../lib/api.js'
   export let canManage = true
   let profiles = []
+  let generatedProfiles = []
   let baselineProfiles = []
   let loading = true
   let saving = false
@@ -21,6 +22,7 @@
     try {
       const result = await fetchAdminCatalog()
       profiles = clone(result.profiles || [])
+      generatedProfiles = clone(result.generated_profiles || [])
       baselineProfiles = clone(profiles)
     } catch (exception) {
       profiles = []
@@ -49,6 +51,7 @@
     try {
       const result = await saveAdminCatalog(profiles.map((profile) => ({ ...profile, display_name: profile.display_name.trim() })))
       profiles = clone(result.profiles || profiles)
+      generatedProfiles = clone(result.generated_profiles || generatedProfiles)
       baselineProfiles = clone(profiles)
       message = 'Каталог опубликован. Новые подписки получат этот порядок.'
     } catch (exception) {
@@ -59,11 +62,12 @@
 </script>
 
 <section class="page" aria-labelledby="catalog-title" aria-busy={loading || saving}>
-  <header><span>МАРШРУТ ПОДПИСКИ</span><h2 id="catalog-title">Каталог подключений</h2><p>{canManage ? 'Меняйте подпись и порядок существующих Remnawave Hosts.' : 'Опубликованный порядок существующих Remnawave Hosts доступен только для чтения.'} Редактор не создаёт inbound и не меняет UUID.</p></header>
+  <header><span>ОПУБЛИКОВАННАЯ ПОДПИСКА</span><h2 id="catalog-title">Каталог подключений</h2><p>{canManage ? 'Меняйте подписи и порядок профилей, которые реально получает пользователь.' : 'Текущий опубликованный порядок доступен только для чтения.'} Источники привязаны к действующим Remnawave Hosts; редактор не создаёт inbound и не меняет UUID.</p></header>
   {#if loading}<div class="state" role="status"><i></i><b>Загружаем каталог…</b><p>Получаем актуальный порядок из ArcVPN.</p></div>
   {:else if error && !profiles.length}<div class="state error" role="alert"><b>Каталог недоступен</b><p>{error}</p><button on:click={load}>Повторить</button></div>
   {:else if !profiles.length}<div class="state"><b>Каталог пуст</b><p>В Remnawave не найдены профили, которые можно безопасно редактировать.</p><button on:click={load}>Обновить</button></div>
   {:else}
+    {#if generatedProfiles.length}<div class="generated" aria-label="Автоматически создаваемые профили">{#each generatedProfiles as profile}<span><b>{profile.display_name}</b><small>{profile.protocol_label}</small></span>{/each}</div>{/if}
     <div class="route">{#each profiles as profile,index (profile.source_name)}<article class:disabled={!profile.enabled}>
       <b>{String(index + 1).padStart(2, '0')}</b><div><label><span class="sr-only">Название профиля {index + 1}</span><input bind:value={profile.display_name} maxlength="120" disabled={saving || !canManage} class:invalid={!String(profile.display_name || '').trim()} aria-invalid={!String(profile.display_name || '').trim()}/></label><small>{profile.protocol_label || 'Протокол определяется Remnawave'}</small></div>
       <div class="toggles"><label><input type="checkbox" bind:checked={profile.enabled} disabled={saving || !canManage}/><span>{profile.enabled ? 'Отдельно' : 'Скрыт'}</span></label><label><input type="checkbox" bind:checked={profile.include_in_auto} disabled={saving || !canManage}/><span>В автовыборе</span></label></div>
@@ -75,7 +79,7 @@
 </section>
 
 <style>
-.page{display:grid;min-width:0;max-width:1100px;gap:20px}.page>header span{color:#80c9f4;font-size:10px;font-weight:900;letter-spacing:.15em}.page h2{margin:8px 0 6px;font-size:clamp(25px,3vw,30px)}.page p{margin:0;color:#7890a5}.route{display:grid;gap:8px}.route article{display:grid;grid-template-columns:48px minmax(0,1fr) 210px 82px;align-items:center;gap:14px;padding:13px 14px;border:1px solid rgba(155,217,255,.1);border-radius:17px;background:#10141c}.route article.disabled{opacity:.72}.route article>b{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#14283a;color:#9bd9ff;font-family:monospace}.route article>div{display:grid;min-width:0;gap:4px}.route article>div.toggles{display:flex;flex-wrap:wrap;gap:9px}.route article>div input{box-sizing:border-box;width:100%;border:0;border-bottom:1px solid transparent;background:transparent;color:#edf7ff;font:700 14px inherit;outline:0}.route article>div input.invalid{border-color:#ff8f8f}.route small{overflow:hidden;color:#667b8d;font-size:10px;text-overflow:ellipsis}.route label{display:flex;align-items:center;gap:6px;color:#8da1b2;font-size:10px}.route article>div>label{display:block}.route nav{display:flex;gap:5px}.route nav button{width:36px;height:36px;border:0;border-radius:11px;background:#172535;color:#bde7ff;cursor:pointer}.route nav button:disabled,.page button:disabled{cursor:not-allowed;opacity:.3}.state{display:grid;min-height:230px;place-content:center;justify-items:center;gap:7px;padding:24px;border:1px dashed #26394a;border-radius:20px;text-align:center}.state.error{border-color:#54303a}.state button{min-height:42px;margin-top:8px;padding:0 16px;border:1px solid #2a455c;border-radius:12px;background:#14283a;color:#bde7ff}.feedback{min-height:20px}.feedback .validation{color:#ff9ca7}.feedback .success{color:#75d8aa}footer{display:flex;align-items:center;justify-content:flex-end;gap:9px}footer button{min-height:46px;border:0;border-radius:14px;padding:0 20px;background:#9bd9ff;color:#07111d;font-weight:900;cursor:pointer}footer button.reset{border:1px solid #294056;background:#101b28;color:#91a9ba}.page button:focus-visible,.route input:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.page{display:grid;min-width:0;max-width:1100px;gap:20px}.page>header span{color:#80c9f4;font-size:10px;font-weight:900;letter-spacing:.15em}.page h2{margin:8px 0 6px;font-size:clamp(25px,3vw,30px)}.page p{margin:0;color:#7890a5}.generated{display:flex;gap:8px;padding:12px 14px;border:1px solid rgba(128,201,244,.2);border-radius:16px;background:#0e1d2a}.generated span{display:grid;gap:3px}.generated b{color:#dff4ff;font-size:13px}.generated small{color:#80a3ba;font-size:10px}.route{display:grid;gap:8px}.route article{display:grid;grid-template-columns:48px minmax(0,1fr) 210px 82px;align-items:center;gap:14px;padding:13px 14px;border:1px solid rgba(155,217,255,.1);border-radius:17px;background:#10141c}.route article.disabled{opacity:.72}.route article>b{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:#14283a;color:#9bd9ff;font-family:monospace}.route article>div{display:grid;min-width:0;gap:4px}.route article>div.toggles{display:flex;flex-wrap:wrap;gap:9px}.route article>div input{box-sizing:border-box;width:100%;border:0;border-bottom:1px solid transparent;background:transparent;color:#edf7ff;font:700 14px inherit;outline:0}.route article>div input.invalid{border-color:#ff8f8f}.route small{overflow:hidden;color:#667b8d;font-size:10px;text-overflow:ellipsis}.route label{display:flex;align-items:center;gap:6px;color:#8da1b2;font-size:10px}.route article>div>label{display:block}.route nav{display:flex;gap:5px}.route nav button{width:36px;height:36px;border:0;border-radius:11px;background:#172535;color:#bde7ff;cursor:pointer}.route nav button:disabled,.page button:disabled{cursor:not-allowed;opacity:.3}.state{display:grid;min-height:230px;place-content:center;justify-items:center;gap:7px;padding:24px;border:1px dashed #26394a;border-radius:20px;text-align:center}.state.error{border-color:#54303a}.state button{min-height:42px;margin-top:8px;padding:0 16px;border:1px solid #2a455c;border-radius:12px;background:#14283a;color:#bde7ff}.feedback{min-height:20px}.feedback .validation{color:#ff9ca7}.feedback .success{color:#75d8aa}footer{display:flex;align-items:center;justify-content:flex-end;gap:9px}footer button{min-height:46px;border:0;border-radius:14px;padding:0 20px;background:#9bd9ff;color:#07111d;font-weight:900;cursor:pointer}footer button.reset{border:1px solid #294056;background:#101b28;color:#91a9ba}.page button:focus-visible,.route input:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
 @media(max-width:760px){.route article{grid-template-columns:40px minmax(0,1fr) 72px}.route article>div.toggles{grid-column:2/4}.route nav{grid-column:2/4}.route article{align-items:start}}
 @media(max-width:520px){.route article{grid-template-columns:36px minmax(0,1fr);gap:10px}.route article>div.toggles,.route nav{grid-column:2}.route nav{justify-content:flex-end}footer{align-items:stretch;flex-direction:column-reverse}footer button{width:100%}}
 </style>

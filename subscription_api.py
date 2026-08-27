@@ -243,10 +243,10 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Нидерланды #2 ⚡",
     "Германия #1",
     "Германия #2⚡",
-    "Канада #1",
-    "Канада #2 ⚡",
+    "Ютуб без рекламы",
     "Обход глушилок (LTE) #1",
     "Обход глушилок (LTE) #2",
+    "Обход глушилок (LTE) #3",
     "Обход глушилок #4",
     "Обход глушилок #5",
 ])
@@ -373,6 +373,11 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
             or "cdn-fi.arccnet.space" in normalized_link
             or "195.226.92.37" in normalized_link
         ):
+            continue
+        # Explicitly retired regions must not leak back from stale Remnawave
+        # Hosts. Unknown hosts remain deliverable for forward-compatible node
+        # additions and appear after the managed product-policy rows.
+        if any(marker in raw_name for marker in ("Канада", "Canada", "Франция", "France")):
             continue
         override = overrides.get(source_name)
         if override and not bool(override["enabled"]):
@@ -1555,7 +1560,15 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             ),
         )
 
+    youtube_profiles = []
+    for profile in normal_profiles:
+        if "Ютуб без рекламы" not in str(profile.get("remarks") or ""):
+            continue
+        item = copy.deepcopy(profile)
+        item["remarks"] = "\U0001f1f7\U0001f1fa Ютуб без рекламы"
+        youtube_profiles.append(item)
     visible_main = [
+        *youtube_profiles,
         *visible_country("Нидерланды"),
         *visible_country("Германия"),
     ]
@@ -4115,9 +4128,8 @@ def api_admin_subscription_catalog():
     defaults = [
         _subscription_source_name(name)
         for name in SUBSCRIPTION_INBOUND_ORDER
-        if not name.endswith("#2") or "LTE" not in name
     ]
-    defaults.insert(0, "Ютуб без рекламы")
+    allowed_sources = set(defaults)
     if request.method == "PATCH":
         payload = request.get_json(silent=True) or {}
         profiles = payload.get("profiles")
@@ -4130,7 +4142,7 @@ def api_admin_subscription_catalog():
                 return _api_error("invalid_profile", 400)
             source = _subscription_source_name(_clean_text(item.get("source_name"), 120))
             display = _clean_text(item.get("display_name"), 120)
-            if not source or not display or source in seen:
+            if not source or source not in allowed_sources or not display or source in seen:
                 return _api_error("invalid_profile", 400)
             seen.add(source)
             parsed.append((
@@ -4154,6 +4166,7 @@ def api_admin_subscription_catalog():
     overrides = {
         _subscription_source_name(source): item
         for source, item in _catalog_overrides().items()
+        if _subscription_source_name(source) in allowed_sources
     }
     names = list(dict.fromkeys(_subscription_source_name(name) for name in [*defaults, *overrides]))
     profiles = []
@@ -4168,7 +4181,16 @@ def api_admin_subscription_catalog():
             "protocol_label": _subscription_protocol_label(source),
         })
     profiles.sort(key=lambda item: (item["sort_order"], item["source_name"]))
-    return _api_no_store(jsonify({"ok": True, "profiles": profiles}))
+    return _api_no_store(jsonify({
+        "ok": True,
+        "profiles": profiles,
+        "generated_profiles": [{
+            "display_name": "Автовыбор | Самый быстрый",
+            "protocol_label": "Формируется автоматически из доступных основных профилей",
+            "kind": "balancer",
+        }],
+        "source": "effective_published_catalog",
+    }))
 
 
 @app.route('/api/admin/expenses', methods=['GET', 'POST'])
@@ -4720,6 +4742,56 @@ def api_admin_overview():
             FROM payments p
             WHERE COALESCE(p.payment_type,'') != 'trial'
         """).fetchone())
+        payment_periods: dict[str, dict[str, Any]] = {}
+        for period, modifier in (("day", "-1 day"), ("week", "-7 days"), ("month", "-30 days")):
+            payment_periods[period] = dict(conn.execute(f"""
+                SELECT COUNT(*) AS orders,
+                       COALESCE(SUM({rub_amount_sql}),0) AS revenue_rub,
+                       COUNT(DISTINCT p.user_id) AS paying_users
+                FROM payments p
+                WHERE p.status IN ('paid','succeeded')
+                  AND COALESCE(p.payment_type,'') != 'trial'
+                  AND p.paid_at >= datetime('now',?)
+            """, (modifier,)).fetchone())
+        popular_products = [dict(row) for row in conn.execute(f"""
+            SELECT COALESCE(t.product_code,'other') AS product_code,
+                   COALESCE(t.name,'Без тарифа') AS product_name,
+                   COUNT(*) AS orders,
+                   COUNT(DISTINCT p.user_id) AS buyers,
+                   COALESCE(SUM({rub_amount_sql}),0) AS revenue_rub
+            FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
+            WHERE p.status IN ('paid','succeeded')
+              AND COALESCE(p.payment_type,'') != 'trial'
+              AND p.paid_at >= datetime('now','-30 days')
+            GROUP BY COALESCE(t.product_code,'other'),COALESCE(t.name,'Без тарифа')
+            ORDER BY orders DESC,revenue_rub DESC
+            LIMIT 6
+        """).fetchall()]
+        traffic_totals = dict(conn.execute("""
+            SELECT
+              COALESCE((SELECT SUM(MAX(0,COALESCE(vk.traffic_used,0)))
+                        FROM vpn_keys vk WHERE vk.expires_at>datetime('now')),0) AS main_used_bytes,
+              COALESCE((SELECT SUM(MAX(0,COALESCE(u.lte_used_bytes,0)))
+                        FROM users u WHERE EXISTS(
+                          SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at>datetime('now')
+                        )),0) AS lte_used_bytes
+        """).fetchone())
+        acquisition: dict[str, dict[str, int]] = {}
+        for period, modifier in (("day", "-1 day"), ("week", "-7 days"), ("month", "-30 days")):
+            acquisition[period] = dict(conn.execute("""
+                SELECT
+                  COUNT(DISTINCT CASE WHEN u.referred_by IS NOT NULL OR EXISTS(
+                    SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id
+                  ) THEN u.id END) AS referral_arrivals,
+                  COUNT(DISTINCT CASE WHEN EXISTS(
+                    SELECT 1 FROM user_campaign_attribution a WHERE a.user_id=u.id
+                  ) THEN u.id END) AS campaign_arrivals,
+                  COUNT(DISTINCT CASE WHEN u.referred_by IS NULL
+                    AND NOT EXISTS(SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id)
+                    AND NOT EXISTS(SELECT 1 FROM user_campaign_attribution a WHERE a.user_id=u.id)
+                    THEN u.id END) AS direct_arrivals
+                FROM users u WHERE u.created_at>=datetime('now',?)
+            """, (modifier,)).fetchone())
 
     local_panel = {"healthy": False, "inbounds": 0, "detail": "unavailable"}
     try:
@@ -4935,6 +5007,24 @@ def api_admin_overview():
         pass
 
     disk = shutil.disk_usage("/")
+    memory = {"total_gb": None, "used_gb": None, "used_pct": None}
+    try:
+        values: dict[str, int] = {}
+        with open("/proc/meminfo", "r", encoding="utf-8") as stream:
+            for line in stream:
+                name, raw = line.split(":", 1)
+                values[name] = int(raw.strip().split()[0]) * 1024
+        total_memory = values.get("MemTotal", 0)
+        available_memory = values.get("MemAvailable", 0)
+        used_memory = max(0, total_memory - available_memory)
+        if total_memory:
+            memory = {
+                "total_gb": round(total_memory / 1024 ** 3, 1),
+                "used_gb": round(used_memory / 1024 ** 3, 1),
+                "used_pct": round(used_memory / total_memory * 100, 1),
+            }
+    except (OSError, ValueError, IndexError):
+        logger.warning("Host memory telemetry unavailable")
     db_integrity = "unknown"
     try:
         with get_db() as conn:
@@ -5146,6 +5236,12 @@ def api_admin_overview():
         "ok": True,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "users": get_new_users_stats(),
+        "business": {
+            "payments": payment_periods,
+            "popular_products": popular_products,
+            "traffic": {**traffic_totals, "window": "current_active_cycles"},
+            "acquisition": acquisition,
+        },
         "subscriptions": get_subscriptions_stats(),
         "revenue": get_revenue_stats(),
         "conversion": get_conversion_stats(),
@@ -5168,6 +5264,9 @@ def api_admin_overview():
             "disk_total_gb": round(disk.total / 1024 ** 3, 1),
             "disk_used_gb": round(disk.used / 1024 ** 3, 1),
             "disk_used_pct": round(disk.used / max(1, disk.total) * 100, 1),
+            "memory": memory,
+            "load_1m": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
+            "cpu_count": os.cpu_count(),
             "database_integrity": db_integrity,
         },
         "inbounds": inbound_health,
@@ -5302,6 +5401,24 @@ small{{display:block;margin-top:16px;color:#718296;line-height:1.45}}
     )
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
+
+
+@app.route('/robots.txt')
+def robots_txt():
+    host = request.host.split(":", 1)[0].lower()
+    if host == "panel.arccnet.space":
+        body = "User-agent: *\nDisallow: /\n"
+    else:
+        body = "User-agent: *\nAllow: /\nDisallow: /admin\nSitemap: https://arccnet.space/sitemap.xml\n"
+    return Response(body, mimetype="text/plain")
+
+
+@app.route('/sitemap.xml')
+def sitemap_xml():
+    if request.host.split(":", 1)[0].lower() == "panel.arccnet.space":
+        return Response("Not found", status=404, mimetype="text/plain")
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://arccnet.space/</loc></url></urlset>\n'
+    return Response(body, mimetype="application/xml")
 
 
 @app.route('/')

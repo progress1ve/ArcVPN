@@ -1,5 +1,89 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-27 real operations dashboard, health and catalog truth
+
+Goal: repair the production host split, make Overview and Health answer real
+business/operations questions from ArcVPN-owned data, align the admin catalog with
+the actually published subscription, restore the supported YouTube ad-free route,
+and improve the desktop renewal composition without adding decorative controls.
+
+Non-goals:
+
+- Do not copy Axottle code, assets, text or exact layouts. Its screenshots are
+  references for hierarchy, density, drill-down and actionable health evidence.
+- Do not expose fake node-agent controls. Panel-driven node/inbound provisioning is
+  recorded as a future authenticated agent stage unless a complete ArcVPN contract,
+  rollback and real traffic gate are implemented here.
+- Do not change stable subscription URLs, main/LTE UUIDs or active authorization.
+- Do not create a Mailjet account or transmit credentials. This stage may prepare
+  configuration, but activation waits for owner-created credentials and DNS values.
+
+Affected components: production nginx host routing; `subscription_api.py` admin
+overview/health/catalog APIs; database growth/payment/referral/traffic queries;
+`webapp/src/views/admin/` Overview, Health and Catalog surfaces; purchase layout;
+Happ routing/catalog preparation and regression tests; operations documentation.
+
+Browser-first defects confirmed before implementation:
+
+1. `https://panel.arccnet.space/` renders the indexed customer login (`ArcVPN —
+   личный кабинет`) instead of the noindex admin entry. Production screenshot and
+   DOM evidence captured on 2026-08-27.
+2. The desktop purchase Back control is detached at the top-left instead of sitting
+   near the centered purchase workflow.
+3. Admin catalog shows retired Finland and obsolete/raw rows and therefore does not
+   describe the ten profiles actually published to Happ.
+4. Existing Overview/Health copy includes stale topology concepts and does not
+   expose the requested real period cohorts, payment/product mix, referral source
+   split, aggregate main/LTE usage, upstream/service state or resource pressure.
+
+Acceptance fixed before code changes:
+
+1. `panel.arccnet.space/` and `/admin` open the admin entry, carry `noindex`, and
+   never render the customer login; `arccnet.space/` remains the indexable customer
+   cabinet. Admin session persistence continues to work.
+2. Desktop/laptop purchase Back sits with the centered workflow and remains visible,
+   keyboard reachable and non-overlapping; mobile/tablet composition is unchanged
+   or improved, with no horizontal overflow.
+3. Overview reports from real persisted data: users joined today/7d/30d, successful
+   payments and revenue for the same windows, popular paid products, referral users
+   versus named advertising campaigns, aggregate main usage and LTE usage, live
+   online devices/users, and a compact attention queue. Every timestamp/window and
+   empty/error/loading state is explicit.
+4. Health reports real Poland/Germany/Netherlands upstream/node evidence, Remnawave
+   and ArcVPN service readiness, last-success/staleness, CPU/RAM/disk/load where an
+   authenticated telemetry source exists, and actionable warning thresholds such as
+   low disk/memory. Stale/unknown is never presented as healthy. The retired control
+   plane label `Узлы Германия` is absent.
+5. Referral/campaign detail lives in Growth when deeper comparison is required;
+   Overview only summarizes and links to the real workflow. No dead button, fake
+   report, mute/delete, node-add or repair action is introduced.
+6. Admin catalog is derived from the same effective catalog preparation used by
+   public subscription generation, with real order/names/visibility and no Finland,
+   Canada, legacy x10 or hidden raw rows leaking into the published view. It clearly
+   distinguishes source inbounds from generated AutoSelect/LTE fallback profiles.
+7. The supported YouTube ad-free routing rule is restored in the ArcVPN-owned Happ
+   routing payload, is syntactically valid, does not import unverified third-party
+   geoassets, and has regression coverage.
+8. Panel-driven node/server/protocol addition is either delivered end-to-end with
+   authorization, safe validation, Remnawave binding and real-traffic acceptance, or
+   documented as the next node-agent stage with an explicit data/API contract. The
+   existing catalog editor must not claim it creates inbounds or nodes.
+9. Local tests and WebApp build pass. Browser acceptance covers 390x844, 768x1024,
+   1366x768 and 1920x1080 for admin entry, Overview, Health, Catalog and renewal;
+   focus/hover/disabled/loading/error/empty states, keyboard order, contrast and
+   overflow are checked. Before/after screenshots are recorded.
+10. Exact diff is reviewed and secret-scanned; commit/push/pull/restart/public
+    verification completes. Production proof includes real API values, service
+    health, panel/customer host split and a freshly generated public subscription
+    inspected without printing its identifier.
+
+Risks and rollback: bad nginx routing can expose the wrong surface; expensive
+aggregate queries can slow admin refresh; raw Remnawave names can leak retired
+profiles; incorrect routing can break imports. Rollback restores the backed-up nginx
+file and prior runtime commit, restarts only `arcvpn-subscription.service`, and keeps
+all identities/URLs unchanged. New read-only metrics must fail closed as unknown,
+not block customer subscription delivery.
+
 ## 2026-08-27 apex activation, LTE metering audit and SMTP feasibility
 
 Goal: activate the customer cabinet on `arccnet.space`, prove how LTE usage is
