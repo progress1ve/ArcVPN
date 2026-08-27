@@ -23,6 +23,10 @@ def remnawave_authority_config() -> dict[str, Any]:
                 key, value = line.split("=", 1)
                 values[key.strip()] = value.strip()
     return {
+        # The panel-client cache requires a stable numeric server identity.
+        # The environment-backed authority is not a database row, so reserve a
+        # negative ID instead of letting scheduler reconciliation crash on `id`.
+        "id": -1,
         "panel_type": "remnawave",
         "panel_api_url": values.get("REMNAWAVE_PANEL_URL", ""),
         "panel_api_token": values.get("REMNAWAVE_API_TOKEN", ""),

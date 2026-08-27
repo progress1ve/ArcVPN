@@ -1,5 +1,39 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-27 apex activation, LTE metering audit and SMTP feasibility
+
+Goal: activate the customer cabinet on `arccnet.space`, prove how LTE usage is
+accounted for in direct and fallback profiles, and choose a deliverable email
+path without weakening stable subscriptions or mail security.
+
+Affected components: Poland SNI/nginx/TLS, customer `WEBAPP_URL`, Remnawave LTE
+identity usage and scheduler reconciliation, Happ fallback JSON, public browser
+surface, SMTP network/DNS feasibility and operations documentation.
+
+Acceptance fixed before mutation:
+
+1. Apex A record resolves to Poland before certificate issuance. TLS is valid,
+   `https://arccnet.space/` serves the customer cabinet, and
+   `panel.arccnet.space` remains admin-only. Stable `/sub/<id>` URLs stay on the
+   existing subscription origin.
+2. For Telegram ID 2075630349, compare Remnawave LTE identity usage, local
+   `lte_used_bytes`, HTTP `Subscription-Userinfo`, and WebApp API without printing
+   identifiers. Explain whether selected LTE #1-#3 used main or fallback.
+3. LTE #1-#3 consume LTE quota only when their main balancer actually falls back
+   to LTE XHTTP; #4-#5 always use the LTE identity. The info block mirrors the LTE
+   identity, with bounded scheduler lag, and never estimates usage from a label.
+4. SMTP decision is evidence-based: recheck outbound ports/PTR/DNS, compare
+   currently available no-cost relays from primary provider documentation, and
+   never install a self-hosted MTA that cannot deliver reliably.
+5. Rollout uses config backup, nginx syntax check, certificate issuance, selective
+   service reload/restart, public health/browser verification and an explicit
+   rollback to the prior SNI map and unset `WEBAPP_URL`.
+
+Risks: an incorrect SNI map can disrupt every TLS hostname; forcing LTE accounting
+by profile label would charge main traffic; self-hosted mail without PTR and port
+25 has poor deliverability. Stage remains open if a real client fallback or email
+delivery cannot be proven.
+
 ## 2026-08-26 customer profile, LTE fallback and apex-domain correction
 
 Goal: restore the useful Hysteria2 choices and the documented three-profile
