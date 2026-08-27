@@ -87,11 +87,13 @@ async def on_startup(bot: Bot):
         logger.warning("⚠️ Не удалось обновить описание профиля бота: %s", exc)
 
     # Кнопка-меню чата открывает Mini App (Svelte SPA на subscription-сервисе).
-    # URL берём из config (SUBSCRIPTION_URL), путь /app раздаётся Flask-сервисом.
+    # Public cabinet can live on a dedicated apex domain while stable
+    # subscription URLs remain on SUBSCRIPTION_URL.
     try:
         from aiogram.types import MenuButtonWebApp, WebAppInfo
         from config import SUBSCRIPTION_URL
-        webapp_url = f"{SUBSCRIPTION_URL.rstrip('/')}/app"
+        cabinet_base_url = os.getenv("WEBAPP_URL", SUBSCRIPTION_URL).rstrip("/")
+        webapp_url = f"{cabinet_base_url}/app"
         await bot.set_chat_menu_button(
             menu_button=MenuButtonWebApp(text="Открыть", web_app=WebAppInfo(url=webapp_url))
         )
