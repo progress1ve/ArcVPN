@@ -74,7 +74,16 @@ Updated: 2026-08-27. This file is current state, not a diary.
   25/465/587 are blocked, PTR is provider-owned and mail-auth DNS is absent. SMTP
   relay port 2525 is reachable for Mailjet and Brevo. Prefer Mailjet Free after the
   owner creates/verifies the account/domain and supplies credentials outside Git.
-- Whole-admin operations redesign is deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; production evidence is recorded in `.codex/stages/current.md` and its docs follow-up `b0458b95b8bde59deae4fd093afff5d54f07605f`.
+- Whole-admin operations redesign base was deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; its original production evidence is recorded in `.codex/stages/current.md`.
+- Real Overview/Health/catalog/SEO follow-up is deployed at `a4e6890` on Poland.
+  Overview now exposes real D/W/M joins, paid orders/revenue, acquisition source,
+  product mix and current-cycle main/LTE usage. Health uses active Remnawave nodes
+  plus Poland memory/load/disk/service signals. Panel root redirects visibly to
+  `/admin`; the public apex has ArcVPN/Арк ВПН metadata, robots and sitemap.
+  Catalog and freshly generated subscriptions agree on AutoSelect, NL/DE pairs,
+  YouTube without ads and five EU LTE profiles. Ten stale overrides were backed
+  up then cleared; stable user URLs/UUIDs were unchanged. Local result: 110 tests
+  and warning-free Vite build.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
 - The non-operational Schemes editor and its graph dependency were removed in `d111e11efa5f86738e54fc6e464fabe3e2dc9bb6`. Axottle-only infrastructure features without ArcVPN backend contracts remain explicitly deferred/rejected in the current stage matrix.

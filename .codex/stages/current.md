@@ -84,6 +84,38 @@ file and prior runtime commit, restarts only `arcvpn-subscription.service`, and 
 all identities/URLs unchanged. New read-only metrics must fail closed as unknown,
 not block customer subscription delivery.
 
+Evidence recorded 2026-08-27:
+
+- Released commits `20e3388` and `a4e6890`; production fast-forwarded to
+  `a4e6890`. `arcvpn-subscription.service` and `arcvpn-bot.service` were active,
+  and `nginx -t` passed. The prior nginx file and pre-cleanup SQLite catalog are
+  recoverable from `/root/arcvpn-config-backups/`.
+- Production `/api/admin/overview` returned HTTP 200 against the real database
+  and Remnawave. It exposed payment/acquisition/product/traffic groups and two
+  connected DHost nodes with live RAM telemetry. Example verified aggregates:
+  2 successful payments/1260 RUB over 7 days and 5/1985 RUB over 30 days.
+- The effective catalog now reports AutoSelect; Netherlands VLESS/Hysteria2;
+  Germany VLESS/Hysteria2; YouTube without ads; and LTE #1..#5 with EU flags.
+  Ten stale catalog overrides, including the old x10 label, were cleared only
+  after a consistent SQLite backup.
+- Fresh production subscription generation passed for plain, base64 and Happ
+  JSON without printing the identifier: YouTube present, five LTE profiles,
+  no Finland/Canada/France. Native Remnawave was the source with no fallback.
+- Local regression suite: `110 passed`. Vite production build passed without
+  Svelte warnings. Browser visual QA on the built code covered 390x844,
+  768x1024, 1366x768 and 1920x1080; document overflow was false at all four.
+  Desktop renewal, Overview and Health screenshots were captured in-browser.
+- Public checks passed: `panel.arccnet.space/` redirects to `/admin`;
+  `arccnet.space` serves the ArcVPN/Арк ВПН title, an allowlisted robots file and
+  valid sitemap; panel robots disallow the entire host. A final new production
+  browser navigation was blocked by Browser Use URL policy after a navigation
+  timeout, so no circumvention was attempted. Authenticated production visual
+  and keyboard activation remain open evidence, not silently accepted.
+- Mailjet Free is selected but not activated: account/domain verification,
+  provider-issued SPF/DKIM, DMARC and production SMTP credentials remain an
+  owner-controlled external gate. Current official plan evidence: 6000 emails
+  per month and 200 per day at the time of this check.
+
 ## 2026-08-27 apex activation, LTE metering audit and SMTP feasibility
 
 Goal: activate the customer cabinet on `arccnet.space`, prove how LTE usage is
