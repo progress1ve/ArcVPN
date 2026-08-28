@@ -1,5 +1,97 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-28 email registration and paid-trial funnel
+
+Goal: make standalone email registration a real ArcVPN account path without a
+free trial, offer that cohort one abuse-resistant 10 RUB Standard trial with
+mandatory disclosed auto-renewal, make the admin mutation view truly reactive,
+and expose paid-trial customers as an auditable admin cohort.
+
+Pre-change evidence: public `arccnet.space` only says that email must already be
+linked in Telegram and has no registration path. The owner confirmed that a
+production add/remove-days operation still displays stale expiry until a full
+reload after runtime `8fb6077`; the optimistic row patch is therefore not
+accepted. Mailjet SPF/DKIM are authenticated and the empty verification URL is
+public, but Mailjet domain status remains Pending while the support ticket is
+transferred to another internal group. The Mailjet label is display-only and is
+not part of DNS/file verification.
+
+Affected components: user identity/schema and email-code flow; payment order and
+one-time trial entitlement; standalone login/onboarding/payment modal; admin user
+query/detail and reactive mutation state; tests, build, browser evidence and
+production release. Product exploration is documented separately.
+
+Non-goals: no free trial for email-only accounts; no trial for an account that
+already received free or paid trial; no hidden charge, crypto/Stars, promo input,
+custom tariff builder or immediate tariff-price change; no mutation of a real
+customer during automated verification.
+
+Acceptance fixed before implementation:
+
+1. A new email can request and consume a six-digit registration code, creating
+   one email-only user idempotently without Telegram identity and without free
+   subscription/trial. Existing linked-email login remains unchanged, responses
+   do not leak whether an account exists, and codes keep rate-limit, expiry and
+   one-time semantics.
+2. First authenticated cabinet load for an eligible email-only account presents
+   an accessible centered modal over a blurred/inert background: `7 дней
+   Standard за 10 ₽`, explicit unlimited main/5 GB LTE/device terms, SBP/card
+   selection, a visibly checked non-editable auto-renew row, disclosure that the
+   method is saved and cancellation is available in Settings, and one payment
+   CTA. Promo and alternate trial bypasses are absent.
+3. The 10 RUB order is server-authoritative, limited to one per person/account,
+   revalidated at create and fulfillment, grants Standard trial entitlements only
+   after successful provider payment, stores attribution `email_paid_trial`, and
+   enables recurring only after provider confirmation. Concurrent/replayed
+   requests cannot grant or charge twice.
+4. Admin Users can filter `Платный trial 10 ₽`, see cohort size/status and payment
+   evidence without exposing email unnecessarily. Abuse signals include reused
+   payment identity where provider data supports it; no claim of device/fingerprint
+   prevention without evidence.
+5. Add/remove/activate/disable renders the returned subscription snapshot and a
+   new timeline item immediately without waiting for any overview/detail refetch;
+   background refresh cannot overwrite it with an older response. Buttons expose
+   per-action loading/disabled/error state.
+6. Unit/integration tests cover registration new/existing/replay/rate limit,
+   paid-trial eligibility/payment/replay/race/fulfillment, admin filter and
+   reactive mutation reducer. Vite build passes.
+7. Browser-first before/after acceptance covers login, registration, modal,
+   payment states and Admin Users at mobile/tablet/desktop/wide with keyboard,
+   focus, loading, error, empty and no horizontal overflow.
+8. Exact diff review and release use commit/push, Poland pull, only affected
+   service restart, public verification, and rollback by reverting the release.
+
+Risks: nullable Telegram identity can break legacy assumptions; a client-only
+10 RUB price can be bypassed; mandatory renewal copy can be misleading; retries
+can double-provision. Isolate email-only identity creation, enforce eligibility
+and price server-side in a transaction, reuse payment idempotency, make renewal
+terms prominent, and leave the offer retryable rather than provisioning early.
+
+Verification matrix:
+
+| Area | Automated | Browser/production |
+|---|---|---|
+| Email registration | code + identity integration tests | new-email flow |
+| Paid trial | eligibility/payment/fulfillment tests | modal + safe provider boundary |
+| Admin mutation | snapshot/version reducer test | owner-designated safe account |
+| Cohort filter | query/API test | Users filter/empty/populated |
+| Responsive/accessibility | build + component states | four viewport classes |
+
+Implementation evidence (2026-08-28):
+
+- Schema v59 adds standalone email identities, independent one-time registration codes, payment `offer_code`, and paid-trial cohort indexes.
+- Registration creates no free entitlement. The paid offer is fixed server-side at 10 RUB, Standard for 7 days, 3 devices and 5 GiB LTE; main Remnawave traffic is unlimited and no referral trial reward is emitted.
+- Payment creation requires the selected YooKassa recurring capability. The existing verified webhook persists a method only when the provider reports it as saved.
+- Admin Users exposes `Пробник за 10 ₽`. Subscription mutations now apply the returned key snapshot and timeline event without the stale list/detail refetch.
+- Local evidence: `117 passed`; `npm --prefix webapp run build` passed; `git diff --check` passed.
+- Browser evidence: cohort control is present and the affected admin screen has no horizontal overflow at 390x844, 768x1024, 1366x768, or 1920x1080.
+- External: Mailjet SPF/DKIM are confirmed. The display label does not affect validation; final sender/domain activation remains with the Mailjet specialist group.
+
+Product follow-up to evaluate, not silently ship: replace the 0→45 GB LTE gap
+with either Economy 5–10 GB or an explicit LTE add-on, and design a bounded
+custom-plan configurator (devices/LTE/period with server-authoritative price
+matrix and minimum margin) instead of arbitrary client-entered pricing.
+
 ## 2026-08-28 tariff transitions and admin reactivity/operations
 
 Goal: prove and harden cross-tariff renewal, make admin mutations immediately

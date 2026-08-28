@@ -16,6 +16,8 @@ def get_webapp_account(telegram_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         row = conn.execute(
             """SELECT id, telegram_id, username, email, email_verified_at,
+                      COALESCE(identity_source, 'telegram') identity_source,
+                      email_registered_at,
                       COALESCE(notify_expiry, 1) notify_expiry,
                       COALESCE(notify_traffic, 1) notify_traffic,
                       COALESCE(notify_connection, 1) notify_connection
@@ -456,6 +458,66 @@ def get_lte_identity(telegram_id: int) -> Optional[Dict[str, Any]]:
             (telegram_id,),
         ).fetchone()
         return dict(row) if row else None
+
+
+def save_email_registration_code(email: str, code_hash: str) -> None:
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO email_registration_codes(email,code_hash,expires_at,attempts)
+               VALUES(?,?,?,0)
+               ON CONFLICT(email) DO UPDATE SET code_hash=excluded.code_hash,
+                   expires_at=excluded.expires_at,attempts=0,created_at=CURRENT_TIMESTAMP""",
+            (email.lower(), code_hash, _iso_after(minutes=10)),
+        )
+
+
+def get_email_registration_code(email: str) -> Optional[Dict[str, Any]]:
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT * FROM email_registration_codes
+               WHERE email=? AND expires_at>CURRENT_TIMESTAMP""", (email.lower(),)
+        ).fetchone()
+        return dict(row) if row else None
+
+
+def increment_email_registration_attempts(code_id: int) -> None:
+    with get_db() as conn:
+        conn.execute("UPDATE email_registration_codes SET attempts=attempts+1 WHERE id=?", (code_id,))
+
+
+def create_email_user(email: str) -> Dict[str, Any]:
+    """Create an email-only identity; a negative synthetic id keeps old Telegram joins safe."""
+    with get_db() as conn:
+        existing = conn.execute(
+            "SELECT * FROM users WHERE LOWER(email)=LOWER(?) AND email_verified_at IS NOT NULL", (email,)
+        ).fetchone()
+        if existing:
+            return dict(existing)
+        while True:
+            synthetic_id = -(1_000_000_000_000 + secrets.randbelow(899_999_999_999))
+            try:
+                cur = conn.execute(
+                    """INSERT INTO users(telegram_id,email,email_verified_at,identity_source,
+                           email_registered_at,referral_code,used_trial)
+                       VALUES(?,?,CURRENT_TIMESTAMP,'email',CURRENT_TIMESTAMP,?,0)""",
+                    (synthetic_id, email.lower(), secrets.token_urlsafe(8)),
+                )
+                conn.execute("DELETE FROM email_registration_codes WHERE email=?", (email.lower(),))
+                row = conn.execute("SELECT * FROM users WHERE id=?", (cur.lastrowid,)).fetchone()
+                return dict(row)
+            except Exception as exc:
+                if "UNIQUE constraint failed: users.telegram_id" in str(exc):
+                    continue
+                raise
+
+
+def email_paid_trial_state(user_id: int) -> str:
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT status FROM payments WHERE user_id=? AND offer_code='email_paid_trial'
+               ORDER BY id DESC LIMIT 1""", (user_id,)
+        ).fetchone()
+        return str(row["status"]) if row else "available"
 
 
 def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:

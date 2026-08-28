@@ -10,7 +10,8 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def provision_trial_for_user(user: dict) -> dict | None:
+async def provision_trial_for_user(user: dict, *, trial_days_override: int | None = None,
+                                   grant_referral_reward: bool = True) -> dict | None:
     """
     Ядро активации пробной подписки: создаёт одного пользователя в Remnawave.
 
@@ -34,7 +35,7 @@ async def provision_trial_for_user(user: dict) -> dict | None:
 
     internal_user_id = user['id']
     telegram_id = user['telegram_id']
-    trial_days = get_trial_days()
+    trial_days = int(trial_days_override or get_trial_days())
 
     tariff = get_standard_trial_tariff()
     if not tariff:
@@ -112,7 +113,7 @@ async def provision_trial_for_user(user: dict) -> dict | None:
             result = await client.add_client(
                 inbound_id=0,
                 email=panel_email,
-                total_gb=trial_traffic_gb,
+                total_gb=0,
                 expire_days=trial_days,
                 limit_ip=int(tariff.get('device_limit') or DEFAULT_LIMIT_IP),
                 enable=True,
@@ -167,11 +168,12 @@ async def provision_trial_for_user(user: dict) -> dict | None:
         return None
 
     # Реферальный бонус рефереру за запуск приглашённого друга (+N дн., раз на друга).
-    try:
-        from bot.services.billing import process_referral_trial_reward
-        await process_referral_trial_reward(internal_user_id)
-    except Exception as e:
-        logger.error('Триал: ошибка начисления реф-бонуса: %s', e)
+    if grant_referral_reward:
+        try:
+            from bot.services.billing import process_referral_trial_reward
+            await process_referral_trial_reward(internal_user_id)
+        except Exception as e:
+            logger.error('Триал: ошибка начисления реф-бонуса: %s', e)
 
     return {
         'created_keys': [{'key_id': key_id, 'server_name': 'ArcVPN'}],

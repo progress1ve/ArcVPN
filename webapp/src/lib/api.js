@@ -364,12 +364,12 @@ export const createAdminPromocode = (payload) => (import.meta.env.DEV ? mockAdmi
 export const updateAdminPromocode = (promocodeId, payload) => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, promocodes: (mockPromocodes = mockPromocodes.map((item) => item.id === promocodeId ? { ...item, ...payload } : item)) }, { ok: true, promocodes: [] }) : mutate(`/api/admin/promocodes/${encodeURIComponent(promocodeId)}`, 'PATCH', payload))
 export const manageAdminSubscription = (telegramId, action) => (import.meta.env.DEV ? mockAdminSection('users', { ok: true, key_id: 10, expires_at: action.action === 'disable' ? new Date().toISOString() : '2026-09-20T12:00:00Z' }, {}) : mutate(`/api/admin/users/${encodeURIComponent(telegramId)}/subscription`, 'PATCH', action))
 export const fetchAdminUserDetail = (telegramId) => (import.meta.env.DEV ? mockAdminSection('users', mockUserDetail(telegramId), {}) : get(`/api/admin/users/${encodeURIComponent(telegramId)}`))
-export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', usage = 'all', cursor = 0, limit = 40 } = {}) => {
+export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', usage = 'all', cohort = 'all', cursor = 0, limit = 40 } = {}) => {
   if (import.meta.env.DEV) {
     const filtered = mockUsers.filter((item) => (!q || `${item.first_name} ${item.username} ${item.telegram_id}`.toLocaleLowerCase('ru-RU').includes(q.toLocaleLowerCase('ru-RU'))) && (status === 'all' || (status === 'active' && item.active) || (status === 'inactive' && !item.active) || (status === 'online' && item.online_devices)) && (usage === 'all' || (usage === 'main' && item.main_used_bytes) || (usage === 'lte' && item.lte_used_bytes))).sort((a,b)=>sort==='main_usage'?b.main_used_bytes-a.main_used_bytes:sort==='lte_usage'?b.lte_used_bytes-a.lte_used_bytes:0)
     return mockAdminSection('users', { ok: true, users: filtered.slice(cursor, cursor + limit), total: filtered.length, cursor, next_cursor: null, presence_source: 'remnawave' }, { ok: true, users: [], total: 0, cursor: 0, next_cursor: null, presence_source: 'remnawave' })
   }
-  const params = new URLSearchParams({ q, status, sort, usage, cursor: String(cursor), limit: String(limit) })
+  const params = new URLSearchParams({ q, status, sort, usage, cohort, cursor: String(cursor), limit: String(limit) })
   return get(`/api/admin/users?${params.toString()}`)
 }
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))
@@ -396,6 +396,7 @@ export const createSbpPayment = (tariffId, devices = 2, lteGb = 0, promocode = '
   post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
 export const createCardPayment = (tariffId, devices = 2, lteGb = 0, promocode = '', autoRenew = true) =>
   post('/api/payments/card', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew })
+export const createEmailTrialPayment = (method = 'sbp') => post('/api/payments/email-trial', { method })
 export const validatePromocode = async (tariffId, code) => {
   if (!import.meta.env.DEV) return post('/api/promocodes/validate', { tariff_id: tariffId, code })
   const normalized = code.trim().toUpperCase()

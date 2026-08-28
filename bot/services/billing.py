@@ -581,6 +581,17 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
 
     if operation_type == 'topup':
         return await _apply_topup_order(order_id, order)
+    if operation_type == 'trial_start' and order.get('offer_code') == 'email_paid_trial':
+        from bot.handlers.user.trial import provision_trial_for_user
+        user = get_user_by_id(int(order['user_id']))
+        provisioned = await provision_trial_for_user(
+            user, trial_days_override=7, grant_referral_reward=False
+        ) if user else None
+        if not provisioned:
+            update_order_fulfillment(order_id, 'manual_review', 'paid email trial provisioning failed')
+            return True, "✅ Оплата принята. Активацию проверит поддержка.", _reload_order(order_id)
+        update_order_fulfillment(order_id, 'applied')
+        return True, "✅ Standard активирован на 7 дней. LTE: 5 ГБ.", _reload_order(order_id)
     if operation_type in {'renew', 'upgrade'}:
         result = await _apply_renew_order(order_id, order)
     else:

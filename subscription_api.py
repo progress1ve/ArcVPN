@@ -89,6 +89,11 @@ from database.requests import (
     save_email_code,
     get_email_code,
     increment_email_attempts,
+    save_email_registration_code,
+    get_email_registration_code,
+    increment_email_registration_attempts,
+    create_email_user,
+    email_paid_trial_state,
     link_verified_email,
     unlink_email,
     get_user_by_verified_email,
@@ -98,6 +103,7 @@ from database.requests import (
     get_support_messages,
     add_user_support_message,
     get_tariff_by_id,
+    get_standard_trial_tariff,
     prepare_payment_order,
     find_order_by_order_id,
     find_order_by_yookassa_id,
@@ -3068,7 +3074,7 @@ def _notify_payment_applied(user_id: int, message: str) -> None:
     if not BOT_TOKEN:
         return
     user = get_user_by_id(user_id)
-    if not user or not user.get("telegram_id"):
+    if not user or int(user.get("telegram_id") or 0) <= 0:
         return
     payload = {
         "chat_id": int(user["telegram_id"]),
@@ -3522,6 +3528,8 @@ def api_account():
         "email": account.get("email"),
         "email_verified": bool(account.get("email_verified_at")),
         "email_available": bool(SMTP_HOST and SMTP_FROM),
+        "identity_source": account.get("identity_source") or "telegram",
+        "paid_trial_offer": email_paid_trial_state(int(account["id"])) if account.get("identity_source") == "email" else "not_eligible",
     })
     return _api_no_store(response)
 
@@ -3645,13 +3653,21 @@ def api_email_request():
     payload = request.get_json(silent=True) or {}
     email = _clean_text(payload.get("email"), 254).lower()
     purpose = _clean_text(payload.get("purpose"), 12)
-    if purpose not in {"link", "login"} or not _valid_email(email):
+    if purpose not in {"link", "login", "register"} or not _valid_email(email):
         return _api_error("invalid_email", 400)
     if not SMTP_HOST or not SMTP_FROM:
         return _api_error("email_unavailable", 503)
     if not _email_rate_allowed(email):
         return _api_error("try_later", 429)
 
+    if purpose == "register":
+        if get_user_by_verified_email(email):
+            return _api_no_store(jsonify({"ok": True, "sent": True}))
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        save_email_registration_code(email, _email_code_hash(code, purpose))
+        if not _send_email_code(email, code, purpose):
+            return _api_error("email_delivery_failed", 502)
+        return _api_no_store(jsonify({"ok": True, "sent": True}))
     if purpose == "link":
         telegram_id = _webapp_telegram_id()
         account = get_webapp_account(telegram_id) if telegram_id is not None else None
@@ -3677,8 +3693,23 @@ def api_email_verify():
     email = _clean_text(payload.get("email"), 254).lower()
     purpose = _clean_text(payload.get("purpose"), 12)
     code = _clean_text(payload.get("code"), 6)
-    if purpose not in {"link", "login"} or not _valid_email(email) or not re.fullmatch(r"\d{6}", code):
+    if purpose not in {"link", "login", "register"} or not _valid_email(email) or not re.fullmatch(r"\d{6}", code):
         return _api_error("invalid_code", 400)
+
+    if purpose == "register":
+        record = get_email_registration_code(email)
+        if not record or int(record.get("attempts") or 0) >= 5:
+            return _api_error("invalid_code", 400)
+        if not secrets.compare_digest(record["code_hash"], _email_code_hash(code, purpose)):
+            increment_email_registration_attempts(int(record["id"]))
+            return _api_error("invalid_code", 400)
+        user = create_email_user(email)
+        raw_token = secrets.token_urlsafe(48)
+        create_web_session(int(user["id"]), hashlib.sha256(raw_token.encode("utf-8")).hexdigest())
+        response = jsonify({"ok": True, "email": email, "registered": True})
+        response.set_cookie(WEB_SESSION_COOKIE, raw_token, max_age=30 * 86400,
+                            secure=True, httponly=True, samesite="Lax", path="/")
+        return _api_no_store(response)
 
     if purpose == "link":
         telegram_id = _webapp_telegram_id()
@@ -3805,6 +3836,55 @@ def api_validate_promocode():
         "discount_label": format_promocode_discount(promocode),
         "discount_rub": discount_rub, "final_amount_rub": max(1, base_rub - discount_rub),
     }))
+
+
+@app.route('/api/payments/email-trial', methods=['POST'])
+def api_create_email_trial_payment():
+    """Create the server-priced one-time paid trial for standalone email users."""
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    account = get_webapp_account(telegram_id)
+    if not account or account.get("identity_source") != "email":
+        return _api_error("paid_trial_not_eligible", 403)
+    if email_paid_trial_state(int(account["id"])) in {"paid", "succeeded"}:
+        return _api_error("paid_trial_already_used", 409)
+    payload = request.get_json(silent=True) or {}
+    method_type = str(payload.get("method") or "sbp")
+    if method_type not in {"sbp", "bank_card"}:
+        return _api_error("invalid_payment_method", 400)
+    recurring_setting = "yookassa_recurring_enabled" if method_type == "bank_card" else "yookassa_sbp_recurring_enabled"
+    if get_setting(recurring_setting, "0") != "1":
+        return _api_error("recurring_method_not_enabled", 409)
+    tariff = get_standard_trial_tariff()
+    if not tariff:
+        return _api_error("trial_tariff_unavailable", 503)
+    order = prepare_payment_order(
+        user_id=int(account["id"]), tariff_id=int(tariff["id"]),
+        payment_type="yookassa_card" if method_type == "bank_card" else "yookassa_qr",
+        amount_cents=1000, operation_type="trial_start",
+    )
+    with get_db() as conn:
+        conn.execute("""UPDATE payments SET period_days=7,offer_code='email_paid_trial',
+                        auto_renew_requested=1 WHERE order_id=? AND status='pending'""",
+                     (order["order_id"],))
+    if not set_payment_requested_entitlements(order["order_id"], 3, 5):
+        return _api_error("payment_initialization_failed", 500)
+    try:
+        payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
+            amount_rub=10, order_id=order["order_id"],
+            description="ArcVPN — пробный Standard на 7 дней",
+            bot_name=_get_bot_username(),
+            metadata={"account": "email", "source": "email_paid_trial"},
+            return_url=f"{WEBAPP_URL}/app/?payment={order['order_id']}",
+            save_payment_method=True, payment_method_type=method_type,
+        ), timeout=45)
+        save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
+    except Exception:
+        logger.exception("Не удалось создать платный trial для email user=%s", account["id"])
+        return _api_error("payment_provider_unavailable", 503)
+    return _api_no_store(jsonify({"ok": True, "order_id": order["order_id"],
+        "confirmation_url": payment["qr_url"], "status": payment["status"], "amount_rub": 10}))
 
 
 @app.route('/api/internal/node-metrics', methods=['POST'])
@@ -4378,7 +4458,9 @@ def api_admin_user_subscription(telegram_id: int):
                 device_sub_id=lower(hex(randomblob(16))) WHERE user_id=?""", (int(row["user_id"]),))
         else:
             return _api_error("invalid_action", 400)
-        result = conn.execute("SELECT id,expires_at FROM vpn_keys WHERE id=?", (key_id,)).fetchone()
+        result = conn.execute("""SELECT vk.*,
+            CASE WHEN vk.expires_at>datetime('now') THEN 1 ELSE 0 END AS active
+            FROM vpn_keys vk WHERE vk.id=?""", (key_id,)).fetchone()
     if synchronize_panel:
         try:
             panel_synced = ASYNC_EXECUTOR.run(
@@ -4401,7 +4483,9 @@ def api_admin_user_subscription(telegram_id: int):
     _append_admin_audit_best_effort("subscription.manage", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="vpn_key", target_id=str(key_id), metadata=metadata)
     return _api_no_store(jsonify({
         "ok": True, "key_id": key_id, "expires_at": result["expires_at"],
-        "active": bool(result["expires_at"] and str(result["expires_at"]) > datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+        "active": bool(result["active"]), "subscription": dict(result),
+        "timeline_event": {"kind": "admin", "at": datetime.now(timezone.utc).isoformat(),
+            "title": "Действие администратора", "detail": f"subscription.manage · {action}"},
         "panel_synced": bool(synchronize_panel),
     }))
 
@@ -4553,6 +4637,7 @@ def api_admin_users():
     status = str(request.args.get("status") or "all")
     sort = str(request.args.get("sort") or "new")
     usage = str(request.args.get("usage") or "all")
+    cohort = str(request.args.get("cohort") or "all")
     try:
         limit = min(100, max(10, int(request.args.get("limit") or 40)))
         offset = max(0, int(request.args.get("cursor") or 0))
@@ -4587,6 +4672,10 @@ def api_admin_users():
         where.append("lte_used_bytes>0")
     elif usage != "all":
         return _api_error("invalid_usage", 400)
+    if cohort == "email_paid_trial":
+        where.append("email_paid_trial=1")
+    elif cohort != "all":
+        return _api_error("invalid_cohort", 400)
     order_sql = {
         "new": "created_at DESC,id DESC",
         "top": "paid_rub DESC,id DESC",
@@ -4612,6 +4701,8 @@ def api_admin_users():
             COALESCE((SELECT SUM(COALESCE(vk.traffic_used,0)) FROM vpn_keys vk WHERE vk.user_id=u.id),0) AS main_used_bytes,
             COALESCE(u.lte_used_bytes,0) AS lte_used_bytes,
             COALESCE(u.lte_quota_gb,0) AS lte_quota_gb,
+            EXISTS(SELECT 1 FROM payments ep WHERE ep.user_id=u.id
+              AND ep.offer_code='email_paid_trial' AND ep.status IN ('paid','succeeded')) AS email_paid_trial,
             COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id
               AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'),0) AS paid_rub
           FROM users u

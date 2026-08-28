@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -68,6 +68,10 @@
   let emailStep = 'email'
   let emailBusy = false
   let emailMessage = ''
+  let emailAuthMode = 'login'
+  let paidTrialMethod = 'sbp'
+  let paidTrialBusy = false
+  let paidTrialMessage = ''
   let botLoginUrl = ''
   let supportChatOpen = false
   let supportMessages = []
@@ -254,7 +258,7 @@
     emailMessage = ''
     try {
       const result = await verifyEmailCode(emailInput.trim(), emailCode.trim(), purpose)
-      if (purpose === 'login') {
+      if (purpose === 'login' || purpose === 'register') {
         await Promise.all([loadStatus({ force: true }), loadTariffs({ force: true }), loadReferral({ force: true })])
         account = await fetchAccount()
         emailMessage = ''
@@ -285,6 +289,26 @@
     if (platform === 'android') return 'android'
     if (platform === 'windows') return 'windows'
     return 'happ'
+  }
+
+  async function buyPaidTrial() {
+    if (paidTrialBusy) return
+    paidTrialBusy = true
+    paidTrialMessage = ''
+    try {
+      const result = await createEmailTrialPayment(paidTrialMethod)
+      paymentOrderId = result.order_id
+      paymentConfirmationUrl = result.confirmation_url
+      paymentState = 'awaiting'
+      savePendingPayment()
+      openPayment(result.confirmation_url)
+      startPaymentPolling(true)
+    } catch (error) {
+      paidTrialMessage = ({
+        recurring_method_not_enabled: 'Автопродление для этого способа оплаты пока недоступно.',
+        paid_trial_already_used: 'Пробный период уже был использован.',
+      })[error.reason] || 'Не удалось создать платёж. Попробуйте ещё раз.'
+    } finally { paidTrialBusy = false }
   }
 
   function chatTime(value) {
@@ -852,13 +876,14 @@
           <div class="login-copy"><h1>Войдите<br />в свой аккаунт</h1><span>Используйте Telegram или подтверждённый email — откроется один и тот же кабинет.</span></div>
           {#if botLoginUrl}<button class="telegram-login" on:click={() => openTelegram(botLoginUrl)}><ArcIcon name="telegram" size={19} weight="bold" />Войти через Telegram</button>{/if}
           <div class="login-divider"><span>или по email</span></div>
+          <div class="auth-switch" role="tablist" aria-label="Режим входа"><button class:active={emailAuthMode==='login'} on:click={() => { emailAuthMode='login'; emailStep='email'; emailMessage='' }}>Войти</button><button class:active={emailAuthMode==='register'} on:click={() => { emailAuthMode='register'; emailStep='email'; emailMessage='' }}>Создать аккаунт</button></div>
           <section class="email-form login-form">
             <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
             {#if emailStep === 'code'}<label><span>Код из письма</span><input inputmode="numeric" maxlength="6" autocomplete="one-time-code" bind:value={emailCode} placeholder="000000" /></label>{/if}
-            {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={() => sendEmailCode('login')}>Получить код</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={() => confirmEmailCode('login')}>Войти</button>{/if}
+            {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={() => sendEmailCode(emailAuthMode)}>Получить код</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={() => confirmEmailCode(emailAuthMode)}>{emailAuthMode==='register'?'Создать аккаунт':'Войти'}</button>{/if}
           </section>
           {#if emailMessage}<p class="form-message">{emailMessage}</p>{/if}
-          <p class="login-help">Email должен быть заранее привязан в настройках ArcVPN внутри Telegram.</p>
+          <p class="login-help">Для входа используйте привязанный email. Новый email-аккаунт получает предложение Standard на 7 дней за 10 ₽ без бесплатного пробника.</p>
         </section>
       {:else if active === 'home'}
         <section class="screen home-screen" aria-label="Главная">
@@ -1150,6 +1175,24 @@
           <button class="sheet-secondary" on:click={() => copyText(subKey.sub_url, 'Ссылка подписки скопирована')}><ArcIcon name="copy" size={18} />Скопировать ссылку</button>
           <p class="connect-success"><ArcIcon name="check" size={18} />После импорта разрешите Happ добавить VPN-конфигурацию.</p>
         {/if}
+      </section>
+    </div>
+  {/if}
+
+  {#if account?.identity_source === 'email' && ['available','pending','created'].includes(account?.paid_trial_offer) && !paymentOrderId}
+    <div class="paid-trial-backdrop" transition:fade={{duration:160}}>
+      <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" transition:fly={{y:24,duration:220,easing:cubicOut}}>
+        <span class="paid-trial-kicker">ПРЕДЛОЖЕНИЕ ДЛЯ НОВОГО АККАУНТА</span>
+        <h2 id="paid-trial-title">Попробуйте ArcVPN за 10 ₽</h2>
+        <p>Standard на 7 дней: основной трафик безлимитный, обход глушилок — 5 ГБ, до 3 устройств.</p>
+        <div class="paid-trial-methods" aria-label="Способ оплаты">
+          <button class:active={paidTrialMethod==='sbp'} on:click={() => paidTrialMethod='sbp'}><img src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /><span><b>СБП</b><small>Через приложение банка</small></span><em>{#if paidTrialMethod==='sbp'}<ArcIcon name="check" size={14}/>{/if}</em></button>
+          <button class:active={paidTrialMethod==='bank_card'} on:click={() => paidTrialMethod='bank_card'}><ArcIcon name="card" size={23}/><span><b>Картой</b><small>Мир, Visa или Mastercard</small></span><em>{#if paidTrialMethod==='bank_card'}<ArcIcon name="check" size={14}/>{/if}</em></button>
+        </div>
+        <div class="paid-trial-renew"><i><ArcIcon name="check" size={14}/></i><span><b>Автопродление включено</b><small>{paidTrialMethod==='sbp'?'Счёт СБП':'Карта'} сохранится. Отключить автопродление можно в настройках.</small></span></div>
+        {#if paidTrialMessage}<p class="paid-trial-error" role="alert">{paidTrialMessage}</p>{/if}
+        <button class="paid-trial-pay" disabled={paidTrialBusy} on:click={buyPaidTrial}>{paidTrialBusy?'Создаём платёж…':`Оплатить ${paidTrialMethod==='sbp'?'через СБП':'картой'} · 10 ₽`}</button>
+        <small class="paid-trial-legal">Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a>.</small>
       </section>
     </div>
   {/if}
@@ -1478,6 +1521,8 @@
   .login-copy > span { display: block; max-width: 340px; margin: 14px auto 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
   .telegram-login { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 28px; border-radius: 16px; color: #06131e; background: #8ed3f7; font-size: 12px; font-weight: 850; }
   .telegram-login:focus-visible { outline: 2px solid #d8f2ff; outline-offset: 3px; }
+  .auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:14px 0 10px;padding:4px;border-radius:14px;background:#0a131f}.auth-switch button{min-height:38px;border:0;border-radius:10px;color:#7890a5;background:transparent;font-weight:800}.auth-switch button.active{color:#07131d;background:#8ed3f7}
+  .paid-trial-backdrop{position:fixed;z-index:95;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.paid-trial-card{box-sizing:border-box;width:min(100%,500px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);box-shadow:0 35px 110px rgba(0,0,0,.62)}.paid-trial-kicker{color:#80c9f4;font-size:9px;font-weight:900;letter-spacing:.14em}.paid-trial-card h2{margin:10px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.paid-trial-card>p{margin:0;color:#aab8c6;font-size:12px;line-height:1.55}.paid-trial-methods{display:grid;gap:9px;margin-top:22px}.paid-trial-methods button{display:grid;grid-template-columns:42px 1fr 24px;align-items:center;gap:11px;min-height:68px;padding:10px 14px;border:1px solid rgba(174,211,241,.1);border-radius:20px;color:#fff;background:rgba(255,255,255,.025);text-align:left}.paid-trial-methods button.active{border-color:#83cdf7;background:rgba(105,191,240,.08)}.paid-trial-methods img{width:32px;height:32px}.paid-trial-methods span{display:flex;flex-direction:column;gap:3px}.paid-trial-methods small,.paid-trial-renew small{color:#91a3b4;font-size:10px}.paid-trial-methods em{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#96d8ff;color:#07111b;font-style:normal}.paid-trial-renew{display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px;border-radius:17px;background:rgba(139,196,235,.06)}.paid-trial-renew>i{display:grid;place-items:center;flex:0 0 29px;height:29px;border-radius:50%;color:#07111b;background:#96d8ff}.paid-trial-renew span{display:flex;flex-direction:column;gap:3px}.paid-trial-pay{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:18px;color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);font-weight:900}.paid-trial-error{margin-top:12px!important;color:#ffadb4!important}.paid-trial-legal{display:block;margin-top:12px;color:#74899c;font-size:9px;text-align:center}.paid-trial-legal a{color:#9bd9ff}
   .login-divider { display: flex; align-items: center; gap: 12px; margin: 18px 4px 0; color: var(--faint); font-size: 9px; }
   .login-divider::before,.login-divider::after { content: ''; height: 1px; flex: 1; background: var(--hairline); }
   .login-form { margin-top: 28px; }

@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 58
+LATEST_VERSION = 59
 
 
 def get_current_version() -> int:
@@ -2343,6 +2343,31 @@ def migration_58(conn: sqlite3.Connection) -> None:
     logger.info("Migration v58 applied")
 
 
+def migration_59(conn: sqlite3.Connection) -> None:
+    """Standalone email identities and the one-time paid trial offer."""
+    _add_column(conn, "users", "identity_source TEXT NOT NULL DEFAULT 'telegram'")
+    _add_column(conn, "users", "email_registered_at DATETIME")
+    _add_column(conn, "payments", "offer_code TEXT")
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS email_registration_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT NOT NULL COLLATE NOCASE UNIQUE,
+            code_hash TEXT NOT NULL,
+            expires_at DATETIME NOT NULL,
+            attempts INTEGER NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_email_registration_expiry
+            ON email_registration_codes(expires_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_email_paid_trial_paid_user
+            ON payments(user_id)
+            WHERE offer_code='email_paid_trial' AND status IN ('paid','succeeded');
+        CREATE INDEX IF NOT EXISTS idx_payments_offer_status
+            ON payments(offer_code,status,paid_at);
+    """)
+    logger.info("Migration v59 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2402,6 +2427,7 @@ MIGRATIONS = {
     56: migration_56,
     57: migration_57,
     58: migration_58,
+    59: migration_59,
 }
 
 
