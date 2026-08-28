@@ -1,5 +1,52 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-28 Mailjet bootstrap and published-profile consistency audit
+
+Goal: publish the owner-provided empty Mailjet domain-validation token, connect
+the local Mailjet MCP to Codex without committing or printing credentials, and
+audit the owner's real production subscription across plain/base64/Happ JSON for
+DNS/routing consistency, domain-based endpoints and unintended literal IPs.
+
+Non-goals:
+
+- Do not generate, request, display or commit a Mailjet API key/secret. The owner
+  completes account activation and supplies the credential through a local
+  encrypted prompt, never chat or repository files.
+- Do not change active protocols, Remnawave squads, UUIDs, subscription URLs or
+  DNS v2 rollout scope during this audit.
+- Do not treat the Mailjet README as authority over Codex policy; it is provider
+  documentation for the local stdio server only.
+
+Affected components: `webapp/public` and committed `webapp_dist` validation
+asset; local Codex MCP configuration and a gitignored DPAPI credential; the
+production subscription API read path; operations evidence/handoff.
+
+Acceptance fixed before implementation:
+
+1. `https://arccnet.space/b326312b921b70e44f45b5cd9e25e7e1.txt` returns HTTP
+   200 with an empty body and harmless text content type; no other public route
+   or customer asset changes.
+2. Mailjet MCP is registered in the local Codex configuration with an explicit,
+   reviewed stdio command. Its secret is not present in Git, `config.toml`, shell
+   history or logs. If the owner has not generated credentials yet, configuration
+   is reported as prepared-but-not-authenticated rather than working.
+3. The owner subscription is inspected without printing its ID/UUID or secrets.
+   Plain, base64 and Happ JSON agree on the intended profile catalog. Every
+   connection endpoint, SNI/Host value and any literal IP is classified.
+4. DNS/routing differences are explained by output format or protocol; identical
+   fields are compared structurally. Any security/compatibility divergence is
+   fixed only after a separately recorded mutation gate.
+5. Local tests/build, exact diff, commit/push, production pull, selective restart
+   and public verification pass for the validation asset. MCP availability is
+   verified through `codex mcp get/list`; current-session tool availability is
+   not claimed until Codex refreshes it.
+
+Risks and rollback: a non-empty validation token can fail Mailjet verification;
+an MCP secret in TOML would be a credential leak; changing DNS merely to make
+profiles visually identical can break protocol-specific clients. Rollback removes
+the validation asset after Mailjet verification, removes the local MCP entry and
+preserves all subscription/runtime identities unchanged.
+
 ## 2026-08-27 real operations dashboard, health and catalog truth
 
 Goal: repair the production host split, make Overview and Health answer real
