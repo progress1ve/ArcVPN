@@ -74,6 +74,18 @@ Updated: 2026-08-27. This file is current state, not a diary.
   25/465/587 are blocked, PTR is provider-owned and mail-auth DNS is absent. SMTP
   relay port 2525 is reachable for Mailjet and Brevo. Prefer Mailjet Free after the
   owner creates/verifies the account/domain and supplies credentials outside Git.
+- Mailjet domain validation bootstrap is deployed through `b9d7829`. The exact
+  empty verification URL returns HTTP 200 and may be validated in Mailjet. A
+  local global Codex MCP entry named `mailjet` points to a DPAPI-aware launcher;
+  the Mailjet API key/secret has not yet been generated/stored, so the integration
+  is configured but intentionally unauthenticated. Store it using
+  `C:\Users\babay\.codex\mcp\mailjet-credential.ps1 -Action Set`, then start a
+  new Codex task/session and verify a read-only Mailjet tool before sending mail.
+- Production subscription audit for Telegram ID 2075630349 found identical DNS
+  JSON across all eleven Happ profiles and two intentional routing families.
+  Most endpoints are ArcVPN domains; DE Reality #1 remains a literal endpoint
+  with domain SNI and is inherited by AutoSelect/LTE fallback #1-#3. Do not change
+  it without a separate domain-resolution and real-client canary.
 - Whole-admin operations redesign base was deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; its original production evidence is recorded in `.codex/stages/current.md`.
 - Real Overview/Health/catalog/SEO follow-up is deployed at `a4e6890` on Poland.
   Overview now exposes real D/W/M joins, paid orders/revenue, acquisition source,

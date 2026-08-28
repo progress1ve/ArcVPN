@@ -47,6 +47,43 @@ profiles visually identical can break protocol-specific clients. Rollback remove
 the validation asset after Mailjet verification, removes the local MCP entry and
 preserves all subscription/runtime identities unchanged.
 
+Closeout evidence 2026-08-28:
+
+- Criterion 1 **passed** at production commit `b9d7829`: the exact Mailjet token
+  URL returns HTTP 200, `text/plain; charset=utf-8`, `Content-Length: 0` and
+  `nosniff`. The first request during service restart received a transient 502;
+  bounded retry passed and `sub.arccnet.space/health` returned `OK`.
+- Criterion 2 **partially passed / authentication deferred**: the reviewed local
+  `@mailjet/mailjet-mcp-server` 1.1.0 checkout installed and 24 tests passed.
+  Global MCP entry `mailjet` is enabled and launches a local PowerShell wrapper.
+  The wrapper reads a current-user DPAPI credential and keeps the secret out of
+  `config.toml`, Git and command arguments. No credential exists yet, so launcher
+  exit 78 is the truthful expected state until the owner generates API key/secret.
+  A new Codex task/session is required before newly configured MCP tools can be
+  exposed to the model.
+- Criteria 3-4 **passed as an audit** for Telegram ID 2075630349 without emitting
+  its subscription ID/UUID. Plain and base64 each contained the same ten manual
+  profiles; Happ JSON added AutoSelect for eleven total. All eleven JSON profiles
+  had one identical DNS structure. Routing intentionally had two structures:
+  fallback-aware AutoSelect/LTE #1-#3 and ordinary direct profiles.
+- Endpoint classification: NL Reality/Hysteria, DE Hysteria and all five XHTTP
+  profiles use domains and domain SNI. DE Reality #1 still uses a literal public
+  endpoint with domain SNI; therefore AutoSelect and LTE fallback #1-#3 contain
+  the same address internally. Two literal resolver addresses and loopback
+  inbound listens are expected DNS/client-local values, not VPN endpoint leaks.
+  No endpoint mutation was authorized or attempted; converting DE Reality to a
+  domain requires a separate real-client canary.
+- Criterion 5 **passed except current-session MCP availability**: ArcVPN suite
+  `111 passed`; Vite build succeeded; exact diff reviewed; commits `c2b652e` and
+  `b9d7829` pushed and pulled with `--ff-only`; only
+  `arcvpn-subscription.service` restarted for the exact route and remained active.
+  The user-owned nested `mailjet-mcp-server/` checkout remains untracked and was
+  not absorbed into the ArcVPN repository.
+
+Rollback remains available: remove the exact route/assets after Mailjet validates
+the domain and restart the subscription service; `codex mcp remove mailjet`
+removes only the local integration. No subscription identity or topology changed.
+
 ## 2026-08-27 real operations dashboard, health and catalog truth
 
 Goal: repair the production host split, make Overview and Health answer real
