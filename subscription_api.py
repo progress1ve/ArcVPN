@@ -5403,6 +5403,15 @@ small{{display:block;margin-top:16px;color:#718296;line-height:1.45}}
     return response
 
 
+@app.route('/b326312b921b70e44f45b5cd9e25e7e1.txt')
+def mailjet_domain_validation():
+    """Mailjet requires this exact empty file while the sending domain is verified."""
+    response = Response("", status=200, mimetype="text/plain")
+    response.headers["Cache-Control"] = "public, max-age=300"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.route('/robots.txt')
 def robots_txt():
     host = request.host.split(":", 1)[0].lower()
