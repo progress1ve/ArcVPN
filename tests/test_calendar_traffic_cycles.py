@@ -74,6 +74,24 @@ def test_early_renewal_preserves_cycle_and_lapsed_purchase_reanchors(cycle_db):
     assert restarted["reset_at"] == "2026-11-05 12:00:00"
 
 
+def test_renewal_keeps_remaining_days_and_expired_key_starts_from_now(cycle_db):
+    from database.db_keys import extend_vpn_key
+
+    with connection.get_db() as conn:
+        conn.execute("ALTER TABLE vpn_keys ADD COLUMN panel_disabled_at DATETIME")
+        conn.execute("INSERT INTO vpn_keys(id,user_id,expires_at) VALUES(21,1,'2099-01-01 00:00:00')")
+        conn.execute("INSERT INTO vpn_keys(id,user_id,expires_at) VALUES(22,1,'2020-01-01 00:00:00')")
+    assert extend_vpn_key(21, 90)
+    assert extend_vpn_key(22, 30)
+    with connection.get_db() as conn:
+        active = conn.execute("SELECT expires_at FROM vpn_keys WHERE id=21").fetchone()[0]
+        lapsed_days = conn.execute(
+            "SELECT julianday(expires_at)-julianday('now') FROM vpn_keys WHERE id=22"
+        ).fetchone()[0]
+    assert active == "2099-04-01 00:00:00"
+    assert 29.99 <= lapsed_days <= 30.01
+
+
 def test_authoritative_failure_does_not_advance_or_zero(cycle_db):
     from bot.services.scheduler import process_due_traffic_cycle_resets
 

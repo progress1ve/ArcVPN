@@ -110,7 +110,14 @@
   async function signIn() {
     if (!password || signingIn) return
     signingIn = true; error = ''
-    try { await loginAdmin(password); password = ''; await bootstrap() }
+    try {
+      const session = await loginAdmin(password)
+      password = ''
+      access = { ok: true, role: session.role || 'owner', permissions: session.permissions || ['*'] }
+      active = 'overview'
+      loading = true
+      await load()
+    }
     catch (e) { error = e.code === 429 ? 'Слишком много попыток. Подождите 15 минут.' : 'Неверный пароль' }
     finally { signingIn = false }
   }

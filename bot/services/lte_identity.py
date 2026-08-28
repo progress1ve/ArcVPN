@@ -30,17 +30,20 @@ async def provision_lte_identity(
     username = f"arc_lte_{int(user['id'])}"
     current = await client.get_user(username)
     limit_bytes = max(0, int(quota_gb)) * 1024**3
+    created = not current
     if current:
         verified = await client.set_user_squads_and_limit(
             username,
             [str(squad["uuid"])],
             limit_bytes,
             expiry_at=_iso_utc(expires_at),
+            enabled=quota_gb > 0,
+            device_limit=device_limit,
         )
     else:
         verified = await client._request("POST", "/api/users", json={
             "username": username,
-            "status": "ACTIVE",
+            "status": "ACTIVE" if quota_gb > 0 else "DISABLED",
             "trafficLimitBytes": limit_bytes,
             "trafficLimitStrategy": "NO_RESET",
             "expireAt": _iso_utc(expires_at),
@@ -55,11 +58,11 @@ async def provision_lte_identity(
 
     with get_db() as conn:
         conn.execute(
-            """UPDATE users SET lte_quota_gb=?,lte_used_bytes=0,
+            """UPDATE users SET lte_quota_gb=?,lte_used_bytes=CASE WHEN ? THEN 0 ELSE lte_used_bytes END,
                       lte_client_uuid=?,lte_panel_username=?,lte_remnawave_user_id=?
                  WHERE id=?""",
             (
-                max(0, int(quota_gb)), lte_uuid, username,
+                max(0, int(quota_gb)), int(created), lte_uuid, username,
                 str((verified or {}).get("id") or ""), int(user["id"]),
             ),
         )

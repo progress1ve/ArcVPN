@@ -31,5 +31,33 @@ def test_main_remnawave_updates_are_always_unlimited(monkeypatch):
     assert calls[-1][2]["trafficLimitBytes"] == 0
 
 
+def test_lte_plan_change_updates_quota_devices_expiry_and_can_disable(monkeypatch):
+    client = RemnawaveClient({"panel_api_url": "https://panel.test",
+                              "panel_api_token": "token", "panel_write_mode": "production"})
+    monkeypatch.setattr(client, "_user_for_write", lambda _email: _async({"id": "lte"}))
+    monkeypatch.setattr(client, "get_user", lambda _email: _async({"id": "lte", "vlessUuid": "stable"}))
+    calls = []
+
+    async def request(method, path, **kwargs):
+        calls.append(kwargs.get("json"))
+        return {}
+
+    monkeypatch.setattr(client, "_request", request)
+    asyncio.run(client.set_user_squads_and_limit(
+        "arc_lte_7", ["lte-squad"], 115 * 1024**3,
+        expiry_at="2030-02-02T00:00:00+00:00", device_limit=10,
+    ))
+    assert calls[-1] == {
+        "id": "lte", "status": "ACTIVE", "trafficLimitBytes": 115 * 1024**3,
+        "activeInternalSquads": ["lte-squad"], "expireAt": "2030-02-02T00:00:00+00:00",
+        "hwidDeviceLimit": 10,
+    }
+    asyncio.run(client.set_user_squads_and_limit(
+        "arc_lte_7", ["lte-squad"], 0, enabled=False, device_limit=2,
+    ))
+    assert calls[-1]["status"] == "DISABLED"
+    assert calls[-1]["hwidDeviceLimit"] == 2
+
+
 async def _async(value):
     return value

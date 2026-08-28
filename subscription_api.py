@@ -240,9 +240,9 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 # известных конфигураций в подписке. Неизвестные конфиги идут после них.
 SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Нидерланды #1",
-    "Нидерланды #2 ⚡",
+    "Нидерланды #2",
     "Германия #1",
-    "Германия #2⚡",
+    "Германия #2",
     "Ютуб без рекламы",
     "Обход глушилок (LTE) #1",
     "Обход глушилок (LTE) #2",
@@ -351,7 +351,7 @@ def _subscription_display_name(name: str) -> str:
         number_match = re.search(r"#\s*([1-9][0-9]*)", value)
         number = number_match.group(1) if number_match else "1"
         return f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
-    return value
+    return re.sub(r"\s*⚡\s*", " ", value).strip()
 
 
 def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
@@ -447,7 +447,7 @@ def _normalize_customer_profile_label(link: str) -> str:
         else:
             scheme = urllib.parse.urlsplit(link).scheme.lower()
             is_hysteria = scheme in {"hysteria", "hysteria2", "hy2"}
-            label = f"{flag} {country} #{2 if is_hysteria else 1}{' ⚡' if is_hysteria else ''}"
+            label = f"{flag} {country} #{2 if is_hysteria else 1}"
         return payload + "#" + urllib.parse.quote(label, safe="")
     return link
 
@@ -3749,14 +3749,15 @@ def api_admin_login():
         return _api_error("invalid_password", 403)
     issued_at = str(int(time.time()))
     nonce = secrets.token_urlsafe(18)
-    response = jsonify({"ok": True})
+    response = jsonify({"ok": True, "role": "owner", "permissions": sorted(role_permissions("owner"))})
     response.set_cookie(
         ADMIN_CONSOLE_COOKIE,
         f"{issued_at}.{nonce}.{_admin_cookie_signature(issued_at, nonce)}",
         max_age=ADMIN_CONSOLE_SESSION_SECONDS,
+        expires=datetime.now(timezone.utc) + timedelta(seconds=ADMIN_CONSOLE_SESSION_SECONDS),
         secure=True,
         httponly=True,
-        samesite="Strict",
+        samesite="Lax",
         path="/",
     )
     append_admin_audit("admin.login", "success", actor_id=str(_admin_telegram_id() or "password-session"))
@@ -4398,7 +4399,11 @@ def api_admin_user_subscription(telegram_id: int):
                 logger.exception("Admin subscription panel-sync failure audit failed")
             return _api_error("panel_sync_failed", 502)
     _append_admin_audit_best_effort("subscription.manage", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="vpn_key", target_id=str(key_id), metadata=metadata)
-    return _api_no_store(jsonify({"ok": True, "key_id": key_id, "expires_at": result["expires_at"]}))
+    return _api_no_store(jsonify({
+        "ok": True, "key_id": key_id, "expires_at": result["expires_at"],
+        "active": bool(result["expires_at"] and str(result["expires_at"]) > datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")),
+        "panel_synced": bool(synchronize_panel),
+    }))
 
 
 @app.route('/api/admin/users/<int:telegram_id>', methods=['GET'])
@@ -4407,7 +4412,9 @@ def api_admin_user_detail(telegram_id: int):
         return _api_error("admin_forbidden", 403)
     with get_db() as conn:
         user = conn.execute("""SELECT id,telegram_id,username,first_name,created_at,
-            device_limit,COALESCE(enforce_device_tokens,0) AS enforce_device_tokens,
+            device_limit,COALESCE(lte_quota_gb,0) AS lte_quota_gb,
+            COALESCE(lte_used_bytes,0) AS lte_used_bytes,
+            COALESCE(enforce_device_tokens,0) AS enforce_device_tokens,
             COALESCE(personal_balance,0)/100.0 AS balance_rub
             FROM users WHERE telegram_id=?""", (telegram_id,)).fetchone()
         if not user:
@@ -4545,6 +4552,7 @@ def api_admin_users():
     query = _clean_text(request.args.get("q"), 100).lower()
     status = str(request.args.get("status") or "all")
     sort = str(request.args.get("sort") or "new")
+    usage = str(request.args.get("usage") or "all")
     try:
         limit = min(100, max(10, int(request.args.get("limit") or 40)))
         offset = max(0, int(request.args.get("cursor") or 0))
@@ -4573,11 +4581,19 @@ def api_admin_users():
             where.append("online_devices>0")
     elif status != "all":
         return _api_error("invalid_status", 400)
+    if usage == "main":
+        where.append("main_used_bytes>0")
+    elif usage == "lte":
+        where.append("lte_used_bytes>0")
+    elif usage != "all":
+        return _api_error("invalid_usage", 400)
     order_sql = {
         "new": "created_at DESC,id DESC",
         "top": "paid_rub DESC,id DESC",
         "online": "online_devices DESC,last_online_at DESC,id DESC",
         "expiry": "expires_at ASC,id DESC",
+        "main_usage": "main_used_bytes DESC,id DESC",
+        "lte_usage": "lte_used_bytes DESC,id DESC",
     }.get(sort)
     if not order_sql:
         return _api_error("invalid_sort", 400)
@@ -4593,6 +4609,9 @@ def api_admin_users():
             COALESCE((SELECT SUM(vk.online_devices) FROM vpn_keys vk WHERE vk.user_id=u.id),0) AS online_devices,
             (SELECT MAX(vk.last_online_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS last_online_at,
             (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at,
+            COALESCE((SELECT SUM(COALESCE(vk.traffic_used,0)) FROM vpn_keys vk WHERE vk.user_id=u.id),0) AS main_used_bytes,
+            COALESCE(u.lte_used_bytes,0) AS lte_used_bytes,
+            COALESCE(u.lte_quota_gb,0) AS lte_quota_gb,
             COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id
               AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'),0) AS paid_rub
           FROM users u
@@ -4999,6 +5018,13 @@ def api_admin_overview():
         except (OSError, subprocess.SubprocessError):
             return False
 
+    def _system_uptime_seconds() -> Optional[int]:
+        try:
+            with open("/proc/uptime", "r", encoding="utf-8") as handle:
+                return max(0, int(float(handle.read().split()[0])))
+        except (OSError, ValueError, IndexError):
+            return None
+
     guard_state = {}
     try:
         with open("/run/arcvpn-xui-health-state.json", "r", encoding="utf-8") as stream:
@@ -5267,6 +5293,7 @@ def api_admin_overview():
             "memory": memory,
             "load_1m": round(os.getloadavg()[0], 2) if hasattr(os, "getloadavg") else None,
             "cpu_count": os.cpu_count(),
+            "uptime_seconds": _system_uptime_seconds(),
             "database_integrity": db_integrity,
         },
         "inbounds": inbound_health,

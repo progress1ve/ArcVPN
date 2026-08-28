@@ -67,9 +67,9 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
     assert names == [
         "🇷🇺 Ютуб без рекламы",
         "🇳🇱 Нидерланды #1",
-        "🇳🇱 Нидерланды #2 ⚡",
+        "🇳🇱 Нидерланды #2",
         "🇩🇪 Германия #1",
-        "🇩🇪 Германия #2 ⚡",
+        "🇩🇪 Германия #2",
     ]
     assert result[0].split("#", 1)[0] == result[1].split("#", 1)[0]
 

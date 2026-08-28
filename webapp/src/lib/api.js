@@ -5,6 +5,7 @@ import { getInitData } from './telegram.js'
 
 async function get(path) {
   const res = await fetch(path, {
+    credentials: 'include',
     headers: { 'X-Telegram-Init-Data': getInitData() },
     cache: 'no-store',
   })
@@ -20,7 +21,7 @@ async function get(path) {
 async function post(path, payload = {}, options = {}) {
   const res = await fetch(path, {
     method: 'POST',
-    credentials: 'same-origin',
+    credentials: 'include',
     keepalive: Boolean(options.keepalive),
     headers: {
       'Content-Type': 'application/json',
@@ -35,7 +36,7 @@ async function post(path, payload = {}, options = {}) {
 async function mutate(path, method, payload) {
   const res = await fetch(path, {
     method,
-    credentials: 'same-origin',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
       'X-Telegram-Init-Data': getInitData(),
@@ -211,7 +212,7 @@ const mockAdminOverview = () => new Promise((resolve, reject) => setTimeout(() =
     recurring: { provider_ready: false, active: 0 },
     integrations: { smtp_ready: true, smtp_tls: true },
     local_panel: { healthy: true, inbounds: 8, detail: 'ok' },
-    system: { database_integrity: 'ok', disk_used_pct: 43, disk_used_gb: 21.5, disk_total_gb: 50 },
+    system: { database_integrity: 'ok', disk_used_pct: 43, disk_used_gb: 21.5, disk_total_gb: 50, uptime_seconds: 1284300 },
     device_security: { active_devices: 887, revoked_devices: 19, protected_users: 603, users_over_limit: 2, awaiting_reimport: 4 },
     referrals: { conversion_rate: 31.5, day_invited: 9, month_invited: 184, total_invited: 932, converted: 294, leaders: [] },
     recent_users: [],
@@ -306,10 +307,10 @@ let mockPromocodes = [
 ]
 let mockBackups = [{ name: 'vpn_bot-20260824-120000.db', size_bytes: 7340032, created_at: '2026-08-24T12:00:00Z' }]
 const mockUsers = [
-  { telegram_id: 700001, first_name: 'Алексей', username: 'alex', paid_rub: 1250, expires_at: '2026-09-20 12:00:00', active: 1, online_devices: 1, online_node: 'Germany Edge' },
-  { telegram_id: 700002, first_name: 'Марина', username: 'marina', paid_rub: 750, expires_at: '2026-09-05 12:00:00', active: 1, online_devices: 0 },
+  { telegram_id: 700001, first_name: 'Алексей', username: 'alex', paid_rub: 1250, expires_at: '2026-09-20 12:00:00', active: 1, online_devices: 1, online_node: 'Germany Edge', main_used_bytes: 184 * 1024**3, lte_used_bytes: 29 * 1024**3, lte_quota_gb: 45 },
+  { telegram_id: 700002, first_name: 'Марина', username: 'marina', paid_rub: 750, expires_at: '2026-09-05 12:00:00', active: 1, online_devices: 0, main_used_bytes: 88 * 1024**3, lte_used_bytes: 6 * 1024**3, lte_quota_gb: 45 },
 ]
-const mockUserDetail = (telegramId) => ({ ok: true, user: { telegram_id: Number(telegramId), balance_rub: 125, device_limit: 2 }, subscriptions: [{ id: 10, custom_name: 'ArcVPN', expires_at: '2026-09-20 12:00:00', active: 1, traffic_used: 3221225472, online_devices: 1 }], payments: [{ order_id: 'qa-order', payment_type: 'sbp', status: 'succeeded', amount_rub: 125, paid_at: '2026-08-20 10:00:00' }], devices: [{ id: 1, active: 1 }], timeline: [{ kind: 'payment', title: 'Оплата подтверждена', detail: '1 месяц', at: '2026-08-20 10:00:00' }] })
+const mockUserDetail = (telegramId) => ({ ok: true, user: { telegram_id: Number(telegramId), balance_rub: 125, device_limit: 2, lte_used_bytes: 29 * 1024**3, lte_quota_gb: 45 }, subscriptions: [{ id: 10, custom_name: 'ArcVPN', expires_at: '2026-09-20 12:00:00', active: 1, traffic_used: 184 * 1024**3, online_devices: 1 }], payments: [{ order_id: 'qa-order', payment_type: 'sbp', status: 'succeeded', amount_rub: 125, paid_at: '2026-08-20 10:00:00' }], devices: [{ id: 1, active: 1 }], timeline: [{ kind: 'payment', title: 'Оплата подтверждена', detail: '1 месяц', at: '2026-08-20 10:00:00' }] })
 const mockAuditEvents = [{ id: 1, action: 'catalog.update', outcome: 'success', actor_id: 'owner', target_type: 'subscription_catalog', created_at: '2026-08-24T12:10:00Z' }, { id: 2, action: 'rbac.denied', outcome: 'denied', actor_id: 'viewer', target_type: 'permission', target_id: 'catalog.manage', created_at: '2026-08-24T12:08:00Z' }]
 
 export const fetchStatus = () => (import.meta.env.DEV
@@ -363,12 +364,12 @@ export const createAdminPromocode = (payload) => (import.meta.env.DEV ? mockAdmi
 export const updateAdminPromocode = (promocodeId, payload) => (import.meta.env.DEV ? mockAdminSection('growth', { ok: true, promocodes: (mockPromocodes = mockPromocodes.map((item) => item.id === promocodeId ? { ...item, ...payload } : item)) }, { ok: true, promocodes: [] }) : mutate(`/api/admin/promocodes/${encodeURIComponent(promocodeId)}`, 'PATCH', payload))
 export const manageAdminSubscription = (telegramId, action) => (import.meta.env.DEV ? mockAdminSection('users', { ok: true, key_id: 10, expires_at: action.action === 'disable' ? new Date().toISOString() : '2026-09-20T12:00:00Z' }, {}) : mutate(`/api/admin/users/${encodeURIComponent(telegramId)}/subscription`, 'PATCH', action))
 export const fetchAdminUserDetail = (telegramId) => (import.meta.env.DEV ? mockAdminSection('users', mockUserDetail(telegramId), {}) : get(`/api/admin/users/${encodeURIComponent(telegramId)}`))
-export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', cursor = 0, limit = 40 } = {}) => {
+export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', usage = 'all', cursor = 0, limit = 40 } = {}) => {
   if (import.meta.env.DEV) {
-    const filtered = mockUsers.filter((item) => (!q || `${item.first_name} ${item.username} ${item.telegram_id}`.toLocaleLowerCase('ru-RU').includes(q.toLocaleLowerCase('ru-RU'))) && (status === 'all' || (status === 'active' && item.active) || (status === 'inactive' && !item.active) || (status === 'online' && item.online_devices)))
+    const filtered = mockUsers.filter((item) => (!q || `${item.first_name} ${item.username} ${item.telegram_id}`.toLocaleLowerCase('ru-RU').includes(q.toLocaleLowerCase('ru-RU'))) && (status === 'all' || (status === 'active' && item.active) || (status === 'inactive' && !item.active) || (status === 'online' && item.online_devices)) && (usage === 'all' || (usage === 'main' && item.main_used_bytes) || (usage === 'lte' && item.lte_used_bytes))).sort((a,b)=>sort==='main_usage'?b.main_used_bytes-a.main_used_bytes:sort==='lte_usage'?b.lte_used_bytes-a.lte_used_bytes:0)
     return mockAdminSection('users', { ok: true, users: filtered.slice(cursor, cursor + limit), total: filtered.length, cursor, next_cursor: null, presence_source: 'remnawave' }, { ok: true, users: [], total: 0, cursor: 0, next_cursor: null, presence_source: 'remnawave' })
   }
-  const params = new URLSearchParams({ q, status, sort, cursor: String(cursor), limit: String(limit) })
+  const params = new URLSearchParams({ q, status, sort, usage, cursor: String(cursor), limit: String(limit) })
   return get(`/api/admin/users?${params.toString()}`)
 }
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))

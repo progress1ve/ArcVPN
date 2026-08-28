@@ -1,5 +1,73 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-28 tariff transitions and admin reactivity/operations
+
+Goal: prove and harden cross-tariff renewal, make admin mutations immediately
+reactive, persist owner authentication reliably, expose per-user main/LTE usage
+with useful sorting/filtering, remove catalog-label drift, and show real uptime in
+Health.
+
+Pre-change browser evidence: production `/admin` opened in the existing browser
+session but rendered `Доступ к сводке ограничен` followed by the password form.
+This reproduces the owner-session persistence defect before any code change. The
+provided user-detail screenshot also shows repeated `adjust_days` events while
+the displayed expiry remains stale until a manual reload.
+
+Affected components: payment fulfillment and entitlement transition code; admin
+auth/session API; user list/detail API and Svelte views; subscription catalog
+normalization; Health metrics; related tests and production deployment.
+
+Non-goals: do not mutate a real user's tariff/payment, send support messages,
+rotate identities, change pricing, protocols, DNS or node topology. Validation
+uses fixtures/read-only production evidence unless the owner supplies a safe
+identity.
+
+Acceptance fixed before implementation:
+
+1. Renewal from any plan family to another preserves remaining active days,
+   adds the purchased duration once, keeps the stable public URL/main UUID, and
+   atomically applies the new plan's devices and LTE allowance to local state and
+   Remnawave. Tests cover Economy→Standard, Standard→Family, Family→Economy,
+   expired subscriptions and retry/idempotency.
+2. Add/remove/activate-now/disable user actions update the visible row/detail,
+   expiry and history immediately after a successful response without full-page
+   reload; loading, disabled and error states are explicit.
+3. User data exposes current-cycle main and LTE bytes per user. Admin can sort
+   descending by main usage or LTE usage and filter to meaningful usage ranges;
+   labels, units, zero/empty/error/loading states and keyboard controls are clear.
+4. Owner login replaces the login surface immediately after success and remains
+   valid across reload and following days within the configured 30-day lifetime.
+   Cookie attributes and frontend bootstrap use one consistent session contract;
+   unauthorized/expired sessions fail closed.
+5. Catalog and published subscription use one normalized label source. Hysteria
+   rows are `Нидерланды #2` and `Германия #2` everywhere; lightning emoji is
+   absent from catalog, plain/base64 and Happ JSON without changing protocol/order.
+6. Health shows real control-plane uptime (and node uptime where the backend has
+   authoritative data), with timestamp/source and honest unavailable state.
+7. Local unit/integration tests and warning-free build pass. Production UI is
+   browser-accepted before/after at mobile, tablet, desktop and wide viewports:
+   no horizontal overflow; keyboard/focus, hover, disabled, loading, error and
+   empty states verified for touched controls; console has no new errors.
+8. Exact diff is reviewed; commit/push → production `pull --ff-only` → restart
+   only affected services → health and authenticated public verification.
+
+Risks and rollback: tariff transition mistakes can over-extend access or apply a
+wrong quota; auth-cookie changes can lock out the owner; usage joins can slow the
+user list. Preserve idempotency keys and stable identities, use bounded indexed
+queries, do not run production payment mutations, and rollback by reverting the
+release commit plus restarting the affected services.
+
+Verification matrix:
+
+| Area | Automated | Production/browser |
+|---|---|---|
+| Tariff transitions | fulfillment matrix + retry tests | read-only contract inspection |
+| Admin mutations | API/component state tests | safe UI state; no real user mutation |
+| Usage ranking | query/serialization tests | users/detail filters and values |
+| Auth | cookie/session/bootstrap tests | login, reload and renewed request |
+| Catalog | plain/base64/Happ assertions | fresh owner subscription/catalog |
+| Health | metrics serialization | uptime visible at four viewports |
+
 ## 2026-08-28 Germany Reality domain endpoint
 
 Goal: replace the literal public address of the active Germany Reality profile

@@ -377,6 +377,31 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
                 "✅ Оплата принята!\n\n"
                 "⚠️ Подписка продлена, но её активация требует проверки поддержки."
             ), _reload_order(order_id)
+        try:
+            from bot.services.lte_identity import provision_lte_identity
+            from bot.services.panels.remnawave import RemnawaveClient
+            from bot.services.remnawave_stats import remnawave_authority_config
+
+            refreshed_key = get_vpn_key_by_id(key_id) or {}
+            refreshed_user = get_user_by_id(user_internal_id)
+            entitlements = get_user_entitlements_by_id(user_internal_id)
+            expiry = datetime.fromisoformat(str(refreshed_key['expires_at']).replace('Z', '+00:00'))
+            client = RemnawaveClient(remnawave_authority_config())
+            try:
+                await provision_lte_identity(
+                    client, user=refreshed_user, expires_at=expiry,
+                    quota_gb=int(entitlements.get('lte_quota_gb') or 0),
+                    device_limit=int(entitlements.get('device_limit') or 1),
+                )
+            finally:
+                await client.close()
+        except Exception:
+            logger.exception("LTE entitlement sync failed for order %s", order_id)
+            update_order_fulfillment(order_id, 'manual_review', 'main updated but LTE entitlement sync failed')
+            return True, (
+                "✅ Оплата принята!\n\n"
+                "⚠️ Основная подписка продлена, LTE-доступ проверит поддержка."
+            ), _reload_order(order_id)
         start_or_preserve_traffic_cycle(
             user_internal_id, preserve_existing=was_active
         )

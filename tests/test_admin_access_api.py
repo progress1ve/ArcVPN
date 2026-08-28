@@ -24,7 +24,9 @@ def test_password_login_sets_persistent_thirty_day_cookie(client, monkeypatch):
     cookie = response.headers.get("Set-Cookie", "")
     assert response.status_code == 200
     assert "Max-Age=2592000" in cookie
-    assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=Strict" in cookie
+    assert "Expires=" in cookie
+    assert "Secure" in cookie and "HttpOnly" in cookie and "SameSite=Lax" in cookie
+    assert response.get_json()["permissions"] == ["*"]
 
 
 def test_public_config_exposes_only_bot_login_url(client, monkeypatch):

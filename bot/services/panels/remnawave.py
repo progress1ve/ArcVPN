@@ -122,6 +122,7 @@ class RemnawaveClient(BaseVPNClient):
     async def set_user_squads_and_limit(
         self, username: str, squad_uuids: List[str], traffic_limit_bytes: int,
         *, expiry_at: Optional[str] = None, enabled: bool = True,
+        device_limit: Optional[int] = None,
     ) -> Dict[str, Any]:
         """Apply the complete isolated access boundary and verify it."""
         user = await self._user_for_write(username)
@@ -133,6 +134,8 @@ class RemnawaveClient(BaseVPNClient):
         }
         if expiry_at:
             payload["expireAt"] = expiry_at
+        if device_limit is not None:
+            payload["hwidDeviceLimit"] = max(1, int(device_limit))
         await self._request("PATCH", "/api/users", json=payload)
         verified = await self.get_user(username)
         if not verified:
