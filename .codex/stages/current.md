@@ -1,5 +1,44 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-28 Germany Reality domain endpoint
+
+Goal: replace the literal public address of the active Germany Reality profile
+with `de.arccnet.space` in both ArcVPN fallback metadata and the authoritative
+Remnawave Host, without changing its port, Reality SNI/material, UUIDs, squads,
+subscription URLs, labels, order or active-user access.
+
+Non-goals: no protocol, inbound, DNS-routing, LTE-balancer, node-agent or key
+rotation changes; no change to the Germany Hysteria profile or other nodes.
+
+Current and desired state: public DNS for `de.arccnet.space` resolves exactly to
+the active `de-dhost` address recorded in the non-secret inventory. Germany
+Reality #1 currently publishes that address literally; desired output publishes
+the domain while retaining the same transport and authorization.
+
+Acceptance fixed before implementation:
+
+1. DNS A resolution matches `de-dhost`, and the node remains reachable on the
+   unchanged Reality port.
+2. The authoritative Remnawave Host and ArcVPN fallback metadata use
+   `de.arccnet.space`; no UUID, public subscription URL, SNI, port, inbound or
+   squad changes.
+3. A fresh owner subscription in plain, base64 and Happ JSON contains the same
+   ordered catalog as before, Germany Reality uses the domain everywhere
+   (including AutoSelect/LTE fallbacks), and no literal public connection endpoint
+   remains. Resolver IPs and loopback listeners are excluded from this assertion.
+4. Local regression tests pass; exact diff is reviewed; runtime changes follow
+   commit/push, production `pull --ff-only`, selective restart and public health
+   verification.
+5. Real-client acceptance requires a tunneled request through Germany Reality.
+   If no automation-safe client is available, the mutation remains explicitly
+   canary-pending rather than being declared fully accepted.
+
+Risk and rollback: a stale/wrong DNS record or unsupported Host payload could
+interrupt Germany Reality. Before mutation, retain a restricted server-side
+snapshot of the exact target Host. Rollback restores only its previous address
+and the ArcVPN fallback constant; keys, UUIDs and subscription URLs are never
+rotated.
+
 ## 2026-08-28 Mailjet bootstrap and published-profile consistency audit
 
 Goal: publish the owner-provided empty Mailjet domain-validation token, connect

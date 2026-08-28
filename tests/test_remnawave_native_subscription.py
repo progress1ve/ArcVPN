@@ -26,6 +26,15 @@ def test_netherlands_profiles_sort_before_lte_and_accept_flag_prefix():
     assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
 
 
+def test_germany_reality_fallback_uses_public_domain():
+    germany = next(
+        node for node in api.REMNAWAVE_PUBLIC_NODES
+        if node.get("country") == "DE" and node.get("tcp_port") == 443
+    )
+
+    assert germany["host"] == "de.arccnet.space"
+
+
 def test_customer_catalog_order_is_netherlands_germany_then_lte():
     links = [
         "vless://id@host#Обход%20глушилок%20(LTE)",
