@@ -68,6 +68,43 @@ Verification matrix:
 | Catalog | plain/base64/Happ assertions | fresh owner subscription/catalog |
 | Health | metrics serialization | uptime visible at four viewports |
 
+Closeout evidence 2026-08-28 (runtime `8fb6077`):
+
+- Criteria 1 and 4-6 **passed by automated/runtime evidence**. Active renewal
+  adds the purchased period to the existing expiry; a lapsed subscription starts
+  from now. The payment entitlement step applies the selected product before
+  fulfillment, and fulfillment now updates the existing isolated LTE identity's
+  quota, expiry, device limit and ACTIVE/DISABLED state. Stable main UUID and
+  public URL are untouched. Economy disables LTE instead of treating a zero-byte
+  Remnawave limit as unlimited. Hysteria labels no longer contain lightning in
+  native/plain and Happ paths. The admin cookie is 30-day Lax/Secure/HttpOnly
+  with an explicit expiry and login returns the owner access context immediately.
+- Criteria 2-3 **passed locally and read-only in production**. The mutation API
+  returns authoritative expiry/active state; the Svelte row and open detail are
+  patched before background refresh. Production API smoke returned HTTP 200 and
+  the expected `main_used_bytes`, `lte_used_bytes`, `lte_quota_gb` fields for the
+  LTE-ranked query. The UI exposes main/LTE top sorts and non-zero filters.
+- Criterion 6 **passed in production**: Overview returned Poland uptime
+  `1451276` seconds and Health renders the formatted uptime in the primary status
+  card. Both affected systemd services are active with zero restarts and no
+  warning journal entries after deployment.
+- Criterion 7 **partially passed**: 114 pytest tests and the Vite production
+  build pass. Browser-first local inspection at 1280x720 verified Users and
+  Health composition, controls, data labels and no horizontal overflow. The
+  prior whole-admin four-viewport pass remains valid for the shared shell, but
+  this browser runtime cannot change viewport, so fresh mobile/tablet/wide
+  screenshots of these touched views remain open rather than being inferred.
+- Criterion 8 **passed except owner-only interaction**: exact staged diff was
+  reviewed; commit/push, Poland `pull --ff-only`, selective restart and public
+  asset checks completed. Production `/admin` loads the new bundle with no
+  overflow but correctly presents login because no owner password was supplied.
+  A single owner login/reload and one safe manual add/remove-days interaction are
+  still required for authenticated production acceptance; no real user was
+  mutated without explicit designation.
+
+Rollback: revert `8fb6077`, push/pull, then restart
+`arcvpn-subscription.service` and `arcvpn-bot.service`.
+
 ## 2026-08-28 Germany Reality domain endpoint
 
 Goal: replace the literal public address of the active Germany Reality profile

@@ -1640,4 +1640,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - 2026-08-24: New Reality client profiles must not default to the Chrome fingerprint on affected Happ/mobile routes. The verified compatibility choices are Firefox or Edge; consult `.codex/references/node-config-contract.md` before provisioning or changing node profiles.
 - 2026-08-26: Happ production order is AutoSelect, Netherlands VLESS/Hysteria2, Germany VLESS/Hysteria2, then five EU LTE rows. LTE #1-#3 are main least-load profiles with LTE XHTTP fallback; #4-#5 are direct LTE. Main/LTE UUIDs remain separate and stable public subscription URLs are unchanged.
 - 2026-08-26: Standard trial is unlimited on the main identity and has exactly 5 GiB on a separate LTE identity. Three active legacy trials were reconciled after a dedicated SQLite backup.
+- 2026-08-28: Cross-plan renewal preserves an active key's remaining days and
+  applies the purchased tariff's device/LTE entitlement to the isolated
+  Remnawave LTE identity; a zero-LTE tariff disables that identity. Admin Users
+  exposes main/LTE usage ranking, owner password sessions last 30 days, Health
+  exposes Poland uptime, and published Hysteria labels have no lightning suffix.
 - 2026-08-26: DNS v2 is canary-only for Telegram ID 2075630349; the global profile remains legacy. Apex customer-domain activation is waiting for the REG.RU A record and TLS. Self-hosted SMTP on Poland is blocked by outbound TCP/25 and missing PTR/DNS mail prerequisites, so use a relay or resolve those gates first.

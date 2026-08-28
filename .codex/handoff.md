@@ -89,6 +89,16 @@ Updated: 2026-08-27. This file is current state, not a diary.
   plain/base64/Happ JSON contain no former literal connection endpoint. A real
   Germany Reality client tunnel remains the final canary.
 - Whole-admin operations redesign base was deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; its original production evidence is recorded in `.codex/stages/current.md`.
+- Tariff-transition/admin telemetry follow-up is deployed on Poland at `8fb6077`.
+  Active cross-plan renewal preserves remaining days and applies the new local
+  and Remnawave LTE quota/device/enablement contract; Economy disables LTE.
+  Admin Users now exposes per-user main/LTE usage with top sorts/filters and
+  updates expiry immediately after a verified mutation. Password login issues a
+  30-day Lax/Secure/HttpOnly cookie and renders owner access immediately. Health
+  displays real Poland uptime. Hysteria customer labels contain no lightning.
+  Local result: 114 tests and Vite build pass; production services are active.
+  Owner login/reload, one designated safe manual days mutation and fresh touched-
+  view mobile/tablet/wide captures remain final external acceptance gates.
 - Real Overview/Health/catalog/SEO follow-up is deployed at `a4e6890` on Poland.
   Overview now exposes real D/W/M joins, paid orders/revenue, acquisition source,
   product mix and current-cycle main/LTE usage. Health uses active Remnawave nodes
