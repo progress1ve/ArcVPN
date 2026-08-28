@@ -83,9 +83,11 @@ Updated: 2026-08-27. This file is current state, not a diary.
   new Codex task/session and verify a read-only Mailjet tool before sending mail.
 - Production subscription audit for Telegram ID 2075630349 found identical DNS
   JSON across all eleven Happ profiles and two intentional routing families.
-  Most endpoints are ArcVPN domains; DE Reality #1 remains a literal endpoint
-  with domain SNI and is inherited by AutoSelect/LTE fallback #1-#3. Do not change
-  it without a separate domain-resolution and real-client canary.
+  Germany Reality #1 now publishes `de.arccnet.space` from both the authoritative
+  Remnawave Host and ArcVPN fallback metadata (`0ce2d47`); the domain resolves to
+  the same active node and all non-address Host fields were preserved. Fresh
+  plain/base64/Happ JSON contain no former literal connection endpoint. A real
+  Germany Reality client tunnel remains the final canary.
 - Whole-admin operations redesign base was deployed at runtime commit `9c77b67831f163605678c9b476d5c3b72741e349`; its original production evidence is recorded in `.codex/stages/current.md`.
 - Real Overview/Health/catalog/SEO follow-up is deployed at `a4e6890` on Poland.
   Overview now exposes real D/W/M joins, paid orders/revenue, acquisition source,

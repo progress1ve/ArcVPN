@@ -39,6 +39,24 @@ snapshot of the exact target Host. Rollback restores only its previous address
 and the ArcVPN fallback constant; keys, UUIDs and subscription URLs are never
 rotated.
 
+Closeout evidence 2026-08-28:
+
+- Criteria 1-4 **passed**. Public DNS resolves `de.arccnet.space` exactly to the
+  active inventory address; the authoritative Host was backed up with mode 0600
+  and changed through the official partial PATCH contract. A full-object digest
+  excluding `address` proved that every other Host field remained unchanged.
+- Fresh owner plain/base64/Happ JSON were all sourced from Remnawave. Germany
+  Reality #1 uses `de.arccnet.space`; the former literal endpoint is absent from
+  all three outputs, including nested JSON profiles. Profile labels/order remain
+  YouTube, NL pair, DE pair and five EU LTE rows.
+- Local verification: focused subscription tests `24 passed`; full suite
+  `112 passed`; `git diff --check` passed. Commit `0ce2d47` was pushed and pulled
+  with `--ff-only`; only `arcvpn-subscription.service` restarted and public
+  health returned `OK` after the expected transient restart 502.
+- Criterion 5 **deferred to owner client canary**: DNS/port/config generation are
+  verified, but this run did not execute a real tunneled request through Germany
+  Reality. Rollback snapshot remains available; no identity/key rotation occurred.
+
 ## 2026-08-28 Mailjet bootstrap and published-profile consistency audit
 
 Goal: publish the owner-provided empty Mailjet domain-validation token, connect
