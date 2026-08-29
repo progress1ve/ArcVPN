@@ -1,5 +1,44 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-29 Estonia normal node admission
+
+Goal: admit the owner-provided Estonia VPS as a normal Remnawave node matching
+the proven Netherlands pattern: one VLESS TCP Reality profile and one native
+Hysteria2 profile, both included in main AutoSelect and published immediately
+after the Netherlands pair. Preserve all existing subscription URLs, user UUIDs,
+LTE isolation and current nodes.
+
+Target/current/desired: target alias `ee-1chost`; provider is 1chost (not DHost).
+The host is not yet inventoried,
+registered in Remnawave or present in subscription output. Desired state is a
+dedicated RemnaNode with unique Reality material, unique inbound tags, a direct
+ArcVPN-owned Estonia domain, consumption multiplier 1, production squad binding,
+two enabled Remnawave Hosts, and real TCP/UDP tunneled traffic evidence.
+
+Acceptance fixed before mutation:
+
+1. SSH host key is recorded and the supplied credential is kept only in the
+   local DPAPI vault; no password/private key/UUID/subscription token enters Git
+   or logs.
+2. Estonia has unique TCP Reality and Hysteria2 inbounds/configuration; syntax,
+   sockets/firewall, RemnaNode authorization and online state pass.
+3. `ee.arccnet.space` resolves to the node and is used as the public address;
+   Reality uses the verified Firefox fingerprint baseline and unique key/SID.
+4. Both inbounds belong to the production main squad and active identities keep
+   their existing UUIDs/URLs. Generated client configurations pass real tunneled
+   HTTP checks over TCP Reality and Hysteria2.
+5. Public order is AutoSelect, YouTube alias, Netherlands #1/#2, Estonia #1/#2,
+   Germany #1/#2, then the existing five EU fallback profiles. Estonia #1/#2 are
+   included in AutoSelect and no LTE identity/inbound is mixed into them.
+6. Local tests, exact diff, commit/push, Poland pull, affected service restart,
+   public profile inspection and service/log health pass.
+
+Risks: an unverified host key, DNS lag, duplicate Reality material, blocked UDP,
+incorrect squad binding or host ordering can expose a dead profile. Rollback
+disables/removes Estonia Hosts from subscription delivery first, removes its
+inbounds from the main squad/config profile, then stops/disconnects the new node;
+existing identities and URLs are never rotated.
+
 ## 2026-08-29 hide customer node settings in Happ
 
 Client acceptance correction (2026-08-29): the owner verified that settings
