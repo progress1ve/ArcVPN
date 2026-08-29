@@ -40,6 +40,20 @@ does not reach ArcVPN, but malformed deeplinks could block import. Rollback
 reverts only the helper/import changes and restarts
 `arcvpn-subscription.service`; no topology or identity mutation is involved.
 
+Follow-up closeout evidence: criteria 1-4 **passed** in commit `b8308c7`.
+Focused import/metadata tests are `9 passed`; the full suite is `124 passed`;
+Python compile and diff checks passed. The commit was pushed, fast-forwarded on
+Poland and only `arcvpn-subscription.service` was restarted. It is active and the
+post-restart error scan returned zero. A public non-customer import bridge
+returned HTTP 200, preserved the stable target path/query and contained an
+eight-character Provider-ID fragment; no ID or subscription token was logged.
+Production has no explicit `HAPP_PROVIDER_ID` service environment override and
+therefore uses the repository-configured public ID. Criterion 5 remains
+**deferred/failed from the earlier client check** until that ID is confirmed in
+the Happ provider dashboard for `sub.arccnet.space`, followed by a current-client
+delete/reimport and UI check. Rollback is revert `b8308c7`, pull and restart only
+the subscription service.
+
 Goal: disable normal viewing, editing and sharing of ArcVPN subscription node
 configurations in supported Happ clients without changing connectivity, stable
 subscription URLs, UUIDs, domains, protocols or fallback behavior.
@@ -62,8 +76,9 @@ traceback/exception/unhandled entry. Local result is `120 passed`, Python compil
 and `git diff --check`. The public owner subscription returns HTTP 200 with
 `hide-settings: 1` in the JSON response header and `#hide-settings: 1` in plain
 metadata. No public URL, UUID, credential, body routing or node configuration was
-changed. Happ UI/export hiding is accepted; resistance to modified/rooted clients
-is explicitly outside the achievable client-side boundary.
+changed. This proved metadata delivery only; the later real-client check failed
+and supersedes the original UI/export acceptance. Resistance to modified/rooted
+clients is explicitly outside the achievable client-side boundary.
 
 ## 2026-08-29 Happ fallback-only customer layout
 

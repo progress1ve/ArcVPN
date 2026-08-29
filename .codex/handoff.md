@@ -68,12 +68,16 @@ Updated: 2026-08-29. This file is current state, not a diary.
   credential-safe production verification. Finland is
   hidden from subscriptions and admin surfaces; disconnected Remnawave records
   remain intentionally undeleted.
-- Happ node settings are hidden in supported clients through `cda8604` using the
-  documented `hide-settings: 1` HTTP header plus plain/base64 metadata. Public
-  header/body verification passed and the subscription service is active. This
-  disables ordinary viewing/editing/sharing but is not cryptographic secrecy:
-  modified or rooted clients can still inspect runtime configuration required by
-  the VPN core.
+- Happ node-setting hardening is deployed through `b8308c7`: `hide-settings: 1`
+  remains in HTTP and plain/base64 metadata, and every browser/device-scoped Happ
+  import now carries the configured eight-character Provider ID in the official
+  URL fragment. Public transport verification and 124 local tests pass, but the
+  owner's real client still exposed settings before this follow-up. Behaviour is
+  not accepted until the same ID is confirmed in the Happ provider dashboard
+  with `sub.arccnet.space`, then the subscription is deleted/reimported in a
+  current client. Production has no explicit provider-ID environment override
+  and uses the repository value. Even when accepted this is client UI/export
+  hardening, not cryptographic secrecy against modified/rooted clients.
 - Three active legacy trials were reconciled after a separate backup: all now
   have unlimited main traffic, exactly 5 GiB LTE and a separate LTE identity.
   DNS v2 is enabled only for Telegram ID `2075630349`; the global profile remains
