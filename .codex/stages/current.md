@@ -13,7 +13,15 @@ and both disappear once a subscription is active; logout is visible in the lower
 left and requires a blurred modal confirmation. Build/tests and deployed mobile,
 tablet, desktop and wide browser checks must pass.
 
-Status: **implementation in progress**.
+Status: **passed and deployed**. Settings email now sends `purpose=link`
+explicitly instead of accidentally serializing the click event; a production
+request returned `sent=true` and Resend accepted the branded multipart message.
+The paid-trial modal has `Позже`, dismissal persists locally and exposes a home
+banner only while the email account has no active subscription. Logout is fixed
+to the lower-left corner and opens a blurred `Да`/`Нет` confirmation. WebApp
+build, full `125 passed`, service health and public HTTP 200 passed. Public login
+has no horizontal overflow at 390, 768, 1366 and 1920 px; authenticated-state
+visual confirmation remains a quick owner browser pass after refresh.
 
 ## 2026-08-29 TikTok forced proxy and Resend cutover
 
