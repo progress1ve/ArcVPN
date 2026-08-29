@@ -14,7 +14,7 @@ Updated: 2026-08-29. This file is current state, not a diary.
 ## Current product state
 
 - Standalone email registration and the paid-trial funnel are deployed through
-  `561c886` on Poland with schema v60. Email-only accounts receive no free trial;
+  `2fa9072` on Poland with schema v60. Email-only accounts receive no free trial;
   an eligible account is offered one server-priced 10 RUB Standard trial for
   7 days with unlimited main traffic, 5 GiB LTE and 3 devices. An atomic per-user
   claim blocks concurrent provider checkouts before YooKassa and is released only
