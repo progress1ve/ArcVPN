@@ -38,7 +38,7 @@ def test_unknown_login_email_has_neutral_success_and_sends_nothing():
 
 def test_successful_email_login_consumes_code_before_session():
     raw_code = "123456"
-    record = {"id": 9, "attempts": 0, "code_hash": api._email_code_hash(raw_code, "login")}
+    record = {"id": 9, "email": "known@example.com", "attempts": 0, "code_hash": api._email_code_hash(raw_code, "login")}
     with patch.object(api, "get_user_by_verified_email", return_value={"id": 4}), patch.object(
         api, "get_email_code", return_value=record
     ), patch.object(api, "link_verified_email") as consume, patch.object(api, "create_web_session") as session:

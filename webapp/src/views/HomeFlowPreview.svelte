@@ -3,7 +3,7 @@
   import { fade, fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
-  import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
+  import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
   import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
@@ -16,6 +16,7 @@
 
   const asset = `${import.meta.env.BASE_URL}assets/arc-flow`
   const user = getUser()
+  const isTelegramWebApp = Boolean(tg?.initData)
   const tabs = [
     { id: 'home', icon: 'home', label: 'Главная' },
     { id: 'friends', icon: 'gift', label: 'Друзья' },
@@ -250,6 +251,7 @@
     try {
       await requestEmailCode(emailInput.trim(), purpose)
       emailStep = 'code'
+      localStorage.setItem('arcvpn-email-flow', JSON.stringify({ email: emailInput.trim(), purpose, requestedAt: Date.now() }))
       emailMessage = import.meta.env.DEV ? 'Тестовый код: 123456' : 'Код отправлен. Проверьте почту.'
     } catch (error) {
       emailMessage = error.reason === 'email_unavailable' ? 'Отправка писем ещё не настроена на сервере.' : 'Не удалось отправить код. Проверьте email.'
@@ -269,6 +271,7 @@
         account = { ...(account || {}), email: result.email, email_verified: true }
         emailMessage = 'Email подтверждён и теперь подходит для входа.'
       }
+      localStorage.removeItem('arcvpn-email-flow')
     } catch (error) {
       emailMessage = error.reason === 'email_in_use' ? 'Этот email уже привязан к другому аккаунту.' : 'Неверный или просроченный код.'
     } finally { emailBusy = false }
@@ -282,6 +285,7 @@
       emailInput = ''
       emailCode = ''
       emailStep = 'email'
+      localStorage.removeItem('arcvpn-email-flow')
       emailMessage = 'Email отвязан.'
     } catch (_) { emailMessage = 'Не удалось отвязать email.' }
     finally { emailBusy = false }
@@ -767,6 +771,19 @@
 
   onMount(() => {
     paidTrialDismissed = localStorage.getItem('arcvpn-paid-trial-dismissed') === '1'
+    try {
+      const pendingEmail = JSON.parse(localStorage.getItem('arcvpn-email-flow') || 'null')
+      if (pendingEmail?.email && pendingEmail?.purpose && Date.now() - Number(pendingEmail.requestedAt) < 10 * 60 * 1000) {
+        emailInput = pendingEmail.email
+        emailAuthMode = pendingEmail.purpose === 'register' ? 'register' : 'login'
+        emailStep = 'code'
+        emailMessage = 'Код уже отправлен. Введите его из письма.'
+      } else {
+        localStorage.removeItem('arcvpn-email-flow')
+      }
+    } catch (_) {
+      localStorage.removeItem('arcvpn-email-flow')
+    }
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
     const requestedScreen = pageUrl.searchParams.get('screen')
@@ -805,9 +822,6 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
-  {#if $status.error !== 'unauthorized'}
-    <button class="account-logout" aria-label="Выйти из аккаунта" on:click={() => logoutConfirmOpen = true}><ArcIcon name="logout" size={21} weight="bold" /><span>Выйти</span></button>
-  {/if}
   {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main' || connectOpen)}
     <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
@@ -1083,7 +1097,8 @@
             <section class="settings-group">
               <h2>Способы входа</h2>
               <button class="setting-row login-row" on:click={() => openSettingsPage('email')}><i><ArcIcon name="email" size={21} weight="duotone" /></i><span><b>Email</b><small>{account?.email || 'Вход без отдельной регистрации'}</small></span>{#if account?.email_verified}<em class="connected"><ArcIcon name="check" size={17} weight="bold" /></em>{:else}<ArcIcon name="caret" size={17} weight="bold" />{/if}</button>
-              <button class="setting-row login-row"><i class="telegram"><ArcIcon name="telegram" size={21} weight="fill" /></i><span><b>Telegram</b><small>{username}</small></span><em class="connected"><ArcIcon name="check" size={17} weight="bold" /></em></button>
+              <button class="setting-row login-row" disabled={account?.identity_source === 'email'}><i class="telegram"><ArcIcon name="telegram" size={21} weight="fill" /></i><span><b>Telegram</b><small>{account?.identity_source === 'email' ? 'Не подключён' : username}</small></span>{#if account?.identity_source !== 'email'}<em class="connected"><ArcIcon name="check" size={17} weight="bold" /></em>{/if}</button>
+              {#if !isTelegramWebApp}<button class="setting-row login-row logout-row" on:click={() => logoutConfirmOpen = true}><i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 5H6.8A1.8 1.8 0 0 0 5 6.8v10.4A1.8 1.8 0 0 0 6.8 19H10M14.5 8.5 18 12l-3.5 3.5M9 12h9"/></svg></i><span><b>Выйти из аккаунта</b><small>Завершить сеанс в этом браузере</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>{/if}
             </section>
 
             <section class="settings-group">
@@ -1573,8 +1588,8 @@
   .auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:14px 0 10px;padding:4px;border-radius:14px;background:#0a131f}.auth-switch button{min-height:38px;border:0;border-radius:10px;color:#7890a5;background:transparent;font-weight:800}.auth-switch button.active{color:#07131d;background:#8ed3f7}
   .paid-trial-backdrop{position:fixed;z-index:95;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.paid-trial-card{box-sizing:border-box;width:min(100%,500px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);box-shadow:0 35px 110px rgba(0,0,0,.62)}.paid-trial-kicker{color:#80c9f4;font-size:9px;font-weight:900;letter-spacing:.14em}.paid-trial-card h2{margin:10px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.paid-trial-card>p{margin:0;color:#aab8c6;font-size:12px;line-height:1.55}.paid-trial-methods{display:grid;gap:9px;margin-top:22px}.paid-trial-methods button{display:grid;grid-template-columns:42px 1fr 24px;align-items:center;gap:11px;min-height:68px;padding:10px 14px;border:1px solid rgba(174,211,241,.1);border-radius:20px;color:#fff;background:rgba(255,255,255,.025);text-align:left}.paid-trial-methods button.active{border-color:#83cdf7;background:rgba(105,191,240,.08)}.paid-trial-methods img{width:32px;height:32px}.paid-trial-methods span{display:flex;flex-direction:column;gap:3px}.paid-trial-methods small,.paid-trial-renew small{color:#91a3b4;font-size:10px}.paid-trial-methods em{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#96d8ff;color:#07111b;font-style:normal}.paid-trial-renew{display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px;border-radius:17px;background:rgba(139,196,235,.06)}.paid-trial-renew>i{display:grid;place-items:center;flex:0 0 29px;height:29px;border-radius:50%;color:#07111b;background:#96d8ff}.paid-trial-renew span{display:flex;flex-direction:column;gap:3px}.paid-trial-pay{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:18px;color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);font-weight:900}.paid-trial-later{width:100%;min-height:52px;margin-top:10px;border:1px solid #3c6f8f;border-radius:18px;color:#a9dcfa;background:transparent;font-weight:850}.paid-trial-later:hover{border-color:#8bd3fa;background:rgba(112,199,244,.06)}.paid-trial-error{margin-top:12px!important;color:#ffadb4!important}.paid-trial-legal{display:block;margin-top:12px;color:#74899c;font-size:9px;text-align:center}.paid-trial-legal a{color:#9bd9ff}
   .paid-trial-banner{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:18px;padding:16px 18px;border:1px solid rgba(136,211,253,.28);border-radius:21px;color:#fff;background:linear-gradient(120deg,rgba(89,176,225,.14),rgba(7,17,27,.75));text-align:left}.paid-trial-banner span{display:flex;flex-direction:column;gap:3px}.paid-trial-banner small{color:#82cef8;font-size:8px;font-weight:900;letter-spacing:.12em}.paid-trial-banner b{font-size:15px}.paid-trial-banner em{color:#8fa4b6;font-size:9px;font-style:normal}.paid-trial-banner>i{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;color:#07111b;background:#98d9ff}
-  .account-logout{position:fixed;z-index:32;left:22px;bottom:22px;display:flex;align-items:center;gap:9px;min-height:48px;padding:0 16px;border:1px solid rgba(145,200,237,.18);border-radius:999px;color:#a8cde4;background:rgba(8,18,29,.72);backdrop-filter:blur(12px)}.account-logout:hover{border-color:#77c9f6;color:#fff}.logout-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.logout-dialog{box-sizing:border-box;width:min(100%,430px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:28px;background:linear-gradient(150deg,#111d2a,#080f18 72%);text-align:center;box-shadow:0 35px 110px rgba(0,0,0,.62)}.logout-dialog>i{display:grid;place-items:center;width:50px;height:50px;margin:0 auto 16px;border-radius:16px;color:#9bdcff;background:rgba(117,199,245,.09)}.logout-dialog h2{margin:0;font-size:27px}.logout-dialog p{margin:10px auto 22px;max-width:330px;color:#9aacbc;font-size:12px;line-height:1.55}.logout-dialog>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}.logout-dialog button{min-height:52px;border-radius:17px;font-weight:900}.logout-no{border:1px solid #39637e;color:#aadcf8;background:transparent}.logout-yes{border:0;color:#08131c;background:#91d5fa}
-  @media(max-width:700px){.account-logout{left:14px;bottom:94px;width:46px;padding:0;justify-content:center}.account-logout span{display:none}.paid-trial-card{padding:23px;border-radius:25px}.logout-dialog{padding:24px}}
+  .logout-row>i svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.logout-row b{color:#b9ddf2}.logout-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.logout-dialog{box-sizing:border-box;width:min(100%,430px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:28px;background:linear-gradient(150deg,#111d2a,#080f18 72%);text-align:center;box-shadow:0 35px 110px rgba(0,0,0,.62)}.logout-dialog>i{display:grid;place-items:center;width:50px;height:50px;margin:0 auto 16px;border-radius:16px;color:#9bdcff;background:rgba(117,199,245,.09)}.logout-dialog h2{margin:0;font-size:27px}.logout-dialog p{margin:10px auto 22px;max-width:330px;color:#9aacbc;font-size:12px;line-height:1.55}.logout-dialog>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}.logout-dialog button{min-height:52px;border-radius:17px;font-weight:900}.logout-no{border:1px solid #39637e;color:#aadcf8;background:transparent}.logout-yes{border:0;color:#08131c;background:#91d5fa}
+  @media(max-width:700px){.paid-trial-card{padding:23px;border-radius:25px}.logout-dialog{padding:24px}}
   .login-divider { display: flex; align-items: center; gap: 12px; margin: 18px 4px 0; color: var(--faint); font-size: 9px; }
   .login-divider::before,.login-divider::after { content: ''; height: 1px; flex: 1; background: var(--hairline); }
   .login-form { margin-top: 28px; }
