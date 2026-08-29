@@ -68,6 +68,12 @@ Updated: 2026-08-29. This file is current state, not a diary.
   credential-safe production verification. Finland is
   hidden from subscriptions and admin surfaces; disconnected Remnawave records
   remain intentionally undeleted.
+- TikTok forced routing is deployed through `07bf9a2`/`c595bd6`. Explicit
+  TikTok/ByteDance domains are proxied before `geoip:ru` and other direct rules
+  in legacy routing and every Happ JSON row, including all five bypass profiles;
+  their existing main-to-LTE fallback remains unchanged. Production recursive
+  verification reports `tiktok_routing_ok=true`. A real affected-device TikTok
+  canary during throttling is still required.
 - Estonia 1chost is admitted as an active normal Remnawave node through
   `20e050a`/`4ca2ac6`. `ee.arccnet.space` publishes one TCP Reality and one
   Hysteria2 row immediately before the Netherlands pair (`2f32b94`); both are in the main
@@ -113,6 +119,10 @@ Updated: 2026-08-29. This file is current state, not a diary.
   is configured but intentionally unauthenticated. Store it using
   `C:\Users\babay\.codex\mcp\mailjet-credential.ps1 -Action Set`, then start a
   new Codex task/session and verify a read-only Mailjet tool before sending mail.
+- Resend is the selected Mailjet replacement. Poland can reach its STARTTLS SMTP
+  endpoint on port 2587 and the existing OTP sender is compatible. Do not reuse
+  the key posted in chat: verify a dedicated sending subdomain, rotate the key,
+  store it outside Git in a protected production env, then run a real OTP test.
 - Production subscription audit for Telegram ID 2075630349 found identical DNS
   JSON across all eleven Happ profiles and two intentional routing families.
   Germany Reality #1 now publishes `de.arccnet.space` from both the authoritative

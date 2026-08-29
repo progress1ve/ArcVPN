@@ -19,6 +19,26 @@ subscription service. Rollback restores the prior routing commit and service;
 email rollback restores the protected SMTP env backup. Public URLs, UUIDs,
 Remnawave identities and node bindings are unchanged.
 
+Status: TikTok routing **passed and deployed**; Resend **blocked on external
+domain verification and safe credential replacement**.
+
+- `TIKTOK_PROXY_SITES` covers TikTok and ByteDance delivery domains. Legacy
+  Happ routing publishes them in `ProxySites`; all 13 generated Happ JSON rows
+  place the forced VPN rule before Russian/private direct rules. AutoSelect and
+  every named bypass row retain the same main-to-LTE fallback chain.
+- Local suite: `125 passed`; focused test and Python compile pass. Runtime commit
+  `07bf9a2` and standalone verifier fix `c595bd6` were pushed and fast-forwarded
+  on Poland; only `arcvpn-subscription.service` was restarted.
+- Production verifier reports `tiktok_routing_ok=true`, correct 13-row order,
+  two Estonia AutoSelect outbounds, intact main/LTE credential isolation, active
+  service and `OK` health. A real TikTok app test during throttling remains the
+  external behavioral gate.
+- Poland reaches `smtp.resend.com:2587`, and the existing SMTP sender supports
+  Resend's STARTTLS contract. No supplied key was copied into a command, file or
+  Git because it was posted in chat and must be replaced. Remaining gate: add
+  and verify a dedicated sending subdomain in Resend, generate a replacement
+  key, store it through a protected channel, then deliver one real OTP.
+
 ## 2026-08-29 Estonia-first subscription order
 
 Goal: move the existing Estonia TCP/Hysteria pair above the Netherlands pair in

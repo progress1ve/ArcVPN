@@ -1657,3 +1657,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Real TCP Reality and official Hysteria2-client canaries returned HTTP 204.
   Inventory credential alias is `ee-1chost`; secrets remain only in the local
   DPAPI vault and production Remnawave/node state.
+## 2026-08-29: TikTok forced through VPN before Russian direct routing
+
+- Happ routing now sends explicit TikTok/ByteDance domains through the selected
+  VPN before `geoip:ru` or other direct rules can capture Russian CDN addresses.
+  This applies to all regular rows, AutoSelect and the five bypass rows; their
+  hidden main-to-LTE fallback behavior is unchanged.
+- Resend was selected for OTP delivery. The current SMTP implementation is
+  compatible with Resend STARTTLS on port 2587, but production cutover requires
+  a verified sending subdomain and a replacement key stored outside Git.
