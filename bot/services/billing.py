@@ -592,7 +592,10 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
             user, trial_days_override=7, grant_referral_reward=False
         ) if user else None
         if not provisioned:
-            update_email_paid_trial_claim(order_id, 'failed')
+            # Payment is already confirmed: keep the one-time offer sealed while
+            # support/reconciliation retries provisioning, otherwise a customer
+            # could be charged for a second checkout.
+            update_email_paid_trial_claim(order_id, 'paid')
             update_order_fulfillment(order_id, 'manual_review', 'paid email trial provisioning failed')
             return True, "✅ Оплата принята. Активацию проверит поддержка.", _reload_order(order_id)
         update_order_fulfillment(order_id, 'applied')

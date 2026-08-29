@@ -3421,6 +3421,8 @@ def api_sbp_payment_status(order_id: str):
         status = str(payment_details.get("status") or "pending")
         applied = False
         fulfillment_status = order.get("fulfillment_status") or "pending"
+        if status == "canceled" and order.get("offer_code") == "email_paid_trial":
+            update_email_paid_trial_claim(order_id, "canceled")
         if status == "succeeded":
             if order.get("offer_code") == "email_paid_trial":
                 update_email_paid_trial_claim(order_id, "paid")
