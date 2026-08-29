@@ -913,6 +913,24 @@ def _is_valid_subscription_id(sub_id: str) -> bool:
     return bool(VALID_SUBSCRIPTION_ID_PATTERN.fullmatch(sub_id))
 
 
+def _happ_subscription_target(url: str) -> str:
+    """Attach Happ's public provider id at import time when it is valid.
+
+    The fragment is consumed by Happ and is intentionally never sent to the
+    subscription endpoint. Header/body metadata remains the refresh-time source.
+    """
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
+        return url
+    parts = urllib.parse.urlsplit(url)
+    return urllib.parse.urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, parts.query, f"?providerid={HAPP_PROVIDER_ID}")
+    )
+
+
+def _happ_add_url(url: str) -> str:
+    return f"happ://add/{_happ_subscription_target(url)}"
+
+
 def _row_to_active_key(row: Any) -> ActiveKeyRecord:
     return ActiveKeyRecord(
         id=int(row["id"]),
@@ -2819,12 +2837,14 @@ def import_to_happ(sub_id: str):
         subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format={output_format}"
         return redirect(subscription_url)
 
-    subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=json"
+    subscription_url = _happ_subscription_target(
+        f"{SUBSCRIPTION_URL}/sub/{sub_id}?format=json"
+    )
     safe_subscription_url = html.escape(subscription_url, quote=True)
     js_subscription_url = json.dumps(subscription_url)
 
     # Правильный формат Happ deeplink: happ://add/{URL}
-    happ_deeplink = f"happ://add/{subscription_url}"
+    happ_deeplink = _happ_add_url(subscription_url)
     safe_happ_deeplink = html.escape(happ_deeplink, quote=True)
 
     # HTML страница с новым дизайном на основе референса
@@ -3654,7 +3674,9 @@ def api_register_import_device(sub_id: str):
         "ok": True,
         "device_name": display_name,
         "device_sub_id": device_sub_id,
-        "import_url": f"happ://add/{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=json",
+        "import_url": _happ_add_url(
+            f"{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=json"
+        ),
     }))
 
 

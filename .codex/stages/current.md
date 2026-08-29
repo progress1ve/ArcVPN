@@ -2,6 +2,44 @@
 
 ## 2026-08-29 hide customer node settings in Happ
 
+Client acceptance correction (2026-08-29): the owner verified that settings
+remain visible in the real Happ client. Header/body presence was transport
+evidence only and did not prove UI behaviour, so the earlier acceptance claim
+below is superseded. Official Happ documentation classifies `hide-settings` as
+an advanced Provider-ID feature: the provider must be registered, the
+subscription domain must be attached to that provider, and compatible clients
+must recognise the provider. The supported import URL also accepts
+`#?providerid=<8-char-id>`; ArcVPN currently supplies Provider ID only after the
+subscription is fetched (header/body), not at import time.
+
+Follow-up goal: preserve the existing header/body metadata and add the same
+validated Provider ID to every Happ subscription target at import time. Verify
+the production environment has an explicit Provider ID without disclosing it,
+cover browser fallback and device-scoped imports, and deploy without changing
+the subscription path, UUID, nodes, credentials or routing.
+
+Follow-up acceptance fixed before implementation:
+
+1. A valid configured Provider ID is appended to the HTTPS target as the
+   documented URL fragment, including device-scoped imports; invalid/empty IDs
+   never produce a fragment.
+2. Existing query parameters (`format`, `device`) and stable subscription paths
+   are preserved exactly; the fragment is not sent to the subscription server.
+3. Header/body `providerid` and `hide-settings` metadata remain intact.
+4. Unit tests cover query+fragment construction and both import paths; full
+   tests, diff review, push, Poland pull, subscription-service restart and
+   credential-safe public inspection pass.
+5. Behaviour remains **deferred** until a current Happ client imports the
+   refreshed URL under a Provider ID whose account contains the ArcVPN
+   subscription domain. An updated client/delete-and-reimport/daily provider
+   refresh may be required by Happ and cannot be proven by HTTP inspection.
+
+Risk and rollback: an unregistered or domain-mismatched Provider ID will still
+be ignored. Old clients may ignore the flag. The URL fragment is client-side and
+does not reach ArcVPN, but malformed deeplinks could block import. Rollback
+reverts only the helper/import changes and restarts
+`arcvpn-subscription.service`; no topology or identity mutation is involved.
+
 Goal: disable normal viewing, editing and sharing of ArcVPN subscription node
 configurations in supported Happ clients without changing connectivity, stable
 subscription URLs, UUIDs, domains, protocols or fallback behavior.
