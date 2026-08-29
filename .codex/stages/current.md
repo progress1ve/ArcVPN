@@ -1494,3 +1494,13 @@ subscription URLs, UUIDs, or active access.
 - Components: bot lifecycle scheduler/callbacks, bot settings keyboard, payment-flow keyboard, admin overview API/UI, WebApp deep link.
 - Main risk: duplicate prompts during migration from `day5_rating`; prevented by excluding both event keys and accepting both callback generations.
 - Rollback: revert the runtime commit and restart only `arcvpn-bot.service` and `arcvpn-subscription.service`; no schema migration or destructive data change is required.
+
+## Closeout evidence
+
+- Acceptance 1 passed: focused coverage proves the 23-hour boundary, 25-hour delivery and one-shot behavior; production created 9 `trial_day1_rating` events after deployment.
+- Acceptance 2 passed in code/API and local rendered UI: answers are persisted, Overview returns aggregates plus recent respondents, and the empty state rendered at 360, 768, 1280 and 1920 px without horizontal overflow. Production authenticated visual inspection remains owner-session acceptance; the public bundle is current.
+- Acceptance 3 passed: keyboard regression verifies renewal Back=`my_keys`; bot Settings links `/app?screen=email`, and the WebApp accepts the email deep link.
+- Acceptance 4 passed: no schema/public identifier change; legacy rating callback coverage passes.
+- Verification: 128 pytest tests passed, Vite production build passed, Python compilation passed, and public `/health` returned HTTP 200 with the expected JS/CSS asset hashes.
+- Release: runtime commit `d27d11e` was pushed and fast-forwarded on Poland. Only `arcvpn-bot.service` and `arcvpn-subscription.service` restarted; both are active/enabled and their post-release error journal is empty.
+- Rollback remains `git revert d27d11e`, push/pull, then restart the same two services. Next step: inspect the first real answers in Overview and confirm the email button/back button from a real Telegram client.

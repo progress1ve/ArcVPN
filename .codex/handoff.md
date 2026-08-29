@@ -151,6 +151,14 @@ Updated: 2026-08-29. This file is current state, not a diary.
   up then cleared; stable user URLs/UUIDs were unchanged. Local result: 110 tests
   and warning-free Vite build.
 - All 11 owner sections passed authenticated production composition/overflow checks at mobile, tablet, desktop, and wide viewports. Capability-aware navigation/RBAC, honest state machines, role management, truthful Schemes/Nodes/Backups language, and immediate verified subscription-panel synchronization are implemented.
+- Trial feedback follow-up is deployed through `d27d11e`. The bot sends one
+  rating prompt no earlier than 24 hours after `trial_entitlements.activated_at`,
+  excludes both current and legacy rating events, and still accepts old buttons.
+  Admin Overview exposes sent/answered totals, response rate, average,
+  distribution and recent respondents. Bot Settings links to the existing email
+  verification screen, and renewal Back returns to the subscription list. Local
+  result: 128 tests and Vite build pass; production emitted 9 eligible prompts,
+  both services are active and journals contain no errors.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
 - The non-operational Schemes editor and its graph dependency were removed in `d111e11efa5f86738e54fc6e464fabe3e2dc9bb6`. Axottle-only infrastructure features without ArcVPN backend contracts remain explicitly deferred/rejected in the current stage matrix.
 - Frontend changes require live browser inspection at four viewport classes, not only code/tests.
