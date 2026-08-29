@@ -42,7 +42,16 @@ def main() -> int:
     expected_announce = "❗Лимит ГБ тратиться только на Обход глушилок.❗"
     json_url = f"http://127.0.0.1:8080/sub/{urllib.parse.quote(row['sub_id'], safe='')}?format=json"
     with urllib.request.urlopen(json_url, timeout=15) as response:
-        profile_names = [item.get("remarks") for item in json.loads(response.read().decode("utf-8"))]
+        profiles = json.loads(response.read().decode("utf-8"))
+        profile_names = [item.get("remarks") for item in profiles]
+    auto_hosts = []
+    for outbound in profiles[0].get("outbounds", []):
+        settings = outbound.get("settings") or {}
+        vnext = settings.get("vnext") or []
+        if vnext:
+            auto_hosts.append(vnext[0].get("address"))
+        elif settings.get("address"):
+            auto_hosts.append(settings.get("address"))
     expected_names = [
         "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы",
         "🇳🇱 Нидерланды #1", "🇳🇱 Нидерланды #2",
@@ -58,7 +67,8 @@ def main() -> int:
               and len(lte_links) == 5
               and f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo
               and expected_announce in announce
-              and profile_names == expected_names,
+              and profile_names == expected_names
+              and auto_hosts.count("ee.arccnet.space") == 2,
         "main_links": len(main_links), "lte_links": len(lte_links),
         "main_identity_ok": credentials_match(main_links, row["client_uuid"]),
         "lte_identity_ok": credentials_match(lte_links, row["lte_client_uuid"]),
@@ -72,6 +82,7 @@ def main() -> int:
         "announce_ok": expected_announce in announce,
         "profile_order_ok": profile_names == expected_names,
         "profile_count": len(profile_names),
+        "estonia_auto_outbounds": auto_hosts.count("ee.arccnet.space"),
     }
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result["ok"] else 1
