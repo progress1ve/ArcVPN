@@ -71,15 +71,12 @@ class HappFallbackBalancerTests(unittest.TestCase):
             ],
         )
         self.assertEqual(profiles[0]["remarks"], "Автовыбор | Самый быстрый")
-        for bypass in profiles[-5:-2]:
+        for bypass in profiles[-5:]:
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
             self.assertIn("LOOPBACK_TO_BACK", bypass_outbounds)
             self.assertEqual(bypass["routing"]["balancers"][0]["tag"], "balancer_main")
-        for bypass in profiles[-2:]:
-            bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
-            self.assertIn("proxy", bypass_outbounds)
 
-    def test_direct_cdn_profiles_are_last_and_keep_country_flags(self):
+    def test_direct_cdn_links_become_hidden_fallback_outbounds_only(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
             "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
@@ -95,3 +92,10 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
             "🇪🇺 Обход глушилок #5",
         ])
+        for profile in profiles[-5:]:
+            outbounds = {item["tag"]: item for item in profile["outbounds"]}
+            self.assertNotIn("proxy", outbounds)
+            self.assertIn("proxy-back-1", outbounds)
+            self.assertIn("proxy-back-2", outbounds)
+            self.assertIn("LOOPBACK_TO_BACK", outbounds)
+            self.assertEqual(profile["routing"]["balancers"][0]["fallbackTag"], "LOOPBACK_TO_BACK")

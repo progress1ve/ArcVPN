@@ -1579,16 +1579,12 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *visible_country("Германия"),
     ]
     fallback_lte_profiles = []
-    for number in range(1, 4):
+    for number in range(1, 6):
         profile = copy.deepcopy(auto_profile)
         profile["remarks"] = f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
         fallback_lte_profiles.append(profile)
-    direct_lte_profiles = [
-        profile for profile in lte_profiles
-        if re.search(r"#\s*[45]\b", str(profile.get("remarks") or ""))
-    ]
     return json.dumps(
-        [auto_profile, *visible_main, *fallback_lte_profiles, *direct_lte_profiles],
+        [auto_profile, *visible_main, *fallback_lte_profiles],
         ensure_ascii=False,
         separators=(",", ":"),
     )

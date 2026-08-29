@@ -1,5 +1,53 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-29 Happ fallback-only customer layout
+
+Goal: remove the two manually selectable direct XHTTP rows from Happ delivery,
+replace them with two additional customer-facing AutoSelect clones using the
+existing main-to-LTE loopback fallback, and confirm that the primary AutoSelect
+also fails over and returns to main after observatory recovery.
+
+Current state: Happ emits one primary AutoSelect, NL/DE main profiles, three
+fallback AutoSelect clones and two direct LTE XHTTP rows. The generated primary
+AutoSelect already contains `balancer_main -> LOOPBACK_TO_BACK -> balancer_back`;
+all five LTE outbounds stay hidden inside it. Official Xray routing documentation
+states that unavailable observed outbounds are excluded, `fallbackTag` is used
+when all observed candidates are unavailable, and burst-observatory recovery
+requires one successful probe. With the current 20-second interval and two
+samples, recovery is eventual rather than instant.
+
+Affected components: Happ JSON assembly and contract tests only. The underlying
+Remnawave LTE identities/inbounds/CDN edges remain available as hidden fallback
+outbounds. Plain/base64 output, public subscription URL, UUIDs, product quotas,
+DNS, node bindings and server configuration are unchanged.
+
+Acceptance fixed before implementation:
+
+1. Happ order remains primary AutoSelect, YouTube, NL VLESS/Hysteria2, DE
+   VLESS/Hysteria2, then exactly five EU-labelled bypass rows.
+2. All five bypass rows are AutoSelect profiles containing observed main
+   outbounds, hidden LTE outbounds, loopback and both balancers; no customer row
+   exposes a direct `proxy` XHTTP profile.
+3. The first primary AutoSelect uses the same LTE fallback chain. Main recovery
+   is driven by continued burst-observatory probes and causes new connections to
+   select main again; existing established connections are not promised to move.
+4. Plain/base64 links and Remnawave topology are not deleted or mutated. Stable
+   URLs/UUIDs and LTE accounting remain unchanged.
+5. Local subscription tests and full suite pass; exact staged diff is reviewed;
+   commit/push/Poland pull/restart subscription service/public Happ inspection
+   confirm five fallback clones, hidden direct XHTTP rows and intact credentials.
+
+Risks and rollback: unsupported client/core loopback behavior could break all
+bypass clones or create a routing loop. Existing tests must verify dedicated
+inbound re-entry and selector isolation. Rollback reverts only the subscription
+assembly commit and restarts `arcvpn-subscription.service`; no identity, host,
+inbound or subscription URL is changed.
+
+Verification matrix: unit structure test; full pytest; generated JSON recursive
+inspection; production public owner subscription comparison without printing its
+URL/UUID; service health/log scan. A real client outage/recovery canary remains
+the final behavioral proof because static JSON cannot force a network failure.
+
 ## 2026-08-28 email registration and paid-trial funnel
 
 Goal: make standalone email registration a real ArcVPN account path without a
