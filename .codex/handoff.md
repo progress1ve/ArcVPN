@@ -1,6 +1,6 @@
 # ArcVPN current handoff
 
-Updated: 2026-08-27. This file is current state, not a diary.
+Updated: 2026-08-29. This file is current state, not a diary.
 
 ## Authority and topology
 
@@ -13,6 +13,15 @@ Updated: 2026-08-27. This file is current state, not a diary.
 
 ## Current product state
 
+- Standalone email registration and the paid-trial funnel are deployed through
+  `561c886` on Poland with schema v60. Email-only accounts receive no free trial;
+  an eligible account is offered one server-priced 10 RUB Standard trial for
+  7 days with unlimited main traffic, 5 GiB LTE and 3 devices. An atomic per-user
+  claim blocks concurrent provider checkouts before YooKassa and is released only
+  after cancellation/failure. Admin exposes the paid-trial cohort and subscription
+  mutations render their returned snapshot immediately. Local evidence is
+  `119 passed` plus a successful Vite build. Real delivery/payment/saved-method
+  acceptance remains pending and must not be claimed as passed.
 - Onboarding/billing/quota/WebApp runtime is deployed through `83c3298` on Poland.
   Production schema is v57; 20 users have calendar anchors, the due-reset preview
   was zero at deployment, and the old first-of-month reset is disabled.
@@ -74,8 +83,11 @@ Updated: 2026-08-27. This file is current state, not a diary.
   25/465/587 are blocked, PTR is provider-owned and mail-auth DNS is absent. SMTP
   relay port 2525 is reachable for Mailjet and Brevo. Prefer Mailjet Free after the
   owner creates/verifies the account/domain and supplies credentials outside Git.
-- Mailjet domain validation bootstrap is deployed through `b9d7829`. The exact
-  empty verification URL returns HTTP 200 and may be validated in Mailjet. A
+- Mailjet domain validation bootstrap is deployed through `b9d7829`. SPF and
+  DKIM are confirmed, and the exact empty verification URL returns HTTP 200, but
+  Mailjet still shows the domain as Pending and transferred the ticket to a
+  specialist group. The domain label is display-only and does not affect this
+  validation. A
   local global Codex MCP entry named `mailjet` points to a DPAPI-aware launcher;
   the Mailjet API key/secret has not yet been generated/stored, so the integration
   is configured but intentionally unauthenticated. Store it using
@@ -118,8 +130,8 @@ Updated: 2026-08-27. This file is current state, not a diary.
 
 ## Next recommended stage
 
-Create and verify the free Mailjet sending domain, publish its exact SPF/DKIM plus
-an initial DMARC policy, provide production SMTP credentials outside Git, then run
+Wait for Mailjet's specialist review of the already public and SPF/DKIM-confirmed
+sending domain, publish an initial DMARC policy, provide production SMTP credentials outside Git, then run
 a real linked-email delivery/login and authenticated promo/payment pass. Execute
 the DNS v2 client canary on Wi-Fi/mobile and at least two Happ platforms before
 enabling `ARCVPN_DNS_PROFILE=v2`. Reconcile one real user's local/Remnawave/WebApp

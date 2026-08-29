@@ -77,15 +77,16 @@ Verification matrix:
 | Cohort filter | query/API test | Users filter/empty/populated |
 | Responsive/accessibility | build + component states | four viewport classes |
 
-Implementation evidence (2026-08-28):
+Implementation evidence (2026-08-29):
 
-- Schema v59 adds standalone email identities, independent one-time registration codes, payment `offer_code`, and paid-trial cohort indexes.
+- Schema v59 adds standalone email identities, independent one-time registration codes, payment `offer_code`, and paid-trial cohort indexes. Schema v60 adds a per-user atomic checkout claim so concurrent requests are rejected before contacting YooKassa; canceled/failed provider attempts release the claim and successful fulfillment seals it as applied.
 - Registration creates no free entitlement. The paid offer is fixed server-side at 10 RUB, Standard for 7 days, 3 devices and 5 GiB LTE; main Remnawave traffic is unlimited and no referral trial reward is emitted.
 - Payment creation requires the selected YooKassa recurring capability. The existing verified webhook persists a method only when the provider reports it as saved.
 - Admin Users exposes `Пробник за 10 ₽`. Subscription mutations now apply the returned key snapshot and timeline event without the stale list/detail refetch.
-- Local evidence: `117 passed`; `npm --prefix webapp run build` passed; `git diff --check` passed.
+- Local evidence: `119 passed`, including a real SQLite reservation/retry test and an API provider-not-called race test; `npm --prefix webapp run build` passed; `git diff --check` passed.
 - Browser evidence: cohort control is present and the affected admin screen has no horizontal overflow at 390x844, 768x1024, 1366x768, or 1920x1080.
 - External: Mailjet SPF/DKIM are confirmed. The display label does not affect validation; final sender/domain activation remains with the Mailjet specialist group.
+- Production evidence: `1e42b43` deployed the email registration/paid-trial funnel; follow-up `561c886` was pushed and fast-forwarded on Poland after a restricted pre-v60 database backup. Both affected services are active, migration v60 is recorded, the claim table is initially empty, and startup logs contain no migration/runtime failure. A real Mailjet-delivered registration and real 10 RUB YooKassa charge/saved-method cycle remain external acceptance gates and were not simulated against production customers.
 
 Product follow-up to evaluate, not silently ship: replace the 0→45 GB LTE gap
 with either Economy 5–10 GB or an explicit LTE add-on, and design a bounded
