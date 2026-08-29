@@ -1,5 +1,22 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-29 Estonia-first subscription order
+
+Goal: move the existing Estonia TCP/Hysteria pair above the Netherlands pair in
+plain, base64 and Happ JSON delivery, including AutoSelect candidate order,
+without changing links, identities, node bindings or LTE fallback behavior.
+
+Acceptance: exact public order is AutoSelect, YouTube, Estonia #1/#2,
+Netherlands #1/#2, Germany #1/#2, five EU fallback rows; AutoSelect still has
+both Estonia outbounds; main/LTE credentials remain isolated; local full tests,
+commit/push, Poland pull, subscription-service restart, public verifier, service
+health and error-log scan pass.
+
+Components: `subscription_api.py`, subscription order tests and the credential-
+safe production verifier. Risk is a stale catalog override or partial renderer
+change. Rollback is the preceding runtime commit and service restart; no
+Remnawave Host, squad, UUID or public URL is mutated.
+
 ## 2026-08-29 Estonia normal node admission
 
 Goal: admit the owner-provided Estonia VPS as a normal Remnawave node matching

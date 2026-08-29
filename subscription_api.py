@@ -247,10 +247,10 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
 # известных конфигураций в подписке. Неизвестные конфиги идут после них.
 SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
-    "Нидерланды #1",
-    "Нидерланды #2",
     "Эстония #1",
     "Эстония #2",
+    "Нидерланды #1",
+    "Нидерланды #2",
     "Германия #1",
     "Германия #2",
     "Ютуб без рекламы",
@@ -420,9 +420,9 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     protocol_order = int(number_match.group(1)) if number_match else 99
     if "Ютуб без рекламы" in name:
         country_order = 5
-    elif "Нидерланды" in name:
-        country_order = 10
     elif "Эстония" in name:
+        country_order = 10
+    elif "Нидерланды" in name:
         country_order = 15
     elif "Германия" in name:
         country_order = 20
@@ -1601,8 +1601,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         youtube_profiles.append(item)
     visible_main = [
         *youtube_profiles,
-        *visible_country("Нидерланды"),
         *visible_country("Эстония"),
+        *visible_country("Нидерланды"),
         *visible_country("Германия"),
     ]
     fallback_lte_profiles = []

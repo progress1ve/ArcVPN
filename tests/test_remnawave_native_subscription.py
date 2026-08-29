@@ -17,7 +17,7 @@ else:
 pytestmark = pytest.mark.skipif(api is None, reason=f"subscription_api unavailable: {IMPORT_ERROR}")
 
 
-def test_netherlands_estonia_profiles_sort_before_germany_lte_and_accept_flags():
+def test_estonia_profiles_sort_before_netherlands_germany_lte_and_accept_flags():
     tcp = api._subscription_inbound_order("🇳🇱 Нидерланды #1")
     hy2 = api._subscription_inbound_order("Нидерланды #2 ⚡")
     estonia_tcp = api._subscription_inbound_order("🇪🇪 Эстония #1")
@@ -25,7 +25,7 @@ def test_netherlands_estonia_profiles_sort_before_germany_lte_and_accept_flags()
     germany = api._subscription_inbound_order("Германия #1")
     lte = api._subscription_inbound_order("Обход глушилок (LTE, трафик ×10) #1")
 
-    assert tcp < hy2 < estonia_tcp < estonia_hy2 < germany < lte
+    assert estonia_tcp < estonia_hy2 < tcp < hy2 < germany < lte
     assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
     assert api.NODE_INVENTORY["95.85.245.23"]["provider"] == "1chost"
 
@@ -53,8 +53,8 @@ def test_customer_catalog_order_is_netherlands_estonia_germany_then_lte():
     names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in sorted(links, key=api._subscription_link_order)]
 
     assert names == [
-        "Нидерланды #1", "Нидерланды #2",
         "Эстония #1", "Эстония #2",
+        "Нидерланды #1", "Нидерланды #2",
         "Германия #1", "Германия #2",
         "Обход глушилок (LTE)",
     ]
@@ -75,14 +75,14 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
 
     assert names == [
         "🇷🇺 Ютуб без рекламы",
-        "🇳🇱 Нидерланды #1",
-        "🇳🇱 Нидерланды #2",
         "🇪🇪 Эстония #1",
         "🇪🇪 Эстония #2",
+        "🇳🇱 Нидерланды #1",
+        "🇳🇱 Нидерланды #2",
         "🇩🇪 Германия #1",
         "🇩🇪 Германия #2",
     ]
-    assert result[0].split("#", 1)[0] == result[1].split("#", 1)[0]
+    assert result[0].split("#", 1)[0] == result[3].split("#", 1)[0]
 
 
 def test_catalog_never_publishes_retired_finland(monkeypatch):
