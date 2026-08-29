@@ -5,8 +5,11 @@ from unittest.mock import patch
 from subscription_api import (
     ActiveKeyRecord,
     _build_happ_json_subscription,
+    _build_plain_text_subscription,
     _client_dns_config,
+    _response_from_prepared,
     _subscription_announce_base64,
+    PreparedSubscription,
 )
 
 
@@ -51,3 +54,15 @@ def test_happ_profiles_receive_v2_dns_without_foreign_geoasset_urls():
     encoded = json.dumps(profiles)
     assert "dns.quad9.net" in encoded
     assert "jsdelivr" not in encoded and "nalog.ru" not in encoded
+
+
+def test_happ_subscription_hides_node_settings_in_header_and_text_metadata():
+    text = _build_plain_text_subscription(
+        "vless://example", None, "upload=0; download=0"
+    )
+    assert "#hide-settings: 1\n" in text
+
+    response = _response_from_prepared(
+        PreparedSubscription(text, "text/plain; charset=utf-8", "upload=0; download=0")
+    )
+    assert response.headers["hide-settings"] == "1"

@@ -1054,6 +1054,7 @@ def _build_plain_text_subscription(
         f"#profile-title: base64:{PROFILE_TITLE_BASE64}",
         f"#announce: base64:{announce_base64}",
         f"#profile-update-interval: {PROFILE_UPDATE_INTERVAL_HOURS}",
+        "#hide-settings: 1",
         f"#subscription-userinfo: {userinfo_header}",
         f"#support-url: {SUPPORT_URL}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
@@ -1748,6 +1749,7 @@ def _response_from_prepared(
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["profile-update-interval"] = str(PROFILE_UPDATE_INTERVAL_HOURS)
     response.headers["subscription-auto-update-enable"] = "1"
+    response.headers["hide-settings"] = "1"
     response.headers["profile-title"] = f"base64:{encoded_profile_title}"
     response.headers["announce"] = f"base64:{prepared.announce_base64}"
     response.headers["support-url"] = SUPPORT_URL

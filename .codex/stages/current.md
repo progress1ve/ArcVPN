@@ -1,5 +1,23 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-29 hide customer node settings in Happ
+
+Goal: disable normal viewing, editing and sharing of ArcVPN subscription node
+configurations in supported Happ clients without changing connectivity, stable
+subscription URLs, UUIDs, domains, protocols or fallback behavior.
+
+Scope and acceptance: emit Happ's documented `hide-settings: 1` through every
+HTTP subscription response and through plain/base64 subscription metadata; cover
+both paths with tests; verify the public owner subscription header after deploy.
+JSON profile contents remain available to the VPN core because they are required
+to connect. This is UI/export hardening, not cryptographic secrecy, and clients
+that ignore Happ metadata cannot be forced to comply.
+
+Risk and rollback: an old or non-Happ client may ignore the header, while a
+modified/rooted client can still extract runtime credentials. The flag must not
+alter the body or routing. Rollback removes the header/metadata line and restarts
+only `arcvpn-subscription.service`.
+
 ## 2026-08-29 Happ fallback-only customer layout
 
 Goal: remove the two manually selectable direct XHTTP rows from Happ delivery,
