@@ -17,6 +17,13 @@ safe production verifier. Risk is a stale catalog override or partial renderer
 change. Rollback is the preceding runtime commit and service restart; no
 Remnawave Host, squad, UUID or public URL is mutated.
 
+Status: **passed and deployed**. Local `124 passed` and Python compile succeeded.
+Commit `2f32b94` was pushed and fast-forwarded on Poland; only
+`arcvpn-subscription.service` was restarted. The production verifier returned
+`profile_order_ok=true`, 13 Happ rows, two Estonia AutoSelect outbounds, correct
+main/LTE identity isolation, active service and `OK` health. No new error-level
+journal entries were found. Rollback was not used.
+
 ## 2026-08-29 Estonia normal node admission
 
 Goal: admit the owner-provided Estonia VPS as a normal Remnawave node matching

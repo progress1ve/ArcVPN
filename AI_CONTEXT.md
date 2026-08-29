@@ -1651,7 +1651,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - `ee.arccnet.space` is an active ordinary Remnawave node with unique TCP
   Reality and Hysteria2 inbounds, both on public port 443 and both authorized in
   the production main squad.
-- Public order is AutoSelect, YouTube, Netherlands #1/#2, Estonia #1/#2, Germany
+- Public order is AutoSelect, YouTube, Estonia #1/#2, Netherlands #1/#2, Germany
   #1/#2, then five EU LTE fallback rows. Both Estonia transports participate in
   AutoSelect; LTE identities/inbounds remain separate.
 - Real TCP Reality and official Hysteria2-client canaries returned HTTP 204.

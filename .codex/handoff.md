@@ -70,7 +70,7 @@ Updated: 2026-08-29. This file is current state, not a diary.
   remain intentionally undeleted.
 - Estonia 1chost is admitted as an active normal Remnawave node through
   `20e050a`/`4ca2ac6`. `ee.arccnet.space` publishes one TCP Reality and one
-  Hysteria2 row immediately after the Netherlands pair; both are in the main
+  Hysteria2 row immediately before the Netherlands pair (`2f32b94`); both are in the main
   squad and AutoSelect. Real tunneled HTTP returned 204 on both transports,
   production shows 13 Happ rows with two Estonia AutoSelect outbounds, and LTE
   identity isolation remains intact. Inventory alias is `ee-1chost`; node control
