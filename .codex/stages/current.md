@@ -1,5 +1,24 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-29 TikTok forced proxy and Resend cutover
+
+Goal: make TikTok/ByteDance traffic use the selected VPN route before Russian
+direct-IP rules, including the five customer bypass profiles and their hidden
+LTE/CDN fallback; prepare the existing OTP SMTP integration for Resend without
+placing its API key in Git, logs or command arguments.
+
+Acceptance: legacy Happ routing advertises explicit TikTok proxy domains; every
+Happ JSON row places a TikTok proxy/balancer rule before all direct rules; the
+AutoSelect rule retains LTE fallback; full tests and production recursive profile
+verification pass. Resend acceptance additionally requires a verified sending
+domain, protected production SMTP environment and a real delivered OTP; until
+those external gates pass, email cutover is not claimed complete.
+
+Components: subscription routing builder/tests, protected production SMTP env,
+subscription service. Rollback restores the prior routing commit and service;
+email rollback restores the protected SMTP env backup. Public URLs, UUIDs,
+Remnawave identities and node bindings are unchanged.
+
 ## 2026-08-29 Estonia-first subscription order
 
 Goal: move the existing Estonia TCP/Hysteria pair above the Netherlands pair in

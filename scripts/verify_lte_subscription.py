@@ -5,11 +5,16 @@ from __future__ import annotations
 import base64
 import json
 import sqlite3
+import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+
+from subscription_api import TIKTOK_PROXY_SITES
+
 DB = ROOT / "database" / "vpn_bot.db"
 
 
@@ -61,6 +66,14 @@ def main() -> int:
         "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
         "🇪🇺 Обход глушилок #5",
     ]
+    tiktok_routing_ok = True
+    for profile in profiles:
+        rules = (profile.get("routing") or {}).get("rules") or []
+        tiktok_indexes = [i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES]
+        direct_indexes = [i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct"]
+        tiktok_routing_ok = tiktok_routing_ok and bool(tiktok_indexes) and bool(direct_indexes)
+        if tiktok_indexes and direct_indexes:
+            tiktok_routing_ok = tiktok_routing_ok and tiktok_indexes[0] < direct_indexes[0]
     result = {
         "ok": credentials_match(main_links, row["client_uuid"])
               and credentials_match(lte_links, row["lte_client_uuid"])
@@ -68,7 +81,8 @@ def main() -> int:
               and f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo
               and expected_announce in announce
               and profile_names == expected_names
-              and auto_hosts.count("ee.arccnet.space") == 2,
+              and auto_hosts.count("ee.arccnet.space") == 2
+              and tiktok_routing_ok,
         "main_links": len(main_links), "lte_links": len(lte_links),
         "main_identity_ok": credentials_match(main_links, row["client_uuid"]),
         "lte_identity_ok": credentials_match(lte_links, row["lte_client_uuid"]),
@@ -83,6 +97,7 @@ def main() -> int:
         "profile_order_ok": profile_names == expected_names,
         "profile_count": len(profile_names),
         "estonia_auto_outbounds": auto_hosts.count("ee.arccnet.space"),
+        "tiktok_routing_ok": tiktok_routing_ok,
     }
     print(json.dumps(result, ensure_ascii=False))
     return 0 if result["ok"] else 1

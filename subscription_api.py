@@ -129,6 +129,20 @@ SPLIT_TUNNELING_DIRECT_SITES = getattr(config, "SPLIT_TUNNELING_DIRECT_SITES", [
 SPLIT_TUNNELING_MODE = getattr(config, "SPLIT_TUNNELING_MODE", "speed")
 SPLIT_TUNNELING_REMOTE_DNS_DOMAIN = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_DOMAIN", "https://cloudflare-dns.com/dns-query")
 SPLIT_TUNNELING_REMOTE_DNS_IP = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_IP", "1.1.1.1")
+TIKTOK_PROXY_SITES = [
+    "domain:tiktok.com",
+    "domain:tiktokv.com",
+    "domain:tiktokcdn.com",
+    "domain:tiktokcdn-eu.com",
+    "domain:tiktokcdn-us.com",
+    "domain:byteoversea.com",
+    "domain:byteintl.com",
+    "domain:ibytedtos.com",
+    "domain:ibyteimg.com",
+    "domain:musical.ly",
+    "domain:muscdn.com",
+    "domain:pstatp.com",
+]
 ARCVPN_DNS_PROFILE = os.getenv("ARCVPN_DNS_PROFILE", "legacy").strip().lower()
 ARCVPN_DNS_CANARY_TELEGRAM_IDS = {
     int(value) for value in os.getenv("ARCVPN_DNS_CANARY_TELEGRAM_IDS", "").split(",")
@@ -593,7 +607,7 @@ def _build_happ_routing_profile() -> Dict[str, Any]:
         "DomesticDNSType": "System",
         "DirectSites": list(SPLIT_TUNNELING_DIRECT_SITES),
         "DirectIp": direct_ip_rules,
-        "ProxySites": [],
+        "ProxySites": list(TIKTOK_PROXY_SITES),
         "ProxyIp": [],
         "BlockSites": [],
         "BlockIp": [],
@@ -1457,6 +1471,16 @@ def _happ_direct_rules() -> list[Dict[str, Any]]:
     ]
 
 
+def _happ_tiktok_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: str | None = None) -> Dict[str, Any]:
+    """Force TikTok through VPN before geoip:ru can classify a CDN address as direct."""
+    rule: Dict[str, Any] = {"domain": list(TIKTOK_PROXY_SITES), "type": "field"}
+    if balancer_tag:
+        rule["balancerTag"] = balancer_tag
+    else:
+        rule["outboundTag"] = outbound_tag or "proxy"
+    return rule
+
+
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
     links = sorted(
@@ -1491,6 +1515,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "routing": {
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
+                    _happ_tiktok_proxy_rule(outbound_tag="proxy"),
                     *_happ_direct_rules(),
                     {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
                 ],
@@ -1562,6 +1587,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
             "rules": [
                 *([{"inboundTag": ["FROM_LOOPBACK_BACK"], "balancerTag": "balancer_back", "type": "field"}] if lte_outbounds else []),
+                _happ_tiktok_proxy_rule(balancer_tag="balancer_main"),
                 *_happ_direct_rules(),
                 {"balancerTag": "balancer_main", "network": "tcp,udp", "type": "field"},
             ],

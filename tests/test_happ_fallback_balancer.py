@@ -3,7 +3,12 @@ import unittest
 from unittest.mock import patch
 
 try:
-    from subscription_api import ActiveKeyRecord, _build_happ_json_subscription
+    from subscription_api import (
+        ActiveKeyRecord,
+        HAPP_ROUTING_PROFILE,
+        TIKTOK_PROXY_SITES,
+        _build_happ_json_subscription,
+    )
 except ModuleNotFoundError as exc:  # Minimal local test environment may omit Flask.
     ActiveKeyRecord = _build_happ_json_subscription = None
     IMPORT_ERROR = exc
@@ -13,6 +18,26 @@ else:
 
 @unittest.skipIf(IMPORT_ERROR is not None, f"subscription API dependencies unavailable: {IMPORT_ERROR}")
 class HappFallbackBalancerTests(unittest.TestCase):
+    def test_tiktok_is_forced_through_vpn_before_direct_rules_in_every_profile(self):
+        key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
+        links = "\n".join([
+            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
+            "vless://22222222-2222-2222-2222-222222222222@lte.example:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
+        ])
+        with patch("subscription_api._catalog_overrides", return_value={}):
+            profiles = json.loads(_build_happ_json_subscription(key, links))
+
+        self.assertEqual(HAPP_ROUTING_PROFILE["ProxySites"], TIKTOK_PROXY_SITES)
+        for profile in profiles:
+            rules = profile["routing"]["rules"]
+            tiktok_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES)
+            direct_index = next(i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct")
+            self.assertLess(tiktok_index, direct_index)
+            if profile["remarks"].startswith(("Автовыбор", "🇪🇺 Обход")):
+                self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_main")
+            else:
+                self.assertEqual(rules[tiktok_index]["outboundTag"], "proxy")
+
     def test_customer_profile_order_restores_hysteria_then_five_eu_lte(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
