@@ -947,16 +947,12 @@
 
           <div class="stats">
             <button class="stat" on:click={openDevices}>
-              <ArcIcon name="phone" size={17} weight="duotone" />
-              <span><b>{onlineDevices}</b><small>устройства</small></span>
-            </button>
-            <button class="stat">
-              <ArcIcon name="pulse" size={18} weight="duotone" />
-              <span><b>{trafficValue}</b><small>обычный</small></span>
+              <ArcIcon name="devices" size={18} weight="duotone" />
+              <span><b>{registeredDevices.length} из {deviceLimit}</b><small>устройств подключено</small></span>
             </button>
             <button class="stat">
               <ArcIcon name="signal" size={18} weight="duotone" />
-              <span><b>{lteValue}</b><small>LTE осталось</small></span>
+              <span><b>{lteValue}</b><small>LTE-трафика осталось</small></span>
             </button>
           </div>
 
@@ -975,14 +971,14 @@
           <div class="shortcuts">
             <button class="shortcut" on:click={() => selectTab('friends')}>
               <span class="shortcut-copy">
-                <b>Пригласи друга</b><small>+{referralEntryBonus} за вход · +{referralBonus} после оплаты</small>
+                <b>Пригласи друга</b>
                 <i><ArcIcon name="arrow" size={17} weight="bold" /></i>
               </span>
               <img src={`${asset}/referral-gift-v2.png`} alt="" />
             </button>
             <button class="shortcut" on:click={() => selectTab('support')}>
               <span class="shortcut-copy">
-                <b>Поддержка</b><small>FAQ и живой чат</small>
+                <b>Поддержка</b>
                 <i><ArcIcon name="arrow" size={17} weight="bold" /></i>
               </span>
               <img src={`${asset}/support-agent-v2.png`} alt="" />
@@ -1089,7 +1085,7 @@
 
             <section class="settings-group">
               <h2>Подписка</h2>
-              <button class="setting-row" on:click={() => openSettingsPage('devices')}><i><ArcIcon name="devices" size={21} weight="duotone" /></i><span><b>Устройства</b><small>{deviceOnlineTotal || onlineDevices} активно · {registeredDevices.length} из {deviceLimit} слотов</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
+              <button class="setting-row" on:click={() => openSettingsPage('devices')}><i><ArcIcon name="devices" size={21} weight="duotone" /></i><span><b>Устройства</b><small>{registeredDevices.length} из {deviceLimit} подключено</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
               <button class="setting-row" on:click={() => openSettingsPage('notifications')}><i><ArcIcon name="bell" size={21} weight="duotone" /></i><span><b>Уведомления</b><small>Срок, трафик и новые подключения</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
               <button class="setting-row" on:click={() => openSettingsPage('billing')}><i><ArcIcon name="wallet" size={21} weight="duotone" /></i><span><b>Автопродление</b><small>{recurring.enabled ? (recurring.method?.display_title || 'Способ оплаты привязан') : recurring.provider_ready ? 'Не подключено' : 'Ожидает согласования YooKassa'}</small></span>{#if recurring.enabled}<em class="connected"><ArcIcon name="check" size={17} weight="bold" /></em>{:else}<ArcIcon name="caret" size={17} weight="bold" />{/if}</button>
             </section>
@@ -1107,7 +1103,7 @@
             </section>
           {:else if settingsPage === 'devices'}
             <p class="subpage-intro">Устройство появляется сразу после импорта в Happ. Модель определяем автоматически, когда браузер разрешает передать её; иначе показываем платформу и размер экрана.</p>
-            <div class="device-summary"><strong>{deviceOnlineTotal || onlineDevices}</strong><span>активно сейчас</span><small>{registeredDevices.length} из {deviceLimit} слотов</small></div>
+            <div class="device-summary"><strong>{registeredDevices.length}</strong><span>подключено</span><small>из {deviceLimit} доступных слотов</small></div>
             <section class="device-list">
               {#if registeredDevices.length}
                 {#each registeredDevices as device}
@@ -1322,7 +1318,6 @@
   .shortcut::after { content: ''; position: absolute; right: -25%; bottom: -60%; width: 145px; height: 145px; border-radius: 50%; background: radial-gradient(circle,rgba(63,154,220,.18),transparent 67%); }
   .shortcut-copy { position: relative; z-index: 3; display: flex; align-items: flex-start; flex-direction: column; }
   .shortcut-copy b { max-width: 112px; font-size: 13.5px; font-weight: 800; line-height: 1.2; letter-spacing: -.025em; }
-  .shortcut-copy small { max-width: 108px; margin-top: 5px; color: var(--muted); font-size: 9.5px; line-height: 1.35; }
   .shortcut-copy i { width: 48px; height: 32px; display: grid; place-items: center; margin-top: 17px; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; color: #dce9f5; background: rgba(255,255,255,.075); }
   .shortcut img { position: absolute; z-index: 2; right: -19px; bottom: -13px; width: 119px; height: 119px; object-fit: contain; pointer-events: none; filter: drop-shadow(0 0 13px rgba(95,189,244,.16)) drop-shadow(0 18px 18px rgba(0,0,0,.3)); }
 
@@ -1481,8 +1476,8 @@
   .home-screen { padding-top: calc(var(--safe-top-flow) + 120px); }
   .brand { margin-bottom: 25px; filter: none; }
   .brand img { width: 21px; height: 20px; }
-  .eyebrow, .expires, .shortcut-copy small, .referral-copy p, .support-hero p, .block-title small, .section-label small, .steps small, .faq-copy small, .profile-card span, .setting-row small, .connect-note, .guide-card small, .connect-success { color: var(--muted); }
-  .stat { min-height: 46px; border-radius: 15px; color: #99abc0; background: var(--surface); box-shadow: none; backdrop-filter: blur(16px); }
+  .eyebrow, .expires, .referral-copy p, .support-hero p, .block-title small, .section-label small, .steps small, .faq-copy small, .profile-card span, .setting-row small, .connect-note, .guide-card small, .connect-success { color: var(--muted); }
+  .stat { min-height: 54px; border-radius: 18px; color: #99abc0; background: var(--surface); box-shadow: none; backdrop-filter: blur(16px); }
   .stat small { color: var(--faint); }
   .actions button { border-radius: 18px; }
   .flow-preview .secondary { color: #a8daf7; border: 1px solid rgba(105,190,244,.52); background: transparent; box-shadow: inset 0 1px 0 rgba(255,255,255,.025); backdrop-filter: none; }
@@ -1490,9 +1485,8 @@
   .shortcut { min-height: 104px; padding: 13px 14px; border-radius: 23px; background: var(--surface); box-shadow: none; backdrop-filter: blur(18px); }
   .shortcut::after, .referral-hero::before, .support-hero::before { display: none; }
   .shortcut::before { display: block; right: -34px; bottom: -42px; width: 158px; height: 132px; border-radius: 50%; opacity: .08; background: radial-gradient(circle,rgba(118,202,247,.82) 0%,rgba(50,116,176,.38) 43%,transparent 74%); filter: blur(48px); }
-  .shortcut-copy b { font-size: 13px; }
-  .shortcut-copy small { margin-top: 4px; }
-  .shortcut-copy i { width: 48px; height: 30px; margin-top: 8px; border: 0; border-radius: 12px; color: #e1edf6; background: rgba(255,255,255,.08); box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
+  .shortcut-copy b { display:flex;align-items:flex-start;min-height:32px;font-size: 13px; }
+  .shortcut-copy i { width: 48px; height: 30px; margin-top: 10px; border: 0; border-radius: 12px; color: #e1edf6; background: rgba(255,255,255,.08); box-shadow: inset 0 1px 0 rgba(255,255,255,.025); }
   .shortcut img { right: -14px; bottom: -18px; width: 116px; height: 116px; filter: drop-shadow(0 14px 18px rgba(0,0,0,.38)); }
   .referral-hero, .support-hero { border-radius: 27px; background: linear-gradient(145deg,#132235,#09111c 62%); box-shadow: none; }
   .referral-hero img, .support-hero img { filter: drop-shadow(0 18px 22px rgba(0,0,0,.3)); }
@@ -1913,7 +1907,6 @@
       border-radius: var(--radius-card);
     }
     .shortcut-copy b { font-size: 16px; }
-    .shortcut-copy small { font-size: 10px; }
     .shortcut-copy i {
       width: 58px;
       height: 36px;
