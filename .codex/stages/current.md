@@ -48,6 +48,28 @@ inspection; production public owner subscription comparison without printing its
 URL/UUID; service health/log scan. A real client outage/recovery canary remains
 the final behavioral proof because static JSON cannot force a network failure.
 
+Closeout evidence (2026-08-29):
+
+- Criteria 1, 2 and 4 **passed**: commit `ffc0915` is pushed and fast-forwarded
+  on Poland; only `arcvpn-subscription.service` was restarted and remains active
+  with no new traceback/exception/unhandled journal entries.
+- Local contract slice: `30 passed`; full suite: `119 passed`; Python compile and
+  `git diff --check` passed. Generated fixtures show the primary plus all five
+  bypass rows with `LOOPBACK_TO_BACK`, five hidden LTE outbounds, and zero direct
+  customer `proxy` XHTTP rows.
+- Public owner subscription returned HTTP 200 with 11 rows in the required order,
+  five EU bypass rows, `public_direct_xhttp_rows=0` and loopback present in all
+  five. The first AutoSelect reports `fallbackTag=LOOPBACK_TO_BACK` and five
+  hidden LTE outbounds. No URL, UUID or credential was printed or changed.
+- Criterion 3 is **verified structurally and by upstream contract, behavioral
+  canary deferred**: official Xray routing/observatory semantics return new
+  connections to recovered observed main outbounds after a successful probe.
+  An already-established fallback connection is not migrated. A real Happ
+  main-outage/recovery test remains the final client proof and rollback trigger.
+- Rollback is ready: revert `ffc0915`, pull on Poland and restart only the
+  subscription service. No Remnawave, CDN, inbound, DNS or database mutation
+  occurred.
+
 ## 2026-08-28 email registration and paid-trial funnel
 
 Goal: make standalone email registration a real ArcVPN account path without a

@@ -58,11 +58,14 @@ Updated: 2026-08-29. This file is current state, not a diary.
   limited to the two reviewed XHTTP inbounds and 0/45/115 GiB entitlement.
   Scheduler reconciliation mirrors LTE Remnawave usage into WebApp/header state.
   Public URLs and main UUIDs are unchanged.
-- Customer/LTE follow-up is deployed through `d71af08`. Happ delivery is exactly:
-  AutoSelect, Netherlands VLESS/Hysteria2, Germany VLESS/Hysteria2, then five
-  `🇪🇺 Обход глушилок #1..#5` rows. LTE #1-#3 are main least-load profiles with
-  LTE XHTTP fallback; #4-#5 are direct LTE profiles. Main/LTE credential crossover is
-  rejected and covered by credential-safe production verification. Finland is
+- Customer/LTE layout is deployed through `ffc0915`. Happ delivery is exactly:
+  AutoSelect, YouTube without ads, Netherlands VLESS/Hysteria2, Germany
+  VLESS/Hysteria2, then five `🇪🇺 Обход глушилок #1..#5` rows. The primary and all
+  five bypass rows are main least-load profiles with hidden LTE XHTTP fallback;
+  no customer row is a direct XHTTP profile. Burst observatory returns new
+  connections to main after recovery; a real Happ outage/recovery canary remains
+  the behavioral gate. Main/LTE credential crossover is rejected and covered by
+  credential-safe production verification. Finland is
   hidden from subscriptions and admin surfaces; disconnected Remnawave records
   remain intentionally undeleted.
 - Three active legacy trials were reconciled after a separate backup: all now
