@@ -68,6 +68,12 @@ Updated: 2026-08-29. This file is current state, not a diary.
   credential-safe production verification. Finland is
   hidden from subscriptions and admin surfaces; disconnected Remnawave records
   remain intentionally undeleted.
+- Happ node settings are hidden in supported clients through `cda8604` using the
+  documented `hide-settings: 1` HTTP header plus plain/base64 metadata. Public
+  header/body verification passed and the subscription service is active. This
+  disables ordinary viewing/editing/sharing but is not cryptographic secrecy:
+  modified or rooted clients can still inspect runtime configuration required by
+  the VPN core.
 - Three active legacy trials were reconciled after a separate backup: all now
   have unlimited main traffic, exactly 5 GiB LTE and a separate LTE identity.
   DNS v2 is enabled only for Telegram ID `2075630349`; the global profile remains

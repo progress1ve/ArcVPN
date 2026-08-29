@@ -18,6 +18,15 @@ modified/rooted client can still extract runtime credentials. The flag must not
 alter the body or routing. Rollback removes the header/metadata line and restarts
 only `arcvpn-subscription.service`.
 
+Closeout evidence: commit `cda8604` is pushed and fast-forwarded on Poland;
+`arcvpn-subscription.service` is active and its post-restart journal has no new
+traceback/exception/unhandled entry. Local result is `120 passed`, Python compile
+and `git diff --check`. The public owner subscription returns HTTP 200 with
+`hide-settings: 1` in the JSON response header and `#hide-settings: 1` in plain
+metadata. No public URL, UUID, credential, body routing or node configuration was
+changed. Happ UI/export hiding is accepted; resistance to modified/rooted clients
+is explicitly outside the achievable client-side boundary.
+
 ## 2026-08-29 Happ fallback-only customer layout
 
 Goal: remove the two manually selectable direct XHTTP rows from Happ delivery,
