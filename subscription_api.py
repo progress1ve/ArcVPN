@@ -249,6 +249,8 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Нидерланды #1",
     "Нидерланды #2",
+    "Эстония #1",
+    "Эстония #2",
     "Германия #1",
     "Германия #2",
     "Ютуб без рекламы",
@@ -263,7 +265,7 @@ _CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
 
 def _subscription_source_name(name: str) -> str:
     normalized = str(name or "").strip()
-    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇷🇺 ", "🇫🇷 ", "🇨🇦 "):
+    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇪🇪 ", "🇷🇺 ", "🇫🇷 ", "🇨🇦 "):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
@@ -295,7 +297,7 @@ def _profile_country_flag(name: str) -> str:
     if "Обход глушилок" in value or "LTE" in value:
         return "🇪🇺"
     for marker, flag in (
-        ("Нидерланды", "🇳🇱"), ("Германия", "🇩🇪"),
+        ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
         ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
@@ -420,6 +422,8 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
         country_order = 5
     elif "Нидерланды" in name:
         country_order = 10
+    elif "Эстония" in name:
+        country_order = 15
     elif "Германия" in name:
         country_order = 20
     elif "Канада" in name or "Франция" in name:
@@ -444,6 +448,7 @@ def _normalize_customer_profile_label(link: str) -> str:
     name = name.replace("Франция", "Канада")
     countries = (
         ("Нидерланды", "🇳🇱"),
+        ("Эстония", "🇪🇪"),
         ("Германия", "🇩🇪"),
         ("Канада", "🇨🇦"),
     )
@@ -514,6 +519,7 @@ NODE_INVENTORY = {
     # capacity until sustained production telemetry proves otherwise.
     "193.233.198.184": {"provider": "dhost", "location": "Германия", "monthly_cost_rub": 300, "capacity_mbps": 1000},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
+    "95.85.245.23": {"provider": "1chost", "location": "Эстония"},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
@@ -1570,6 +1576,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     def visible_country(country: str) -> list[Dict[str, Any]]:
         aliases = {
             "Нидерланды": ("Нидерланды", "Netherlands"),
+            "Эстония": ("Эстония", "Estonia"),
             "Германия": ("Германия", "Germany"),
         }[country]
         candidates = [
@@ -1595,6 +1602,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     visible_main = [
         *youtube_profiles,
         *visible_country("Нидерланды"),
+        *visible_country("Эстония"),
         *visible_country("Германия"),
     ]
     fallback_lte_profiles = []

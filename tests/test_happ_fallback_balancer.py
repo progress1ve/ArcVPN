@@ -19,6 +19,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Нидерланды%20%231",
             "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Ютуб%20без%20рекламы",
             "hysteria2://aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa@nl.example:8443?insecure=1#Нидерланды%20%232%20%E2%9A%A1",
+            "vless://55555555-5555-5555-5555-555555555555@ee.example:443?security=none&type=tcp#Эстония%20%231",
+            "hysteria2://eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee@ee.example:8443?insecure=1#Эстония%20%232",
             "vless://22222222-2222-2222-2222-222222222222@de.example:443?security=none&type=tcp#Германия%20%231",
             "hysteria2://bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb@de.example:8443?insecure=1#Германия%20%232%20%E2%9A%A1",
             "vless://33333333-3333-3333-3333-333333333333@lte-nl.example:443?security=tls&type=xhttp#Обход%20глушилок%20%234",
@@ -28,6 +30,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Нидерланды #1", "Нидерланды #2",
+            "Эстония #1", "Эстония #2",
             "Германия #1", "Германия #2",
             "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
             "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",

@@ -17,13 +17,17 @@ else:
 pytestmark = pytest.mark.skipif(api is None, reason=f"subscription_api unavailable: {IMPORT_ERROR}")
 
 
-def test_netherlands_profiles_sort_before_lte_and_accept_flag_prefix():
+def test_netherlands_estonia_profiles_sort_before_germany_lte_and_accept_flags():
     tcp = api._subscription_inbound_order("🇳🇱 Нидерланды #1")
     hy2 = api._subscription_inbound_order("Нидерланды #2 ⚡")
+    estonia_tcp = api._subscription_inbound_order("🇪🇪 Эстония #1")
+    estonia_hy2 = api._subscription_inbound_order("Эстония #2")
+    germany = api._subscription_inbound_order("Германия #1")
     lte = api._subscription_inbound_order("Обход глушилок (LTE, трафик ×10) #1")
 
-    assert tcp < hy2 < lte
+    assert tcp < hy2 < estonia_tcp < estonia_hy2 < germany < lte
     assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
+    assert api.NODE_INVENTORY["95.85.245.23"]["provider"] == "1chost"
 
 
 def test_germany_reality_fallback_uses_public_domain():
@@ -35,12 +39,14 @@ def test_germany_reality_fallback_uses_public_domain():
     assert germany["host"] == "de.arccnet.space"
 
 
-def test_customer_catalog_order_is_netherlands_germany_then_lte():
+def test_customer_catalog_order_is_netherlands_estonia_germany_then_lte():
     links = [
         "vless://id@host#Обход%20глушилок%20(LTE)",
         "vless://id@host#Германия%20%231",
         "vless://id@host#Нидерланды%20%232",
         "vless://id@host#Нидерланды%20%231",
+        "vless://id@host#Эстония%20%232",
+        "vless://id@host#Эстония%20%231",
         "vless://id@host#Германия%20%232",
     ]
 
@@ -48,6 +54,7 @@ def test_customer_catalog_order_is_netherlands_germany_then_lte():
 
     assert names == [
         "Нидерланды #1", "Нидерланды #2",
+        "Эстония #1", "Эстония #2",
         "Германия #1", "Германия #2",
         "Обход глушилок (LTE)",
     ]
@@ -57,6 +64,8 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
     links = [
         "vless://id@nd.arccnet.space:443?security=reality#Нидерланды%20%231",
         "hysteria2://id@nd.arccnet.space:443#Нидерланды%20%232",
+        "vless://id@ee.arccnet.space:443?security=reality#Эстония",
+        "hysteria2://id@ee.arccnet.space:443#Эстония%20%232",
         "vless://id@de.arccnet.space:443?security=reality#Германия",
         "hysteria2://id@de.arccnet.space:443#Германия%20⚡",
     ]
@@ -68,6 +77,8 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
         "🇷🇺 Ютуб без рекламы",
         "🇳🇱 Нидерланды #1",
         "🇳🇱 Нидерланды #2",
+        "🇪🇪 Эстония #1",
+        "🇪🇪 Эстония #2",
         "🇩🇪 Германия #1",
         "🇩🇪 Германия #2",
     ]

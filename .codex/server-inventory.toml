@@ -27,3 +27,12 @@ host = "193.233.82.42"
 ssh_user = "root"
 credential_alias = "nl-dhost"
 status = "active"
+
+[[servers]]
+alias = "ee-1chost"
+role = "vpn-node"
+location = "Estonia"
+host = "95.85.245.23"
+ssh_user = "root"
+credential_alias = "ee-1chost"
+status = "active"
