@@ -1646,3 +1646,14 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   exposes main/LTE usage ranking, owner password sessions last 30 days, Health
   exposes Poland uptime, and published Hysteria labels have no lightning suffix.
 - 2026-08-26: DNS v2 is canary-only for Telegram ID 2075630349; the global profile remains legacy. Apex customer-domain activation is waiting for the REG.RU A record and TLS. Self-hosted SMTP on Poland is blocked by outbound TCP/25 and missing PTR/DNS mail prerequisites, so use a relay or resolve those gates first.
+## 2026-08-29: Estonia 1chost normal node admitted
+
+- `ee.arccnet.space` is an active ordinary Remnawave node with unique TCP
+  Reality and Hysteria2 inbounds, both on public port 443 and both authorized in
+  the production main squad.
+- Public order is AutoSelect, YouTube, Netherlands #1/#2, Estonia #1/#2, Germany
+  #1/#2, then five EU LTE fallback rows. Both Estonia transports participate in
+  AutoSelect; LTE identities/inbounds remain separate.
+- Real TCP Reality and official Hysteria2-client canaries returned HTTP 204.
+  Inventory credential alias is `ee-1chost`; secrets remain only in the local
+  DPAPI vault and production Remnawave/node state.

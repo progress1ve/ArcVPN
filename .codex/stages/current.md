@@ -39,6 +39,33 @@ disables/removes Estonia Hosts from subscription delivery first, removes its
 inbounds from the main squad/config profile, then stops/disconnects the new node;
 existing identities and URLs are never rotated.
 
+Status: **passed and deployed**.
+
+Evidence:
+
+- DNS resolves `ee.arccnet.space` to the 1chost node. The DPAPI alias and pinned
+  SSH host key are local-only; no supplied credential or generated Reality
+  secret entered Git or command output.
+- RemnaNode is connected and has unique `EE_1CHOST_VLESS_TCP` and
+  `EE_1CHOST_HYSTERIA2` inbounds. TCP/UDP 443 listen publicly; the node control
+  port is firewalled to Poland only. Both inbounds are in the production main
+  squad and both Hosts are enabled.
+- Real production tunnel canaries returned HTTP 204 through Estonia TCP Reality
+  and through Estonia Hysteria2. The reusable Hysteria canary also passed the
+  established Netherlands row, proving the earlier Xray-container failure was a
+  canary-client mismatch rather than an Estonia transport failure.
+- Local suite: `124 passed`; Python compile and diff checks pass. Runtime commits
+  are `20e050a` and `4ca2ac6` (canary helper `ddd7b5b`). All were pushed and
+  fast-forwarded on Poland; only `arcvpn-subscription.service` was restarted.
+- Production verification reports `main_links=7`, `lte_links=5`, 13 Happ rows,
+  exact order AutoSelect / YouTube / Netherlands pair / Estonia pair / Germany
+  pair / five EU fallback rows, two Estonia outbounds inside AutoSelect, separate
+  LTE identity, active service and `OK` health. Existing public URLs and UUIDs
+  were unchanged.
+- Rollback was not used. The exact rollback remains: disable the two Estonia
+  Hosts, remove their inbounds from the main squad/env, resync, then stop the new
+  node; do not rotate customer identities.
+
 ## 2026-08-29 hide customer node settings in Happ
 
 Client acceptance correction (2026-08-29): the owner verified that settings

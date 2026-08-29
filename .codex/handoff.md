@@ -68,6 +68,13 @@ Updated: 2026-08-29. This file is current state, not a diary.
   credential-safe production verification. Finland is
   hidden from subscriptions and admin surfaces; disconnected Remnawave records
   remain intentionally undeleted.
+- Estonia 1chost is admitted as an active normal Remnawave node through
+  `20e050a`/`4ca2ac6`. `ee.arccnet.space` publishes one TCP Reality and one
+  Hysteria2 row immediately after the Netherlands pair; both are in the main
+  squad and AutoSelect. Real tunneled HTTP returned 204 on both transports,
+  production shows 13 Happ rows with two Estonia AutoSelect outbounds, and LTE
+  identity isolation remains intact. Inventory alias is `ee-1chost`; node control
+  port is restricted to Poland.
 - Happ node-setting hardening is deployed through `b8308c7`: `hide-settings: 1`
   remains in HTTP and plain/base64 metadata, and every browser/device-scoped Happ
   import now carries the configured eight-character Provider ID in the official
