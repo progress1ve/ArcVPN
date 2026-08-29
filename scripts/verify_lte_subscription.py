@@ -3,19 +3,28 @@
 from __future__ import annotations
 
 import base64
+import ast
 import json
 import sqlite3
-import sys
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT))
-
-from subscription_api import TIKTOK_PROXY_SITES
-
 DB = ROOT / "database" / "vpn_bot.db"
+
+
+def routing_constant(name: str):
+    tree = ast.parse((ROOT / "subscription_api.py").read_text(encoding="utf-8"))
+    for node in tree.body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == name for target in node.targets
+        ):
+            return ast.literal_eval(node.value)
+    raise RuntimeError(f"routing constant missing: {name}")
+
+
+TIKTOK_PROXY_SITES = routing_constant("TIKTOK_PROXY_SITES")
 
 
 def main() -> int:
