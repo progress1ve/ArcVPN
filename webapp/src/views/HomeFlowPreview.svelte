@@ -787,7 +787,7 @@
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
     const requestedScreen = pageUrl.searchParams.get('screen')
-    if (requestedScreen === 'devices' || requestedScreen === 'billing') {
+    if (requestedScreen === 'devices' || requestedScreen === 'billing' || requestedScreen === 'email') {
       active = 'settings'
       openSettingsPage(requestedScreen)
     }

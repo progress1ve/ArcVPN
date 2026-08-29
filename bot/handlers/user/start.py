@@ -525,6 +525,10 @@ async def bot_settings_menu_handler(callback: CallbackQuery):
         web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app?screen=devices"),
     ))
     builder.row(InlineKeyboardButton(
+        text="✉️ Добавить email",
+        web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app?screen=email"),
+    ))
+    builder.row(InlineKeyboardButton(
         text="🔁 Автопродление",
         callback_data="bot_recurring_settings",
     ))
@@ -533,7 +537,7 @@ async def bot_settings_menu_handler(callback: CallbackQuery):
         callback.message,
         "<b>ArcVPN</b>\n\n"
         "⚙️ <b>Настройки</b>\n\n"
-        "Управляйте подключёнными устройствами и автопродлением подписки.",
+        "Управляйте подключёнными устройствами, email и автопродлением подписки.",
         reply_markup=builder.as_markup(),
     )
     await callback.answer()

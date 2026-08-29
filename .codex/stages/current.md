@@ -1480,3 +1480,17 @@ subscription URLs, UUIDs, or active access.
   zero-fallback soak. This is not yet a direct public-URL cutover.
 
 ---
+# Trial feedback and bot account navigation follow-up (2026-08-29)
+
+## Acceptance
+
+- A trial user receives the rating prompt once, no earlier than 24 hours after the trial entitlement is activated.
+- Rating answers are persisted and visible in the authenticated admin overview, including distribution and recent respondents.
+- Bot settings expose the existing verified-email flow, and the renew-tariff Back button returns to subscriptions.
+- Existing lifecycle buttons, public subscription URLs, UUIDs and active access remain compatible.
+
+## Components, risk and rollback
+
+- Components: bot lifecycle scheduler/callbacks, bot settings keyboard, payment-flow keyboard, admin overview API/UI, WebApp deep link.
+- Main risk: duplicate prompts during migration from `day5_rating`; prevented by excluding both event keys and accepting both callback generations.
+- Rollback: revert the runtime commit and restart only `arcvpn-bot.service` and `arcvpn-subscription.service`; no schema migration or destructive data change is required.

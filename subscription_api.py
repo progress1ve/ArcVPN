@@ -4941,6 +4941,37 @@ def api_admin_overview():
             FROM payments p
             WHERE COALESCE(p.payment_type,'') != 'trial'
         """).fetchone())
+        trial_rating_row = dict(conn.execute("""
+            SELECT
+              COUNT(*) AS sent,
+              COUNT(answer) AS answered,
+              ROUND(AVG(CASE WHEN answer IN ('1','3','5') THEN CAST(answer AS REAL) END), 1) AS average,
+              SUM(CASE WHEN answer='1' THEN 1 ELSE 0 END) AS rating_1,
+              SUM(CASE WHEN answer='3' THEN 1 ELSE 0 END) AS rating_3,
+              SUM(CASE WHEN answer='5' THEN 1 ELSE 0 END) AS rating_5
+            FROM lifecycle_events
+            WHERE event_key='trial_day1_rating'
+        """).fetchone())
+        trial_rating_sent = int(trial_rating_row.get("sent") or 0)
+        trial_rating_answered = int(trial_rating_row.get("answered") or 0)
+        trial_rating_feedback = {
+            "sent": trial_rating_sent,
+            "answered": trial_rating_answered,
+            "response_rate": round(trial_rating_answered / max(1, trial_rating_sent) * 100, 1),
+            "average": trial_rating_row.get("average"),
+            "distribution": {
+                "1": int(trial_rating_row.get("rating_1") or 0),
+                "3": int(trial_rating_row.get("rating_3") or 0),
+                "5": int(trial_rating_row.get("rating_5") or 0),
+            },
+            "recent": [dict(row) for row in conn.execute("""
+                SELECT u.telegram_id,u.username,u.first_name,le.answer,le.answered_at
+                FROM lifecycle_events le
+                JOIN users u ON u.id=le.user_id
+                WHERE le.event_key='trial_day1_rating' AND le.answer IS NOT NULL
+                ORDER BY le.answered_at DESC,le.id DESC LIMIT 20
+            """).fetchall()],
+        }
         payment_periods: dict[str, dict[str, Any]] = {}
         for period, modifier in (("day", "-1 day"), ("week", "-7 days"), ("month", "-30 days")):
             payment_periods[period] = dict(conn.execute(f"""
@@ -5488,6 +5519,7 @@ def api_admin_overview():
             ),
             "leaders": referral_leaders,
         },
+        "trial_rating_feedback": trial_rating_feedback,
         "remnawave": remnawave,
         "recurring": {
             **get_recurring_summary(),

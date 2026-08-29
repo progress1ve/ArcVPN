@@ -29,7 +29,7 @@ def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
         if code in available:
             suffix = str(key_id) if key_id is not None else "new"
             builder.row(InlineKeyboardButton(text=labels[code], callback_data=f"select_product:{code}:{suffix}"))
-    builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data=f"key:{key_id}" if key_id is not None else "start"))
+    builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data="my_keys" if key_id is not None else "start"))
     return builder.as_markup()
 
 

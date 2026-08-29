@@ -31,10 +31,32 @@ def _record_answer(telegram_id: int, event_key: str, answer: str) -> tuple[bool,
         return True, user_id
 
 
+def _record_rating_answer(telegram_id: int, answer: str) -> tuple[bool, int | None]:
+    """Save the current trial rating while accepting already-sent legacy buttons."""
+    with get_db() as conn:
+        row = conn.execute("SELECT id FROM users WHERE telegram_id = ?", (telegram_id,)).fetchone()
+        if not row:
+            return False, None
+        user_id = int(row["id"])
+        event = conn.execute("""
+            SELECT id, answer FROM lifecycle_events
+            WHERE user_id = ? AND event_key IN ('trial_day1_rating', 'day5_rating')
+            ORDER BY CASE event_key WHEN 'trial_day1_rating' THEN 0 ELSE 1 END, id DESC
+            LIMIT 1
+        """, (user_id,)).fetchone()
+        if not event or event["answer"]:
+            return False, user_id
+        conn.execute(
+            "UPDATE lifecycle_events SET answer = ?, answered_at = CURRENT_TIMESTAMP WHERE id = ?",
+            (answer, event["id"]),
+        )
+        return True, user_id
+
+
 @router.callback_query(F.data.startswith("lifecycle_rating:"))
 async def lifecycle_rating(callback: CallbackQuery):
     rating = callback.data.rsplit(":", 1)[-1]
-    saved, _ = _record_answer(callback.from_user.id, "day5_rating", rating)
+    saved, _ = _record_rating_answer(callback.from_user.id, rating)
     await callback.answer("Спасибо! Ответ сохранён 💙" if saved else "Вы уже оценили ArcVPN")
     if saved:
         await callback.message.edit_caption(
