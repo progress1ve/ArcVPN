@@ -3081,6 +3081,17 @@ def _send_email_code(email: str, code: str, purpose: str) -> bool:
         f"Код подтверждения ArcVPN: {code}\n\n"
         "Он действует 10 минут. Если вы не запрашивали код, ничего не делайте."
     )
+    title = "Вход в ArcVPN" if purpose == "login" else "Подтверждение email"
+    message.add_alternative(f"""<!doctype html>
+<html lang="ru"><body style="margin:0;background:#050b12;color:#f6f9fc;font-family:Arial,sans-serif">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#050b12;padding:32px 12px"><tr><td align="center">
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:560px;background:linear-gradient(145deg,#111d2a,#08111b);border:1px solid #1e3447;border-radius:28px;overflow:hidden">
+<tr><td style="padding:34px 38px 16px"><table role="presentation" cellspacing="0" cellpadding="0"><tr><td style="width:34px;height:34px;border-radius:11px;background:#9bdcff;color:#07111b;text-align:center;font-weight:900;font-size:20px">A</td><td style="padding-left:12px;font-size:21px;font-weight:800">ArcVPN</td></tr></table></td></tr>
+<tr><td style="padding:12px 38px 38px"><div style="color:#86cffa;font-size:11px;font-weight:800;letter-spacing:.13em;text-transform:uppercase">Безопасный код</div><h1 style="margin:12px 0 8px;font-size:30px;line-height:1.15">{title}</h1><p style="margin:0 0 24px;color:#aab8c6;font-size:15px;line-height:1.55">Введите этот шестизначный код в кабинете ArcVPN:</p>
+<div style="padding:20px;border:1px solid #31526b;border-radius:18px;background:#091722;color:#a9e2ff;text-align:center;font-size:36px;font-weight:900;letter-spacing:.22em">{code}</div>
+<p style="margin:24px 0 0;color:#8295a7;font-size:13px;line-height:1.55">Код действует 10 минут. Если вы не запрашивали его, просто проигнорируйте это письмо.</p></td></tr>
+</table><p style="margin:16px 0 0;color:#536677;font-size:11px">ArcVPN · arccnet.space</p></td></tr></table>
+</body></html>""", subtype="html")
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=8) as smtp:
             if SMTP_USE_TLS:

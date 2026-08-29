@@ -119,10 +119,10 @@ Updated: 2026-08-29. This file is current state, not a diary.
   is configured but intentionally unauthenticated. Store it using
   `C:\Users\babay\.codex\mcp\mailjet-credential.ps1 -Action Set`, then start a
   new Codex task/session and verify a read-only Mailjet tool before sending mail.
-- Resend is the selected Mailjet replacement. Poland can reach its STARTTLS SMTP
-  endpoint on port 2587 and the existing OTP sender is compatible. Do not reuse
-  the key posted in chat: verify a dedicated sending subdomain, rotate the key,
-  store it outside Git in a protected production env, then run a real OTP test.
+- Resend replaced Mailjet for OTP delivery. The verified `arccnet.space` sender
+  uses STARTTLS on port 2587; production SMTP authentication and an acceptance
+  delivery passed. The secret is in the encrypted local vault and a root-only
+  production environment file, never Git. Run one real user OTP inbox check.
 - Production subscription audit for Telegram ID 2075630349 found identical DNS
   JSON across all eleven Happ profiles and two intentional routing families.
   Germany Reality #1 now publishes `de.arccnet.space` from both the authoritative

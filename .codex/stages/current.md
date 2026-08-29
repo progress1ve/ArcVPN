@@ -1,5 +1,20 @@
 # Current stage: browser-first whole-admin operations redesign
 
+## 2026-08-29 Email delivery and account conversion UX
+
+Goal: make email linking deliver a branded multipart OTP, let new email users
+dismiss and later reopen the 10-ruble trial offer while no subscription exists,
+and add a deliberate account logout confirmation.
+
+Acceptance: settings email actions always use the `link` purpose; messages retain
+plain text and add a responsive inline-styled HTML alternative; the paid-trial
+dialog has an outlined `Позже` action, dismissal leaves a persistent home banner,
+and both disappear once a subscription is active; logout is visible in the lower
+left and requires a blurred modal confirmation. Build/tests and deployed mobile,
+tablet, desktop and wide browser checks must pass.
+
+Status: **implementation in progress**.
+
 ## 2026-08-29 TikTok forced proxy and Resend cutover
 
 Goal: make TikTok/ByteDance traffic use the selected VPN route before Russian
@@ -19,8 +34,8 @@ subscription service. Rollback restores the prior routing commit and service;
 email rollback restores the protected SMTP env backup. Public URLs, UUIDs,
 Remnawave identities and node bindings are unchanged.
 
-Status: TikTok routing **passed and deployed**; Resend **blocked on external
-domain verification and safe credential replacement**.
+Status: TikTok routing **passed and deployed**; Resend SMTP **passed and
+deployed**.
 
 - `TIKTOK_PROXY_SITES` covers TikTok and ByteDance delivery domains. Legacy
   Happ routing publishes them in `ProxySites`; all 13 generated Happ JSON rows
@@ -33,11 +48,12 @@ domain verification and safe credential replacement**.
   two Estonia AutoSelect outbounds, intact main/LTE credential isolation, active
   service and `OK` health. A real TikTok app test during throttling remains the
   external behavioral gate.
-- Poland reaches `smtp.resend.com:2587`, and the existing SMTP sender supports
-  Resend's STARTTLS contract. No supplied key was copied into a command, file or
-  Git because it was posted in chat and must be replaced. Remaining gate: add
-  and verify a dedicated sending subdomain in Resend, generate a replacement
-  key, store it through a protected channel, then deliver one real OTP.
+- The verified `arccnet.space` sender uses Resend STARTTLS on port 2587. The API
+  key is stored in the local encrypted credential vault and in a root-only
+  production environment file; it is absent from Git and command output.
+  Production SMTP authentication and a Resend acceptance delivery passed,
+  `arcvpn-subscription.service` is active, local health is `OK`, and the public
+  site returns HTTP 200. A real user OTP remains the final inbox-level check.
 
 ## 2026-08-29 Estonia-first subscription order
 

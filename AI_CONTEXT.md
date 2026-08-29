@@ -1663,6 +1663,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   VPN before `geoip:ru` or other direct rules can capture Russian CDN addresses.
   This applies to all regular rows, AutoSelect and the five bypass rows; their
   hidden main-to-LTE fallback behavior is unchanged.
-- Resend was selected for OTP delivery. The current SMTP implementation is
-  compatible with Resend STARTTLS on port 2587, but production cutover requires
-  a verified sending subdomain and a replacement key stored outside Git.
+- Resend is deployed for OTP delivery through the verified `arccnet.space`
+  sender over STARTTLS port 2587. The secret is stored outside Git in the local
+  encrypted vault and a root-only production environment file. SMTP auth and a
+  provider acceptance delivery passed; retain a real user OTP as inbox QA.

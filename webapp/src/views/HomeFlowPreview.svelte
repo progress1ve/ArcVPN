@@ -5,7 +5,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment } from '../lib/api.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -72,6 +72,9 @@
   let paidTrialMethod = 'sbp'
   let paidTrialBusy = false
   let paidTrialMessage = ''
+  let paidTrialDismissed = false
+  let logoutConfirmOpen = false
+  let logoutBusy = false
   let botLoginUrl = ''
   let supportChatOpen = false
   let supportMessages = []
@@ -310,6 +313,28 @@
         paid_trial_payment_pending: 'Платёж уже создан. Завершите его или дождитесь отмены банком.',
       })[error.reason] || 'Не удалось создать платёж. Попробуйте ещё раз.'
     } finally { paidTrialBusy = false }
+  }
+
+  function dismissPaidTrial() {
+    paidTrialDismissed = true
+    localStorage.setItem('arcvpn-paid-trial-dismissed', '1')
+  }
+
+  function reopenPaidTrial() {
+    paidTrialDismissed = false
+    localStorage.removeItem('arcvpn-paid-trial-dismissed')
+  }
+
+  async function confirmLogout() {
+    if (logoutBusy) return
+    logoutBusy = true
+    try {
+      await logout()
+      localStorage.removeItem('arcvpn-pending-payment')
+      window.location.assign('/app')
+    } catch (_) {
+      logoutBusy = false
+    }
   }
 
   function chatTime(value) {
@@ -741,6 +766,7 @@
   }
 
   onMount(() => {
+    paidTrialDismissed = localStorage.getItem('arcvpn-paid-trial-dismissed') === '1'
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
     const requestedScreen = pageUrl.searchParams.get('screen')
@@ -779,6 +805,9 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
+  {#if $status.error !== 'unauthorized'}
+    <button class="account-logout" aria-label="Выйти из аккаунта" on:click={() => logoutConfirmOpen = true}><ArcIcon name="logout" size={21} weight="bold" /><span>Выйти</span></button>
+  {/if}
   {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main' || connectOpen)}
     <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
@@ -921,6 +950,13 @@
             <button class="primary" on:click={openPurchase}><ArcIcon name="wallet" size={20} weight="duotone" />{primary?.is_active ? 'Продлить подписку' : 'Оформить подписку'}</button>
             <button class="secondary" on:click={openConnect}><ArcIcon name="download" size={20} weight="bold" />Подключить VPN</button>
           </div>
+
+          {#if account?.identity_source === 'email' && account?.paid_trial_offer === 'available' && !primary?.is_active && paidTrialDismissed}
+            <button class="paid-trial-banner" on:click={reopenPaidTrial}>
+              <span><small>ПРОБНЫЙ ПЕРИОД</small><b>7 дней Standard за 10 ₽</b><em>5 ГБ обхода глушилок · автопродление</em></span>
+              <i><ArcIcon name="arrow" size={18} weight="bold" /></i>
+            </button>
+          {/if}
 
           <div class="shortcuts">
             <button class="shortcut" on:click={() => selectTab('friends')}>
@@ -1101,7 +1137,7 @@
               <section class="email-form">
                 <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
                 {#if emailStep === 'code'}<label><span>Код из письма</span><input inputmode="numeric" maxlength="6" autocomplete="one-time-code" bind:value={emailCode} placeholder="000000" /></label>{/if}
-                {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={sendEmailCode}>Получить код</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={confirmEmailCode}>Подтвердить</button>{/if}
+                {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={() => sendEmailCode('link')}>Получить код</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={() => confirmEmailCode('link')}>Подтвердить</button>{/if}
               </section>
             {/if}
             {#if emailMessage}<p class="form-message">{emailMessage}</p>{/if}
@@ -1180,7 +1216,7 @@
     </div>
   {/if}
 
-  {#if account?.identity_source === 'email' && ['available','pending','created'].includes(account?.paid_trial_offer) && !paymentOrderId}
+  {#if account?.identity_source === 'email' && ['available','pending','created'].includes(account?.paid_trial_offer) && !primary?.is_active && !paymentOrderId && !paidTrialDismissed}
     <div class="paid-trial-backdrop" transition:fade={{duration:160}}>
       <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" transition:fly={{y:24,duration:220,easing:cubicOut}}>
         <span class="paid-trial-kicker">ПРЕДЛОЖЕНИЕ ДЛЯ НОВОГО АККАУНТА</span>
@@ -1193,7 +1229,19 @@
         <div class="paid-trial-renew"><i><ArcIcon name="check" size={14}/></i><span><b>Автопродление включено</b><small>{paidTrialMethod==='sbp'?'Счёт СБП':'Карта'} сохранится. Отключить автопродление можно в настройках.</small></span></div>
         {#if paidTrialMessage}<p class="paid-trial-error" role="alert">{paidTrialMessage}</p>{/if}
         <button class="paid-trial-pay" disabled={paidTrialBusy} on:click={buyPaidTrial}>{paidTrialBusy?'Создаём платёж…':`Оплатить ${paidTrialMethod==='sbp'?'через СБП':'картой'} · 10 ₽`}</button>
+        <button class="paid-trial-later" disabled={paidTrialBusy} on:click={dismissPaidTrial}>Позже</button>
         <small class="paid-trial-legal">Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a>.</small>
+      </section>
+    </div>
+  {/if}
+
+  {#if logoutConfirmOpen}
+    <div class="logout-backdrop" transition:fade={{duration:150}}>
+      <section class="logout-dialog" role="dialog" aria-modal="true" aria-labelledby="logout-title" transition:fly={{y:18,duration:200,easing:cubicOut}}>
+        <i><ArcIcon name="logout" size={24} weight="bold" /></i>
+        <h2 id="logout-title">Выйти из аккаунта?</h2>
+        <p>Вы уверены, что хотите выйти из аккаунта ArcVPN на этом устройстве?</p>
+        <div><button class="logout-no" disabled={logoutBusy} on:click={() => logoutConfirmOpen = false}>Нет</button><button class="logout-yes" disabled={logoutBusy} on:click={confirmLogout}>{logoutBusy ? 'Выходим…' : 'Да'}</button></div>
       </section>
     </div>
   {/if}
@@ -1523,7 +1571,10 @@
   .telegram-login { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 28px; border-radius: 16px; color: #06131e; background: #8ed3f7; font-size: 12px; font-weight: 850; }
   .telegram-login:focus-visible { outline: 2px solid #d8f2ff; outline-offset: 3px; }
   .auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:14px 0 10px;padding:4px;border-radius:14px;background:#0a131f}.auth-switch button{min-height:38px;border:0;border-radius:10px;color:#7890a5;background:transparent;font-weight:800}.auth-switch button.active{color:#07131d;background:#8ed3f7}
-  .paid-trial-backdrop{position:fixed;z-index:95;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.paid-trial-card{box-sizing:border-box;width:min(100%,500px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);box-shadow:0 35px 110px rgba(0,0,0,.62)}.paid-trial-kicker{color:#80c9f4;font-size:9px;font-weight:900;letter-spacing:.14em}.paid-trial-card h2{margin:10px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.paid-trial-card>p{margin:0;color:#aab8c6;font-size:12px;line-height:1.55}.paid-trial-methods{display:grid;gap:9px;margin-top:22px}.paid-trial-methods button{display:grid;grid-template-columns:42px 1fr 24px;align-items:center;gap:11px;min-height:68px;padding:10px 14px;border:1px solid rgba(174,211,241,.1);border-radius:20px;color:#fff;background:rgba(255,255,255,.025);text-align:left}.paid-trial-methods button.active{border-color:#83cdf7;background:rgba(105,191,240,.08)}.paid-trial-methods img{width:32px;height:32px}.paid-trial-methods span{display:flex;flex-direction:column;gap:3px}.paid-trial-methods small,.paid-trial-renew small{color:#91a3b4;font-size:10px}.paid-trial-methods em{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#96d8ff;color:#07111b;font-style:normal}.paid-trial-renew{display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px;border-radius:17px;background:rgba(139,196,235,.06)}.paid-trial-renew>i{display:grid;place-items:center;flex:0 0 29px;height:29px;border-radius:50%;color:#07111b;background:#96d8ff}.paid-trial-renew span{display:flex;flex-direction:column;gap:3px}.paid-trial-pay{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:18px;color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);font-weight:900}.paid-trial-error{margin-top:12px!important;color:#ffadb4!important}.paid-trial-legal{display:block;margin-top:12px;color:#74899c;font-size:9px;text-align:center}.paid-trial-legal a{color:#9bd9ff}
+  .paid-trial-backdrop{position:fixed;z-index:95;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.paid-trial-card{box-sizing:border-box;width:min(100%,500px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);box-shadow:0 35px 110px rgba(0,0,0,.62)}.paid-trial-kicker{color:#80c9f4;font-size:9px;font-weight:900;letter-spacing:.14em}.paid-trial-card h2{margin:10px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.paid-trial-card>p{margin:0;color:#aab8c6;font-size:12px;line-height:1.55}.paid-trial-methods{display:grid;gap:9px;margin-top:22px}.paid-trial-methods button{display:grid;grid-template-columns:42px 1fr 24px;align-items:center;gap:11px;min-height:68px;padding:10px 14px;border:1px solid rgba(174,211,241,.1);border-radius:20px;color:#fff;background:rgba(255,255,255,.025);text-align:left}.paid-trial-methods button.active{border-color:#83cdf7;background:rgba(105,191,240,.08)}.paid-trial-methods img{width:32px;height:32px}.paid-trial-methods span{display:flex;flex-direction:column;gap:3px}.paid-trial-methods small,.paid-trial-renew small{color:#91a3b4;font-size:10px}.paid-trial-methods em{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#96d8ff;color:#07111b;font-style:normal}.paid-trial-renew{display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px;border-radius:17px;background:rgba(139,196,235,.06)}.paid-trial-renew>i{display:grid;place-items:center;flex:0 0 29px;height:29px;border-radius:50%;color:#07111b;background:#96d8ff}.paid-trial-renew span{display:flex;flex-direction:column;gap:3px}.paid-trial-pay{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:18px;color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);font-weight:900}.paid-trial-later{width:100%;min-height:52px;margin-top:10px;border:1px solid #3c6f8f;border-radius:18px;color:#a9dcfa;background:transparent;font-weight:850}.paid-trial-later:hover{border-color:#8bd3fa;background:rgba(112,199,244,.06)}.paid-trial-error{margin-top:12px!important;color:#ffadb4!important}.paid-trial-legal{display:block;margin-top:12px;color:#74899c;font-size:9px;text-align:center}.paid-trial-legal a{color:#9bd9ff}
+  .paid-trial-banner{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:18px;padding:16px 18px;border:1px solid rgba(136,211,253,.28);border-radius:21px;color:#fff;background:linear-gradient(120deg,rgba(89,176,225,.14),rgba(7,17,27,.75));text-align:left}.paid-trial-banner span{display:flex;flex-direction:column;gap:3px}.paid-trial-banner small{color:#82cef8;font-size:8px;font-weight:900;letter-spacing:.12em}.paid-trial-banner b{font-size:15px}.paid-trial-banner em{color:#8fa4b6;font-size:9px;font-style:normal}.paid-trial-banner>i{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;color:#07111b;background:#98d9ff}
+  .account-logout{position:fixed;z-index:32;left:22px;bottom:22px;display:flex;align-items:center;gap:9px;min-height:48px;padding:0 16px;border:1px solid rgba(145,200,237,.18);border-radius:999px;color:#a8cde4;background:rgba(8,18,29,.72);backdrop-filter:blur(12px)}.account-logout:hover{border-color:#77c9f6;color:#fff}.logout-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.logout-dialog{box-sizing:border-box;width:min(100%,430px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:28px;background:linear-gradient(150deg,#111d2a,#080f18 72%);text-align:center;box-shadow:0 35px 110px rgba(0,0,0,.62)}.logout-dialog>i{display:grid;place-items:center;width:50px;height:50px;margin:0 auto 16px;border-radius:16px;color:#9bdcff;background:rgba(117,199,245,.09)}.logout-dialog h2{margin:0;font-size:27px}.logout-dialog p{margin:10px auto 22px;max-width:330px;color:#9aacbc;font-size:12px;line-height:1.55}.logout-dialog>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}.logout-dialog button{min-height:52px;border-radius:17px;font-weight:900}.logout-no{border:1px solid #39637e;color:#aadcf8;background:transparent}.logout-yes{border:0;color:#08131c;background:#91d5fa}
+  @media(max-width:700px){.account-logout{left:14px;bottom:94px;width:46px;padding:0;justify-content:center}.account-logout span{display:none}.paid-trial-card{padding:23px;border-radius:25px}.logout-dialog{padding:24px}}
   .login-divider { display: flex; align-items: center; gap: 12px; margin: 18px 4px 0; color: var(--faint); font-size: 9px; }
   .login-divider::before,.login-divider::after { content: ''; height: 1px; flex: 1; background: var(--hairline); }
   .login-form { margin-top: 28px; }
