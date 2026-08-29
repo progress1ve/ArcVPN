@@ -513,11 +513,50 @@ def create_email_user(email: str) -> Dict[str, Any]:
 
 def email_paid_trial_state(user_id: int) -> str:
     with get_db() as conn:
+        claim = conn.execute(
+            "SELECT status FROM email_paid_trial_claims WHERE user_id=?", (user_id,)
+        ).fetchone()
+        if claim:
+            return str(claim["status"])
         row = conn.execute(
             """SELECT status FROM payments WHERE user_id=? AND offer_code='email_paid_trial'
                ORDER BY id DESC LIMIT 1""", (user_id,)
         ).fetchone()
         return str(row["status"]) if row else "available"
+
+
+def acquire_email_paid_trial_claim(user_id: int, order_id: str) -> bool:
+    """Reserve the offer before provider checkout; only stale failures are retryable."""
+    with get_db() as conn:
+        cur = conn.execute(
+            """INSERT INTO email_paid_trial_claims(user_id,order_id,status)
+               VALUES(?,?,'pending')
+               ON CONFLICT(user_id) DO UPDATE SET order_id=excluded.order_id,
+                   status='pending',created_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP
+               WHERE email_paid_trial_claims.status IN ('canceled','failed')""",
+            (int(user_id), str(order_id)),
+        )
+        return cur.rowcount == 1
+
+
+def update_email_paid_trial_claim(order_id: str, status: str) -> bool:
+    if status not in {"pending", "paid", "applied", "canceled", "failed"}:
+        return False
+    with get_db() as conn:
+        cur = conn.execute(
+            """UPDATE email_paid_trial_claims SET status=?,updated_at=CURRENT_TIMESTAMP
+               WHERE order_id=?""", (status, str(order_id))
+        )
+        return cur.rowcount == 1
+
+
+def validate_email_paid_trial_claim(user_id: int, order_id: str) -> bool:
+    with get_db() as conn:
+        row = conn.execute(
+            """SELECT 1 FROM email_paid_trial_claims WHERE user_id=? AND order_id=?
+               AND status IN ('pending','paid')""", (int(user_id), str(order_id))
+        ).fetchone()
+        return bool(row)
 
 
 def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:

@@ -307,6 +307,7 @@
       paidTrialMessage = ({
         recurring_method_not_enabled: 'Автопродление для этого способа оплаты пока недоступно.',
         paid_trial_already_used: 'Пробный период уже был использован.',
+        paid_trial_payment_pending: 'Платёж уже создан. Завершите его или дождитесь отмены банком.',
       })[error.reason] || 'Не удалось создать платёж. Попробуйте ещё раз.'
     } finally { paidTrialBusy = false }
   }

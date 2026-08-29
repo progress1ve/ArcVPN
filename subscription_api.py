@@ -94,6 +94,8 @@ from database.requests import (
     increment_email_registration_attempts,
     create_email_user,
     email_paid_trial_state,
+    acquire_email_paid_trial_claim,
+    update_email_paid_trial_claim,
     link_verified_email,
     unlink_email,
     get_user_by_verified_email,
@@ -3336,6 +3338,10 @@ def api_yookassa_webhook():
     if not order:
         logger.warning("YooKassa webhook для неизвестного payment %s", _mask_token(provider_id))
         return _api_error("payment_not_found", 404)
+    if event == "payment.canceled":
+        if order.get("offer_code") == "email_paid_trial":
+            update_email_paid_trial_claim(order["order_id"], "canceled")
+        return jsonify({"ok": True, "status": "canceled"})
     if event != "payment.succeeded":
         return jsonify({"ok": True, "status": event.removeprefix("payment.")})
 
@@ -3353,6 +3359,8 @@ def api_yookassa_webhook():
                 verified_status,
             )
             return _api_error("payment_not_confirmed", 409)
+        if order.get("offer_code") == "email_paid_trial":
+            update_email_paid_trial_claim(order["order_id"], "paid")
         payment_method = payment_details.get("payment_method") or {}
         if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0):
             method_type = str(payment_method.get("type") or "bank_card")
@@ -3414,6 +3422,8 @@ def api_sbp_payment_status(order_id: str):
         applied = False
         fulfillment_status = order.get("fulfillment_status") or "pending"
         if status == "succeeded":
+            if order.get("offer_code") == "email_paid_trial":
+                update_email_paid_trial_claim(order_id, "paid")
             payment_method = payment_details.get("payment_method") or {}
             if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0):
                 method_type = str(payment_method.get("type") or "bank_card")
@@ -3864,11 +3874,18 @@ def api_create_email_trial_payment():
         payment_type="yookassa_card" if method_type == "bank_card" else "yookassa_qr",
         amount_cents=1000, operation_type="trial_start",
     )
+    if not acquire_email_paid_trial_claim(int(account["id"]), order["order_id"]):
+        with get_db() as conn:
+            conn.execute("UPDATE payments SET status='canceled' WHERE order_id=?", (order["order_id"],))
+        return _api_error("paid_trial_payment_pending", 409)
     with get_db() as conn:
         conn.execute("""UPDATE payments SET period_days=7,offer_code='email_paid_trial',
                         auto_renew_requested=1 WHERE order_id=? AND status='pending'""",
                      (order["order_id"],))
     if not set_payment_requested_entitlements(order["order_id"], 3, 5):
+        update_email_paid_trial_claim(order["order_id"], "failed")
+        with get_db() as conn:
+            conn.execute("UPDATE payments SET status='failed' WHERE order_id=?", (order["order_id"],))
         return _api_error("payment_initialization_failed", 500)
     try:
         payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
@@ -3881,6 +3898,9 @@ def api_create_email_trial_payment():
         ), timeout=45)
         save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
     except Exception:
+        update_email_paid_trial_claim(order["order_id"], "failed")
+        with get_db() as conn:
+            conn.execute("UPDATE payments SET status='failed' WHERE order_id=?", (order["order_id"],))
         logger.exception("Не удалось создать платный trial для email user=%s", account["id"])
         return _api_error("payment_provider_unavailable", 503)
     return _api_no_store(jsonify({"ok": True, "order_id": order["order_id"],

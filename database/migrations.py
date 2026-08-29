@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 59
+LATEST_VERSION = 60
 
 
 def get_current_version() -> int:
@@ -2368,6 +2368,23 @@ def migration_59(conn: sqlite3.Connection) -> None:
     logger.info("Migration v59 applied")
 
 
+def migration_60(conn: sqlite3.Connection) -> None:
+    """Atomic reservation for the single email paid-trial checkout."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS email_paid_trial_claims (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            order_id TEXT NOT NULL UNIQUE,
+            status TEXT NOT NULL DEFAULT 'pending'
+                CHECK(status IN ('pending','paid','applied','canceled','failed')),
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_email_paid_trial_claim_status
+            ON email_paid_trial_claims(status,updated_at);
+    """)
+    logger.info("Migration v60 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2428,6 +2445,7 @@ MIGRATIONS = {
     57: migration_57,
     58: migration_58,
     59: migration_59,
+    60: migration_60,
 }
 
 
