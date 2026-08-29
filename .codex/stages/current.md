@@ -23,6 +23,14 @@ build, full `125 passed`, service health and public HTTP 200 passed. Public logi
 has no horizontal overflow at 390, 768, 1366 and 1920 px; authenticated-state
 visual confirmation remains a quick owner browser pass after refresh.
 
+Follow-up `07a62c6`: removed the placeholder letter from the email brand,
+persisted pending email/purpose for the full ten-minute code lifetime across
+WebApp closes, and bound verification to the stored email. Email-only accounts
+now show Telegram as disconnected. Logout moved into Settings / login methods,
+uses a dedicated outlined icon, and is omitted inside Telegram Mini App. The
+public site serves the new bundle without horizontal overflow; service health
+is `OK`, journal has no error entries, and the full suite remains `125 passed`.
+
 ## 2026-08-29 TikTok forced proxy and Resend cutover
 
 Goal: make TikTok/ByteDance traffic use the selected VPN route before Russian
