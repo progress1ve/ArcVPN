@@ -3730,13 +3730,15 @@ def api_email_request():
     payload = request.get_json(silent=True) or {}
     email = _clean_text(payload.get("email"), 254).lower()
     purpose = _clean_text(payload.get("purpose"), 12)
-    if purpose not in {"link", "login", "register"} or not _valid_email(email):
+    if purpose not in {"link", "login", "register", "auto"} or not _valid_email(email):
         return _api_error("invalid_email", 400)
     if not SMTP_HOST or not SMTP_FROM:
         return _api_error("email_unavailable", 503)
     if not _email_rate_allowed(email):
         return _api_error("try_later", 429)
 
+    if purpose == "auto":
+        purpose = "login" if get_user_by_verified_email(email) else "register"
     if purpose == "register":
         if get_user_by_verified_email(email):
             return _api_no_store(jsonify({"ok": True, "sent": True}))
@@ -3770,8 +3772,11 @@ def api_email_verify():
     email = _clean_text(payload.get("email"), 254).lower()
     purpose = _clean_text(payload.get("purpose"), 12)
     code = _clean_text(payload.get("code"), 6)
-    if purpose not in {"link", "login", "register"} or not _valid_email(email) or not re.fullmatch(r"\d{6}", code):
+    if purpose not in {"link", "login", "register", "auto"} or not _valid_email(email) or not re.fullmatch(r"\d{6}", code):
         return _api_error("invalid_code", 400)
+
+    if purpose == "auto":
+        purpose = "login" if get_user_by_verified_email(email) else "register"
 
     if purpose == "register":
         record = get_email_registration_code(email)
@@ -4945,10 +4950,13 @@ def api_admin_overview():
             SELECT
               COUNT(*) AS sent,
               COUNT(answer) AS answered,
-              ROUND(AVG(CASE WHEN answer IN ('1','3','5') THEN CAST(answer AS REAL) END), 1) AS average,
-              SUM(CASE WHEN answer='1' THEN 1 ELSE 0 END) AS rating_1,
-              SUM(CASE WHEN answer='3' THEN 1 ELSE 0 END) AS rating_3,
-              SUM(CASE WHEN answer='5' THEN 1 ELSE 0 END) AS rating_5
+              SUM(CASE WHEN answer LIKE 'great%' THEN 1 ELSE 0 END) AS great,
+              SUM(CASE WHEN answer LIKE 'connection%' THEN 1 ELSE 0 END) AS connection,
+              SUM(CASE WHEN answer LIKE 'speed%' THEN 1 ELSE 0 END) AS speed,
+              SUM(CASE WHEN answer LIKE 'service%' THEN 1 ELSE 0 END) AS service,
+              SUM(CASE WHEN answer LIKE 'setup%' THEN 1 ELSE 0 END) AS setup,
+              SUM(CASE WHEN answer LIKE 'other%' THEN 1 ELSE 0 END) AS other,
+              SUM(CASE WHEN answer IN ('1','3','5') THEN 1 ELSE 0 END) AS legacy
             FROM lifecycle_events
             WHERE event_key='trial_day1_rating'
         """).fetchone())
@@ -4958,11 +4966,9 @@ def api_admin_overview():
             "sent": trial_rating_sent,
             "answered": trial_rating_answered,
             "response_rate": round(trial_rating_answered / max(1, trial_rating_sent) * 100, 1),
-            "average": trial_rating_row.get("average"),
             "distribution": {
-                "1": int(trial_rating_row.get("rating_1") or 0),
-                "3": int(trial_rating_row.get("rating_3") or 0),
-                "5": int(trial_rating_row.get("rating_5") or 0),
+                key: int(trial_rating_row.get(key) or 0)
+                for key in ("great", "connection", "speed", "service", "setup", "other", "legacy")
             },
             "recent": [dict(row) for row in conn.execute("""
                 SELECT u.telegram_id,u.username,u.first_name,le.answer,le.answered_at

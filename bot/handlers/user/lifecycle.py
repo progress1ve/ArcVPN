@@ -55,14 +55,36 @@ def _record_rating_answer(telegram_id: int, answer: str) -> tuple[bool, int | No
 
 @router.callback_query(F.data.startswith("lifecycle_rating:"))
 async def lifecycle_rating(callback: CallbackQuery):
-    rating = callback.data.rsplit(":", 1)[-1]
-    saved, _ = _record_rating_answer(callback.from_user.id, rating)
+    answer = callback.data.rsplit(":", 1)[-1]
+    saved, _ = _record_rating_answer(callback.from_user.id, answer)
     await callback.answer("Спасибо! Ответ сохранён 💙" if saved else "Вы уже оценили ArcVPN")
     if saved:
         await callback.message.edit_caption(
-            caption="💙 <b>Спасибо за оценку!</b>\n\nОна поможет нам сделать ArcVPN удобнее.",
+            caption="💙 <b>Спасибо за ответ!</b>\n\nМы сохранили его и используем при следующих улучшениях ArcVPN.",
             reply_markup=None,
         )
+        if answer in {"other", "service"}:
+            prompt = ("Напишите, пожалуйста, что именно стоит улучшить."
+                      if answer == "other" else "Напишите, какой сайт или приложение не работает.")
+            await callback.message.answer(
+                prompt,
+                reply_markup=ForceReply(input_field_placeholder="Коротко опишите проблему"),
+            )
+
+
+@router.message(F.reply_to_message.text.contains("что именно стоит улучшить") | F.reply_to_message.text.contains("какой сайт или приложение"))
+async def lifecycle_rating_details(message: Message):
+    details = (message.text or "").strip()[:500]
+    if not details:
+        return
+    with get_db() as conn:
+        conn.execute("""
+            UPDATE lifecycle_events SET answer = answer || ': ' || ?
+            WHERE user_id=(SELECT id FROM users WHERE telegram_id=?)
+              AND event_key='trial_day1_rating'
+              AND (answer='other' OR answer='service')
+        """, (details, message.from_user.id))
+    await message.answer("Записали подробности, спасибо 💙")
 
 
 @router.callback_query(F.data.startswith("lifecycle_winback:"))

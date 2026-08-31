@@ -83,18 +83,21 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
 
     assets = os.path.join(PROJECT_ROOT, "bot", "assets")
     for row in rating_users:
-        kb = InlineKeyboardMarkup(inline_keyboard=[[
-            InlineKeyboardButton(text="😕 1", callback_data="lifecycle_rating:1"),
-            InlineKeyboardButton(text="🙂 3", callback_data="lifecycle_rating:3"),
-            InlineKeyboardButton(text="🤩 5", callback_data="lifecycle_rating:5"),
-        ]])
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💙 Всё работает отлично", callback_data="lifecycle_rating:great")],
+            [InlineKeyboardButton(text="🔌 Не подключается или нестабильно", callback_data="lifecycle_rating:connection")],
+            [InlineKeyboardButton(text="🐢 Низкая скорость", callback_data="lifecycle_rating:speed")],
+            [InlineKeyboardButton(text="📱 Не работает нужный сервис", callback_data="lifecycle_rating:service")],
+            [InlineKeyboardButton(text="🧩 Сложно настроить", callback_data="lifecycle_rating:setup")],
+            [InlineKeyboardButton(text="💬 Другое", callback_data="lifecycle_rating:other")],
+        ])
         try:
             await bot.send_photo(
                 row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v1.png")),
                 caption=(
                     "💙 <b>Поможете сделать ArcVPN лучше?</b>\n\n"
-                    "Пробная подписка работает уже день. Как вам ArcVPN?\n\n"
-                    "Поставьте оценку одним нажатием — мы читаем каждый ответ."
+                    "Пробная подписка работает уже день. Что нам важнее всего улучшить?\n\n"
+                    "Выберите один вариант — так мы быстрее поймём, что действительно мешает."
                 ),
                 reply_markup=kb,
             )
@@ -950,6 +953,37 @@ async def reconcile_lte_usage() -> dict:
     return result
 
 
+async def reconcile_main_usage(keys=None) -> dict:
+    """Mirror authoritative Remnawave counters into active main key rows."""
+    from database.requests import get_all_active_keys_with_server, bulk_update_traffic
+    from bot.services.remnawave_stats import remnawave_authority_config
+    keys = list(keys if keys is not None else get_all_active_keys_with_server())
+    result = {"updated": 0, "failed": 0, "key_ids": set()}
+    if not keys or not remnawave_authority_enabled():
+        return result
+    client = get_client_from_server_data(remnawave_authority_config())
+    updates = []
+    try:
+        for key in keys:
+            try:
+                user = await client.get_user(key["panel_email"])
+                if not user or str(user.get("vlessUuid") or "") != str(key.get("client_uuid") or ""):
+                    raise RuntimeError("main identity mismatch")
+                used = max(0, int((user.get("userTraffic") or {}).get("usedTrafficBytes") or 0))
+                updates.append((used, int(key["id"])))
+                key["_new_traffic_used"] = used
+                result["key_ids"].add(int(key["id"]))
+                result["updated"] += 1
+            except Exception:
+                result["failed"] += 1
+                logger.exception("Main usage reconciliation failed key=%s", key.get("id"))
+        if updates:
+            bulk_update_traffic(updates)
+    finally:
+        await client.close()
+    return result
+
+
 async def monthly_traffic_reset(bot: Bot) -> None:
     """
     Устаревшая ежемесячная сверка. Сброс 1-го числа отключён навсегда:
@@ -1130,6 +1164,7 @@ async def sync_traffic_stats(bot: Bot) -> None:
     if not keys:
         return
     remnawave_authority = remnawave_authority_enabled()
+    authoritative = await reconcile_main_usage(keys)
     
     # Группируем ключи по серверам
     keys_by_server: dict = {}
@@ -1174,6 +1209,8 @@ async def sync_traffic_stats(bot: Bot) -> None:
             
             # Сопоставляем с ключами — «умная» формула через остаток
             for key in server_keys:
+                if int(key["id"]) in authoritative["key_ids"]:
+                    continue
                 email = key.get('panel_email')
                 if email and email in stats_map:
                     s = stats_map[email]
@@ -1247,10 +1284,10 @@ async def sync_traffic_stats(bot: Bot) -> None:
                 if notification_allowed(telegram_id, "connection"):
                     from bot.utils.text import escape_html
                     text = (
-                        f"✅ <b>Подписка подключена!</b>\n\n"
-                        f"🔑 {escape_html(str(keyname))}\n"
-                        f"📱 Устройств подключено: <b>{devices}/{device_limit}</b>\n\n"
-                        f"Приятного пользования ArcVPN!"
+                        f"✅ <b>ArcVPN подключён</b>\n\n"
+                        f"Подписка: <b>{escape_html(str(keyname))}</b>\n"
+                        f"Устройств подключено: <b>{devices} из {device_limit}</b>\n\n"
+                        f"Если это были не вы, откройте Настройки → Устройства и освободите слот."
                     )
                     await send_to_user(bot, telegram_id, text)
             mark_key_connect_notified(key['id'])
@@ -1259,7 +1296,9 @@ async def sync_traffic_stats(bot: Bot) -> None:
     # Проверяем пороги уведомлений о трафике
     notification_text_template = get_setting(
         'traffic_notification_text',
-        '⚠️ По ключу <b>{keyname}</b> осталось {percent}% трафика ({used} из {limit})'
+        '⚠️ <b>Заканчивается трафик</b>\n\n'
+        'Подписка: <b>{keyname}</b>\nОсталось: <b>{percent}%</b>\n'
+        'Использовано: {used} из {limit}\n\nПроверьте остаток и условия тарифа в личном кабинете.'
     )
 
     for key in keys:

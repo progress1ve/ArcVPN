@@ -56,6 +56,9 @@ def test_trial_rating_is_sent_once_after_24_hours(monkeypatch):
 
     assert [item[0] for item in bot.sent] == [1001]
     assert "работает уже день" in bot.sent[0][1]
+    buttons = [button.callback_data for row in bot.sent[0][2].inline_keyboard for button in row]
+    assert "lifecycle_rating:service" in buttons
+    assert not any(value.endswith((":1", ":3", ":5")) for value in buttons)
     event = conn.execute("SELECT event_key FROM lifecycle_events WHERE user_id=1").fetchone()
     assert event["event_key"] == "trial_day1_rating"
     assert conn.execute("SELECT COUNT(*) FROM lifecycle_events WHERE user_id=2").fetchone()[0] == 0

@@ -51,3 +51,34 @@ def test_successful_email_login_consumes_code_before_session():
     session.assert_called_once()
     cookie = response.headers.get("Set-Cookie", "")
     assert "HttpOnly" in cookie and "Secure" in cookie and "SameSite=Lax" in cookie
+
+
+def test_auto_email_request_registers_unknown_without_disclosing_branch():
+    with patch.object(api, "SMTP_HOST", "smtp.example.test"), patch.object(
+        api, "SMTP_FROM", "ArcVPN <login@example.test>"
+    ), patch.object(api, "_email_rate_allowed", return_value=True), patch.object(
+        api, "get_user_by_verified_email", return_value=None
+    ), patch.object(api, "save_email_registration_code") as save, patch.object(
+        api, "_send_email_code", return_value=True
+    ):
+        response = api.app.test_client().post(
+            "/api/auth/email/request", json={"email": "new@example.com", "purpose": "auto"}
+        )
+    assert response.status_code == 200
+    assert response.get_json() == {"ok": True, "sent": True}
+    assert save.call_args.args[0] == "new@example.com"
+
+
+def test_auto_email_request_logs_in_existing_account():
+    with patch.object(api, "SMTP_HOST", "smtp.example.test"), patch.object(
+        api, "SMTP_FROM", "ArcVPN <login@example.test>"
+    ), patch.object(api, "_email_rate_allowed", return_value=True), patch.object(
+        api, "get_user_by_verified_email", return_value={"id": 7}
+    ), patch.object(api, "save_email_code") as save, patch.object(
+        api, "_send_email_code", return_value=True
+    ):
+        response = api.app.test_client().post(
+            "/api/auth/email/request", json={"email": "known@example.com", "purpose": "auto"}
+        )
+    assert response.status_code == 200
+    assert save.call_args.args[:3] == (7, "known@example.com", "login")

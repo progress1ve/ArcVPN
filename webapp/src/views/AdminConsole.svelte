@@ -62,6 +62,8 @@
     return `${(amount / 1024 ** 2).toFixed(0)} МБ`
   }
   const periodLabel = { day: '24 часа', week: '7 дней', month: '30 дней' }
+  const feedbackLabels = { great:'Всё отлично', connection:'Подключение', speed:'Скорость', service:'Нужный сервис', setup:'Настройка', other:'Другое', legacy:'Старые оценки' }
+  const feedbackLabel = (answer='') => feedbackLabels[String(answer).split(':',1)[0]] || ({'1':'Старая оценка 1/5','3':'Старая оценка 3/5','5':'Старая оценка 5/5'})[answer] || answer
   const productLabel = (item) => ({ economy: 'Эконом', standard: 'Стандарт', family: 'Семейный' })[item?.product_code] || item?.product_name || 'Другой тариф'
   const supportName = (thread) => thread?.first_name || (thread?.username ? `@${thread.username}` : `ID ${thread?.telegram_id || thread?.id || '—'}`)
   $: filteredSupportThreads = supportThreads.filter((thread) => `${supportName(thread)} ${thread.last_message || ''}`.toLocaleLowerCase('ru-RU').includes(supportQuery.trim().toLocaleLowerCase('ru-RU')))
@@ -328,10 +330,10 @@
           <div class="traffic-grid"><article><span>Основные профили</span><b>{bytes(data.business?.traffic?.main_used_bytes)}</b><small>кэш Remnawave по активным ключам</small></article><article><span>Обход глушилок LTE</span><b>{bytes(data.business?.traffic?.lte_used_bytes)}</b><small>отдельные LTE-идентичности</small></article></div>
         </section>
         <section class="panel rating-panel">
-          <div class="panel-head"><div><span>Через день после пробника</span><h2>Оценка ArcVPN</h2></div><strong>{data.trial_rating_feedback?.average == null ? '—' : `${data.trial_rating_feedback.average} / 5`}</strong></div>
+          <div class="panel-head"><div><span>Через день после пробника</span><h2>Что нужно улучшить</h2></div><strong>{num(data.trial_rating_feedback?.answered)}</strong></div>
           <div class="rating-summary"><article><b>{num(data.trial_rating_feedback?.sent)}</b><span>отправлено</span></article><article><b>{num(data.trial_rating_feedback?.answered)}</b><span>ответили</span></article><article><b>{Number(data.trial_rating_feedback?.response_rate || 0).toLocaleString('ru-RU')}%</b><span>доля ответов</span></article></div>
-          <div class="rating-distribution" aria-label="Распределение оценок"><span>1 — {num(data.trial_rating_feedback?.distribution?.['1'])}</span><span>3 — {num(data.trial_rating_feedback?.distribution?.['3'])}</span><span>5 — {num(data.trial_rating_feedback?.distribution?.['5'])}</span></div>
-          <div class="rating-responses">{#if data.trial_rating_feedback?.recent?.length}{#each data.trial_rating_feedback.recent.slice(0,5) as response}<article><span><b>{response.first_name || (response.username ? `@${response.username}` : `ID ${response.telegram_id}`)}</b><small>{response.answered_at}</small></span><strong>{response.answer} / 5</strong></article>{/each}{:else}<p class="empty-copy">Ответов на новую оценку пока нет.</p>{/if}</div>
+          <div class="rating-distribution" aria-label="Причины обратной связи">{#each Object.entries(data.trial_rating_feedback?.distribution || {}) as [reason,count]}{#if count}<span>{feedbackLabels[reason] || reason} — {num(count)}</span>{/if}{/each}</div>
+          <div class="rating-responses">{#if data.trial_rating_feedback?.recent?.length}{#each data.trial_rating_feedback.recent.slice(0,5) as response}<article><span><b>{response.first_name || (response.username ? `@${response.username}` : `ID ${response.telegram_id}`)}</b><small>{response.answered_at}</small></span><strong>{feedbackLabel(response.answer)}</strong></article>{/each}{:else}<p class="empty-copy">Ответов пока нет.</p>{/if}</div>
         </section>
         <section class="panel node-panel">
           <div class="panel-head"><div><span>Remnawave · реальные апстримы</span><h2>Ноды сети</h2></div><button on:click={() => openSection('nodes')}>Все ноды <ArcIcon name="arrow" size={16} /></button></div>

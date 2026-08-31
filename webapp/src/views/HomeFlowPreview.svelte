@@ -2,6 +2,7 @@
   import { onDestroy, onMount } from 'svelte'
   import { fade, fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
+  import QRCode from 'qrcode'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
@@ -24,10 +25,11 @@
     { id: 'settings', icon: 'settings', label: 'Настройки' },
   ]
   const faqs = [
-    ['VPN не подключается', 'Обновите подписку в приложении, затем переключитесь на другой сервер. Если ошибка осталась — напишите нам в чат.'],
-    ['Как установить VPN?', 'Нажмите «Подключить VPN» на главной, выберите устройство и импортируйте подписку в Happ.'],
-    ['Интернет стал медленнее', 'Попробуйте сервер со значком молнии или переключитесь между XHTTP, TCP и Hysteria 2.'],
-    ['Нашли баг или ошибку?', 'Опишите проблему в чате поддержки. Версия устройства и скриншот помогут решить её быстрее.'],
+    ['VPN не подключается', 'Обновите подписку в Happ, включите «Автовыбор» и повторите подключение. Если не помогло — пришлите в чат модель устройства и скриншот ошибки.'],
+    ['Как подключить новое устройство?', 'На главной нажмите «Подключить VPN», выберите устройство, установите Happ и импортируйте подписку. Один слот занимает одно добавленное устройство.'],
+    ['Не открывается нужный сайт или приложение', 'Переключитесь на профиль «с обходом глушилок» и перезапустите приложение. Напишите нам название сервиса, если он всё ещё недоступен.'],
+    ['Как управлять автопродлением?', 'Откройте Настройки → Оплата и автопродление. Там можно проверить сохранённый способ оплаты и отключить следующее списание.'],
+    ['Как защитить аккаунт?', 'Никому не пересылайте код из письма и персональную ссылку подписки. ArcVPN никогда не просит код подтверждения в чате.'],
   ]
   const quickSupportQuestions = [
     'Как настроить обход блокировок?',
@@ -70,6 +72,8 @@
   let emailBusy = false
   let emailMessage = ''
   let emailAuthMode = 'login'
+  let referralQrOpen = false
+  let referralQrData = ''
   let paidTrialMethod = 'sbp'
   let paidTrialBusy = false
   let paidTrialMessage = ''
@@ -296,6 +300,16 @@
     if (platform === 'android') return 'android'
     if (platform === 'windows') return 'windows'
     return 'happ'
+  }
+
+  async function openReferralQr() {
+    if (!currentReferralLink) return
+    haptic('light')
+    referralQrData = await QRCode.toDataURL(currentReferralLink, {
+      width: 720, margin: 2, errorCorrectionLevel: 'H',
+      color: { dark: '#07111f', light: '#ffffff' },
+    })
+    referralQrOpen = true
   }
 
   async function buyPaidTrial() {
@@ -920,14 +934,13 @@
           <div class="login-copy"><h1>Войдите<br />в свой аккаунт</h1><span>Используйте Telegram или подтверждённый email — откроется один и тот же кабинет.</span></div>
           {#if botLoginUrl}<button class="telegram-login" on:click={() => openTelegram(botLoginUrl)}><ArcIcon name="telegram" size={19} weight="bold" />Войти через Telegram</button>{/if}
           <div class="login-divider"><span>или по email</span></div>
-          <div class="auth-switch" role="tablist" aria-label="Режим входа"><button class:active={emailAuthMode==='login'} on:click={() => { emailAuthMode='login'; emailStep='email'; emailMessage='' }}>Войти</button><button class:active={emailAuthMode==='register'} on:click={() => { emailAuthMode='register'; emailStep='email'; emailMessage='' }}>Создать аккаунт</button></div>
           <section class="email-form login-form">
             <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
             {#if emailStep === 'code'}<label><span>Код из письма</span><input inputmode="numeric" maxlength="6" autocomplete="one-time-code" bind:value={emailCode} placeholder="000000" /></label>{/if}
-            {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={() => sendEmailCode(emailAuthMode)}>Получить код</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={() => confirmEmailCode(emailAuthMode)}>{emailAuthMode==='register'?'Создать аккаунт':'Войти'}</button>{/if}
+            {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={() => sendEmailCode('auto')}>Продолжить по email</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={() => confirmEmailCode('auto')}>Подтвердить и продолжить</button>{/if}
           </section>
           {#if emailMessage}<p class="form-message">{emailMessage}</p>{/if}
-          <p class="login-help">Для входа используйте привязанный email. Новый email-аккаунт получает предложение Standard на 7 дней за 10 ₽ без бесплатного пробника.</p>
+          <p class="login-help">Если аккаунт уже есть — вы войдёте в него. Если нет — он будет создан после подтверждения. Пароль не нужен. Новому email-аккаунту доступен Standard на 7 дней за 10 ₽.</p>
         </section>
       {:else if active === 'home'}
         <section class="screen home-screen" aria-label="Главная">
@@ -988,18 +1001,19 @@
 
       {:else if active === 'friends'}
         <section class="screen inner-screen" aria-label="Друзья">
-          <header class="section-head"><h1>Приглашай.<br />Получай дни.</h1></header>
+          <header class="section-head"><h1>Приглашайте<br />друзей.</h1></header>
 
           <article class="referral-hero">
             <div class="referral-copy">
               <span>Реферальная программа</span>
+              <h2>Дни в подарок</h2>
               <div class="referral-rewards">
                 <strong>+{referralEntryBonus}<small>дней за вход</small></strong>
                 <strong>+{referralBonus}<small>дней после оплаты</small></strong>
               </div>
               <p>После покупки +{referralBonus} дней получаете и вы, и друг</p>
             </div>
-            <img src={`${asset}/referral-gift-v2.png`} alt="" />
+            <img class="referral-gift-art" src={`${asset}/referral-gift-open-v3.png`} alt="Открытая подарочная коробка" />
           </article>
 
           <div class="metric-grid">
@@ -1014,6 +1028,7 @@
               <button class:active={referralLinkType === 'telegram'} on:click={() => (referralLinkType = 'telegram')}>Для Telegram</button>
             </div>
             <button class="referral-link" disabled={!currentReferralLink} on:click={() => copyText(currentReferralLink, 'Реферальная ссылка скопирована')}><span>{currentReferralLink || 'Ссылка загружается…'}</span><i><ArcIcon name="copy" size={19} weight="bold" /></i></button>
+            <button class="qr-referral" disabled={!currentReferralLink} on:click={openReferralQr}><ArcIcon name="qr" size={19} weight="bold" />Показать QR-код</button>
             <button class="share-referral" disabled={!currentReferralLink} on:click={shareReferral}><ArcIcon name="send" size={18} weight="bold" />Поделиться</button>
           </section>
 
@@ -1257,6 +1272,19 @@
     </div>
   {/if}
 
+  {#if referralQrOpen}
+    <div class="qr-backdrop" role="presentation" transition:fade={{duration:150}}>
+      <button class="qr-dismiss" aria-label="Закрыть QR-код" on:click={() => referralQrOpen=false}></button>
+      <section class="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title" transition:fly={{y:18,duration:200,easing:cubicOut}}>
+        <button class="qr-close" aria-label="Закрыть" on:click={() => referralQrOpen=false}>×</button>
+        <h2 id="qr-title">Ваш QR-код</h2>
+        <p>Друг отсканирует его и откроет вашу персональную ссылку ArcVPN.</p>
+        <div class="qr-image"><img src={referralQrData} alt="QR-код реферальной ссылки" /><img class="qr-logo" src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></div>
+        <button class="qr-done" on:click={() => referralQrOpen=false}>Понятно</button>
+      </section>
+    </div>
+  {/if}
+
   {#if $status.error !== 'unauthorized' && !purchaseOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
       <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
@@ -1328,13 +1356,15 @@
   .referral-hero::before, .support-hero::before { content: ''; position: absolute; right: -45px; bottom: -60px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle,rgba(92,187,241,.22),rgba(35,105,171,.08) 48%,transparent 70%); filter: blur(10px); }
   .referral-copy { position: relative; z-index: 2; max-width: 190px; }
   .referral-copy > span, .support-hero > div > span { color: #91a5b8; font-size: 10.5px; font-weight: 700; }
+  .referral-copy h2 { max-width: 145px; margin: 7px 0 0; font-size: 24px; line-height: 1; letter-spacing: -.045em; }
   .referral-copy strong { display: block; margin-top: 10px; font-size: 35px; line-height: 1; letter-spacing: -.055em; }
   .referral-rewards { display: flex; align-items: stretch; gap: 8px; margin-top: 12px; }
   .referral-rewards strong { min-width: 78px; margin: 0; padding: 10px 11px; border-radius: 16px; background: rgba(151,210,250,.1); font-size: 27px; letter-spacing: -.045em; }
   .referral-rewards strong:last-child { background: rgba(151,210,250,.17); }
   .referral-rewards small { display: block; max-width: 68px; margin-top: 5px; color: #c6d8e7; font-size: 8.5px; font-weight: 700; line-height: 1.2; letter-spacing: 0; }
   .referral-copy p { max-width: 150px; margin: 8px 0 0; color: #9eacbb; font-size: 11px; line-height: 1.45; }
-  .referral-hero img { position: absolute; right: -34px; bottom: -27px; width: 190px; height: 190px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(87,180,237,.15)); }
+  .referral-hero img.referral-gift-art { position: absolute; right: -24px; bottom: -18px; width: 205px; height: 205px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(87,180,237,.2)); animation: referralFloat 4.6s ease-in-out infinite; }
+  @keyframes referralFloat { 0%,100% { transform: translate3d(0,2px,0) rotate(-1deg); } 50% { transform: translate3d(0,-9px,0) rotate(1.5deg); } }
   .metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
   .metric-grid article { padding: 17px 18px; border: 1px solid var(--border); border-radius: 21px; background: rgba(7,13,23,.72); }
   .metric-grid span { display: block; color: var(--muted); font-size: 10px; }
@@ -1352,6 +1382,7 @@
   .referral-link span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .referral-link i { width: 40px; height: 40px; display: grid; flex: none; place-items: center; border-radius: 13px; color: #0a1a28; background: #75c6f3; }
   .share-referral { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 9px; border: 1px solid rgba(105,190,244,.44); border-radius: 16px; color: #83cff9; background: rgba(10,26,43,.38); font-size: 11.5px; font-weight: 800; }
+  .qr-referral { width:100%; min-height:46px; display:flex; align-items:center; justify-content:center; gap:8px; margin-top:12px; border:0; color:#dceefb; background:transparent; font-size:11.5px; font-weight:800; }
   .steps { margin-top: 20px; padding: 4px 16px; border: 1px solid var(--border); border-radius: 22px; background: rgba(7,13,23,.62); }
   .steps > div { display: flex; align-items: center; gap: 12px; padding: 13px 0; }
   .steps > div + div { border-top: 1px solid rgba(255,255,255,.06); }
@@ -1546,8 +1577,8 @@
   .preference-list span { display: flex; flex: 1; flex-direction: column; }
   .preference-list b { font-size: 12px; }
   .preference-list small { margin-top: 4px; color: var(--muted); font-size: 9.5px; line-height: 1.35; }
-  .preference-list > button > i { width: 42px; height: 25px; padding: 3px; border-radius: 12px; background: #26313e; transition: background .2s ease; }
-  .preference-list > button > i em { display: block; width: 19px; height: 19px; border-radius: 8px; background: #8996a5; transition: transform .2s ease, background .2s ease; }
+  .preference-list > button > i { width: 42px; height: 25px; padding: 3px; border-radius: 50px; background: #26313e; transition: background .2s ease; }
+  .preference-list > button > i em { display: block; width: 19px; height: 19px; border-radius: 50%; background: #8996a5; transition: transform .2s ease, background .2s ease; }
   .preference-list > button > i.on { background: #488fbe; }
   .preference-list > button > i.on em { transform: translateX(17px); background: #e6f5ff; }
   .email-connected { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 22px; background: var(--surface); }
@@ -1579,10 +1610,11 @@
   .login-copy > span { display: block; max-width: 340px; margin: 14px auto 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
   .telegram-login { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 28px; border-radius: 16px; color: #06131e; background: #8ed3f7; font-size: 12px; font-weight: 850; }
   .telegram-login:focus-visible { outline: 2px solid #d8f2ff; outline-offset: 3px; }
-  .auth-switch{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:14px 0 10px;padding:4px;border-radius:14px;background:#0a131f}.auth-switch button{min-height:38px;border:0;border-radius:10px;color:#7890a5;background:transparent;font-weight:800}.auth-switch button.active{color:#07131d;background:#8ed3f7}
   .paid-trial-backdrop{position:fixed;z-index:95;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.paid-trial-card{box-sizing:border-box;width:min(100%,500px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);box-shadow:0 35px 110px rgba(0,0,0,.62)}.paid-trial-kicker{color:#80c9f4;font-size:9px;font-weight:900;letter-spacing:.14em}.paid-trial-card h2{margin:10px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.paid-trial-card>p{margin:0;color:#aab8c6;font-size:12px;line-height:1.55}.paid-trial-methods{display:grid;gap:9px;margin-top:22px}.paid-trial-methods button{display:grid;grid-template-columns:42px 1fr 24px;align-items:center;gap:11px;min-height:68px;padding:10px 14px;border:1px solid rgba(174,211,241,.1);border-radius:20px;color:#fff;background:rgba(255,255,255,.025);text-align:left}.paid-trial-methods button.active{border-color:#83cdf7;background:rgba(105,191,240,.08)}.paid-trial-methods img{width:32px;height:32px}.paid-trial-methods span{display:flex;flex-direction:column;gap:3px}.paid-trial-methods small,.paid-trial-renew small{color:#91a3b4;font-size:10px}.paid-trial-methods em{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#96d8ff;color:#07111b;font-style:normal}.paid-trial-renew{display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px;border-radius:17px;background:rgba(139,196,235,.06)}.paid-trial-renew>i{display:grid;place-items:center;flex:0 0 29px;height:29px;border-radius:50%;color:#07111b;background:#96d8ff}.paid-trial-renew span{display:flex;flex-direction:column;gap:3px}.paid-trial-pay{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:18px;color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);font-weight:900}.paid-trial-later{width:100%;min-height:52px;margin-top:10px;border:1px solid #3c6f8f;border-radius:18px;color:#a9dcfa;background:transparent;font-weight:850}.paid-trial-later:hover{border-color:#8bd3fa;background:rgba(112,199,244,.06)}.paid-trial-error{margin-top:12px!important;color:#ffadb4!important}.paid-trial-legal{display:block;margin-top:12px;color:#74899c;font-size:9px;text-align:center}.paid-trial-legal a{color:#9bd9ff}
   .paid-trial-banner{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:18px;padding:16px 18px;border:1px solid rgba(136,211,253,.28);border-radius:21px;color:#fff;background:linear-gradient(120deg,rgba(89,176,225,.14),rgba(7,17,27,.75));text-align:left}.paid-trial-banner span{display:flex;flex-direction:column;gap:3px}.paid-trial-banner small{color:#82cef8;font-size:8px;font-weight:900;letter-spacing:.12em}.paid-trial-banner b{font-size:15px}.paid-trial-banner em{color:#8fa4b6;font-size:9px;font-style:normal}.paid-trial-banner>i{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;color:#07111b;background:#98d9ff}
   .logout-row>i svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.logout-row b{color:#b9ddf2}.logout-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.logout-dialog{box-sizing:border-box;width:min(100%,430px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:28px;background:linear-gradient(150deg,#111d2a,#080f18 72%);text-align:center;box-shadow:0 35px 110px rgba(0,0,0,.62)}.logout-dialog>i{display:grid;place-items:center;width:50px;height:50px;margin:0 auto 16px;border-radius:16px;color:#9bdcff;background:rgba(117,199,245,.09)}.logout-dialog h2{margin:0;font-size:27px}.logout-dialog p{margin:10px auto 22px;max-width:330px;color:#9aacbc;font-size:12px;line-height:1.55}.logout-dialog>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}.logout-dialog button{min-height:52px;border-radius:17px;font-weight:900}.logout-no{border:1px solid #39637e;color:#aadcf8;background:transparent}.logout-yes{border:0;color:#08131c;background:#91d5fa}
+  .qr-backdrop{position:fixed;z-index:122;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.76);backdrop-filter:blur(18px)}.qr-dialog{position:relative;box-sizing:border-box;width:min(100%,420px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);text-align:left;box-shadow:0 35px 110px rgba(0,0,0,.62)}.qr-dialog h2{margin:0;font-size:27px}.qr-dialog>p{margin:8px 34px 20px 0;color:#9aacbc;font-size:12px;line-height:1.5}.qr-close{position:absolute;top:15px;right:15px;width:38px;height:38px;border-radius:50%;color:#a9bac8;background:rgba(255,255,255,.06);font-size:24px}.qr-image{position:relative;overflow:hidden;padding:12px;border-radius:25px;background:#fff}.qr-image>img:first-child{display:block;width:100%;border-radius:14px}.qr-logo{position:absolute;left:50%;top:50%;width:44px;height:44px;padding:10px;border-radius:14px;background:#081522;transform:translate(-50%,-50%);object-fit:contain}.qr-done{width:100%;min-height:52px;margin-top:18px;border-radius:18px;color:#06111c;background:#91d5fa;font-weight:900}
+  .qr-dismiss{position:absolute;inset:0;width:100%;height:100%;background:transparent}.qr-dialog{z-index:1}
   @media(max-width:700px){.paid-trial-card{padding:23px;border-radius:25px}.logout-dialog{padding:24px}}
   .login-divider { display: flex; align-items: center; gap: 12px; margin: 18px 4px 0; color: var(--faint); font-size: 9px; }
   .login-divider::before,.login-divider::after { content: ''; height: 1px; flex: 1; background: var(--hairline); }
@@ -2228,6 +2260,7 @@
     .payment-method-sheet { padding: 30px; }
   }
   @media (prefers-reduced-motion: reduce) {
+    .referral-gift-art { animation: none !important; }
     .aurora-blob, .flow-preview::before { animation: none; }
     button:active { transform: none; }
   }

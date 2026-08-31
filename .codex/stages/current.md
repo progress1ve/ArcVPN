@@ -1,4 +1,25 @@
-# Current stage: browser-first whole-admin operations redesign
+# Current stage: feedback, traffic accuracy and customer-facing UX
+
+## 2026-08-31 actionable feedback and customer UX
+
+Goal: replace the low-information trial score with actionable reasons, restore
+authoritative main-traffic accounting, simplify passwordless email access, and
+refresh notifications, support and referrals without changing entitlements.
+
+Acceptance: category feedback and optional details are visible in admin;
+successful Remnawave reads update main usage without zeroing known counters on
+failure; email has one non-enumerating passwordless entry path; notification
+switches are pill-shaped; FAQs contain current advice; referral UI has a
+floating ArcVPN gift, real site/bot links, QR modal and copy confirmation. Full
+tests/build, four responsive browser viewports and production services/public
+behavior pass.
+
+Non-goals: passwords, tariff/payment changes, subscription URL or UUID changes,
+and node/protocol changes. Rollback is the stage commit revert and restart of
+only the bot/subscription services. Generated art remains source-controlled as
+a standalone transparent asset.
+
+# Historical stages
 
 ## 2026-08-29 Email delivery and account conversion UX
 
