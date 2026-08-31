@@ -107,6 +107,10 @@
   let supportError = ''
   let supportPoll = null
   let purchaseOpen = false
+  let purchaseCustom = false
+  let customDevices = 3
+  let customLteGb = 45
+  let customMonths = 3
   let planStrip
   let selectedPlanId = null
   let selectedProduct = 'standard'
@@ -153,11 +157,16 @@
   $: preferredPlan = productPlans.find((plan) => Number(plan.period_months) === 3) || productPlans[0] || plans[0]
   $: if (!selectedPlanId && plans.length) selectedPlanId = preferredPlan?.id || plans[0].id
   $: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) || preferredPlan || null
-  $: purchaseMonths = Math.max(1, Number(selectedPlan?.period_months) || Math.round(Number(selectedPlan?.duration_days || 30) / 30))
-  $: purchaseBaseRub = Number(selectedPlan?.price_rub || 0)
-  $: purchaseDevices = Number(selectedPlan?.device_limit || 2)
-  $: purchaseLteGb = Number(selectedPlan?.lte_quota_gb || 0)
-  $: purchaseTotalRub = promoQuote && selectedPlan && promoQuote.tariff_id === selectedPlan.id
+  $: customPlan = plans.find((plan) => plan.product_code === 'standard' && Number(plan.period_months) === customMonths)
+    || plans.find((plan) => Number(plan.period_months) === customMonths) || null
+  $: if (purchaseCustom && customPlan && selectedPlanId !== customPlan.id) selectedPlanId = customPlan.id
+  $: customBaseRub = customTariffPrice(plans, customMonths, customDevices, customLteGb)
+  $: purchaseMonths = purchaseCustom ? customMonths : Math.max(1, Number(selectedPlan?.period_months) || Math.round(Number(selectedPlan?.duration_days || 30) / 30))
+  $: purchaseBaseRub = purchaseCustom ? customBaseRub : Number(selectedPlan?.price_rub || 0)
+  $: purchaseDevices = purchaseCustom ? customDevices : Number(selectedPlan?.device_limit || 2)
+  $: purchaseLteGb = purchaseCustom ? customLteGb : Number(selectedPlan?.lte_quota_gb || 0)
+  $: purchaseQuoteKey = `${selectedPlan?.id || 0}:${purchaseCustom ? `${purchaseDevices}:${purchaseLteGb}` : 'fixed'}`
+  $: purchaseTotalRub = promoQuote && promoQuote.quote_key === purchaseQuoteKey
     ? Number(promoQuote.final_amount_rub)
     : purchaseBaseRub
   $: purchaseMonthlyRub = Math.round(purchaseTotalRub / purchaseMonths)
@@ -203,7 +212,10 @@
       if (connectStage === 'app') { connectStage = 'device'; return }
       return closeConnect()
     }
-    if (purchaseOpen) return closePurchase()
+    if (purchaseOpen) {
+      if (purchaseCustom) return closeCustomTariff()
+      return closePurchase()
+    }
     if (supportChatOpen) return closeSupportChat()
     if (settingsPage !== 'main') settingsPage = 'main'
   }
@@ -416,7 +428,7 @@
     paymentMessage = ''
     try {
       const createPayment = method === 'card' ? createCardPayment : createSbpPayment
-      const result = await createPayment(plan.id, purchaseDevices, purchaseLteGb, promoCode.trim(), method === 'card' && autoRenew)
+      const result = await createPayment(plan.id, purchaseDevices, purchaseLteGb, promoCode.trim(), method === 'card' && autoRenew, purchaseCustom)
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -620,8 +632,8 @@
     promoBusy = true
     promoMessage = ''
     try {
-      const quote = await validatePromocode(selectedPlan.id, promoCode.trim())
-      promoQuote = { ...quote, tariff_id: selectedPlan.id }
+      const quote = await validatePromocode(selectedPlan.id, promoCode.trim(), purchaseDevices, purchaseLteGb, purchaseCustom, purchaseBaseRub)
+      promoQuote = { ...quote, quote_key: purchaseQuoteKey }
       promoCode = quote.code
       promoMessage = `Скидка ${quote.discount_label}: −${rub(quote.discount_rub)}`
       haptic('success')
@@ -655,6 +667,58 @@
     haptic('light')
     purchaseOpen = false
     paymentMethodOpen = false
+    purchaseCustom = false
+  }
+
+  function openCustomTariff() {
+    purchaseCustom = true
+    customMonths = Number(selectedPlan?.period_months || 3)
+    customDevices = Number(selectedPlan?.device_limit || 3)
+    customLteGb = [0, 15, 30, 45, 75, 115].includes(Number(selectedPlan?.lte_quota_gb))
+      ? Number(selectedPlan?.lte_quota_gb) : 45
+    clearCustomQuote()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function closeCustomTariff() {
+    purchaseCustom = false
+    clearCustomQuote()
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  function clearCustomQuote() {
+    promoQuote = null
+    promoMessage = promoCode ? 'Примените промокод заново после изменения тарифа.' : ''
+  }
+
+  function setCustomPeriod(months) {
+    selectionHaptic()
+    customMonths = months
+    clearCustomQuote()
+  }
+
+  function setCustomDevices(value) {
+    customDevices = Math.min(10, Math.max(1, Number(value)))
+    clearCustomQuote()
+  }
+
+  function setCustomLte(value) {
+    selectionHaptic()
+    customLteGb = Number(value)
+    clearCustomQuote()
+  }
+
+  function customTariffPrice(catalog, months, devices, lteGb) {
+    const prices = Object.fromEntries(catalog
+      .filter((plan) => Number(plan.period_months) === Number(months))
+      .map((plan) => [plan.product_code, Number(plan.price_rub || 0)]))
+    if (!prices.economy || !prices.standard || !prices.family) return 0
+    const standardDelta = prices.standard - prices.economy
+    const familyDelta = prices.family - prices.economy
+    const gbRate = (8 * standardDelta - familyDelta) / 245
+    const deviceRate = standardDelta - 45 * gbRate
+    if (gbRate < 0 || deviceRate < 0) return 0
+    return Math.max(1, Math.round(prices.economy + (Number(devices) - 2) * deviceRate + Number(lteGb) * gbRate))
   }
 
   function choosePlan(id) {
@@ -888,41 +952,70 @@
             <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
           </button>
           <header class="purchase-head native-back-head">
-            <div><h1>Выберите свой<br />ритм подключения</h1><span>Срок, устройства и запас трафика — в одной подписке.</span></div>
+            <div><h1>{purchaseCustom ? 'Соберите свой тариф' : 'Выберите свой ритм подключения'}</h1><span>{purchaseCustom ? 'Платите только за нужные устройства и запас обходного трафика.' : 'Срок, устройства и запас трафика — в одной подписке.'}</span></div>
           </header>
 
-          {#if plans.length}
-            <div class="plan-viewport">
-              <button class="plan-arrow previous" aria-label="Предыдущий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) <= 0} on:click={() => movePlan(-1)}><ArcIcon name="back" size={22} weight="bold" /></button>
-              <div class="plan-strip" bind:this={planStrip} aria-label="Выбор тарифа">
-                {#each productPlans as plan, planIndex}
-                  <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
-                    <span>{planPeriod(plan)}</span>
-                    {#if planBadge(plan)}<em>{planBadge(plan)}</em>{/if}
-                    <strong>{rub(planMonthly(plan))} <b>/ мес</b></strong>
-                    <small>{planPeriod(plan)} · всего {rub(plan.price_rub)}</small>
-                    {#if selectedPlanId === plan.id}<i><ArcIcon name="check" size={15} weight="bold" /></i>{/if}
-                  </button>
-                {/each}
+          {#if purchaseCustom}
+            <section class="custom-builder" aria-label="Настройка своего тарифа">
+              <div class="custom-control">
+                <header><span>Срок подписки</span><strong>{customMonths} {customMonths === 1 ? 'месяц' : customMonths < 5 ? 'месяца' : 'месяцев'}</strong></header>
+                <div class="custom-options periods" role="group" aria-label="Срок подписки">
+                  {#each [1,3,6,12] as months}<button class:active={customMonths===months} aria-pressed={customMonths===months} on:click={() => setCustomPeriod(months)}>{months} мес.</button>{/each}
+                </div>
               </div>
-              <button class="plan-arrow next" aria-label="Следующий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) >= productPlans.length - 1} on:click={() => movePlan(1)}><ArcIcon name="arrow" size={22} weight="bold" /></button>
-            </div>
+              <div class="custom-control device-control">
+                <header><span>Количество устройств</span><strong>{customDevices}</strong></header>
+                <div class="device-stepper">
+                  <button aria-label="Уменьшить количество устройств" disabled={customDevices<=1} on:click={() => setCustomDevices(Number(customDevices)-1)}>−</button>
+                  <input aria-label="Количество устройств" type="range" min="1" max="10" step="1" bind:value={customDevices} on:change={() => setCustomDevices(customDevices)} />
+                  <button aria-label="Увеличить количество устройств" disabled={customDevices>=10} on:click={() => setCustomDevices(Number(customDevices)+1)}>+</button>
+                </div>
+                <small>Одновременно можно подключить до {customDevices} {customDevices === 1 ? 'устройства' : 'устройств'}.</small>
+              </div>
+              <div class="custom-control">
+                <header><span>Обход глушилок</span><strong>{customLteGb ? `${customLteGb} ГБ` : 'Не нужен'}</strong></header>
+                <div class="custom-options traffic" role="group" aria-label="Трафик обхода глушилок">
+                  {#each [0,15,30,45,75,115] as gb}<button class:active={customLteGb===gb} aria-pressed={customLteGb===gb} on:click={() => setCustomLte(gb)}>{gb ? `${gb} ГБ` : '0 ГБ'}</button>{/each}
+                </div>
+                <small>Основной трафик остаётся безлимитным на любом варианте.</small>
+              </div>
+              <div class="custom-quote" aria-live="polite"><span>Ваш тариф<small>{customMonths} мес. · {customDevices} устр. · {customLteGb} ГБ обхода</small></span><strong>{rub(customBaseRub)}<small>{rub(Math.round(customBaseRub/customMonths))} / мес</small></strong></div>
+            </section>
           {:else}
-            <p class="purchase-empty">Тарифы загружаются…</p>
+            {#if plans.length}
+              <div class="plan-viewport">
+                <button class="plan-arrow previous" aria-label="Предыдущий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) <= 0} on:click={() => movePlan(-1)}><ArcIcon name="back" size={22} weight="bold" /></button>
+                <div class="plan-strip" bind:this={planStrip} aria-label="Выбор тарифа">
+                  {#each productPlans as plan, planIndex}
+                    <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
+                      <span>{planPeriod(plan)}</span>
+                      {#if planBadge(plan)}<em>{planBadge(plan)}</em>{/if}
+                      <strong>{rub(planMonthly(plan))} <b>/ мес</b></strong>
+                      <small>{planPeriod(plan)} · всего {rub(plan.price_rub)}</small>
+                      {#if selectedPlanId === plan.id}<i><ArcIcon name="check" size={15} weight="bold" /></i>{/if}
+                    </button>
+                  {/each}
+                </div>
+                <button class="plan-arrow next" aria-label="Следующий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) >= productPlans.length - 1} on:click={() => movePlan(1)}><ArcIcon name="arrow" size={22} weight="bold" /></button>
+              </div>
+            {:else}
+              <p class="purchase-empty">Тарифы загружаются…</p>
+            {/if}
+
+            <section class="purchase-config plan-summary" aria-live="polite">
+              <div class="config-copy"><h2>{productTitle(selectedProduct)}</h2><p>{productDescription(selectedPlan)}</p></div>
+            </section>
+
+            <nav class="product-switch" aria-label="Выбор тарифа">
+              {#each [['economy','Эконом'],['standard','Стандарт'],['family','Семейный']] as product}
+                <button class:active={selectedProduct===product[0]} aria-pressed={selectedProduct===product[0]} on:click={()=>chooseProduct(product[0])}>{product[1]}</button>
+              {/each}
+            </nav>
+            <button class="custom-tariff-open" on:click={openCustomTariff}><ArcIcon name="settings" size={18} weight="duotone" /><span>Создать свой тариф</span><ArcIcon name="arrow" size={17} weight="bold" /></button>
           {/if}
 
-          <section class="purchase-config plan-summary" aria-live="polite">
-            <div class="config-copy"><h2>{productTitle(selectedProduct)}</h2><p>{productDescription(selectedPlan)}</p></div>
-          </section>
-
-          <nav class="product-switch" aria-label="Выбор тарифа">
-            {#each [['economy','Эконом'],['standard','Стандарт'],['family','Семейный']] as product}
-              <button class:active={selectedProduct===product[0]} aria-pressed={selectedProduct===product[0]} on:click={()=>chooseProduct(product[0])}>{product[1]}</button>
-            {/each}
-          </nav>
-
           <section class="purchase-total">
-            <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
+            <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{purchaseCustom ? `${purchaseMonths} мес. · свой тариф` : selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
             <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} {purchaseDevices === 3 ? 'устройства' : 'устройств'}</span><small>включено</small></div>
             <div class="total-row"><span><ArcIcon name="lte" size={19} />Основной трафик: безлимит</span><small>включено</small></div>
             <div class="total-row"><span><ArcIcon name="lte" size={19} />Обход глушилок: {purchaseLteGb ? `${purchaseLteGb} ГБ` : 'нет'}</span><small>{purchaseLteGb ? 'включено' : '—'}</small></div>
@@ -1709,6 +1802,7 @@
   .purchase-empty { margin-top: 28px; padding: 24px; border-radius: 22px; color: var(--muted); background: var(--surface); text-align: center; }
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
   .plan-summary{grid-template-columns:1fr}.plan-summary p{max-width:620px}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
+  .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-quote{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border:1px solid rgba(117,204,249,.28);border-radius:22px;background:linear-gradient(135deg,rgba(29,77,103,.68),rgba(10,22,34,.92));color:#f6fbff}.custom-quote>span,.custom-quote>strong{display:flex;flex-direction:column;gap:4px}.custom-quote>span{font-size:12px;font-weight:900}.custom-quote>strong{align-items:flex-end;font-size:24px;letter-spacing:-.04em}.custom-quote small{color:#96aabc;font-size:8px;font-weight:700;letter-spacing:0}
   .config-copy h2 { max-width: 520px; margin: 0; font-size: 18px; line-height: 1.25; letter-spacing: -.025em; }
   .config-copy p { max-width: 620px; margin: 10px 0 0; color: #c0ceda; font-size: 12px; font-weight:650; line-height: 1.55; }
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }
@@ -2337,7 +2431,7 @@
   .connect-app-grid button { position: relative; min-width: 0; height: 310px; overflow: hidden; border: 1px solid var(--hairline); border-radius: 28px; color: #fff; background: linear-gradient(160deg,#171c21,#0c0f13); }
   .connect-app-grid button.active { border-color: #60c8ef; background: linear-gradient(160deg,rgba(30,92,102,.82),#10181c 70%); box-shadow: inset 0 0 0 1px rgba(84,201,237,.18),0 20px 50px -36px rgba(65,185,229,.9); }
   .connect-app-grid button > span { position: absolute; z-index: 2; top: 18px; left: 0; width: 100%; font-size: 20px; font-weight: 900; letter-spacing: -.025em; }
-  .connect-app-grid img { position: absolute; left: 50%; bottom: -42px; width: 210px; max-width: none; object-fit: contain; transform: translateX(-50%); }
+  .connect-app-grid img { position: absolute; left: 50%; bottom: 34px; width: 162px; max-width: none; object-fit: contain; transform: translateX(-50%); }
   .connect-app-grid em { position: absolute; z-index: 2; right: 12px; bottom: 12px; left: 12px; min-height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.32); border-radius: 15px; background: rgba(11,18,23,.68); font-size: 9px; font-style: normal; font-weight: 800; backdrop-filter: blur(12px); }
   .connect-main-action, .connect-secondary-action { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 16px; border-radius: 19px; font-size: 12px; font-weight: 850; }
   .connect-main-action { color: #07131d; background: linear-gradient(135deg,#b6e7ff,#6bc1ef); }
@@ -2359,7 +2453,7 @@
     .connect-page { padding-top: 100px; }
     .connect-page-head > button { visibility: hidden; }
     .connect-app-grid button { height: 360px; }
-    .connect-app-grid img { width: 250px; }
+    .connect-app-grid img { bottom: 30px; width: 210px; }
   }
   @media (max-width: 767px) {
     .connect-page-head > button.telegram-mobile-hidden { display: none; }

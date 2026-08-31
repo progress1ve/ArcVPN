@@ -1,4 +1,57 @@
-# Current stage: referral and VPN connection UX correction
+# Current stage: custom tariff builder and compact mobile app cards
+
+## 2026-08-31 custom tariff purchase flow
+
+Goal: keep Happ/INCY artwork fully visible on mobile and add a server-priced
+custom tariff builder to both standalone site and Telegram WebApp purchase and
+renewal flows.
+
+Affected components: customer purchase UI in `HomeFlowPreview.svelte`, WebApp API
+client/mock catalog, payment and promo quote endpoints in `subscription_api.py`,
+focused API coverage, generated WebApp bundle, and only the subscription service.
+
+Acceptance:
+
+1. At 390 px the two phone cards remain balanced and each full phone silhouette
+   fits inside its card without clipping or oversized empty scroll.
+2. A `Создать свой тариф` action sits immediately below the regular product
+   selector. Activating it replaces the purchase main content with a dedicated
+   builder; Back returns to the regular catalog without closing purchase.
+3. Builder controls devices (1-10), bypass/LTE allowance (0/15/30/45/75/115 GB)
+   and period (1/3/6/12 months), expose an accessible live total/monthly quote,
+   and continue through the existing payment-method, promo and polling flow.
+4. Pricing is authoritative on the server and derived from the active catalog at
+   each period. Economy (2 devices/0 GB), Standard (3/45) and Family (10/115)
+   custom selections reproduce their exact catalog prices; intermediate choices
+   use the unique non-negative linear device/GB interpolation through those three
+   anchors, rounded once to whole RUB. Client-supplied amounts are never trusted.
+5. Paid custom orders persist their requested device/LTE entitlements; public
+   URLs, UUIDs, existing subscriptions and standard tariff pricing are unchanged.
+6. Mobile, tablet, desktop and wide browser checks cover regular/builder/payment
+   transitions, no horizontal overflow, keyboard focus and disabled states. Full
+   tests, Vite build and production health/public bundle pass.
+
+Risks: under/overcharging from catalog drift and entitlement mismatch. The quote
+helper rejects missing periods, malformed catalogs and values outside the bounded
+choice set; payment and promocode paths share the same helper. Rollback is a
+revert of the stage commit and restart of `arcvpn-subscription.service` only.
+
+Status: **validated locally, pending production release**. Before-state evidence:
+at 390x844 the app cards cropped the lower phone silhouettes and purchase offered
+only three fixed products. After-state browser evidence at the same viewport puts
+both 162 px phone silhouettes fully inside their 310 px cards (`fits=true`) with
+zero horizontal overflow. The builder exposes all bounded choices, reproduces
+Standard 3/45/3 at 399 RUB, and a 6-month/5-device/75-GB selection produces the
+same 1086 RUB/181 RUB monthly quote in the browser and Python helper. Its payment
+sheet carries that total. Browser checks at 390, 768, 1366 and 1920 px have zero
+horizontal overflow. Server-side anchor, validation, payment-pricing and persisted
+entitlement coverage passes; full suite is `142 passed`, Python compile and Vite
+production build pass. Existing Vite unused-selector warnings remain pre-existing
+cleanup debt and do not affect the generated bundle.
+
+# Historical stages
+
+## 2026-08-31 referral and VPN connection UX correction
 
 ## 2026-08-31 owner acceptance corrections
 

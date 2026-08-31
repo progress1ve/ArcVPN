@@ -32,6 +32,7 @@ from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from email.message import EmailMessage
+from fractions import Fraction
 from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
 
 import aiohttp
@@ -3277,6 +3278,60 @@ def api_status():
     return _api_no_store(response)
 
 
+CUSTOM_DEVICE_CHOICES = frozenset(range(1, 11))
+CUSTOM_LTE_CHOICES_GB = frozenset({0, 15, 30, 45, 75, 115})
+CUSTOM_PERIOD_CHOICES = frozenset({1, 3, 6, 12})
+
+
+def _custom_tariff_quote(
+    selected_tariff: Dict[str, Any],
+    device_limit: int,
+    lte_quota_gb: int,
+    catalog: Optional[Iterable[Dict[str, Any]]] = None,
+) -> Dict[str, int]:
+    """Price a custom plan from Economy, Standard and Family anchors."""
+    devices = int(device_limit)
+    lte_gb = int(lte_quota_gb)
+    period = int(selected_tariff.get("period_months") or max(
+        1, round(int(selected_tariff.get("duration_days") or 30) / 30),
+    ))
+    if devices not in CUSTOM_DEVICE_CHOICES or lte_gb not in CUSTOM_LTE_CHOICES_GB:
+        raise ValueError("invalid_custom_entitlements")
+    if period not in CUSTOM_PERIOD_CHOICES:
+        raise ValueError("invalid_custom_period")
+
+    anchors: Dict[str, int] = {}
+    for item in catalog if catalog is not None else get_all_tariffs():
+        item_period = int(item.get("period_months") or max(
+            1, round(int(item.get("duration_days") or 30) / 30),
+        ))
+        code = str(item.get("product_code") or "standard")
+        if item_period != period or code not in {"economy", "standard", "family"}:
+            continue
+        price = int(item.get("price_rub") or round(int(item.get("price_cents") or 0) / 100))
+        if price > 0:
+            anchors[code] = price
+    if set(anchors) != {"economy", "standard", "family"}:
+        raise ValueError("custom_catalog_incomplete")
+
+    economy = Fraction(anchors["economy"])
+    standard_delta = Fraction(anchors["standard"] - anchors["economy"])
+    family_delta = Fraction(anchors["family"] - anchors["economy"])
+    gb_rate = (8 * standard_delta - family_delta) / 245
+    device_rate = standard_delta - 45 * gb_rate
+    if gb_rate < 0 or device_rate < 0:
+        raise ValueError("custom_catalog_invalid")
+    exact = economy + (devices - 2) * device_rate + lte_gb * gb_rate
+    rounded = max(1, (exact.numerator * 2 + exact.denominator) // (2 * exact.denominator))
+    return {
+        "period_months": period,
+        "device_limit": devices,
+        "lte_quota_gb": lte_gb,
+        "price_rub": rounded,
+        "monthly_rub": max(1, round(rounded / period)),
+    }
+
+
 @app.route('/api/tariffs')
 def api_tariffs():
     """Список тарифов для покупки (покупка идёт в боте)."""
@@ -3331,11 +3386,21 @@ def api_create_sbp_payment():
     user_id = get_user_internal_id(telegram_id)
     if not tariff or not user_id:
         return _api_error("tariff_or_user_not_found", 404)
-    devices = int(tariff.get("device_limit") or 2)
-    lte_gb = int(tariff.get("lte_quota_gb") or 0)
-    price_rub = int(tariff.get("price_rub") or 0)
-    if price_rub <= 0:
-        price_rub = round(int(tariff.get("price_cents") or 0) / 100)
+    is_custom = payload.get("custom") is True
+    if is_custom:
+        try:
+            quote = _custom_tariff_quote(tariff, devices, lte_gb)
+        except ValueError as exc:
+            return _api_error(str(exc), 400)
+        devices = quote["device_limit"]
+        lte_gb = quote["lte_quota_gb"]
+        price_rub = quote["price_rub"]
+    else:
+        devices = int(tariff.get("device_limit") or 2)
+        lte_gb = int(tariff.get("lte_quota_gb") or 0)
+        price_rub = int(tariff.get("price_rub") or 0)
+        if price_rub <= 0:
+            price_rub = round(int(tariff.get("price_cents") or 0) / 100)
     if price_rub <= 0:
         return _api_error("invalid_amount", 400)
     total_rub = price_rub
@@ -3366,7 +3431,7 @@ def api_create_sbp_payment():
         payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
             amount_rub=total_rub,
             order_id=order["order_id"],
-            description=f"ArcVPN — {tariff.get('name') or 'подписка'}",
+            description="ArcVPN — свой тариф" if is_custom else f"ArcVPN — {tariff.get('name') or 'подписка'}",
             bot_name=_get_bot_username(),
             metadata={"telegram_id": str(telegram_id), "source": "webapp"},
             return_url=f"{WEBAPP_URL}/app/?payment={order['order_id']}",
@@ -3382,6 +3447,7 @@ def api_create_sbp_payment():
         "confirmation_url": payment["qr_url"], "status": payment["status"],
         "amount_rub": total_rub, "base_amount_rub": price_rub,
         "discount_rub": discount_rub, "final_amount_rub": total_rub,
+        "custom": is_custom, "devices": devices, "lte_gb": lte_gb,
     }))
 
 
@@ -3910,7 +3976,16 @@ def api_validate_promocode():
             "❌ Вы уже использовали этот промокод": "promocode_already_used",
         }
         return _api_error(reasons.get(str(promo_error), "invalid_promocode"), 400)
-    base_rub = int(tariff.get("price_rub") or round(int(tariff.get("price_cents") or 0) / 100))
+    if payload.get("custom") is True:
+        try:
+            base_rub = _custom_tariff_quote(
+                tariff, int(payload.get("devices")), int(payload.get("lte_gb")),
+            )["price_rub"]
+        except (TypeError, ValueError) as exc:
+            reason = str(exc) if isinstance(exc, ValueError) else "invalid_custom_entitlements"
+            return _api_error(reason, 400)
+    else:
+        base_rub = int(tariff.get("price_rub") or round(int(tariff.get("price_cents") or 0) / 100))
     discount_rub = min(max(0, base_rub - 1), compute_discount_rub(promocode, base_rub))
     return _api_no_store(jsonify({
         "ok": True, "code": code, "base_amount_rub": base_rub,
