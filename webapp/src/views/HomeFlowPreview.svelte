@@ -37,23 +37,40 @@
     'Проблема с оплатой/подпиской',
     'Низкая скорость интернета',
   ]
-  const stores = {
-    iphone: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
-    android: 'https://play.google.com/store/apps/details?id=com.happproxy',
-    windows: 'https://happ.su/',
+  const appCatalog = {
+    happ: {
+      label: 'Happ',
+      art: `${asset}/connect-happ-phone-v1.png`,
+      stores: {
+        iphone: 'https://happ.info/', android: 'https://happ.info/', macos: 'https://happ.info/',
+        windows: 'https://happ.info/', linux: 'https://happ.info/', tv: 'https://happ.info/',
+      },
+    },
+    incy: {
+      label: 'INCY',
+      art: `${asset}/connect-incy-phone-v1.png`,
+      stores: {
+        iphone: 'https://incy.host/download/ios', android: 'https://incy.host/download/android',
+        macos: 'https://incy.host/download/macos', windows: 'https://incy.host/download/windows',
+        linux: 'https://incy.host/download/linux', tv: 'https://incy.host/',
+      },
+    },
   }
   const devicesList = [
-    { id: 'iphone', label: 'iPhone / iPad', icon: 'apple' },
-    { id: 'android', label: 'Android', icon: 'android' },
-    { id: 'windows', label: 'Windows', icon: 'windows' },
+    { id: 'iphone', label: 'iPhone / iPad', hint: 'App Store', icon: 'apple' },
+    { id: 'android', label: 'Android', hint: 'Google Play', icon: 'android' },
+    { id: 'macos', label: 'macOS', hint: 'Mac', icon: 'apple' },
+    { id: 'windows', label: 'Windows', hint: 'PC', icon: 'windows' },
+    { id: 'linux', label: 'Linux', hint: 'Desktop', icon: 'linux' },
+    { id: 'tv', label: 'Телевизор', hint: 'Smart TV', icon: 'tv' },
   ]
 
   let active = 'home'
   let openFaq = -1
-  let referralLinkType = 'site'
   let connectOpen = false
   let connectStage = 'device'
   let selectedDevice = 'iphone'
+  let selectedConnectApp = 'happ'
   let settingsPage = 'main'
   let account = null
   let preferences = { expiry: true, traffic: true, connection: true }
@@ -157,9 +174,10 @@
   $: referralEntryBonus = Number(ref.trial_bonus_days || 5)
   $: referralSiteLink = ref.site_link || (ref.code ? `${location.origin}/invite/${encodeURIComponent(ref.code)}` : '')
   $: referralTelegramLink = ref.link || ''
-  $: currentReferralLink = referralLinkType === 'site' ? referralSiteLink : referralTelegramLink
+  $: currentReferralLink = referralSiteLink || referralTelegramLink
   $: subKey = activeKeys.find((key) => key.has_sub) || keys.find((key) => key.has_sub) || null
   $: currentDevice = devicesList.find((item) => item.id === selectedDevice) || devicesList[0]
+  $: currentConnectApp = appCatalog[selectedConnectApp] || appCatalog.happ
   $: displayName = user ? [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Пользователь' : 'Пользователь ArcVPN'
   $: username = user?.username ? `@${user.username}` : 'Telegram подключён'
   $: telegramId = $status.data?.telegram_id || user?.id || null
@@ -178,7 +196,11 @@
   function handleNativeBack() {
     haptic('light')
     if (paymentMethodOpen) { paymentMethodOpen = false; return }
-    if (connectOpen) return closeConnect()
+    if (connectOpen) {
+      if (connectStage === 'guide') { connectStage = 'app'; return }
+      if (connectStage === 'app') { connectStage = 'device'; return }
+      return closeConnect()
+    }
     if (purchaseOpen) return closePurchase()
     if (supportChatOpen) return closeSupportChat()
     if (settingsPage !== 'main') settingsPage = 'main'
@@ -698,17 +720,27 @@
   function chooseDevice(id) {
     selectionHaptic()
     selectedDevice = id
+    connectStage = 'app'
   }
 
-  function continueConnect() {
-    haptic('medium')
+  function chooseConnectApp(id) {
+    selectionHaptic()
+    selectedConnectApp = id
+  }
+
+  function installConnectApp() {
+    const url = currentConnectApp?.stores?.[selectedDevice] || currentConnectApp?.stores?.iphone
+    if (url) openExternal(url)
+  }
+
+  function importSelectedApp() {
+    if (!subKey) return
+    if (selectedConnectApp === 'happ' && subKey.import_url) {
+      importToHapp()
+      return
+    }
+    copyText(subKey.sub_url, 'Ссылка подписки скопирована')
     connectStage = 'guide'
-  }
-
-  function shareReferral() {
-    if (!currentReferralLink) return
-    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(currentReferralLink)}&text=${encodeURIComponent(`Подключайся к ArcVPN — мне +${referralEntryBonus} дней за приглашение, а после первой оплаты получим по ${referralBonus} дней`)}`
-    openTelegram(shareUrl)
   }
 
   async function loadSupportMessages() {
@@ -928,6 +960,64 @@
             </div>
           {/if}
         </section>
+      {:else if connectOpen}
+        <section class="screen connect-page" aria-label="Подключение VPN">
+          <header class="connect-page-head">
+            <button aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button>
+            <div>
+              <span>Подключение VPN</span>
+              <h1>{connectStage === 'device' ? 'Выберите устройство' : connectStage === 'app' ? 'Какое приложение?' : 'Добавьте ArcVPN'}</h1>
+              <p>{connectStage === 'device' ? 'Ссылка уже готова — осталось выбрать платформу.' : connectStage === 'app' ? `Выберите приложение для ${currentDevice.label}.` : `Завершите настройку в ${currentConnectApp.label}.`}</p>
+            </div>
+          </header>
+
+          {#if subKey}
+            <button class="connect-sub-link" on:click={() => copyText(subKey.sub_url, 'Ссылка подписки скопирована')}>
+              <span>{subKey.sub_url}</span><ArcIcon name="copy" size={20} weight="bold" />
+            </button>
+          {/if}
+
+          {#if connectStage === 'device'}
+            {#if !subKey}
+              <div class="empty-connect"><ArcIcon name="lock" size={28} /><h3>Нет активной подписки</h3><p>Оформите тариф, и здесь появится персональная ссылка для подключения.</p></div>
+              <button class="connect-main-action" on:click={buy}>Оформить подписку</button>
+            {:else}
+              <h2 class="connect-section-title">Устройства</h2>
+              <div class="connect-device-grid">
+                {#each devicesList as item}
+                  <button on:click={() => chooseDevice(item.id)}>
+                    <i><DeviceIcon name={item.icon} size={27} /></i>
+                    <span><b>{item.label}</b><small>{item.hint}</small></span>
+                    <ArcIcon name="caret" size={18} weight="bold" />
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          {:else if connectStage === 'app'}
+            <div class="connect-app-grid" aria-label="Выбор приложения">
+              {#each Object.entries(appCatalog) as [appId, app]}
+                <button class:active={selectedConnectApp === appId} on:click={() => chooseConnectApp(appId)}>
+                  <span>{app.label}</span>
+                  <img src={app.art} alt={`Приложение ${app.label}`} />
+                  <em>{appId === 'happ' ? 'Рекомендуем' : 'Поддерживается'}</em>
+                </button>
+              {/each}
+            </div>
+            <button class="connect-main-action" on:click={installConnectApp}><ArcIcon name="download" size={20} weight="bold" />Установить {currentConnectApp.label}</button>
+            <button class="connect-secondary-action" on:click={importSelectedApp}>У меня уже есть приложение</button>
+          {:else}
+            <article class="connect-finish-card">
+              <img src={currentConnectApp.art} alt="" />
+              <div><span>Последний шаг</span><h2>Откройте {currentConnectApp.label}</h2><p>{selectedConnectApp === 'happ' ? 'Нажмите кнопку ниже — ArcVPN передаст подписку в Happ.' : 'Ссылка уже скопирована. В INCY выберите добавление подписки из буфера обмена.'}</p></div>
+            </article>
+            {#if selectedConnectApp === 'happ'}
+              <button class="connect-main-action" on:click={importToHapp}>Импортировать в Happ</button>
+            {:else}
+              <button class="connect-main-action" on:click={() => copyText(subKey.sub_url, 'Ссылка подписки скопирована')}><ArcIcon name="copy" size={19} weight="bold" />Скопировать ссылку ещё раз</button>
+            {/if}
+            <p class="connect-safety"><ArcIcon name="check" size={18} weight="bold" />Персональная ссылка не публикуется и остаётся только у вас.</p>
+          {/if}
+        </section>
       {:else if $status.error === 'unauthorized'}
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
           <div class="brand"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /><span>ArcVPN</span></div>
@@ -1001,20 +1091,20 @@
 
       {:else if active === 'friends'}
         <section class="screen inner-screen" aria-label="Друзья">
-          <header class="section-head"><h1>Приглашайте<br />друзей.</h1></header>
+          <header class="section-head referral-page-head"><h1>Реферальная программа</h1></header>
 
           <article class="referral-hero">
-            <div class="referral-copy">
-              <span>Реферальная программа</span>
-              <h2>Дни в подарок</h2>
-              <div class="referral-rewards">
-                <strong>+{referralEntryBonus}<small>дней за вход</small></strong>
-                <strong>+{referralBonus}<small>дней после оплаты</small></strong>
-              </div>
-              <p>После покупки +{referralBonus} дней получаете и вы, и друг</p>
-            </div>
             <img class="referral-gift-art" src={`${asset}/referral-gift-open-v3.png`} alt="Открытая подарочная коробка" />
+            <div class="referral-copy">
+              <h2>Приглашайте друзей</h2>
+              <p>Получайте дни подписки, когда друг присоединяется к ArcVPN.</p>
+            </div>
           </article>
+
+          <section class="referral-conditions" aria-label="Условия реферальной программы">
+            <article><i>+{referralEntryBonus}</i><span><b>дней за первый вход</b><small>Начислим сразу после входа друга</small></span></article>
+            <article><i>+{referralBonus}</i><span><b>дней после покупки</b><small>Автоматически вам и другу</small></span></article>
+          </section>
 
           <div class="metric-grid">
             <article><span>Приглашено</span><strong>{ref.total_invited ?? 0}</strong><small>друзей</small></article>
@@ -1022,20 +1112,9 @@
           </div>
 
           <section class="content-block">
-            <div class="block-title"><div><span>Ваша ссылка</span><small>Отправьте её другу</small></div><ArcIcon name="link" size={21} weight="duotone" /></div>
-            <div class="link-switch" class:telegram={referralLinkType === 'telegram'} aria-label="Вид реферальной ссылки">
-              <button class:active={referralLinkType === 'site'} on:click={() => (referralLinkType = 'site')}>Для сайта</button>
-              <button class:active={referralLinkType === 'telegram'} on:click={() => (referralLinkType = 'telegram')}>Для Telegram</button>
-            </div>
+            <div class="block-title"><div><span>Ваша ссылка</span><small>Скопируйте её и отправьте другу</small></div><ArcIcon name="link" size={21} weight="duotone" /></div>
             <button class="referral-link" disabled={!currentReferralLink} on:click={() => copyText(currentReferralLink, 'Реферальная ссылка скопирована')}><span>{currentReferralLink || 'Ссылка загружается…'}</span><i><ArcIcon name="copy" size={19} weight="bold" /></i></button>
             <button class="qr-referral" disabled={!currentReferralLink} on:click={openReferralQr}><ArcIcon name="qr" size={19} weight="bold" />Показать QR-код</button>
-            <button class="share-referral" disabled={!currentReferralLink} on:click={shareReferral}><ArcIcon name="send" size={18} weight="bold" />Поделиться</button>
-          </section>
-
-          <section class="steps">
-            <div><i>1</i><span><b>Поделитесь ссылкой</b><small>Друг переходит в ArcVPN</small></span></div>
-            <div><i>2</i><span><b>Вы получаете +{referralEntryBonus} дней</b><small>Сразу после первого входа друга</small></span></div>
-            <div><i>3</i><span><b>После покупки — по +{referralBonus} дней</b><small>Вам и другу автоматически</small></span></div>
           </section>
         </section>
 
@@ -1198,50 +1277,6 @@
     </main>
   {/key}
 
-  {#if connectOpen}
-    <div class="connect-overlay" role="presentation" in:fade={{ duration: 160 }}>
-      <button class="connect-backdrop" aria-label="Закрыть подключение" on:click={closeConnect}></button>
-      <section class="connect-sheet" role="dialog" aria-modal="true" aria-label="Подключение VPN" in:fly={{ y: 60, duration: 260, easing: cubicOut }}>
-        <header class="connect-head">
-          <div>
-            <h2>{connectStage === 'device' ? 'Выберите устройство' : currentDevice.label}</h2>
-          </div>
-          <button aria-label="Закрыть" on:click={closeConnect}><ArcIcon name="close" size={26} /></button>
-        </header>
-
-        {#if connectStage === 'device'}
-          <p class="connect-note">Подберём приложение и импортируем вашу подписку.</p>
-          <div class="device-grid">
-            {#each devicesList as item}
-              <button class:active={selectedDevice === item.id} on:click={() => chooseDevice(item.id)}>
-                <i><DeviceIcon name={item.icon} size={26} /></i>
-                <span>{item.label}</span>
-                {#if selectedDevice === item.id}<em><ArcIcon name="check" size={16} /></em>{/if}
-              </button>
-            {/each}
-          </div>
-          <button class="sheet-primary" on:click={continueConnect}>Продолжить<ArcIcon name="arrow" size={18} /></button>
-        {:else if !subKey}
-          <button class="sheet-back" on:click={() => (connectStage = 'device')}><ArcIcon name="back" size={18} />Назад</button>
-          <div class="empty-connect"><ArcIcon name="lock" size={28} /><h3>Нет активной подписки</h3><p>Оформите тариф, после чего здесь появится персональная ссылка импорта.</p></div>
-          <button class="sheet-primary" on:click={() => buy()}>Оформить подписку</button>
-        {:else}
-          <button class="sheet-back" on:click={() => (connectStage = 'device')}><ArcIcon name="back" size={18} />Назад</button>
-          <div class="guide-card">
-            <i>1</i><div><b>Установите Happ</b><small>Официальное приложение для {currentDevice.label}</small></div>
-            <button on:click={() => openExternal(stores[selectedDevice])}>Скачать<ArcIcon name="arrow" size={16} /></button>
-          </div>
-          <div class="guide-card">
-            <i>2</i><div><b>Добавьте ArcVPN</b><small>HTTPS-страница безопасно передаст подписку в Happ</small></div>
-            <button on:click={importToHapp}>Импорт в Happ<ArcIcon name="arrow" size={16} /></button>
-          </div>
-          <button class="sheet-secondary" on:click={() => copyText(subKey.sub_url, 'Ссылка подписки скопирована')}><ArcIcon name="copy" size={18} />Скопировать ссылку</button>
-          <p class="connect-success"><ArcIcon name="check" size={18} />После импорта разрешите Happ добавить VPN-конфигурацию.</p>
-        {/if}
-      </section>
-    </div>
-  {/if}
-
   {#if account?.identity_source === 'email' && ['available','pending','created'].includes(account?.paid_trial_offer) && !primary?.is_active && !paymentOrderId && !paidTrialDismissed}
     <div class="paid-trial-backdrop" transition:fade={{duration:160}}>
       <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" transition:fly={{y:24,duration:220,easing:cubicOut}}>
@@ -1285,7 +1320,7 @@
     </div>
   {/if}
 
-  {#if $status.error !== 'unauthorized' && !purchaseOpen}<div class="dock">
+  {#if $status.error !== 'unauthorized' && !purchaseOpen && !connectOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
       <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
     </div>
@@ -2263,6 +2298,71 @@
     .referral-gift-art { animation: none !important; }
     .aurora-blob, .flow-preview::before { animation: none; }
     button:active { transform: none; }
+  }
+  /* Referral: one clear story, from reward to the link. */
+  .referral-page-head { display: flex; justify-content: center; margin-bottom: 12px; }
+  .referral-page-head h1 { padding: 10px 18px; border: 1px solid var(--hairline); border-radius: var(--radius-pill); background: rgba(15,29,43,.74); font-size: 17px; letter-spacing: -.02em; }
+  .referral-hero { min-height: 300px; display: flex; align-items: center; flex-direction: column; justify-content: flex-end; overflow: visible; padding: 0 20px 22px; background: radial-gradient(circle at 50% 33%,rgba(50,145,204,.18),transparent 48%); text-align: center; }
+  .referral-hero img.referral-gift-art { position: absolute; top: -4px; right: 50%; bottom: auto; width: 245px; height: 245px; transform: translateX(50%); filter: drop-shadow(0 24px 26px rgba(0,0,0,.42)) drop-shadow(0 0 24px rgba(75,171,232,.22)); }
+  @keyframes referralFloat { 0%,100% { transform: translate3d(50%,3px,0) rotate(-1deg); } 50% { transform: translate3d(50%,-9px,0) rotate(1.5deg); } }
+  .referral-copy { position: relative; z-index: 2; width: 100%; }
+  .referral-copy h2 { margin: 0; font-size: 27px; letter-spacing: -.045em; }
+  .referral-copy p { max-width: 300px; margin: 8px auto 0; font-size: 11px; line-height: 1.5; }
+  .referral-conditions { display: grid; gap: 9px; margin-top: 12px; }
+  .referral-conditions article { display: flex; align-items: center; gap: 13px; min-height: 72px; padding: 13px 15px; border: 1px solid var(--hairline); border-radius: 21px; background: var(--surface); }
+  .referral-conditions i { width: 46px; height: 46px; display: grid; flex: none; place-items: center; border-radius: 15px; color: #a6ddfb; background: #14283a; font-size: 15px; font-style: normal; font-weight: 850; }
+  .referral-conditions span { display: flex; flex-direction: column; text-align: left; }
+  .referral-conditions b { font-size: 12px; }
+  .referral-conditions small { margin-top: 4px; color: var(--muted); font-size: 9.5px; }
+  .content-block { padding: 18px; border: 1px solid var(--hairline); border-radius: 24px; background: var(--surface); }
+  .content-block .referral-link { background: var(--surface-raised); }
+
+  /* Connection: a page flow, not an overlay. */
+  .connect-page { width: min(100%,760px); min-height: 100dvh; margin: 0 auto; padding-top: calc(var(--safe-top-flow) + 28px); padding-bottom: 50px; }
+  .connect-page-head { display: flex; align-items: flex-start; gap: 13px; }
+  .connect-page-head > button { width: 44px; height: 44px; display: grid; flex: none; place-items: center; border: 1px solid var(--hairline); border-radius: 50%; color: #dbeaf5; background: var(--surface-raised); }
+  .connect-page-head > div { min-width: 0; padding-top: 2px; }
+  .connect-page-head span { color: #79c8f4; font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+  .connect-page-head h1 { margin: 5px 0 0; font-size: 28px; letter-spacing: -.045em; }
+  .connect-page-head p { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+  .connect-sub-link { width: 100%; min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 24px; padding: 0 18px; border: 1px solid var(--hairline); border-radius: 20px; color: #5dc7f2; background: linear-gradient(135deg,rgba(17,49,59,.86),rgba(12,26,34,.9)); }
+  .connect-sub-link span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+  .connect-section-title { margin: 27px 0 12px; color: var(--muted); font-size: 12px; font-weight: 600; }
+  .connect-device-grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
+  .connect-device-grid button { min-height: 76px; display: flex; align-items: center; gap: 13px; padding: 12px 15px; border: 1px solid var(--hairline); border-radius: 22px; color: #fff; background: var(--surface); text-align: left; }
+  .connect-device-grid button > i { width: 44px; height: 44px; display: grid; flex: none; place-items: center; border-radius: 14px; color: #e5f4fd; background: #142536; }
+  .connect-device-grid button > span { min-width: 0; display: flex; flex: 1; flex-direction: column; }
+  .connect-device-grid b { font-size: 13px; }
+  .connect-device-grid small { margin-top: 4px; color: #92a3b3; font-size: 9.5px; }
+  .connect-device-grid button > :global(.arc-icon) { color: #8fa2b4; }
+  .connect-app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 28px; }
+  .connect-app-grid button { position: relative; min-width: 0; height: 310px; overflow: hidden; border: 1px solid var(--hairline); border-radius: 28px; color: #fff; background: linear-gradient(160deg,#171c21,#0c0f13); }
+  .connect-app-grid button.active { border-color: #60c8ef; background: linear-gradient(160deg,rgba(30,92,102,.82),#10181c 70%); box-shadow: inset 0 0 0 1px rgba(84,201,237,.18),0 20px 50px -36px rgba(65,185,229,.9); }
+  .connect-app-grid button > span { position: absolute; z-index: 2; top: 18px; left: 0; width: 100%; font-size: 14px; font-weight: 850; }
+  .connect-app-grid img { position: absolute; left: 50%; bottom: -42px; width: 210px; max-width: none; transform: translateX(-50%); }
+  .connect-app-grid em { position: absolute; z-index: 2; right: 12px; bottom: 12px; left: 12px; min-height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.32); border-radius: 15px; background: rgba(11,18,23,.68); font-size: 9px; font-style: normal; font-weight: 800; backdrop-filter: blur(12px); }
+  .connect-main-action, .connect-secondary-action { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 16px; border-radius: 19px; font-size: 12px; font-weight: 850; }
+  .connect-main-action { color: #07131d; background: linear-gradient(135deg,#b6e7ff,#6bc1ef); }
+  .connect-secondary-action { margin-top: 10px; color: #e8f3fa; background: var(--surface-raised); }
+  .connect-finish-card { display: flex; align-items: center; gap: 8px; margin-top: 28px; overflow: hidden; border: 1px solid var(--hairline); border-radius: 28px; background: linear-gradient(145deg,#132536,#0a111b); }
+  .connect-finish-card img { width: 148px; height: 210px; flex: none; object-fit: cover; object-position: top center; }
+  .connect-finish-card > div { padding: 18px 16px 18px 0; }
+  .connect-finish-card span { color: #7bcaf4; font-size: 9px; font-weight: 850; letter-spacing: .12em; text-transform: uppercase; }
+  .connect-finish-card h2 { margin: 7px 0; font-size: 20px; }
+  .connect-finish-card p { margin: 0; color: var(--muted); font-size: 10.5px; line-height: 1.55; }
+  .connect-safety { display: flex; align-items: flex-start; gap: 8px; margin: 13px 5px 0; color: var(--muted); font-size: 9.5px; line-height: 1.45; }
+  .connect-safety :global(.arc-icon) { flex: none; color: #74d2a4; }
+  .connect-page .empty-connect { margin-top: 28px; }
+
+  @media (min-width: 520px) {
+    .connect-device-grid { grid-template-columns: 1fr 1fr; }
+    .referral-conditions { grid-template-columns: 1fr 1fr; }
+  }
+  @media (min-width: 768px) {
+    .connect-page { padding-top: 100px; }
+    .connect-page-head > button { visibility: hidden; }
+    .connect-app-grid button { height: 360px; }
+    .connect-app-grid img { width: 250px; }
   }
   .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}
 </style>

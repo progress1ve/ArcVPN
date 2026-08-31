@@ -1,4 +1,25 @@
-# Current stage: feedback, traffic accuracy and customer-facing UX
+# Current stage: referral and in-page VPN connection flow
+
+## 2026-08-31 referral hierarchy and device-to-app setup
+
+Goal: rebuild the referral page in the requested content order and replace the
+connection bottom sheet with a complete in-page device and application flow.
+
+Acceptance: the referral page contains the section name, animated gift and
+headline, reward conditions, counters, copyable link and QR action in that
+order; the old share button and numbered steps are absent. `Подключить VPN`
+replaces the home content with subscription link and device selection, then
+shows Happ/INCY choices using the supplied artwork, official install links and
+a safe import/copy step. Back navigation works at every stage. Production build,
+responsive browser checks at four viewport classes and public deployment pass.
+
+Non-goals: subscription URL or UUID changes, tariff/payment changes, node or
+protocol work, and undocumented application deep links. Rollback is the stage
+commit revert and restart of only `arcvpn-subscription.service`.
+
+Status: **in progress**.
+
+# Historical stages
 
 ## 2026-08-31 actionable feedback and customer UX
 
@@ -31,8 +52,6 @@ overflow; public login serves `index-BbOFLokv.js`, has one passwordless form and
 no old mode switch. Both services are active/enabled, `/health` is `OK`, the
 public art returns 200, and the post-release error journal is empty. Rollback was
 not used; next step is to review the first categorized answers in Overview.
-
-# Historical stages
 
 ## 2026-08-29 Email delivery and account conversion UX
 
