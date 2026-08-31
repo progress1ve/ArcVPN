@@ -34,7 +34,7 @@ Risk: client/server drift around anchor matching and monthly floor. Tests cover
 all anchors, the 1/15 floor and an intermediate non-anchor. Rollback is a revert
 of the runtime commit and subscription-service restart.
 
-Status: **locally verified, release pending**. Before-state evidence:
+Status: **passed and deployed at `4cd3f45`**. Before-state evidence:
 Standard-equivalent custom was 431 RUB versus the catalog's 399 RUB, exposed an
 8% markup label, and 1 device/15 GB/3 months was 82 RUB/month. After the change,
 the two quotes are respectively 399 RUB and 300 RUB (100 RUB/month), and no
@@ -43,6 +43,10 @@ months, 111 RUB for 6 months and 271 RUB for 12 months. The 399 RUB payment shee
 matches the quote. Browser checks at 390x844, 430x932, 768x1024 and 1440x1000
 all report zero horizontal overflow. Focused tests: 15 passed; full suite: 143
 passed; Vite production build passed with pre-existing unused-selector warnings.
+Production public health and WebApp return 200 and serve the new hashed bundle;
+the production pricing suite passes 12 tests, the subscription service is
+active/running and its post-release warning journal is empty. Existing fixed
+prices, subscription URLs, UUIDs and user entitlements were not changed.
 
 # Historical stages
 
