@@ -28,7 +28,7 @@ Risk: Telegram WebApp button URL construction and query bootstrap timing.
 Rollback is the runtime commit revert plus restart of bot and subscription
 services.
 
-Status: **locally verified, release pending**. Root cause for Back was an
+Status: **passed and deployed at `5b6f869`**. Root cause for Back was an
 undefined `webapp_url` in `show_my_keys()`, which made the `my_keys` callback
 fail while rebuilding the subscription screen. The shared keyboard now renders
 Economy, Standard, Family, the custom WebApp button, then Back; its exact public
@@ -37,6 +37,11 @@ custom builder directly with 3 months/3 devices/45 GB and the current 399 RUB
 quote. A regression test executes the subscription-screen renderer after Back.
 Focused result: 5 passed; full suite: 145 passed; Vite production build passed
 with the pre-existing unused-selector warnings only.
+Production is fast-forwarded to `5b6f869`; bot and subscription services are
+active, public health and the custom-tariff WebApp URL return 200, the current
+hashed bundle is served, all 5 focused tests pass on production and both service
+warning journals are empty. No pricing, entitlement, URL/UUID or node state was
+changed.
 
 # Historical stages
 
