@@ -1,6 +1,6 @@
 # ArcVPN current handoff
 
-Updated: 2026-08-29. This file is current state, not a diary.
+Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Authority and topology
 
@@ -12,6 +12,18 @@ Updated: 2026-08-29. This file is current state, not a diary.
 - Canada was dropped. Vyrex canary was cancelled. Finland was retired from public delivery on 2026-08-24 and must not be reintroduced implicitly.
 
 ## Current product state
+
+- Customer-feedback and referral UX is deployed at `6ef14e3`. The day-one trial
+  prompt now records actionable categories (connection, speed, service, setup,
+  other, or working well) plus optional details; Overview shows the distribution
+  and recent answers while legacy numeric replies remain readable. Active main
+  usage is reconciled from the Poland Remnawave authority and failed lookups do
+  not overwrite cached counters; production currently has 20 of 24 active key
+  rows with non-zero main usage. Standalone email uses one neutral passwordless
+  code flow that resolves login versus registration server-side. Support FAQ,
+  notification copy/pills, referral artwork, real QR and copy toast are current.
+  Local evidence: `131 passed`, Vite build, four responsive viewports without
+  horizontal overflow; production services/health/asset/public login passed.
 
 - Standalone email registration and the paid-trial funnel are deployed through
   `2fa9072` on Poland with schema v60. Email-only accounts receive no free trial;

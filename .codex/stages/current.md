@@ -19,6 +19,19 @@ and node/protocol changes. Rollback is the stage commit revert and restart of
 only the bot/subscription services. Generated art remains source-controlled as
 a standalone transparent asset.
 
+Status: **passed and deployed** at `6ef14e3`. Category feedback, optional detail,
+admin aggregation, neutral email auto-login/register, current FAQ, 50%-rounded
+notification switches, QR generation, copy toast and the transparent flying
+gift are live. Authoritative main reconciliation updates successful identity
+matches and preserves prior values on failures; production reports 20/24 active
+keys with non-zero cached usage after the first scheduler pass. Local Python
+compile, full `131 passed`, Vite production build, QR generation and mobile UI
+render passed. Browser checks at 390, 768, 1366 and 1920 px found no horizontal
+overflow; public login serves `index-BbOFLokv.js`, has one passwordless form and
+no old mode switch. Both services are active/enabled, `/health` is `OK`, the
+public art returns 200, and the post-release error journal is empty. Rollback was
+not used; next step is to review the first categorized answers in Overview.
+
 # Historical stages
 
 ## 2026-08-29 Email delivery and account conversion UX
