@@ -16,6 +16,14 @@ desktop and wide viewports; Vite build passes; production bundle is current.
 Risk: Telegram may change iframe dimensions. Rollback: revert the CSS/build
 commit and restart only `arcvpn-subscription.service`.
 
+Status: **passed and deployed at `0b097c5`**. The ArcVPN wrapper now has zero
+border, transparent background and exactly matches the official iframe: local
+mobile/tablet are 238x40 and scaled desktop/wide are 261.8x44; client and scroll
+widths match at all four viewports. Vite build passed. Production serves
+`index-B9dzVAaN.js`, the host and iframe both measure 234x40 at the live default
+viewport, the Telegram button is interactive, and the service is active. The
+user-owned landing prompt remains untouched.
+
 # Current stage: direct Telegram website login
 
 ## 2026-08-31 Telegram API authentication
