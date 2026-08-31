@@ -22,13 +22,18 @@ Risk: client/server rounding drift. Both sides apply `ceil(base * 108 / 100)` an
 tests cover all 12 fixed-plan anchor combinations plus an intermediate quote.
 Rollback is the stage commit revert and subscription-service restart.
 
-Status: **locally verified, release pending**. Before-state browser evidence at
+Status: **passed and deployed at `a94f240`**. Before-state browser evidence at
 390 px showed custom 3 months/3 devices/45 GB at the same 399 RUB as Standard.
 After the change, the same custom selection is 431 RUB (144 RUB/month), the 8%
 markup is disclosed in the quote, and the payment sheet also carries 431 RUB.
 Browser checks at 390x844, 430x932, 768x1024 and 1440x1000 all report zero
 horizontal overflow. Focused tests: 14 passed; full suite: 142 passed; Vite
 production build passed with the pre-existing unused-selector warnings only.
+Production is fast-forwarded to `a94f240`; public subscription health and WebApp
+return 200, the new hashed bundle is served, the focused production pricing suite
+passes 11 tests, the subscription service is active/running, and its post-release
+warning journal is empty. Existing subscription URLs, UUIDs and entitlements were
+not changed.
 
 # Historical stages
 
