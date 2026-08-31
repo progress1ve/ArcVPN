@@ -2924,8 +2924,39 @@ def _get_bot_username() -> str:
                 username = (data.get("result") or {}).get("username", "") or ""
             except Exception as exc:
                 logger.warning("Не удалось получить username бота через getMe: %s", exc)
-        _BOT_USERNAME_CACHE = username
+        # A transient Telegram/network failure must not poison the process for
+        # its whole lifetime. Cache only a real username.
+        if username:
+            _BOT_USERNAME_CACHE = username
         return username
+
+
+def _verify_telegram_login(payload: Dict[str, Any], max_age: int = 600) -> Optional[int]:
+    """Validate Telegram Login Widget data without trusting client fields."""
+    if not BOT_TOKEN or not isinstance(payload, dict):
+        return None
+    supplied_hash = str(payload.get("hash") or "").lower()
+    if not re.fullmatch(r"[0-9a-f]{64}", supplied_hash):
+        return None
+    signed = {
+        str(key): str(value)
+        for key, value in payload.items()
+        if key != "hash" and value is not None
+    }
+    try:
+        telegram_id = int(signed.get("id", "0"))
+        auth_date = int(signed.get("auth_date", "0"))
+    except (TypeError, ValueError):
+        return None
+    age = int(time.time()) - auth_date
+    if telegram_id <= 0 or age < -30 or age > max(60, int(max_age)):
+        return None
+    data_check = "\n".join(f"{key}={signed[key]}" for key in sorted(signed))
+    secret_key = hashlib.sha256(BOT_TOKEN.encode("utf-8")).digest()
+    expected_hash = hmac.new(
+        secret_key, data_check.encode("utf-8"), hashlib.sha256,
+    ).hexdigest()
+    return telegram_id if secrets.compare_digest(expected_hash, supplied_hash) else None
 
 
 def _webapp_telegram_id() -> Optional[int]:
@@ -2993,7 +3024,7 @@ def api_public_config():
     username = _get_bot_username()
     return _api_no_store(jsonify({
         "ok": True,
-        "bot_url": f"https://t.me/{username}" if username else "",
+        "telegram_login_bot": username,
     }))
 
 
@@ -3804,6 +3835,29 @@ def api_register_import_device(sub_id: str):
             f"{SUBSCRIPTION_URL}/sub/{device_sub_id}?format=json"
         ),
     }))
+
+
+@app.route('/api/auth/telegram', methods=['POST'])
+def api_telegram_login():
+    if (request.content_length or 0) > 8192:
+        return _api_error("invalid_telegram_auth", 400)
+    payload = request.get_json(silent=True) or {}
+    telegram_id = _verify_telegram_login(payload)
+    if telegram_id is None:
+        return _api_error("invalid_telegram_auth", 401)
+    account = get_webapp_account(telegram_id)
+    if not account:
+        return _api_error("telegram_account_not_found", 404)
+    raw_token = secrets.token_urlsafe(48)
+    create_web_session(
+        int(account["id"]), hashlib.sha256(raw_token.encode("utf-8")).hexdigest(),
+    )
+    response = jsonify({"ok": True})
+    response.set_cookie(
+        WEB_SESSION_COOKIE, raw_token, max_age=30 * 86400,
+        secure=True, httponly=True, samesite="Lax", path="/",
+    )
+    return _api_no_store(response)
 
 
 @app.route('/api/auth/email/request', methods=['POST'])

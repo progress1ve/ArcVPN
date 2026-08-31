@@ -5,9 +5,9 @@
   import QRCode from 'qrcode'
   import { encryptLink as encryptIncyLink } from '@incy/link-encoder/web'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
-  import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
+  import { tg, getUser, haptic, selectionHaptic, openExternal, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, loginWithTelegram, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -99,7 +99,10 @@
   let paidTrialDismissed = false
   let logoutConfirmOpen = false
   let logoutBusy = false
-  let botLoginUrl = ''
+  let telegramLoginBot = ''
+  let telegramLoginBusy = false
+  let telegramLoginMessage = ''
+  let telegramWidgetHost
   let supportChatOpen = false
   let supportMessages = []
   let supportInput = ''
@@ -146,7 +149,9 @@
     if (recurringResult.status === 'fulfilled') recurring = recurringResult.value
     accountLoading = false
   })
-  fetchPublicConfig().then((value) => { botLoginUrl = value.bot_url || '' }).catch(() => {})
+  fetchPublicConfig().then((value) => { telegramLoginBot = value.telegram_login_bot || '' }).catch(() => {})
+
+  $: if (telegramWidgetHost && telegramLoginBot && !isTelegramWebApp) mountTelegramWidget(telegramWidgetHost, telegramLoginBot)
 
   $: keys = $status.data?.keys ?? []
   $: activeKeys = keys.filter((key) => key.is_active)
@@ -221,6 +226,49 @@
     }
     if (supportChatOpen) return closeSupportChat()
     if (settingsPage !== 'main') settingsPage = 'main'
+  }
+
+  function mountTelegramWidget(host, botUsername) {
+    if (host.dataset.bot === botUsername) return
+    host.replaceChildren()
+    host.dataset.bot = botUsername
+    window.onArcVpnTelegramAuth = finishTelegramLogin
+    const script = document.createElement('script')
+    script.async = true
+    script.src = 'https://telegram.org/js/telegram-widget.js?22'
+    script.dataset.telegramLogin = botUsername
+    script.dataset.size = 'large'
+    script.dataset.radius = '12'
+    script.dataset.userpic = 'false'
+    script.dataset.onauth = 'onArcVpnTelegramAuth(user)'
+    script.onerror = () => { telegramLoginMessage = 'Telegram временно недоступен. Попробуйте ещё раз.' }
+    host.appendChild(script)
+  }
+
+  async function finishTelegramLogin(payload) {
+    if (telegramLoginBusy) return
+    telegramLoginBusy = true
+    telegramLoginMessage = 'Проверяем вход…'
+    try {
+      await loginWithTelegram(payload)
+      await loadStatus({ force: true })
+      const results = await Promise.allSettled([fetchAccount(), fetchPreferences(), fetchDevices(), fetchRecurringPayment()])
+      if (results[0].status === 'fulfilled') account = results[0].value
+      if (results[1].status === 'fulfilled') preferences = results[1].value.notifications
+      if (results[2].status === 'fulfilled') {
+        registeredDevices = results[2].value.devices || []
+        deviceOnlineTotal = Number(results[2].value.online_total || 0)
+        deviceLimit = Math.max(2, Number(results[2].value.device_limit || 2))
+      }
+      if (results[3].status === 'fulfilled') recurring = results[3].value
+      telegramLoginMessage = ''
+    } catch (error) {
+      telegramLoginMessage = error.reason === 'telegram_account_not_found'
+        ? 'Аккаунт Telegram ещё не связан с ArcVPN. Войдите по email или сначала запустите бота.'
+        : 'Не удалось подтвердить вход через Telegram. Попробуйте ещё раз.'
+    } finally {
+      telegramLoginBusy = false
+    }
   }
 
   function selectTab(id) {
@@ -874,6 +922,7 @@
   }
 
   onDestroy(() => {
+    if (typeof window !== 'undefined' && window.onArcVpnTelegramAuth === finishTelegramLogin) delete window.onArcVpnTelegramAuth
     clearInterval(supportPoll)
     clearInterval(paymentPoll)
     window.removeEventListener('focus', handlePaymentResume)
@@ -1140,7 +1189,11 @@
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
           <div class="brand"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /><span>ArcVPN</span></div>
           <div class="login-copy"><h1>Войдите<br />в свой аккаунт</h1><span>Используйте Telegram или подтверждённый email — откроется один и тот же кабинет.</span></div>
-          {#if botLoginUrl}<button class="telegram-login" on:click={() => openTelegram(botLoginUrl)}><ArcIcon name="telegram" size={19} weight="bold" />Войти через Telegram</button>{/if}
+          {#if !isTelegramWebApp}
+            <div class="telegram-login-widget" class:busy={telegramLoginBusy} bind:this={telegramWidgetHost} aria-label="Войти через Telegram"></div>
+            {#if !telegramLoginBot}<p class="telegram-login-state" role="status">Подключаем Telegram…</p>{/if}
+            {#if telegramLoginMessage}<p class="form-message" role="status">{telegramLoginMessage}</p>{/if}
+          {/if}
           <div class="login-divider"><span>или по email</span></div>
           <section class="email-form login-form">
             <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
@@ -1761,8 +1814,11 @@
   .login-copy { text-align: center; }
   .login-copy h1 { margin: 0; font-size: 38px; line-height: 1.04; letter-spacing: -.055em; }
   .login-copy > span { display: block; max-width: 340px; margin: 14px auto 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
-  .telegram-login { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 28px; border-radius: 16px; color: #06131e; background: #8ed3f7; font-size: 12px; font-weight: 850; }
-  .telegram-login:focus-visible { outline: 2px solid #d8f2ff; outline-offset: 3px; }
+  .telegram-login-widget { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; margin-top: 28px; border: 1px solid rgba(143,215,251,.34); border-radius: 16px; background: #102132; overflow: hidden; transition: opacity .18s ease, border-color .18s ease; }
+  .telegram-login-widget.busy { opacity: .58; pointer-events: none; }
+  .telegram-login-widget :global(iframe) { display: block; max-width: 100%; }
+  .telegram-login-widget:focus-within { outline: 2px solid #d8f2ff; outline-offset: 3px; }
+  .telegram-login-state { margin: 10px 0 0; color: var(--muted); text-align: center; font-size: 10px; }
   .paid-trial-backdrop{position:fixed;z-index:95;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.paid-trial-card{box-sizing:border-box;width:min(100%,500px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:30px;background:linear-gradient(150deg,#111d2a,#080f18 72%);box-shadow:0 35px 110px rgba(0,0,0,.62)}.paid-trial-kicker{color:#80c9f4;font-size:9px;font-weight:900;letter-spacing:.14em}.paid-trial-card h2{margin:10px 0 8px;font-size:30px;line-height:1.08;letter-spacing:-.045em}.paid-trial-card>p{margin:0;color:#aab8c6;font-size:12px;line-height:1.55}.paid-trial-methods{display:grid;gap:9px;margin-top:22px}.paid-trial-methods button{display:grid;grid-template-columns:42px 1fr 24px;align-items:center;gap:11px;min-height:68px;padding:10px 14px;border:1px solid rgba(174,211,241,.1);border-radius:20px;color:#fff;background:rgba(255,255,255,.025);text-align:left}.paid-trial-methods button.active{border-color:#83cdf7;background:rgba(105,191,240,.08)}.paid-trial-methods img{width:32px;height:32px}.paid-trial-methods span{display:flex;flex-direction:column;gap:3px}.paid-trial-methods small,.paid-trial-renew small{color:#91a3b4;font-size:10px}.paid-trial-methods em{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:#96d8ff;color:#07111b;font-style:normal}.paid-trial-renew{display:flex;align-items:center;gap:11px;margin-top:14px;padding:13px;border-radius:17px;background:rgba(139,196,235,.06)}.paid-trial-renew>i{display:grid;place-items:center;flex:0 0 29px;height:29px;border-radius:50%;color:#07111b;background:#96d8ff}.paid-trial-renew span{display:flex;flex-direction:column;gap:3px}.paid-trial-pay{width:100%;min-height:56px;margin-top:18px;border:0;border-radius:18px;color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef);font-weight:900}.paid-trial-later{width:100%;min-height:52px;margin-top:10px;border:1px solid #3c6f8f;border-radius:18px;color:#a9dcfa;background:transparent;font-weight:850}.paid-trial-later:hover{border-color:#8bd3fa;background:rgba(112,199,244,.06)}.paid-trial-error{margin-top:12px!important;color:#ffadb4!important}.paid-trial-legal{display:block;margin-top:12px;color:#74899c;font-size:9px;text-align:center}.paid-trial-legal a{color:#9bd9ff}
   .paid-trial-banner{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:18px;padding:16px 18px;border:1px solid rgba(136,211,253,.28);border-radius:21px;color:#fff;background:linear-gradient(120deg,rgba(89,176,225,.14),rgba(7,17,27,.75));text-align:left}.paid-trial-banner span{display:flex;flex-direction:column;gap:3px}.paid-trial-banner small{color:#82cef8;font-size:8px;font-weight:900;letter-spacing:.12em}.paid-trial-banner b{font-size:15px}.paid-trial-banner em{color:#8fa4b6;font-size:9px;font-style:normal}.paid-trial-banner>i{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;color:#07111b;background:#98d9ff}
   .logout-row>i svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.logout-row b{color:#b9ddf2}.logout-backdrop{position:fixed;z-index:120;inset:0;display:grid;place-items:center;padding:20px;background:rgba(1,5,10,.72);backdrop-filter:blur(18px)}.logout-dialog{box-sizing:border-box;width:min(100%,430px);padding:28px;border:1px solid rgba(157,218,255,.15);border-radius:28px;background:linear-gradient(150deg,#111d2a,#080f18 72%);text-align:center;box-shadow:0 35px 110px rgba(0,0,0,.62)}.logout-dialog>i{display:grid;place-items:center;width:50px;height:50px;margin:0 auto 16px;border-radius:16px;color:#9bdcff;background:rgba(117,199,245,.09)}.logout-dialog h2{margin:0;font-size:27px}.logout-dialog p{margin:10px auto 22px;max-width:330px;color:#9aacbc;font-size:12px;line-height:1.55}.logout-dialog>div{display:grid;grid-template-columns:1fr 1fr;gap:10px}.logout-dialog button{min-height:52px;border-radius:17px;font-weight:900}.logout-no{border:1px solid #39637e;color:#aadcf8;background:transparent}.logout-yes{border:0;color:#08131c;background:#91d5fa}

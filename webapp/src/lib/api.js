@@ -376,7 +376,7 @@ export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('
 export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get('/api/referral'))
 export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))
 export const fetchPublicConfig = () => (import.meta.env.DEV
-  ? Promise.resolve({ ok: true, bot_url: 'https://t.me/arcvpn_bot' })
+  ? Promise.resolve({ ok: true, telegram_login_bot: 'arcvpnnbot' })
   : get('/api/public/config'))
 export const fetchPreferences = () => (import.meta.env.DEV ? mock('preferences') : get('/api/preferences'))
 export const fetchDevices = () => (import.meta.env.DEV ? mock('devices') : get('/api/devices'))
@@ -454,6 +454,11 @@ export async function verifyEmailCode(email, code, purpose = 'link') {
     return { ok: true, email }
   }
   return post('/api/auth/email/verify', { email, code, purpose })
+}
+
+export async function loginWithTelegram(payload) {
+  if (import.meta.env.DEV) return { ok: true }
+  return post('/api/auth/telegram', payload)
 }
 
 export async function unlinkEmail() {

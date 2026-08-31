@@ -29,11 +29,11 @@ def test_password_login_sets_persistent_thirty_day_cookie(client, monkeypatch):
     assert response.get_json()["permissions"] == ["*"]
 
 
-def test_public_config_exposes_only_bot_login_url(client, monkeypatch):
+def test_public_config_exposes_only_telegram_login_bot(client, monkeypatch):
     monkeypatch.setattr(api, "_get_bot_username", lambda: "arcvpn_bot")
     response = client.get("/api/public/config")
     assert response.status_code == 200
-    assert response.get_json() == {"ok": True, "bot_url": "https://t.me/arcvpn_bot"}
+    assert response.get_json() == {"ok": True, "telegram_login_bot": "arcvpn_bot"}
 
 
 def test_support_access_exposes_only_effective_permissions(client, monkeypatch):

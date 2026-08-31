@@ -1,3 +1,44 @@
+# Current stage: direct Telegram website login
+
+## 2026-08-31 Telegram API authentication
+
+Goal: replace the standalone site's Telegram-to-bot link with Telegram's
+official website login flow and open the existing ArcVPN cabinet immediately
+after successful Telegram authorization.
+
+Non-goals: no Telegram Mini App auth change, no email-flow change, no account
+merge, subscription, UUID, tariff, payment or node mutation.
+
+Affected components: public auth configuration, a dedicated Telegram auth API,
+web-session issuance, standalone login UI, focused auth tests and subscription
+service.
+
+Acceptance:
+
+1. The standalone login screen shows an official Telegram authorization control
+   rather than opening `t.me/<bot>`; Telegram mobile WebApp keeps initData auth.
+2. Telegram authorization data is accepted only after constant-time HMAC-SHA256
+   verification with the bot token and a fresh `auth_date`; malformed, forged,
+   stale and unknown-user payloads cannot create a session.
+3. A valid existing Telegram user receives the same 30-day HttpOnly/Secure/Lax
+   website session used by email login and is taken into the existing cabinet
+   without a page reload.
+4. The login control has loading, unavailable and error states, keyboard focus,
+   no overflow at mobile, tablet, desktop and wide viewports.
+5. Focused/full automated checks and Vite build pass; production service is
+   active, health/public assets are current, and the direct Telegram login flow
+   is verified as far as possible without transmitting a real Telegram identity.
+
+Risks: forged/replayed Telegram identity data, duplicate identities, popup
+blocking and BotFather domain mismatch. Mitigations: server-only token use,
+freshness bound, constant-time comparison, existing-user-only lookup, explicit
+states and official Telegram widget. Rollback: revert the runtime commit,
+restart only `arcvpn-subscription.service`, and restore the prior login bundle.
+
+Verification matrix: API unit tests for valid/invalid/stale/unknown payloads;
+frontend build; live before/after DOM and visual checks at 390x844, 768x1024,
+1440x1000 and 1920x1080; production health, bundle marker and service journal.
+
 # Current stage: renewal Back returns to bot cabinet
 
 ## 2026-08-31 renewal navigation destination correction
