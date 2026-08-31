@@ -720,7 +720,8 @@
     const gbRate = (8 * standardDelta - familyDelta) / 245
     const deviceRate = standardDelta - 45 * gbRate
     if (gbRate < 0 || deviceRate < 0) return 0
-    return Math.max(1, Math.round(prices.economy + (Number(devices) - 2) * deviceRate + Number(lteGb) * gbRate))
+    const basePrice = Math.max(1, Math.round(prices.economy + (Number(devices) - 2) * deviceRate + Number(lteGb) * gbRate))
+    return Math.ceil(basePrice * 1.08)
   }
 
   function choosePlan(id) {
@@ -981,7 +982,7 @@
                 </div>
                 <small>Основной трафик остаётся безлимитным на любом варианте.</small>
               </div>
-              <div class="custom-quote" aria-live="polite"><span>Ваш тариф<small>{customMonths} мес. · {customDevices} устр. · {customLteGb} ГБ обхода</small></span><strong>{rub(customBaseRub)}<small>{rub(Math.round(customBaseRub/customMonths))} / мес</small></strong></div>
+              <div class="custom-quote" aria-live="polite"><span>Ваш тариф<small>{customMonths} мес. · {customDevices} устр. · {customLteGb} ГБ обхода</small><small>Включена наценка 8% за гибкую настройку</small></span><strong>{rub(customBaseRub)}<small>{rub(Math.round(customBaseRub/customMonths))} / мес</small></strong></div>
             </section>
           {:else}
             {#if plans.length}

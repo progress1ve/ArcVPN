@@ -1,4 +1,38 @@
-# Current stage: custom tariff builder and compact mobile app cards
+# Current stage: custom tariff assembly markup
+
+## 2026-08-31 custom-plan commercial guardrail
+
+Goal: ensure the flexible tariff builder remains a convenience product rather
+than a cheaper substitute for ArcVPN's already-discounted fixed plans.
+
+Affected components: the shared server quote helper, matching customer preview,
+focused pricing tests, builder copy, generated WebApp bundle and subscription
+service only.
+
+Acceptance: every custom quote receives an 8% assembly markup, rounded upward to
+whole RUB after the catalog-derived base calculation. The matching fixed-plan
+entitlements therefore cost more in the builder (for example Standard 3 months
+399 -> 431 RUB), while relative device/traffic/period monotonicity remains. The
+server remains authoritative for payment and promo quotes; standard catalog
+prices, existing subscriptions, URLs and UUIDs do not change. The builder labels
+the markup plainly, four viewport classes have no overflow, all tests/build and
+production public/service checks pass.
+
+Risk: client/server rounding drift. Both sides apply `ceil(base * 108 / 100)` and
+tests cover all 12 fixed-plan anchor combinations plus an intermediate quote.
+Rollback is the stage commit revert and subscription-service restart.
+
+Status: **locally verified, release pending**. Before-state browser evidence at
+390 px showed custom 3 months/3 devices/45 GB at the same 399 RUB as Standard.
+After the change, the same custom selection is 431 RUB (144 RUB/month), the 8%
+markup is disclosed in the quote, and the payment sheet also carries 431 RUB.
+Browser checks at 390x844, 430x932, 768x1024 and 1440x1000 all report zero
+horizontal overflow. Focused tests: 14 passed; full suite: 142 passed; Vite
+production build passed with the pre-existing unused-selector warnings only.
+
+# Historical stages
+
+## 2026-08-31 custom tariff builder and compact mobile app cards
 
 ## 2026-08-31 custom tariff purchase flow
 

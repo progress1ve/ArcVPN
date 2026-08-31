@@ -3281,6 +3281,7 @@ def api_status():
 CUSTOM_DEVICE_CHOICES = frozenset(range(1, 11))
 CUSTOM_LTE_CHOICES_GB = frozenset({0, 15, 30, 45, 75, 115})
 CUSTOM_PERIOD_CHOICES = frozenset({1, 3, 6, 12})
+CUSTOM_TARIFF_MARKUP_PERCENT = 8
 
 
 def _custom_tariff_quote(
@@ -3322,13 +3323,17 @@ def _custom_tariff_quote(
     if gb_rate < 0 or device_rate < 0:
         raise ValueError("custom_catalog_invalid")
     exact = economy + (devices - 2) * device_rate + lte_gb * gb_rate
-    rounded = max(1, (exact.numerator * 2 + exact.denominator) // (2 * exact.denominator))
+    base_price = max(1, (exact.numerator * 2 + exact.denominator) // (2 * exact.denominator))
+    price = (base_price * (100 + CUSTOM_TARIFF_MARKUP_PERCENT) + 99) // 100
     return {
         "period_months": period,
         "device_limit": devices,
         "lte_quota_gb": lte_gb,
-        "price_rub": rounded,
-        "monthly_rub": max(1, round(rounded / period)),
+        "base_price_rub": base_price,
+        "markup_percent": CUSTOM_TARIFF_MARKUP_PERCENT,
+        "markup_rub": price - base_price,
+        "price_rub": price,
+        "monthly_rub": max(1, round(price / period)),
     }
 
 
