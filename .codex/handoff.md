@@ -13,14 +13,19 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
-- Custom tariff purchase/renewal and compact connection artwork are deployed at
-  `eeed783`. Site and Telegram WebApp now expose `Создать свой тариф` below the
+- Custom tariff purchase/renewal and compact connection artwork are deployed
+  through `3a20b04` (`eeed783` pricing base). Site and Telegram WebApp expose `Создать свой тариф` below the
   fixed product selector; the dedicated builder offers 1-10 devices, 0/15/30/45/
   75/115 GB bypass allowance and 1/3/6/12 months. Server pricing is derived from
   the live Economy/Standard/Family anchors per period, reproduces all fixed-plan
   prices at their matching entitlements, rejects out-of-range choices, and stores
   paid requested entitlements. Promo quotes share the same server calculator.
-  Happ/INCY phone silhouettes now fit entirely inside 390 px mobile cards. Full
+  Happ/INCY phone silhouettes are 138 px on mobile, fit entirely inside their
+  cards and do not overlap labels. Cold standalone visits show a neutral session
+  check instead of flashing the cabinet; successful automatic email verification
+  refreshes the authenticated state immediately. Mobile standalone subpages have
+  Back, while Telegram mobile keeps its native control. Notification preferences
+  appear only in Telegram WebApp and use true 46x26 capsule switches. Full
   evidence: `142 passed`, Vite build, four responsive viewports without overflow,
   payment-sheet transition, production health/bundle/live-catalog quote and empty
   warning journal. No subscription URL, UUID or existing entitlement was changed.

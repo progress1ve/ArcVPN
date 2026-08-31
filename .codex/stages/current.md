@@ -45,7 +45,7 @@ helper rejects missing periods, malformed catalogs and values outside the bounde
 choice set; payment and promocode paths share the same helper. Rollback is a
 revert of the stage commit and restart of `arcvpn-subscription.service` only.
 
-Status: **follow-up validated locally on top of deployed `eeed783`, pending release**. Before-state evidence:
+Status: **passed and deployed** through `3a20b04` (`eeed783` custom-pricing base). Before-state evidence:
 at 390x844 the app cards cropped the lower phone silhouettes and purchase offered
 only three fixed products. After-state browser evidence at the same viewport puts
 both 162 px phone silhouettes fully inside their 310 px cards (`fits=true`) with
@@ -73,6 +73,9 @@ contains zero Home regions and zero navigation docks, then shows the login scree
 `auto` email verification now follows the authenticated refresh branch rather
 than the link-only confirmation branch. Full suite remains `142 passed`; Vite
 production build and 390 px interaction checks pass without horizontal overflow.
+Production serves `index-D_ZtMuG8.js` and `index-BB2tVbEZ.css`; `/health` and
+`/app/` return 200, the service is active/running, and its post-release warning
+journal is empty. Rollback was not used.
 
 # Historical stages
 
