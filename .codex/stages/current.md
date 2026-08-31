@@ -17,7 +17,17 @@ Non-goals: subscription URL or UUID changes, tariff/payment changes, node or
 protocol work, and undocumented application deep links. Rollback is the stage
 commit revert and restart of only `arcvpn-subscription.service`.
 
-Status: **in progress**.
+Status: **passed and deployed** at `2c77fce`. The referral page now follows the
+requested hierarchy and contains no share button or numbered instruction block.
+The home connection action opens an in-page device selector, then Happ/INCY
+cards with the supplied artwork, official install destinations and a documented
+import/copy finish step; back navigation returns one stage at a time. Vite
+production build and full `131 passed` suite succeeded. Authenticated browser
+checks covered the referral, device and application stages at 390, 768, 1366
+and 1920 px with no horizontal overflow. Production is on `2c77fce`, the
+subscription service is active/enabled, both new assets and `/health` return
+200, public HTML serves `index-C-6KG4Dz.js`, and the post-release warning journal
+is empty. Rollback was not used.
 
 # Historical stages
 
