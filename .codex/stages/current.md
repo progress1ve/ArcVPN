@@ -39,6 +39,19 @@ Verification matrix: API unit tests for valid/invalid/stale/unknown payloads;
 frontend build; live before/after DOM and visual checks at 390x844, 768x1024,
 1440x1000 and 1920x1080; production health, bundle marker and service journal.
 
+Status: **runtime deployed, external acceptance blocked** at `0b7c4eb`.
+Implementation and security acceptance passed: local full suite `151 passed`,
+focused production suite `12 passed`, Vite production build passed, forged
+production auth returned 401, service is active, the public bundle is
+`index-DiMorTPU.js`, and all four viewport classes have exact client/scroll
+width equality. The live official iframe is present on `arccnet.space` but
+Telegram returns `Bot domain invalid`. The bot owner must add
+`https://arccnet.space` under BotFather -> bot -> Login Widget -> Allowed URLs
+(or `/setdomain` for the legacy widget). No code redeploy is needed afterward.
+Do not mark the direct-login stage accepted until the live iframe shows the
+Telegram authorization control and one owner-performed login reaches the
+existing cabinet.
+
 # Current stage: renewal Back returns to bot cabinet
 
 ## 2026-08-31 renewal navigation destination correction

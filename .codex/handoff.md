@@ -13,6 +13,17 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
+- Direct Telegram website login is deployed at `0b7c4eb`: the site now embeds
+  Telegram's official Login Widget, verifies its HMAC and 10-minute freshness
+  server-side, accepts only existing ArcVPN Telegram identities and issues the
+  same 30-day protected web session as email. Local result is 151 tests plus
+  Vite build; production focused result is 12 tests, forged input returns 401,
+  the service/bundle are current and four viewports have no overflow. Final
+  acceptance is externally blocked because BotFather has not allowed
+  `https://arccnet.space`; the live iframe says `Bot domain invalid`. Add that
+  origin under the bot's Login Widget Allowed URLs (or `/setdomain` for the
+  legacy widget), then run one real login. No redeploy is required.
+
 - Renewal tariff Back destination is corrected at `24ca0d6`: it now calls the
   canonical `start` handler and returns to the full bot personal cabinet with its
   cover, subscription status and primary actions, not the text-only `Моя
