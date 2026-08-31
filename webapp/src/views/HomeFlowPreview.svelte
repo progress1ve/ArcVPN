@@ -918,6 +918,9 @@
     if (requestedScreen === 'devices' || requestedScreen === 'billing' || requestedScreen === 'email') {
       active = 'settings'
       openSettingsPage(requestedScreen)
+    } else if (requestedScreen === 'custom-tariff') {
+      purchaseOpen = true
+      purchaseCustom = true
     }
     let saved = null
     try {

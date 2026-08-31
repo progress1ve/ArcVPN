@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Dict, Any
 
 from aiogram.types import FSInputFile
-from aiogram.types import InlineKeyboardButton
+from aiogram.types import InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from bot.utils.text import escape_html, safe_edit_or_send
@@ -18,6 +18,9 @@ def _pluralize_days(n: int) -> str:
 
 
 def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
+    import os
+    import config
+
     builder = InlineKeyboardBuilder()
     labels = {
         "economy": "📉 Эконом — от 78 ₽/мес",
@@ -29,6 +32,12 @@ def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
         if code in available:
             suffix = str(key_id) if key_id is not None else "new"
             builder.row(InlineKeyboardButton(text=labels[code], callback_data=f"select_product:{code}:{suffix}"))
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL).rstrip("/")
+    builder.row(InlineKeyboardButton(
+        text="⚙️ Создать свой тариф",
+        web_app=WebAppInfo(url=f"{webapp_url}/app?screen=custom-tariff"),
+        style="primary",
+    ))
     builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data="my_keys" if key_id is not None else "start"))
     return builder.as_markup()
 

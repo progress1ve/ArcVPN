@@ -85,3 +85,34 @@ def test_rating_callback_accepts_current_and_legacy_events(monkeypatch):
 def test_renew_tariff_back_button_returns_to_subscription_list():
     markup = tariff_product_keyboard([{"product_code": "standard"}], key_id=42)
     assert markup.inline_keyboard[-1][0].callback_data == "my_keys"
+
+
+def test_tariff_keyboard_opens_custom_builder_before_back(monkeypatch):
+    monkeypatch.setenv("WEBAPP_URL", "https://arccnet.space")
+    markup = tariff_product_keyboard([
+        {"product_code": "economy"},
+        {"product_code": "standard"},
+        {"product_code": "family"},
+    ], key_id=42)
+    custom = markup.inline_keyboard[-2][0]
+    assert custom.text == "⚙️ Создать свой тариф"
+    assert custom.web_app.url == "https://arccnet.space/app?screen=custom-tariff"
+    assert markup.inline_keyboard[-1][0].callback_data == "my_keys"
+
+
+def test_subscription_screen_renders_after_renewal_back(monkeypatch):
+    import database.requests as requests
+    import bot.handlers.user.keys as keys_handler
+
+    rendered = {}
+
+    async def capture(message, text, **kwargs):
+        rendered.update(text=text, markup=kwargs["reply_markup"])
+
+    monkeypatch.setenv("WEBAPP_URL", "https://arccnet.space")
+    monkeypatch.setattr(requests, "get_user_primary_key", lambda telegram_id: None)
+    monkeypatch.setattr(keys_handler, "safe_edit_or_send", capture)
+    asyncio.run(keys_handler.show_my_keys(123, object()))
+
+    assert "Подписка ещё не оформлена" in rendered["text"]
+    assert rendered["markup"].inline_keyboard[0][0].web_app.url == "https://arccnet.space/app"

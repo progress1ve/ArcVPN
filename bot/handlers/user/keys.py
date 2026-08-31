@@ -45,7 +45,8 @@ async def show_my_keys(
     """Показывает единственную подписку сразу, без устаревшего выбора ключа."""
     from aiogram.types import InlineKeyboardButton, WebAppInfo
     from aiogram.utils.keyboard import InlineKeyboardBuilder
-    from config import SUBSCRIPTION_URL
+    import os
+    import config
     from database.requests import (
         get_user_devices,
         get_user_entitlements,
@@ -53,6 +54,8 @@ async def show_my_keys(
         is_traffic_exhausted,
     )
     from bot.handlers.user.start import _days_left, _format_bytes, _plural_days
+
+    webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL)
 
     primary = get_user_primary_key(telegram_id)
     builder = InlineKeyboardBuilder()

@@ -1,3 +1,45 @@
+# Current stage: bot custom-tariff entry and renewal back navigation
+
+## 2026-08-31 bot purchase navigation correction
+
+Goal: expose the WebApp custom-tariff builder directly from the bot product
+selection and restore the Back action on the renewal product screen.
+
+Non-goals: no pricing, entitlement, payment, subscription URL/UUID, node or
+catalog changes.
+
+Affected components: shared bot tariff-product keyboard, subscription summary
+renderer, WebApp query-screen bootstrap, focused navigation tests, bot and
+subscription services.
+
+Acceptance:
+
+1. A `Создать свой тариф` WebApp button appears immediately after Family and
+   before Back for both initial purchase and renewal product menus.
+2. The button opens the configured public WebApp at `/app?screen=custom-tariff`.
+3. That query opens the purchase flow directly in custom-builder mode after
+   authentication, retaining the existing default Standard-like values.
+4. Renewal Back opens `Моя подписка` without an exception; the configured WebApp
+   URL is defined when that screen is rendered.
+5. Focused/full tests and Vite build pass; production bot and subscription
+   services, public health/bundle and warning journals pass.
+
+Risk: Telegram WebApp button URL construction and query bootstrap timing.
+Rollback is the runtime commit revert plus restart of bot and subscription
+services.
+
+Status: **locally verified, release pending**. Root cause for Back was an
+undefined `webapp_url` in `show_my_keys()`, which made the `my_keys` callback
+fail while rebuilding the subscription screen. The shared keyboard now renders
+Economy, Standard, Family, the custom WebApp button, then Back; its exact public
+URL is `/app?screen=custom-tariff`. A browser navigation to that query opens the
+custom builder directly with 3 months/3 devices/45 GB and the current 399 RUB
+quote. A regression test executes the subscription-screen renderer after Back.
+Focused result: 5 passed; full suite: 145 passed; Vite production build passed
+with the pre-existing unused-selector warnings only.
+
+# Historical stages
+
 # Current stage: custom tariff anchor parity and savings
 
 ## 2026-08-31 custom-plan pricing correction
