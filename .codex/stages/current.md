@@ -16,12 +16,17 @@ new `my_keys` NameError.
 Risk is limited to the subscription-summary link. Rollback is the runtime commit
 revert and bot restart.
 
-Status: **locally verified, release pending**. Production evidence from the current PID showed the first
+Status: **passed and deployed at `0944546`**. Production evidence from the current PID showed the first
 fix working past `webapp_url`, then failing at line 124 with `SUBSCRIPTION_URL is
 not defined`; `_subscription_urls()` imported `config` but read a bare name. It
 now uses `config.SUBSCRIPTION_URL`. The regression suite executes both empty and
 active subscription Back renders, including the stable link and renewal button.
 Focused result: 6 passed; full suite: 146 passed.
+Production is fast-forwarded to `0944546`, the bot restarted active, the same six
+focused tests pass in production and the post-restart warning journal is empty.
+The landing-page generation prompt requested alongside this repair is stored at
+`docs/design/arcvpn-landing-page-prompt.md`; it uses the established ArcVPN visual
+system and preserves all existing application routes and business logic.
 
 # Historical stages
 

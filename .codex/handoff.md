@@ -13,11 +13,17 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
+- Renewal Back active-subscription rendering is repaired at `0944546`. The first
+  fix exposed a second production NameError in `_subscription_urls()`, which read
+  a bare `SUBSCRIPTION_URL` despite importing `config`; it now uses the configured
+  value. Regression coverage executes both empty and active subscription renders.
+  Local result is 146 tests; production focused result is 6 tests, bot active and
+  the post-restart warning journal empty.
+
 - Bot product selection navigation is deployed at `5b6f869`. After Economy,
   Standard and Family it shows `Создать свой тариф`, opening the configured
   WebApp directly at `/app?screen=custom-tariff`; the query boots into the custom
-  builder. Renewal Back again renders `Моя подписка`: the undefined WebApp URL
-  in that renderer was fixed. Local evidence is 145 tests plus Vite build and a
+  builder. Local evidence is 145 tests plus Vite build and a
   direct authenticated deep-link browser check; production has both services
   active, 5 focused tests passing, current public bundle/health and empty warning
   journals.
