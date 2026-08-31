@@ -1,4 +1,44 @@
-# Current stage: referral and in-page VPN connection flow
+# Current stage: referral and VPN connection UX correction
+
+## 2026-08-31 owner acceptance corrections
+
+Goal: apply the owner's concrete copy, hierarchy, platform, install and import
+corrections to the referral and in-page VPN setup screens.
+
+Affected components: `HomeFlowPreview.svelte`, device icon data, WebApp assets,
+the official INCY link encoder dependency and generated customer bundle.
+
+Acceptance: FAQ contains four entries; referral heading matches Support/Settings
+without a pill, reward terms live directly under the hero copy, site/bot link
+choice is restored, and the supplied gift composition has real alpha. Connection
+offers only iPhone/iPad, Android, Windows and Linux with the exact owner-provided
+store/release destinations; Linux uses the supplied Tux path; heading is centered,
+the eyebrow is absent, mobile Telegram hides the redundant back button, Happ/INCY
+labels are larger, and existing-app actions deep-link directly into the selected
+client. Four viewport classes, keyboard-visible controls, build/tests and public
+production behavior pass.
+
+Risks: third-party URI scheme drift and raster edge artifacts. Use Happ's existing
+server-issued import URL and INCY's official encoder package; inspect alpha and
+rendered edges. Rollback is the stage commit revert plus restart of only
+`arcvpn-subscription.service`. Subscription URLs/UUIDs and entitlements are out
+of scope and remain unchanged.
+
+Status: **validated locally, pending production release**. Vite production build
+passes; the full Python suite is `131 passed`. Authenticated browser acceptance
+covered referral, device and app stages at 390, 768, 1366 and 1920 px without
+horizontal overflow. Both supplied raster assets have real RGBA alpha, and an
+INCY encoder round-trip produced the official `incy://crypt1/` form.
+
+Operational triage performed before this UI release found no control-plane fault
+for the remaining reported Happ user: the local key and Remnawave identity are
+active and aligned, the public subscription returns HTTP 200, active nodes are
+connected, and a credential-safe real tunnel canary returned HTTP 204. The first
+report was already resolved by deleting and reimporting the subscription in Happ;
+the remaining evidence is consistent with the same stale client import/cache.
+No UUID, URL or entitlement was changed.
+
+# Historical stages
 
 ## 2026-08-31 referral hierarchy and device-to-app setup
 
@@ -28,8 +68,6 @@ and 1920 px with no horizontal overflow. Production is on `2c77fce`, the
 subscription service is active/enabled, both new assets and `/health` return
 200, public HTML serves `index-C-6KG4Dz.js`, and the post-release warning journal
 is empty. Rollback was not used.
-
-# Historical stages
 
 ## 2026-08-31 actionable feedback and customer UX
 

@@ -13,6 +13,15 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
+- A credential-safe 2026-08-31 investigation of two Happ refresh/ND-ping reports
+  found no subscription or node outage. One user recovered after deleting and
+  reimporting the subscription. For the other, the ArcVPN key and Remnawave user
+  are active/aligned, public delivery returns 200, the published structure matches
+  the recovered user's profile, active nodes are connected, and a real tunneled
+  HTTP canary using that user's published Hysteria profile returned 204. Preserve
+  the UUID/URL; ask the client to delete the stale Happ profile and reimport before
+  considering account mutation.
+
 - Customer-feedback and referral UX is deployed at `6ef14e3`. The day-one trial
   prompt now records actionable categories (connection, speed, service, setup,
   other, or working well) plus optional details; Overview shows the distribution
