@@ -13,6 +13,15 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
+- Referral and in-page VPN setup corrections are deployed at `1e9df54`. Referral
+  has the plain section heading, direct +5/+15-day terms, site/Telegram link
+  choice, counters, copy and QR controls, and the supplied gift composition with
+  real alpha. Setup offers only iPhone/iPad, Android, Windows and Linux, then
+  larger Happ/INCY choices with exact install destinations and direct Happ or
+  official encoded INCY import. FAQ contains four entries. Local evidence is a
+  successful Vite build, `131 passed`, an INCY round-trip, alpha inspection and
+  four responsive viewports; production service/health/bundle/asset passed.
+
 - A credential-safe 2026-08-31 investigation of two Happ refresh/ND-ping reports
   found no subscription or node outage. One user recovered after deleting and
   reimporting the subscription. For the other, the ArcVPN key and Remnawave user

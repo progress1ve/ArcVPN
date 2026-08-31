@@ -24,11 +24,14 @@ rendered edges. Rollback is the stage commit revert plus restart of only
 `arcvpn-subscription.service`. Subscription URLs/UUIDs and entitlements are out
 of scope and remain unchanged.
 
-Status: **validated locally, pending production release**. Vite production build
-passes; the full Python suite is `131 passed`. Authenticated browser acceptance
+Status: **passed and deployed** at `1e9df54`. Vite production build passes; the
+full Python suite is `131 passed`. Authenticated browser acceptance
 covered referral, device and app stages at 390, 768, 1366 and 1920 px without
 horizontal overflow. Both supplied raster assets have real RGBA alpha, and an
-INCY encoder round-trip produced the official `incy://crypt1/` form.
+INCY encoder round-trip produced the official `incy://crypt1/` form. Production
+is active/enabled, `/health` and `/app/` return 200, public HTML serves
+`index-sTxDrGEh.js`, the new transparent gift asset returns 200, and the
+post-release warning journal is empty.
 
 Operational triage performed before this UI release found no control-plane fault
 for the remaining reported Happ user: the local key and Remnawave identity are
