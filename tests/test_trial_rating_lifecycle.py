@@ -116,3 +116,34 @@ def test_subscription_screen_renders_after_renewal_back(monkeypatch):
 
     assert "Подписка ещё не оформлена" in rendered["text"]
     assert rendered["markup"].inline_keyboard[0][0].web_app.url == "https://arccnet.space/app"
+
+
+def test_active_subscription_screen_renders_link_after_renewal_back(monkeypatch):
+    import database.requests as requests
+    import bot.handlers.user.keys as keys_handler
+
+    rendered = {}
+
+    async def capture(message, text, **kwargs):
+        rendered.update(text=text, markup=kwargs["reply_markup"])
+
+    monkeypatch.setenv("WEBAPP_URL", "https://arccnet.space")
+    monkeypatch.setattr(requests, "get_user_primary_key", lambda telegram_id: {
+        "id": 185,
+        "is_active": 1,
+        "expires_at": "2027-07-08T12:00:00+00:00",
+        "traffic_used": 0,
+        "traffic_limit": 0,
+        "sub_id": "stable-test-id",
+    })
+    monkeypatch.setattr(requests, "get_user_entitlements", lambda telegram_id: {"device_limit": 3})
+    monkeypatch.setattr(requests, "get_user_devices", lambda telegram_id: [])
+    monkeypatch.setattr(requests, "is_traffic_exhausted", lambda primary: False)
+    monkeypatch.setattr(keys_handler, "safe_edit_or_send", capture)
+    asyncio.run(keys_handler.show_my_keys(123, object()))
+
+    assert "stable-test-id" in rendered["text"]
+    assert any(
+        button.callback_data == "key_renew:185"
+        for row in rendered["markup"].inline_keyboard for button in row
+    )

@@ -1,3 +1,30 @@
+# Current stage: active-subscription Back callback repair
+
+## 2026-08-31 second renewal Back failure
+
+Goal: make renewal Back render the active subscription screen end to end.
+Non-goals: no keyboard layout, pricing, entitlement, WebApp or node changes.
+Affected components: subscription URL helper, active-subscription regression
+test and bot service only.
+
+Acceptance: `_subscription_urls()` reads the configured subscription base without
+an undefined global; a regression test executes `show_my_keys()` with an active
+subscription through URL rendering; full tests pass; production bot is restarted
+and a post-restart production execution of the active renderer succeeds with no
+new `my_keys` NameError.
+
+Risk is limited to the subscription-summary link. Rollback is the runtime commit
+revert and bot restart.
+
+Status: **locally verified, release pending**. Production evidence from the current PID showed the first
+fix working past `webapp_url`, then failing at line 124 with `SUBSCRIPTION_URL is
+not defined`; `_subscription_urls()` imported `config` but read a bare name. It
+now uses `config.SUBSCRIPTION_URL`. The regression suite executes both empty and
+active subscription Back renders, including the stable link and renewal button.
+Focused result: 6 passed; full suite: 146 passed.
+
+# Historical stages
+
 # Current stage: bot custom-tariff entry and renewal back navigation
 
 ## 2026-08-31 bot purchase navigation correction

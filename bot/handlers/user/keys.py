@@ -23,7 +23,7 @@ def _subscription_urls(sub_id: str) -> tuple[str, str]:
     import os, config
     webapp_url = os.getenv("WEBAPP_URL", config.SUBSCRIPTION_URL)
 
-    base = SUBSCRIPTION_URL.rstrip("/")
+    base = config.SUBSCRIPTION_URL.rstrip("/")
     subscription_url = f"{base}/sub/{sub_id}"
     return subscription_url, f"{base}/import/{sub_id}"
 
