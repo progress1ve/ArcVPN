@@ -82,9 +82,9 @@ def test_rating_callback_accepts_current_and_legacy_events(monkeypatch):
     assert lifecycle._record_rating_answer(1001, "1") == (False, 1)
 
 
-def test_renew_tariff_back_button_returns_to_subscription_list():
+def test_renew_tariff_back_button_returns_to_main_cabinet():
     markup = tariff_product_keyboard([{"product_code": "standard"}], key_id=42)
-    assert markup.inline_keyboard[-1][0].callback_data == "my_keys"
+    assert markup.inline_keyboard[-1][0].callback_data == "start"
 
 
 def test_tariff_keyboard_opens_custom_builder_before_back(monkeypatch):
@@ -97,7 +97,7 @@ def test_tariff_keyboard_opens_custom_builder_before_back(monkeypatch):
     custom = markup.inline_keyboard[-2][0]
     assert custom.text == "⚙️ Создать свой тариф"
     assert custom.web_app.url == "https://arccnet.space/app?screen=custom-tariff"
-    assert markup.inline_keyboard[-1][0].callback_data == "my_keys"
+    assert markup.inline_keyboard[-1][0].callback_data == "start"
 
 
 def test_subscription_screen_renders_after_renewal_back(monkeypatch):

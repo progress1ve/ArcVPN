@@ -1,3 +1,30 @@
+# Current stage: renewal Back returns to bot cabinet
+
+## 2026-08-31 renewal navigation destination correction
+
+Goal: make Back from the bot tariff-family screen return to the canonical bot
+personal cabinet (`start`), not the separate text-only subscription details.
+Non-goals: no cabinet redesign, pricing, WebApp, entitlement or node changes.
+Affected components: shared tariff product keyboard, navigation assertions and
+bot service only.
+
+Acceptance: both purchase and renewal product keyboards keep the custom-tariff
+button before Back; Back uses `start`; the registered `start` callback remains
+the canonical cabinet renderer; focused/full tests pass; production bot restarts
+active and the generated production keyboard uses `start`.
+
+Risk is limited to one callback destination. Rollback is the runtime commit
+revert and bot restart.
+
+Status: **locally verified, release pending**. Current renewal Back used `my_keys`, which correctly
+opens the text-only subscription detail but does not match the requested main
+cabinet shown in the reference screenshot. The cabinet callback is `start`.
+The shared product keyboard now uses `start` for purchase and renewal while
+keeping the custom WebApp action immediately before Back. Focused result: 6
+passed; full suite: 146 passed; diff check passed.
+
+# Historical stages
+
 # Current stage: active-subscription Back callback repair
 
 ## 2026-08-31 second renewal Back failure

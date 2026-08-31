@@ -38,7 +38,7 @@ def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
         web_app=WebAppInfo(url=f"{webapp_url}/app?screen=custom-tariff"),
         style="primary",
     ))
-    builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data="my_keys" if key_id is not None else "start"))
+    builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data="start"))
     return builder.as_markup()
 
 
