@@ -303,9 +303,11 @@
     emailMessage = ''
     try {
       const result = await verifyEmailCode(emailInput.trim(), emailCode.trim(), purpose)
-      if (purpose === 'login' || purpose === 'register') {
+      if (purpose === 'login' || purpose === 'register' || purpose === 'auto') {
         await Promise.all([loadStatus({ force: true }), loadTariffs({ force: true }), loadReferral({ force: true })])
         account = await fetchAccount()
+        emailStep = 'email'
+        emailCode = ''
         emailMessage = ''
       } else {
         account = { ...(account || {}), email: result.email, email_verified: true }
@@ -939,7 +941,7 @@
   </div>
   <div class="grain" aria-hidden="true"></div>
   {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main' || connectOpen)}
-    <button class="desktop-back" aria-label="Назад" on:click={handleNativeBack}>
+    <button class="desktop-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
     </button>
   {/if}
@@ -948,7 +950,7 @@
     <main in:fly={{ y: 14, duration: 260, easing: cubicOut }} out:fade={{ duration: 90 }}>
       {#if purchaseOpen}
         <section class="screen purchase-screen" aria-label="Покупка подписки">
-          <button class="purchase-back" aria-label="Назад" on:click={handleNativeBack}>
+          <button class="purchase-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
             <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
           </button>
           <header class="purchase-head native-back-head">
@@ -1116,6 +1118,11 @@
             <p class="connect-safety"><ArcIcon name="check" size={18} weight="bold" />Персональная ссылка не публикуется и остаётся только у вас.</p>
           {/if}
         </section>
+      {:else if $status.loading || (!$status.loaded && !$status.error)}
+        <section class="screen session-loading" aria-label="Проверяем вход" aria-live="polite">
+          <div class="brand"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /><span>ArcVPN</span></div>
+          <i aria-hidden="true"></i><p>Проверяем вход…</p>
+        </section>
       {:else if $status.error === 'unauthorized'}
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
           <div class="brand"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /><span>ArcVPN</span></div>
@@ -1277,7 +1284,7 @@
             <section class="settings-group">
               <h2>Подписка</h2>
               <button class="setting-row" on:click={() => openSettingsPage('devices')}><i><ArcIcon name="devices" size={21} weight="duotone" /></i><span><b>Устройства</b><small>{registeredDevices.length} из {deviceLimit} подключено</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
-              <button class="setting-row" on:click={() => openSettingsPage('notifications')}><i><ArcIcon name="bell" size={21} weight="duotone" /></i><span><b>Уведомления</b><small>Срок, трафик и новые подключения</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
+              {#if isTelegramWebApp}<button class="setting-row" on:click={() => openSettingsPage('notifications')}><i><ArcIcon name="bell" size={21} weight="duotone" /></i><span><b>Уведомления</b><small>Срок, трафик и новые подключения</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>{/if}
               <button class="setting-row" on:click={() => openSettingsPage('billing')}><i><ArcIcon name="wallet" size={21} weight="duotone" /></i><span><b>Автопродление</b><small>{recurring.enabled ? (recurring.method?.display_title || 'Способ оплаты привязан') : recurring.provider_ready ? 'Не подключено' : 'Ожидает согласования YooKassa'}</small></span>{#if recurring.enabled}<em class="connected"><ArcIcon name="check" size={17} weight="bold" /></em>{:else}<ArcIcon name="caret" size={17} weight="bold" />{/if}</button>
             </section>
 
@@ -1417,7 +1424,7 @@
     </div>
   {/if}
 
-  {#if $status.error !== 'unauthorized' && !purchaseOpen && !connectOpen}<div class="dock">
+  {#if $status.loaded && $status.error !== 'unauthorized' && !purchaseOpen && !connectOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
       <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
     </div>
@@ -1709,10 +1716,10 @@
   .preference-list span { display: flex; flex: 1; flex-direction: column; }
   .preference-list b { font-size: 12px; }
   .preference-list small { margin-top: 4px; color: var(--muted); font-size: 9.5px; line-height: 1.35; }
-  .preference-list > button > i { width: 42px; height: 25px; padding: 3px; border-radius: 50px; background: #26313e; transition: background .2s ease; }
-  .preference-list > button > i em { display: block; width: 19px; height: 19px; border-radius: 50%; background: #8996a5; transition: transform .2s ease, background .2s ease; }
+  .preference-list > button > i { box-sizing: border-box; width: 46px; height: 26px; flex: 0 0 46px; padding: 3px; border-radius: 999px; background: #26313e; transition: background .2s ease; }
+  .preference-list > button > i em { display: block; width: 20px; height: 20px; border-radius: 50%; background: #8996a5; transition: transform .2s ease, background .2s ease; }
   .preference-list > button > i.on { background: #488fbe; }
-  .preference-list > button > i.on em { transform: translateX(17px); background: #e6f5ff; }
+  .preference-list > button > i.on em { transform: translateX(20px); background: #e6f5ff; }
   .email-connected { display: flex; align-items: center; gap: 12px; padding: 16px; border-radius: 22px; background: var(--surface); }
   .email-connected > i { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 11px; color: #9bd9fc; background: #142538; }
   .email-connected span { min-width: 0; display: flex; flex: 1; flex-direction: column; }
@@ -1735,6 +1742,7 @@
   .agreement p { margin: 0; color: #b7c1cc; font-size: 10.5px; line-height: 1.58; }
   .agreement button { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; border-radius: 15px; color: #b9e2fb; background: var(--surface-raised); font-size: 11px; font-weight: 800; }
   .login-screen { display: flex; justify-content: center; flex-direction: column; max-width: 460px; margin: auto; padding-bottom: calc(42px + var(--safe-bottom-flow)); }
+  .session-loading{display:flex;align-items:center;justify-content:center;flex-direction:column;min-height:100dvh;text-align:center}.session-loading .brand{margin-bottom:24px}.session-loading>i{width:28px;height:28px;border:2px solid rgba(143,215,251,.18);border-top-color:#8fd7fb;border-radius:50%;animation:payment-spin .8s linear infinite}.session-loading>p{margin:12px 0 0;color:var(--muted);font-size:10px}
   .login-screen .brand { justify-content: center; margin-bottom: 32px; }
   .login-screen .brand img { width: 30px; height: 30px; object-fit: contain; }
   .login-copy { text-align: center; }
@@ -1990,12 +1998,11 @@
   .setting-row > i,
   .registered-device > i,
   .email-connected > i,
-  .preference-list > button > i,
   .device-grid i {
     border-radius: 50%;
   }
-  .desktop-back { display: none; }
-  .purchase-back { display: none; }
+  .desktop-back { position: fixed; z-index: 45; top: calc(var(--safe-top-flow) + 16px); left: 20px; min-height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--radius-pill); color: #dceaf5; background: rgba(9,17,28,.86); box-shadow: 0 18px 42px -28px rgba(0,0,0,.92); backdrop-filter: blur(20px); font-size: 11px; font-weight: 750; }
+  .purchase-back { width: fit-content; min-height: 46px; display: flex; align-items: center; gap: 8px; margin: 0 0 22px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--radius-pill); color: #dceaf5; background: rgba(9,17,28,.86); font-size: 11px; font-weight: 750; }
   .faq {
     min-height: 64px;
     align-items: center;
@@ -2430,8 +2437,8 @@
   .connect-app-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 28px; }
   .connect-app-grid button { position: relative; min-width: 0; height: 310px; overflow: hidden; border: 1px solid var(--hairline); border-radius: 28px; color: #fff; background: linear-gradient(160deg,#171c21,#0c0f13); }
   .connect-app-grid button.active { border-color: #60c8ef; background: linear-gradient(160deg,rgba(30,92,102,.82),#10181c 70%); box-shadow: inset 0 0 0 1px rgba(84,201,237,.18),0 20px 50px -36px rgba(65,185,229,.9); }
-  .connect-app-grid button > span { position: absolute; z-index: 2; top: 18px; left: 0; width: 100%; font-size: 20px; font-weight: 900; letter-spacing: -.025em; }
-  .connect-app-grid img { position: absolute; left: 50%; bottom: 34px; width: 162px; max-width: none; object-fit: contain; transform: translateX(-50%); }
+  .connect-app-grid button > span { position: absolute; z-index: 3; top: 15px; left: 0; width: 100%; font-size: 20px; font-weight: 900; line-height: 1; letter-spacing: -.025em; }
+  .connect-app-grid img { position: absolute; left: 50%; bottom: 40px; width: 138px; max-width: none; object-fit: contain; transform: translateX(-50%); }
   .connect-app-grid em { position: absolute; z-index: 2; right: 12px; bottom: 12px; left: 12px; min-height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.32); border-radius: 15px; background: rgba(11,18,23,.68); font-size: 9px; font-style: normal; font-weight: 800; backdrop-filter: blur(12px); }
   .connect-main-action, .connect-secondary-action { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: center; gap: 9px; margin-top: 16px; border-radius: 19px; font-size: 12px; font-weight: 850; }
   .connect-main-action { color: #07131d; background: linear-gradient(135deg,#b6e7ff,#6bc1ef); }
@@ -2453,9 +2460,10 @@
     .connect-page { padding-top: 100px; }
     .connect-page-head > button { visibility: hidden; }
     .connect-app-grid button { height: 360px; }
-    .connect-app-grid img { bottom: 30px; width: 210px; }
+    .connect-app-grid img { bottom: 34px; width: 180px; }
   }
   @media (max-width: 767px) {
+    .desktop-back.telegram-mobile-hidden, .purchase-back.telegram-mobile-hidden,
     .connect-page-head > button.telegram-mobile-hidden { display: none; }
   }
   .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}

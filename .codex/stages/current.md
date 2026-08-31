@@ -2,9 +2,9 @@
 
 ## 2026-08-31 custom tariff purchase flow
 
-Goal: keep Happ/INCY artwork fully visible on mobile and add a server-priced
-custom tariff builder to both standalone site and Telegram WebApp purchase and
-renewal flows.
+Goal: keep Happ/INCY artwork fully visible and separated from labels on mobile,
+add a server-priced custom tariff builder to both purchase surfaces, and correct
+environment-specific navigation, notifications and standalone email/session UX.
 
 Affected components: customer purchase UI in `HomeFlowPreview.svelte`, WebApp API
 client/mock catalog, payment and promo quote endpoints in `subscription_api.py`,
@@ -30,13 +30,22 @@ Acceptance:
 6. Mobile, tablet, desktop and wide browser checks cover regular/builder/payment
    transitions, no horizontal overflow, keyboard focus and disabled states. Full
    tests, Vite build and production health/public bundle pass.
+7. A cold standalone visit renders a neutral session-check screen until `/status`
+   resolves, never a flash of private cabinet data or navigation. Successful
+   `auto` email verification immediately reloads authenticated data and enters the
+   cabinet without a second code submission or manual refresh.
+8. Notification preferences are shown only inside Telegram WebApp. Their 46x26
+   switches use a true capsule (13 px semicircular end radius, implemented as
+   999 px) rather than an ellipse overridden by global icon styling.
+9. Back controls show on standalone mobile subpages/purchase and remain hidden in
+   Telegram WebApp on phones; desktop behavior is unchanged.
 
 Risks: under/overcharging from catalog drift and entitlement mismatch. The quote
 helper rejects missing periods, malformed catalogs and values outside the bounded
 choice set; payment and promocode paths share the same helper. Rollback is a
 revert of the stage commit and restart of `arcvpn-subscription.service` only.
 
-Status: **validated locally, pending production release**. Before-state evidence:
+Status: **follow-up validated locally on top of deployed `eeed783`, pending release**. Before-state evidence:
 at 390x844 the app cards cropped the lower phone silhouettes and purchase offered
 only three fixed products. After-state browser evidence at the same viewport puts
 both 162 px phone silhouettes fully inside their 310 px cards (`fits=true`) with
@@ -46,8 +55,24 @@ same 1086 RUB/181 RUB monthly quote in the browser and Python helper. Its paymen
 sheet carries that total. Browser checks at 390, 768, 1366 and 1920 px have zero
 horizontal overflow. Server-side anchor, validation, payment-pricing and persisted
 entitlement coverage passes; full suite is `142 passed`, Python compile and Vite
-production build pass. Existing Vite unused-selector warnings remain pre-existing
-cleanup debt and do not affect the generated bundle.
+production build pass. Production is active/enabled; `/health` and `/app/` return
+200, public HTML serves `index-0jNBJqa0.js`, and the post-release warning journal
+is empty. The deployed helper uses the live catalog and reproduces Standard
+3 months/3 devices/45 GB at 399 RUB. Public unauthenticated rendering remains a
+valid passwordless login shell; authenticated after-state evidence comes from the
+same built bundle locally because production test credentials were not introduced.
+Existing Vite unused-selector warnings remain pre-existing cleanup debt and do not
+affect the generated bundle. Rollback was not used.
+
+Follow-up evidence: at 390 px each phone is now 138 px wide, fully contained,
+and begins 29 px below its label (`overlap=false`); standalone mobile connection
+and purchase screens expose Back while the Telegram-mobile class hides it below
+768 px. Standalone Settings contains zero notification rows; the switch CSS is
+46x26 with 999 px radius and no later 50% override. A cold unauthorized render
+contains zero Home regions and zero navigation docks, then shows the login screen.
+`auto` email verification now follows the authenticated refresh branch rather
+than the link-only confirmation branch. Full suite remains `142 passed`; Vite
+production build and 390 px interaction checks pass without horizontal overflow.
 
 # Historical stages
 
