@@ -16,12 +16,15 @@ active and the generated production keyboard uses `start`.
 Risk is limited to one callback destination. Rollback is the runtime commit
 revert and bot restart.
 
-Status: **locally verified, release pending**. Current renewal Back used `my_keys`, which correctly
+Status: **passed and deployed at `24ca0d6`**. Current renewal Back used `my_keys`, which correctly
 opens the text-only subscription detail but does not match the requested main
 cabinet shown in the reference screenshot. The cabinet callback is `start`.
 The shared product keyboard now uses `start` for purchase and renewal while
 keeping the custom WebApp action immediately before Back. Focused result: 6
 passed; full suite: 146 passed; diff check passed.
+Production is fast-forwarded to `24ca0d6`, the bot restarted active, all six
+focused navigation tests pass in production and the post-restart warning journal
+is empty. No cabinet layout, pricing, subscriptions or node state changed.
 
 # Historical stages
 

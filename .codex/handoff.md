@@ -13,6 +13,13 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
+- Renewal tariff Back destination is corrected at `24ca0d6`: it now calls the
+  canonical `start` handler and returns to the full bot personal cabinet with its
+  cover, subscription status and primary actions, not the text-only `Моя
+  подписка` view. The shared purchase keyboard keeps `Создать свой тариф`
+  immediately before Back. Local result is 146 tests; production focused result
+  is 6 tests, bot active and the warning journal empty.
+
 - Renewal Back active-subscription rendering is repaired at `0944546`. The first
   fix exposed a second production NameError in `_subscription_urls()`, which read
   a bare `SUBSCRIPTION_URL` despite importing `config`; it now uses the configured
