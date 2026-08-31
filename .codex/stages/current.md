@@ -1,3 +1,51 @@
+# Current stage: custom tariff anchor parity and savings
+
+## 2026-08-31 custom-plan pricing correction
+
+Goal: make fixed-plan-equivalent custom configurations cost exactly the fixed
+catalog price, while protecting margin on genuinely custom combinations and
+showing multi-month savings clearly.
+
+Non-goals: no fixed catalog price changes, entitlement changes, migrations,
+subscription URL/UUID changes, node work or payment-provider changes.
+
+Affected components: shared authoritative custom quote helper, matching WebApp
+preview, custom quote/payment tests, generated WebApp bundle and subscription
+service only.
+
+Acceptance:
+
+1. Economy 2 devices/0 GB, Standard 3/45 and Family 10/115 match their catalog
+   price for every 1/3/6/12-month period.
+2. Other combinations retain an 8% flexibility premium internally, but no UI or
+   API copy labels it as a markup.
+3. Any non-anchor configuration with bypass traffic costs at least 100 RUB per
+   purchased month; specifically 1 device/15 GB/3 months is at least 300 RUB.
+4. The server remains authoritative for payments and promo quotes and the client
+   uses the identical anchor/floor/rounding rules.
+5. For 3/6/12 months the price card shows the comparison total at the same
+   one-month configuration price multiplied by the selected months, plus the
+   positive saving when one exists; 1 month shows no comparison.
+6. Builder, payment sheet and responsive states pass mobile/tablet/desktop/wide
+   browser checks without overflow; focused/full tests and build pass; production
+   health, bundle, service state and journal pass.
+
+Risk: client/server drift around anchor matching and monthly floor. Tests cover
+all anchors, the 1/15 floor and an intermediate non-anchor. Rollback is a revert
+of the runtime commit and subscription-service restart.
+
+Status: **locally verified, release pending**. Before-state evidence:
+Standard-equivalent custom was 431 RUB versus the catalog's 399 RUB, exposed an
+8% markup label, and 1 device/15 GB/3 months was 82 RUB/month. After the change,
+the two quotes are respectively 399 RUB and 300 RUB (100 RUB/month), and no
+markup copy remains. Standard savings render as 435 -> 399 RUB (36 RUB) for 3
+months, 111 RUB for 6 months and 271 RUB for 12 months. The 399 RUB payment sheet
+matches the quote. Browser checks at 390x844, 430x932, 768x1024 and 1440x1000
+all report zero horizontal overflow. Focused tests: 15 passed; full suite: 143
+passed; Vite production build passed with pre-existing unused-selector warnings.
+
+# Historical stages
+
 # Current stage: custom tariff assembly markup
 
 ## 2026-08-31 custom-plan commercial guardrail

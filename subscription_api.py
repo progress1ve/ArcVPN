@@ -3281,7 +3281,13 @@ def api_status():
 CUSTOM_DEVICE_CHOICES = frozenset(range(1, 11))
 CUSTOM_LTE_CHOICES_GB = frozenset({0, 15, 30, 45, 75, 115})
 CUSTOM_PERIOD_CHOICES = frozenset({1, 3, 6, 12})
-CUSTOM_TARIFF_MARKUP_PERCENT = 8
+CUSTOM_TARIFF_PREMIUM_PERCENT = 8
+CUSTOM_BYPASS_MIN_MONTHLY_RUB = 100
+CUSTOM_TARIFF_ANCHORS = {
+    (2, 0): "economy",
+    (3, 45): "standard",
+    (10, 115): "family",
+}
 
 
 def _custom_tariff_quote(
@@ -3324,14 +3330,18 @@ def _custom_tariff_quote(
         raise ValueError("custom_catalog_invalid")
     exact = economy + (devices - 2) * device_rate + lte_gb * gb_rate
     base_price = max(1, (exact.numerator * 2 + exact.denominator) // (2 * exact.denominator))
-    price = (base_price * (100 + CUSTOM_TARIFF_MARKUP_PERCENT) + 99) // 100
+    anchor_code = CUSTOM_TARIFF_ANCHORS.get((devices, lte_gb))
+    if anchor_code:
+        price = anchors[anchor_code]
+    else:
+        price = (base_price * (100 + CUSTOM_TARIFF_PREMIUM_PERCENT) + 99) // 100
+        if lte_gb > 0:
+            price = max(price, CUSTOM_BYPASS_MIN_MONTHLY_RUB * period)
     return {
         "period_months": period,
         "device_limit": devices,
         "lte_quota_gb": lte_gb,
         "base_price_rub": base_price,
-        "markup_percent": CUSTOM_TARIFF_MARKUP_PERCENT,
-        "markup_rub": price - base_price,
         "price_rub": price,
         "monthly_rub": max(1, round(price / period)),
     }

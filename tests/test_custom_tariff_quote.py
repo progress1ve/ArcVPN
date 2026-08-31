@@ -33,8 +33,15 @@ def test_custom_quote_reproduces_catalog_anchors(months, index):
         quote = api._custom_tariff_quote(selected, devices, lte, CATALOG)
         expected_base = prices[index]
         assert quote["base_price_rub"] == expected_base
-        assert quote["price_rub"] == (expected_base * 108 + 99) // 100
-        assert quote["price_rub"] > expected_base
+        assert quote["price_rub"] == expected_base
+
+
+def test_custom_bypass_floor_and_non_anchor_premium():
+    floor_quote = api._custom_tariff_quote({"period_months": 3}, 1, 15, CATALOG)
+    assert floor_quote["price_rub"] == 300
+    assert floor_quote["monthly_rub"] == 100
+    custom = api._custom_tariff_quote({"period_months": 3}, 5, 75, CATALOG)
+    assert custom["price_rub"] > custom["base_price_rub"]
 
 
 def test_custom_quote_is_monotonic_for_supported_choices():
@@ -58,7 +65,7 @@ def test_custom_quote_rejects_incomplete_catalog():
 
 def test_custom_payment_uses_server_quote_and_persists_entitlements():
     async def create_payment(**kwargs):
-        assert kwargs["amount_rub"] == 431
+        assert kwargs["amount_rub"] == 399
         assert kwargs["description"] == "ArcVPN — свой тариф"
         return {"yookassa_payment_id": "provider-custom", "qr_url": "https://pay.example", "status": "pending"}
 
@@ -82,6 +89,6 @@ def test_custom_payment_uses_server_quote_and_persists_entitlements():
             "custom": True, "auto_renew": False,
         })
     assert response.status_code == 200
-    assert response.get_json()["base_amount_rub"] == 431
+    assert response.get_json()["base_amount_rub"] == 399
     assert response.get_json()["custom"] is True
     entitlements.assert_called_once_with("custom-order", 3, 45)
