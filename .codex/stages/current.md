@@ -1,3 +1,21 @@
+# Current stage: Telegram login visual correction
+
+## 2026-08-31 remove nested-button appearance
+
+Goal: make the official Telegram Login control read as one centered button,
+without the wide empty ArcVPN wrapper visible behind it. Non-goals: no auth,
+session, email, cabinet or Telegram flow changes. Affected component is only the
+standalone login CSS and rebuilt static assets.
+
+Before evidence: production desktop host is 416x52 while its official iframe is
+234x40, leaving a bordered dark rectangle around the blue Telegram button; the
+user screenshot shows the same nested-button defect. Acceptance: transparent,
+borderless content-sized host; centered 234x40 official control; balanced space
+to the divider; visible focus; no horizontal overflow at mobile, tablet,
+desktop and wide viewports; Vite build passes; production bundle is current.
+Risk: Telegram may change iframe dimensions. Rollback: revert the CSS/build
+commit and restart only `arcvpn-subscription.service`.
+
 # Current stage: direct Telegram website login
 
 ## 2026-08-31 Telegram API authentication
