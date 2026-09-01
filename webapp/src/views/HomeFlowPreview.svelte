@@ -811,10 +811,10 @@
     if (url) openExternal(url)
   }
 
-  function incyAndroidIntent(incyUrl) {
-    const target = String(incyUrl || '').replace(/^incy:\/\//i, '')
-    const fallback = encodeURIComponent(appCatalog.incy.stores.android)
-    return `intent://${target}#Intent;scheme=incy;package=llc.itdev.incy;S.browser_fallback_url=${fallback};end`
+  function incyBridgeUrl(incyUrl) {
+    const payload = String(incyUrl || '').replace(/^incy:\/\/crypt1\//i, '')
+    const origin = new URL(subKey.sub_url).origin
+    return `${origin}/import/incy#${encodeURIComponent(payload)}`
   }
 
   function importSelectedApp() {
@@ -827,8 +827,7 @@
       // Keep encryption synchronous: iOS/Safari rejects a custom-scheme
       // navigation after an awaited promise because the original tap is lost.
       const incyUrl = encryptIncyLink(subKey.sub_url, { name: 'ArcVPN' })
-      const android = tg?.platform === 'android' || /Android/i.test(navigator.userAgent)
-      openExternal(android ? incyAndroidIntent(incyUrl) : incyUrl)
+      openExternal(incyBridgeUrl(incyUrl))
     } catch (_) {
       copyText(subKey.sub_url, 'Ссылка подписки скопирована')
     }
@@ -962,7 +961,7 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
-  {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main' || connectOpen)}
+  {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main')}
     <button class="desktop-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
     </button>
@@ -1086,7 +1085,7 @@
       {:else if connectOpen}
         <section class="screen connect-page" aria-label="Подключение VPN">
           <header class="connect-page-head">
-            <button class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button>
+            <button class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /><span>Назад</span></button>
             <div>
               <h1>{connectStage === 'device' ? 'Выберите устройство' : connectStage === 'app' ? 'Какое приложение?' : 'Добавьте ArcVPN'}</h1>
               <p>{connectStage === 'device' ? 'Ссылка уже готова — осталось выбрать платформу.' : connectStage === 'app' ? 'Выберите приложение, которое подходит под ваши задачи.' : `Завершите настройку в ${currentConnectApp.label}.`}</p>
@@ -2449,7 +2448,8 @@
   /* Connection: a page flow, not an overlay. */
   .connect-page { width: min(100%,760px); min-height: 100dvh; margin: 0 auto; padding-top: calc(var(--safe-top-flow) + 28px); padding-bottom: 50px; }
   .connect-page-head { position: relative; display: flex; align-items: flex-start; justify-content: center; min-height: 72px; text-align: center; }
-  .connect-page-head > button { position: absolute; top: 0; left: 0; width: 44px; height: 44px; display: grid; place-items: center; border: 1px solid var(--hairline); border-radius: 50%; color: #dbeaf5; background: var(--surface-raised); }
+  .connect-page-head > button { position: absolute; top: 0; left: 0; width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; gap: 7px; border: 1px solid var(--hairline); border-radius: 50%; color: #dbeaf5; background: var(--surface-raised); font-size: 11px; font-weight: 750; }
+  .connect-page-head > button span { display: none; }
   .connect-page-head > div { min-width: 0; width: 100%; padding: 2px 52px 0; }
   .connect-page-head h1 { margin: 0; font-size: 28px; letter-spacing: -.045em; }
   .connect-page-head p { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
@@ -2488,7 +2488,8 @@
   }
   @media (min-width: 768px) {
     .connect-page { display: flex; flex-direction: column; justify-content: center; padding-top: 80px; padding-bottom: 80px; }
-    .connect-page-head > button { visibility: hidden; }
+    .connect-page-head > button { width: auto; padding: 0 15px; border-radius: var(--radius-pill); }
+    .connect-page-head > button span { display: inline; }
     .connect-app-grid button { height: 360px; }
     .connect-app-grid img { bottom: 34px; width: 180px; }
   }

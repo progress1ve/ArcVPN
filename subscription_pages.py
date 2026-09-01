@@ -7,6 +7,30 @@
 import html
 
 
+def render_silent_incy_import_page() -> str:
+    """Blank HTTPS bridge that immediately opens an encrypted INCY link."""
+    return """<!doctype html>
+<html lang="ru"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="dark"><title></title>
+  <style>html,body{width:100%;height:100%;margin:0;background:#02060c;overflow:hidden}</style>
+</head><body aria-label="Открытие INCY"><script>
+  function target() {
+    const payload = decodeURIComponent(location.hash.slice(1));
+    return /^[A-Za-z0-9_-]+$/.test(payload) ? `incy://crypt1/${payload}` : '';
+  }
+  let opening = false;
+  function openIncy() {
+    if (opening || !target()) return;
+    opening = true;
+    window.location.replace(target());
+  }
+  document.addEventListener('click', openIncy);
+  setTimeout(openIncy, 40);
+</script></body></html>"""
+
+
 def render_silent_import_page(
     js_subscription_url: str,
     js_device_registration_url: str,

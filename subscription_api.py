@@ -117,7 +117,7 @@ from database.db_recurring import disable_recurring_methods, get_active_recurrin
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, get_yookassa_payment_details, process_payment_order
 from bot.services.vpn_api import disable_key_on_panel, get_client_from_server_data, push_key_to_panel
 from bot.services.reserve import get_reserve_client_info
-from subscription_pages import render_import_page, render_silent_import_page, render_user_agreement
+from subscription_pages import render_import_page, render_silent_import_page, render_silent_incy_import_page, render_user_agreement
 
 # Конфиг читаем через getattr с дефолтами: устаревший config.py (а он не
 # версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
@@ -2848,6 +2848,14 @@ def logo():
     if LOGO_SVG is None:
         return Response("", status=404)
     return Response(LOGO_SVG, mimetype='image/svg+xml')
+
+
+@app.route('/import/incy')
+def import_to_incy():
+    response = Response(render_silent_incy_import_page(), mimetype='text/html')
+    response.headers["Cache-Control"] = "private, no-store, no-cache, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.route('/import/<sub_id>')

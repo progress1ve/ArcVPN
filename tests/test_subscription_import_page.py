@@ -2,7 +2,7 @@ from unittest.mock import patch
 
 import subscription_api as api
 from subscription_api import _happ_add_url, _happ_subscription_target
-from subscription_pages import render_silent_import_page
+from subscription_pages import render_silent_import_page, render_silent_incy_import_page
 
 
 def test_happ_import_url_has_no_external_provider_binding():
@@ -58,3 +58,16 @@ def test_silent_import_uses_registered_device_subscription_url():
     assert "target.searchParams.set('device', deviceToken())" in page
     assert "target.pathname = `/sub/" not in page
     assert "xhr.open('POST', registrationUrl, false)" not in page
+
+
+def test_incy_import_bridge_is_black_and_opens_fragment_payload():
+    page = render_silent_incy_import_page()
+
+    assert "background:#02060c" in page
+    assert "location.hash.slice(1)" in page
+    assert "incy://crypt1/${payload}" in page
+    assert "setTimeout(openIncy, 40)" in page
+
+    response = api.app.test_client().get("/import/incy")
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"].startswith("private, no-store")

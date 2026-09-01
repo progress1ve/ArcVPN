@@ -6,11 +6,12 @@ Goal: make the INCY import button open its encrypted `incy://crypt1` deeplink
 inside the original user click on both the website and Telegram WebApp. Show the
 same neutral `Поддерживается` badge for Happ and INCY.
 
-Acceptance: the browser-safe synchronous INCY encoder is used; generated links
-start with `incy://crypt1/` and decode to the same subscription URL; Android
-receives an explicit INCY intent; both app cards say `Поддерживается`; the
-desktop connection flow is vertically centered; production build and focused
-regression tests pass. Responsive browser inspection is excluded by owner request.
+Acceptance: the browser-safe synchronous INCY encoder is used; the WebApp opens
+an HTTPS bridge on the ArcVPN domain and its blank black page automatically
+opens the generated `incy://crypt1/` link; both app cards say `Поддерживается`;
+the desktop back button sits inside the centered connection header; production
+build and focused regression tests pass. Responsive browser inspection is
+excluded by owner request.
 
 Risk and rollback: only the app-choice UI and INCY deeplink generation change.
 Revert the frontend commit and rebuild `webapp_dist`; subscription URLs, device
