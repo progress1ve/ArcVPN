@@ -943,8 +943,12 @@ def _is_valid_subscription_id(sub_id: str) -> bool:
 
 
 def _happ_subscription_target(url: str) -> str:
-    """Return the stable ArcVPN URL without an external Happ provider binding."""
-    return url
+    """Give Happ a fresh local subscription identity without changing access."""
+    parsed = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query = [(key, value) for key, value in query if key != "arc-order"]
+    query.append(("arc-order", "manual-v2"))
+    return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def _happ_add_url(url: str) -> str:

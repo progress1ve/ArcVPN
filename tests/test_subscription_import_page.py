@@ -10,9 +10,18 @@ def test_happ_import_url_has_no_external_provider_binding():
     target = _happ_subscription_target(source)
     deeplink = _happ_add_url(source)
 
-    assert target == source
-    assert deeplink == f"happ://add/{source}"
+    assert target == source + "&arc-order=manual-v2"
+    assert deeplink == f"happ://add/{target}"
     assert "providerid" not in target.lower()
+
+
+def test_happ_import_order_revision_is_idempotent():
+    source = "https://sub.arccnet.space/sub/stable?format=json&arc-order=old"
+
+    target = _happ_subscription_target(source)
+
+    assert target.count("arc-order=") == 1
+    assert target.endswith("arc-order=manual-v2")
 
 
 def test_browser_import_bridge_has_no_provider_id():
@@ -34,7 +43,7 @@ def test_device_scoped_import_url_has_no_provider_id():
 
     assert response.status_code == 200
     import_url = response.get_json()["import_url"]
-    assert import_url.endswith(f"/sub/{device_sub_id}?format=json")
+    assert import_url.endswith(f"/sub/{device_sub_id}?format=json&arc-order=manual-v2")
     assert "providerid" not in import_url.lower()
 
 
