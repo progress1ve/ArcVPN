@@ -22,9 +22,15 @@ Updated: 2026-09-01. This file is current state, not a diary.
   still in service. Two owner-only manual XHTTP links were exported to the
   gitignored local `.secrets/owner-xhttp-cdn-links.txt`; never paste their UUIDs
   into chat or docs.
+- Happ catalog order is owner-controlled and fixed: Auto, YouTube, Estonia,
+  Netherlands, Germany, then five bypass rows. Subscription-wide
+  `lowestdelay` autoconnect and ping-on-open metadata must remain absent because
+  Happ otherwise reorders visible locations by latency. Internal Xray
+  `leastLoad` inside Auto/bypass profiles remains required. The first bypass
+  display label is exactly `🇪🇺 Лучший обход`.
 - The earlier one-row subscription draft is rejected and must not be restored.
   The deployed implementation preserves five visible bypass
-  rows, rename only `Обход глушилок #1` to `Лучший обход`, give that row an
+  rows, rename only `Обход глушилок #1` to `🇪🇺 Лучший обход`, give that row an
   Estonia-primary/Netherlands-reserve XHTTP fallback, and make the other rows
   follow the accepted Whitenode behavior. Happ/Xray measures latency client-side
   and does not directly know Remnawave active-user counts; do not invent a second
@@ -41,18 +47,18 @@ Updated: 2026-09-01. This file is current state, not a diary.
   copy unrelated DNS/domain lists from the external example and do not claim it
   accounts for Remnawave user counts. The repository exposes no license in its
   root, so treat it as a behavior reference, not a code dependency.
-- A second, independent requirement is censorship-resistant subscription
-  refresh. Preserve every existing `https://sub.arccnet.space/sub/...` URL while
-  placing that hostname behind the existing Yandex CDN resource. EE and NL nginx
-  origins proxy `/sub/` directly to the Poland IP using verified TLS/SNI, which
-  avoids a DNS loop after the CNAME cutover. Dynamic subscription responses must never be shared or stale-cached:
-  disable CDN/browser caching, preserve full path/query and relevant User-Agent/
-  format behavior, retain TLS and ArcVPN headers, and verify two distinct
-  credential-safe subscriptions cannot cross-contaminate. Origin bypass, CDN
-  bypass, revoked/expired behavior and real Happ refresh during simulated origin
-  blocking are acceptance gates. Two-user direct/EE/NL byte and header parity is
-  already verified. Do not change DNS until the additional Yandex hostname,
-  certificate, no-cache policy and rollback TTL are ready.
+- Censorship-resistant subscription refresh through CDN is explicitly deferred
+  by the owner on 2026-09-01. Preserve every existing
+  `https://sub.arccnet.space/sub/...` URL and current public DNS. The prepared
+  EE/NL nginx `/sub/` origin routes may remain dormant, but do not add the Yandex
+  hostname, change its certificate/cache policy, cut DNS, or create another CDN
+  resource until the owner resumes this stage. The prepared design places the
+  hostname behind the existing Yandex CDN resource; EE and NL nginx origins proxy
+  `/sub/` directly to the Poland IP using verified TLS/SNI, avoiding a DNS loop.
+  If resumed, dynamic responses must remain uncached and the origin/CDN/revocation/
+  Happ-refresh gates must be repeated. Two-user direct/EE/NL byte and header
+  parity was already verified, but it is only retained evidence for the deferred
+  stage.
 
 - Agent workflow contracts now treat public URLs, topology, pricing, callbacks,
   and visible UI as zero-assumption contracts. Node/CDN stages require an accepted

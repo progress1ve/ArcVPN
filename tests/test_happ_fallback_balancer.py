@@ -33,7 +33,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             tiktok_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES)
             direct_index = next(i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct")
             self.assertLess(tiktok_index, direct_index)
-            if profile["remarks"].startswith(("Автовыбор", "Лучший обход", "🇪🇺 Обход")):
+            if profile["remarks"].startswith(("Автовыбор", "🇪🇺 Лучший обход", "🇪🇺 Обход")):
                 self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_main")
             else:
                 self.assertEqual(rules[tiktok_index]["outboundTag"], "proxy")
@@ -56,7 +56,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония #1", "Эстония #2",
             "Нидерланды #1", "Нидерланды #2",
-            "Германия #1", "Германия #2", "Лучший обход",
+            "Германия #1", "Германия #2", "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
@@ -97,7 +97,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         profiles = json.loads(built)
         self.assertEqual(len(profiles), 7)
         self.assertEqual([item["remarks"] for item in profiles[-5:]], [
-            "Лучший обход", "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
+            "🇪🇺 Лучший обход", "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
         self.assertEqual(profiles[0]["remarks"], "Автовыбор | Самый быстрый")
@@ -118,7 +118,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
 
-        self.assertEqual(profiles[-5]["remarks"], "Лучший обход")
+        self.assertEqual(profiles[-5]["remarks"], "🇪🇺 Лучший обход")
         for profile in profiles[-5:]:
             outbounds = {item["tag"]: item for item in profile["outbounds"]}
             self.assertNotIn("proxy", outbounds)

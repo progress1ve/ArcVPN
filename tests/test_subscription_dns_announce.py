@@ -66,3 +66,19 @@ def test_happ_subscription_hides_node_settings_in_header_and_text_metadata():
         PreparedSubscription(text, "text/plain; charset=utf-8", "upload=0; download=0")
     )
     assert response.headers["hide-settings"] == "1"
+
+
+def test_happ_subscription_keeps_server_catalog_order_instead_of_lowest_delay_reordering():
+    text = _build_plain_text_subscription(
+        "vless://example", None, "upload=0; download=0"
+    )
+    assert "subscription-autoconnect" not in text
+    assert "subscription-autoconnect-type" not in text
+    assert "subscription-ping-onopen-enabled" not in text
+
+    response = _response_from_prepared(
+        PreparedSubscription(text, "text/plain; charset=utf-8", "upload=0; download=0")
+    )
+    assert "subscription-autoconnect" not in response.headers
+    assert "subscription-autoconnect-type" not in response.headers
+    assert "subscription-ping-onopen-enabled" not in response.headers

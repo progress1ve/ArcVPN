@@ -1,5 +1,39 @@
 # Current stage: redesign five bypass fallbacks after rejected simplification
 
+## 2026-09-01 fixed Happ catalog order and CDN-refresh deferral
+
+Goal: display the first bypass profile exactly as `🇪🇺 Лучший обход` and keep the
+server-defined Happ catalog order without client-side lowest-delay reordering.
+
+Non-goals: do not change the internal Whitenode `leastLoad` behavior inside the
+explicit `Автовыбор`/bypass profiles; do not change nodes, CDN origins, DNS,
+certificates, UUIDs or public subscription URLs. Subscription refresh through
+CDN is explicitly deferred: keep the public DNS unchanged and do not create or
+modify a Yandex CDN resource for it.
+
+Accepted visible order:
+
+1. `Автовыбор | Самый быстрый`
+2. `🇷🇺 Ютуб без рекламы`
+3. Estonia profiles in protocol order
+4. Netherlands profiles in protocol order
+5. Germany profiles in protocol order
+6. `🇪🇺 Лучший обход`
+7. `🇪🇺 Обход глушилок #2` through `#5`
+
+Acceptance: JSON array order matches the list; plain/HTTP subscription metadata
+does not request `lowestdelay` autoconnect or ping-on-open; internal fallback
+balancers remain unchanged; focused/full tests pass; production service and
+credential-safe public order verification pass.
+
+Risk and rollback: existing Happ clients may retain a locally reordered cache
+until refresh/reimport. Roll back the runtime commit and restart only
+`arcvpn-subscription.service`. Public identifiers and authorization are unchanged.
+
+Topology table: no topology mutation in this stage. All client/CDN/origin/SNI/
+inbound paths and x1 multipliers remain byte-equivalent; only visible label/order
+metadata changes. CDN subscription-refresh work is deferred with no public cutover.
+
 ## 2026-09-01 corrected contract gate
 
 Status: **runtime deployed; Yandex subscription-host cutover and a controlled

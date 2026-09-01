@@ -258,6 +258,7 @@ REMNAWAVE_LTE_GERMANY_HOST = "cdn.arccnet.space"
 REMNAWAVE_LTE_DHOST_HOSTS = {"cdn-de.arccnet.space", "cdn-nd.arccnet.space"}
 LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a"
 BEST_BYPASS_NAME = "Лучший обход"
+BEST_BYPASS_DISPLAY_NAME = f"🇪🇺 {BEST_BYPASS_NAME}"
 BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space", "cdn-nd.arccnet.space")
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
@@ -437,7 +438,7 @@ def _expand_lte_profile_links(links: list[str]) -> list[str]:
     expanded = []
     for index in range(5):
         source = sources[index % len(sources)].rsplit("#", 1)[0]
-        label = BEST_BYPASS_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
+        label = BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
         expanded.append(source + "#" + urllib.parse.quote(label, safe=""))
     return [*main, *expanded]
 
@@ -537,9 +538,6 @@ HAPP_PROVIDER_ID = str(
     os.getenv("HAPP_PROVIDER_ID")
     or getattr(config, "HAPP_PROVIDER_ID", "O7YLTHgc")
 ).strip()
-HAPP_LOWEST_DELAY_AUTOCONNECT = bool(
-    getattr(config, "HAPP_LOWEST_DELAY_AUTOCONNECT", True)
-)
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
@@ -1112,12 +1110,6 @@ def _build_plain_text_subscription(
         f"#support-url: {SUPPORT_URL}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
     ]
-    if HAPP_LOWEST_DELAY_AUTOCONNECT:
-        lines.extend([
-            "#subscription-autoconnect: 1",
-            "#subscription-autoconnect-type: lowestdelay",
-            "#subscription-ping-onopen-enabled: 1",
-        ])
     if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
         lines.append(f"#providerid {HAPP_PROVIDER_ID}")
     # Информационный блок (как у конкурентов — подсказки для пользователей)
@@ -1655,7 +1647,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         for index in range(5):
             profile = copy.deepcopy(auto_profile)
             profile["remarks"] = (
-                BEST_BYPASS_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
+                BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
             )
             fallback_lte_profiles.append(profile)
     return json.dumps(
@@ -1829,10 +1821,6 @@ def _response_from_prepared(
     response.headers["support-url"] = SUPPORT_URL
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
     response.headers["Subscription-Userinfo"] = prepared.userinfo_header
-    if HAPP_LOWEST_DELAY_AUTOCONNECT:
-        response.headers["subscription-autoconnect"] = "1"
-        response.headers["subscription-autoconnect-type"] = "lowestdelay"
-        response.headers["subscription-ping-onopen-enabled"] = "1"
     response.headers["subscription-always-hwid-enable"] = "1"
     if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
         response.headers["providerid"] = HAPP_PROVIDER_ID
@@ -5554,7 +5542,7 @@ def api_admin_overview():
             {
                 "id": "lte-ee", "name": "Эстония LTE", "country_code": "EE",
                 "node_marker": "Estonia 1chost", "inbound_tag": "EE_1CHOST_LTE_XHTTP",
-                "public_host": "cdn-de.arccnet.space", "profile_name": BEST_BYPASS_NAME,
+                "public_host": "cdn-de.arccnet.space", "profile_name": BEST_BYPASS_DISPLAY_NAME,
             },
         )
         lte_edges = []
@@ -5610,7 +5598,7 @@ def api_admin_overview():
             ],
         }, *[{
             "id": f"fallback-{number}",
-            "name": BEST_BYPASS_NAME if number == 1 else f"🇪🇺 Обход глушилок #{number}",
+            "name": BEST_BYPASS_DISPLAY_NAME if number == 1 else f"🇪🇺 Обход глушилок #{number}",
             "kind": "client_cdn_fallback", "traffic_factor": 1,
             "active_only_as_fallback": True,
             "strategy": "Burst Observatory + leastLoad + CDN fallbackTag",
