@@ -13,6 +13,30 @@ Updated: 2026-09-01. This file is current state, not a diary.
 
 ## Current product state
 
+- **Pending CDN/fallback stage requires a fresh-chat contract review before any
+  subscription deployment.** Estonia now has an x1 Remnawave XHTTP inbound on
+  loopback port 10001, active in the existing LTE squad, plus nginx origin
+  proxying `/api-test`; the connected node and LTE squad each report three
+  inbounds. The existing `cdn-de.arccnet.space` Yandex resource may keep its
+  historical domain while using Estonia as active origin and Netherlands as
+  Yandex-level backup. The separate `cdn-nd.arccnet.space` Netherlands CDN is
+  still in service. Two owner-only manual XHTTP links were exported to the
+  gitignored local `.secrets/owner-xhttp-cdn-links.txt`; never paste their UUIDs
+  into chat or docs.
+- The earlier local subscription draft is **rejected and undeployed**: it
+  incorrectly reduced five bypass rows to one Netherlands-only fallback. Dirty
+  agent-owned drafts remain in `subscription_api.py`,
+  `tests/test_happ_fallback_balancer.py`, and
+  `scripts/verify_lte_subscription.py`; the user-owned landing prompt remains
+  untouched. The corrected product request is to preserve five visible bypass
+  rows, rename only `Обход глушилок #1` to `Лучший обход`, give that row an
+  Estonia-primary/Netherlands-reserve XHTTP fallback, and make the other rows
+  distribute fallback load using latency plus XHTTP user load. Before coding,
+  draw the exact client/CDN/origin/failover graph and obtain user approval. Happ/
+  Xray can measure latency client-side but cannot directly know Remnawave active
+  user counts; define the authoritative server-side weighting/bucketing and
+  refresh behavior explicitly instead of inventing it.
+
 - Russia-safe Telegram entry and the mobile admin dock are deployed at
   `c542d5e`. The standalone login no longer depends on Telegram's iframe: ArcVPN
   renders its own full-width button and receives the destination from public

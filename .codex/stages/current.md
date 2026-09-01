@@ -1,4 +1,25 @@
-# Current stage: single Netherlands fallback and Estonia CDN feasibility
+# Current stage: redesign five bypass fallbacks after rejected simplification
+
+## 2026-09-01 corrected contract gate
+
+Status: **blocked on an explicit topology contract; do not deploy the current
+subscription draft**. The earlier interpretation (replace all five bypass rows
+with one Netherlands-only row) is rejected. Preserve five visible bypass rows;
+rename only row #1 to `Лучший обход`. Its intended XHTTP fallback is Estonia
+primary and Netherlands reserve. Rows #2-#5 must distribute XHTTP fallback load
+using both latency and current XHTTP population. Before implementation, document
+which failover is performed by Yandex origin groups versus Happ/Xray, how strict
+EE->NL ordering is expressed, which component owns load telemetry, how users are
+bucketed, when assignments refresh, and what happens when telemetry is stale.
+Client-side observatory latency alone is not accepted as user-load balancing.
+
+Current infrastructure: Estonia has a backed-up x1 XHTTP inbound active in the
+LTE squad and nginx origin on port 80; `cdn-de.arccnet.space` can front Estonia
+without renaming the existing Yandex resource, while `cdn-nd.arccnet.space`
+continues to front Netherlands. Owner-only manual links exist solely in the
+gitignored `.secrets` path recorded in the handoff. The agent-owned local draft
+in `subscription_api.py` and its two verification files is undeployed and must
+be rewritten only after contract approval.
 
 ## 2026-09-01 fallback simplification and stability audit
 
