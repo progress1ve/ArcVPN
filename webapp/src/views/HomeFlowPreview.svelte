@@ -3,7 +3,7 @@
   import { fade, fly } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
   import QRCode from 'qrcode'
-  import { encryptLink as encryptIncyLink } from '@incy/link-encoder/web'
+  import { encryptLink as encryptIncyLink } from '@incy/link-encoder/sync'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
@@ -811,14 +811,16 @@
     if (url) openExternal(url)
   }
 
-  async function importSelectedApp() {
+  function importSelectedApp() {
     if (!subKey) return
     if (selectedConnectApp === 'happ' && subKey.import_url) {
       importToHapp()
       return
     }
     try {
-      const incyUrl = await encryptIncyLink(subKey.sub_url, { name: 'ArcVPN' })
+      // Keep encryption synchronous: iOS/Safari rejects a custom-scheme
+      // navigation after an awaited promise because the original tap is lost.
+      const incyUrl = encryptIncyLink(subKey.sub_url, { name: 'ArcVPN' })
       openExternal(incyUrl)
     } catch (_) {
       copyText(subKey.sub_url, 'Ссылка подписки скопирована')
@@ -1112,7 +1114,7 @@
                 <button class:active={selectedConnectApp === appId} on:click={() => chooseConnectApp(appId)}>
                   <span>{app.label}</span>
                   <img src={app.art} alt={`Приложение ${app.label}`} />
-                  <em>{appId === 'happ' ? 'Рекомендуем' : 'Поддерживается'}</em>
+                  <em>Поддерживается</em>
                 </button>
               {/each}
             </div>

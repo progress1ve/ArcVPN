@@ -1,5 +1,20 @@
 # Current stage: redesign five bypass fallbacks after rejected simplification
 
+## 2026-09-01 repair INCY import from site and WebApp
+
+Goal: make the INCY import button open its encrypted `incy://crypt1` deeplink
+inside the original user click on both the website and Telegram WebApp. Show the
+same neutral `Поддерживается` badge for Happ and INCY.
+
+Acceptance: the browser-safe synchronous INCY encoder is used; generated links
+start with `incy://crypt1/` and decode to the same subscription URL; both app
+cards say `Поддерживается`; production build, focused regression test, and
+mobile/tablet/desktop/wide inspection pass.
+
+Risk and rollback: only the app-choice UI and INCY deeplink generation change.
+Revert the frontend commit and rebuild `webapp_dist`; subscription URLs, device
+registration, Happ import, server profiles, and VPN services remain untouched.
+
 ## 2026-09-01 remove ineffective Happ sort control and show client step
 
 Goal: remove the ineffective advanced `subscriptions-sort-type` metadata now
