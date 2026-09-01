@@ -21,6 +21,20 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
+async def _attribute_pending_advertising_start(user: Dict[str, Any], created: bool, state: FSMContext):
+    """Restore an ad payload consumed by the mandatory channel middleware."""
+    state_data = await state.get_data()
+    payload = str(state_data.get("pending_start_args") or "")
+    if not payload.startswith("ad_") or len(payload) <= 3:
+        return False
+    await state.update_data(pending_start_args=None)
+    from database.db_campaigns import attribute_user_to_campaign
+    attributed, _campaign = attribute_user_to_campaign(
+        user["id"], payload[3:], is_new_user=created,
+    )
+    return attributed
+
+
 def _format_bytes(value: int) -> str:
     value = max(0, int(value or 0))
     gb = value / (1024 ** 3)
@@ -827,6 +841,7 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             telegram_id=user_id,
             username=callback.from_user.username
         )
+        attributed = await _attribute_pending_advertising_start(user, created, state)
 
         from database.db_legal_consent import record_legal_consent
         from database.requests import get_setting
@@ -849,6 +864,12 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
                     logger.warning("Авто-триал после проверки канала не создан для %s", user_id)
             except Exception:
                 logger.exception("Ошибка авто-триала после проверки канала для %s", user_id)
+        if attributed:
+            try:
+                from bot.services.billing import process_campaign_bonus
+                await process_campaign_bonus(user['id'], 'entry')
+            except Exception:
+                logger.exception("Advertising entry bonus failed for user %s", user_id)
         show_trial = False
         
         # Проверяем реферальную систему

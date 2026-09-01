@@ -14,6 +14,18 @@ REQUIRED_CHANNEL_ID = "@arcvpn1"  # Можно указать @username или -
 REQUIRED_CHANNEL_LINK = "https://t.me/arcvpn1"
 
 
+def advertising_start_payload(event: Message | CallbackQuery) -> str | None:
+    """Return an ad deep-link payload before the channel gate consumes /start."""
+    if not isinstance(event, Message):
+        return None
+    text = str(event.text or "").strip()
+    command, separator, payload = text.partition(" ")
+    if not separator or command.split("@", 1)[0].lower() != "/start":
+        return None
+    payload = payload.strip()
+    return payload if payload.startswith("ad_") and len(payload) > 3 else None
+
+
 class SubscriptionCheckMiddleware(BaseMiddleware):
     """Проверяет подписку пользователя на обязательный канал."""
     
@@ -50,6 +62,10 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
             
             # Если пользователь не подписан
             if member.status in ["left", "kicked"]:
+                payload = advertising_start_payload(event)
+                state = data.get("state")
+                if payload and state is not None:
+                    await state.update_data(pending_start_args=payload)
                 await self.send_subscription_required(message)
                 
                 # Если это callback, отвечаем на него

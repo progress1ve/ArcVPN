@@ -2327,4 +2327,18 @@ changing either user account or payment history.
 - Next step: confirm the next genuinely new advertising user increments arrivals
   once and only their post-attribution successful payments affect revenue.
 
+## Follow-up: mandatory channel gate (2026-09-01)
+
+- Production evidence after `27b2fcd`: exactly three new users appeared, all
+  with `telegram_channel_gate`, no attribution and no successful payments. The
+  channel middleware stopped their original `/start ad_*`; its callback created
+  the users without the discarded payload. Exactly one campaign was active.
+- Acceptance: preserve a validated `ad_*` payload in FSM before showing the
+  channel gate; consume it once after a successful subscription check; attribute
+  only when that callback creates the user; process the configured entry bonus.
+  Existing users remain ineligible.
+- Local evidence: channel-gate/campaign suite 11 tests; full suite 161 tests;
+  `git diff --check` passed. Production deployment and exact three-user repair
+  remain pending, each behind a fresh SQLite backup and invariant checks.
+
 ---
