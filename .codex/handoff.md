@@ -21,6 +21,12 @@ Updated: 2026-09-01. This file is current state, not a diary.
   existing UI. The two owner-identified invalid attributions were removed after
   a separate SQLite backup without changing their accounts, subscriptions or 28
   historical payments. The affected campaign now reports zero throughout.
+  Follow-up `c9cd449` preserves the advertising payload when the mandatory
+  Telegram-channel middleware intercepts a new user's first `/start`, consumes
+  it once after the successful channel check, and then applies attribution and
+  any entry bonus. The exactly three users missed between these releases were
+  restored after a second backup; the campaign now correctly reports 3 arrivals,
+  0 paying users and 0 RUB.
 
 - **Whitenode-style five-profile fallback is deployed at `28e5635`.** Estonia has an x1 Remnawave XHTTP inbound on
   loopback port 10001, active in the existing LTE squad, plus nginx origin

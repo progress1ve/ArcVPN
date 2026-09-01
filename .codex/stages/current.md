@@ -2340,5 +2340,17 @@ changing either user account or payment history.
 - Local evidence: channel-gate/campaign suite 11 tests; full suite 161 tests;
   `git diff --check` passed. Production deployment and exact three-user repair
   remain pending, each behind a fresh SQLite backup and invariant checks.
+- Passed production: `c9cd449` fast-forwarded on Poland; only the bot service
+  restarted, both services are active, public health is OK, focused production
+  suite is 11/11 and the post-restart warning journal is empty.
+- Passed data repair: a second SQLite backup preceded mutation. Exactly three
+  post-`27b2fcd` channel-gate users with no attribution or successful payment
+  were attached to the sole active campaign. Accounts and payment rows were
+  preserved; the campaign now reports 3 arrivals, 0 paying/paid/repeat orders,
+  0 revenue and 0% conversion.
+- Rollback remains `git revert c9cd449`, push/pull and bot restart. The second
+  pre-repair backup can restore the three attribution rows if required.
+- Next live canary: a new non-subscriber opens an `ad_*` link, joins the channel,
+  taps the confirmation button and increments arrivals exactly once.
 
 ---
