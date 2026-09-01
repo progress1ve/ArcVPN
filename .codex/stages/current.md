@@ -2251,3 +2251,60 @@ subscription URLs, UUIDs, or active access.
 - Verification: 128 pytest tests passed, Vite production build passed, Python compilation passed, and public `/health` returned HTTP 200 with the expected JS/CSS asset hashes.
 - Release: runtime commit `d27d11e` was pushed and fast-forwarded on Poland. Only `arcvpn-bot.service` and `arcvpn-subscription.service` restarted; both are active/enabled and their post-release error journal is empty.
 - Rollback remains `git revert d27d11e`, push/pull, then restart the same two services. Next step: inspect the first real answers in Overview and confirm the email button/back button from a real Telegram client.
+# Current stage: advertising acquisition correctness (2026-09-01)
+
+## Goal
+
+Count an advertising campaign only when its deep link creates a genuinely new
+bot user, and report revenue from successful payments in normalized RUB.
+Remove the two owner-identified invalid attributions from production without
+changing either user account or payment history.
+
+## Non-goals
+
+- No edits to users, subscriptions, VPN keys, or payment rows.
+- No change to campaign URLs, codes, bonus configuration, or first-touch for
+  legitimate new users.
+- No frontend redesign.
+
+## Components
+
+- `bot/handlers/user/start.py`: new-user eligibility at `/start ad_*`.
+- `database/db_campaigns.py`: defensive attribution contract and normalized
+  campaign aggregates.
+- `tests/test_campaigns_and_admin_promos.py`: regression coverage.
+- Production SQLite: narrowly remove attribution/bonus rows for the two supplied
+  usernames after a separate backup and read-only target check.
+
+## Acceptance
+
+| Contract | Required observable result |
+|---|---|
+| Existing user opens `ad_*` | no attribution, no entry bonus, no campaign counters |
+| New user opens active `ad_*` | one immutable first-touch attribution |
+| Campaign payments | only successful payments at/after attribution are counted |
+| Revenue | YooKassa provider rows are read as kopecks; legacy supported rows as whole RUB; UI receives normalized kopecks |
+| Named correction | `@progressive_dev` and `@Turan11627` have no campaign attribution/bonus rows; their users/payments remain intact |
+| Release | focused/full tests, diff review, push, production pull, affected-service restart, production aggregate verification |
+
+## Risks and rollback
+
+- Risk: deleting more than attribution metadata. Mitigation: resolve by exact
+  normalized username, require exactly two targets, back up DB, delete only
+  `campaign_bonus_grants` and `user_campaign_attribution` in one transaction.
+- Risk: mixed historical payment units. Mitigation: preserve stored history and
+  normalize only in the reporting query using the established provider contract.
+- Rollback: revert runtime commit and redeploy; restore the timestamped DB backup
+  only if the targeted metadata correction itself must be reversed.
+
+## Verification matrix
+
+- Passed: focused campaign suite, 8 tests.
+- Passed: full local suite, 158 tests; Python compilation and `git diff --check`.
+- Passed read-only production target check: exactly two supplied usernames, each
+  has one attribution to `исма канал`; no campaign bonus rows. Their 26 and 2
+  successful historical payments explain the incorrect 28-order aggregate.
+- Pending: production backup and exact two-target correction.
+- Pending: service/public/admin aggregate verification.
+
+---

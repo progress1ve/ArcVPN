@@ -65,9 +65,14 @@ def update_campaign(campaign_id: int, **changes: Any) -> Optional[Dict[str, Any]
     return dict(row) if row else None
 
 
-def attribute_user_to_campaign(user_id: int, code: str) -> Tuple[bool, Optional[Dict[str, Any]]]:
-    """Persist first touch only; repeated /start payloads never overwrite it."""
-    if not CAMPAIGN_CODE_RE.fullmatch(str(code or "")):
+def attribute_user_to_campaign(
+    user_id: int,
+    code: str,
+    *,
+    is_new_user: bool,
+) -> Tuple[bool, Optional[Dict[str, Any]]]:
+    """Persist first touch only for a user created by this advertising entry."""
+    if not is_new_user or not CAMPAIGN_CODE_RE.fullmatch(str(code or "")):
         return False, None
     with get_db() as conn:
         campaign = conn.execute(
@@ -87,12 +92,21 @@ def list_campaign_stats() -> List[Dict[str, Any]]:
         rows = conn.execute("""
             SELECT c.*,
                    COUNT(DISTINCT a.user_id) AS arrivals,
-                   COUNT(DISTINCT CASE WHEN p.status='paid' THEN a.user_id END) AS paying_users,
-                   COUNT(CASE WHEN p.status='paid' THEN p.id END) AS paid_orders,
-                   COALESCE(SUM(CASE WHEN p.status='paid' THEN p.amount_cents ELSE 0 END),0) AS revenue_cents
+                   COUNT(DISTINCT CASE WHEN p.status IN ('paid','succeeded') THEN a.user_id END) AS paying_users,
+                   COUNT(CASE WHEN p.status IN ('paid','succeeded') THEN p.id END) AS paid_orders,
+                   COALESCE(SUM(CASE
+                     WHEN p.status IN ('paid','succeeded')
+                       AND p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!=''
+                       THEN COALESCE(p.amount_cents,0)
+                     WHEN p.status IN ('paid','succeeded')
+                       AND COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
+                       THEN COALESCE(p.amount_cents,0) * 100
+                     ELSE 0
+                   END),0) AS revenue_cents
             FROM ad_campaigns c
             LEFT JOIN user_campaign_attribution a ON a.campaign_id=c.id
             LEFT JOIN payments p ON p.user_id=a.user_id
+              AND COALESCE(p.paid_at,'') >= a.attributed_at
             GROUP BY c.id
             ORDER BY c.created_at DESC,c.id DESC
         """).fetchall()

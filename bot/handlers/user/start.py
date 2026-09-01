@@ -249,7 +249,9 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     if args and args.startswith('ad_'):
         from database.db_campaigns import attribute_user_to_campaign
         campaign_code = args[3:]
-        attributed, campaign = attribute_user_to_campaign(user['id'], campaign_code)
+        attributed, campaign = attribute_user_to_campaign(
+            user['id'], campaign_code, is_new_user=is_new,
+        )
         if attributed:
             logger.info(
                 "User %s attributed to advertising campaign %s",

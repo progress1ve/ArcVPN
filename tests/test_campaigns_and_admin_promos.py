@@ -30,7 +30,9 @@ def campaign_db(monkeypatch):
         CREATE TABLE users(id INTEGER PRIMARY KEY, telegram_id INTEGER UNIQUE);
         CREATE TABLE payments(
             id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, amount_cents INTEGER,
-            status TEXT, FOREIGN KEY(user_id) REFERENCES users(id)
+            status TEXT, payment_type TEXT, yookassa_payment_id TEXT,
+            paid_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(user_id) REFERENCES users(id)
         );
         CREATE TABLE promocodes(
             id INTEGER PRIMARY KEY, code TEXT UNIQUE, discount_rub INTEGER NOT NULL,
@@ -64,12 +66,16 @@ def test_campaign_attribution_is_first_touch_and_stats_compare_sources(campaign_
     first = db_campaigns.create_campaign("Search", code="search_one")
     second = db_campaigns.create_campaign("Influencer", code="creator_two")
 
-    assert db_campaigns.attribute_user_to_campaign(1, "search_one")[0] is True
-    assert db_campaigns.attribute_user_to_campaign(1, "creator_two")[0] is False
-    assert db_campaigns.attribute_user_to_campaign(2, "creator_two")[0] is True
+    assert db_campaigns.attribute_user_to_campaign(1, "search_one", is_new_user=True)[0] is True
+    assert db_campaigns.attribute_user_to_campaign(1, "creator_two", is_new_user=True)[0] is False
+    assert db_campaigns.attribute_user_to_campaign(2, "creator_two", is_new_user=True)[0] is True
     campaign_db.executemany(
-        "INSERT INTO payments(id,user_id,amount_cents,status) VALUES(?,?,?,?)",
-        [(1, 1, 14500, "paid"), (2, 1, 39900, "paid"), (3, 2, 14500, "pending")],
+        """INSERT INTO payments
+        (id,user_id,amount_cents,status,payment_type,yookassa_payment_id,paid_at)
+        VALUES(?,?,?,?,?,?,datetime('now','+1 second'))""",
+        [(1, 1, 14500, "paid", "yookassa", "provider-1"),
+         (2, 1, 399, "succeeded", "yookassa", None),
+         (3, 2, 14500, "pending", "yookassa", "provider-3")],
     )
 
     stats = {item["id"]: item for item in db_campaigns.list_campaign_stats()}
@@ -78,6 +84,7 @@ def test_campaign_attribution_is_first_touch_and_stats_compare_sources(campaign_
     assert stats[first["id"]]["paying_users"] == 1
     assert stats[first["id"]]["paid_orders"] == 2
     assert stats[first["id"]]["repeat_paid_orders"] == 1
+    assert stats[first["id"]]["revenue_cents"] == 54400
     assert stats[first["id"]]["conversion_percent"] == 100.0
     assert stats[second["id"]]["paying_users"] == 0
 
@@ -87,9 +94,40 @@ def test_disabled_campaign_does_not_accept_new_attribution(campaign_db):
     campaign = db_campaigns.create_campaign("Paused", code="paused_one")
     db_campaigns.update_campaign(campaign["id"], is_active=False)
 
-    attributed, _ = db_campaigns.attribute_user_to_campaign(1, "paused_one")
+    attributed, _ = db_campaigns.attribute_user_to_campaign(1, "paused_one", is_new_user=True)
 
     assert attributed is False
+
+
+def test_existing_user_is_never_attributed(campaign_db):
+    campaign_db.execute("INSERT INTO users(id,telegram_id) VALUES(1,101)")
+    campaign = db_campaigns.create_campaign("Search", code="existing_user")
+
+    attributed, returned_campaign = db_campaigns.attribute_user_to_campaign(
+        1, campaign["code"], is_new_user=False,
+    )
+
+    assert attributed is False
+    assert returned_campaign is None
+    assert campaign_db.execute("SELECT COUNT(*) FROM user_campaign_attribution").fetchone()[0] == 0
+
+
+def test_campaign_stats_exclude_payments_before_attribution(campaign_db):
+    campaign_db.execute("INSERT INTO users(id,telegram_id) VALUES(1,101)")
+    campaign = db_campaigns.create_campaign("Search", code="payment_window")
+    campaign_db.execute("""INSERT INTO payments
+        (id,user_id,amount_cents,status,payment_type,yookassa_payment_id,paid_at)
+        VALUES(1,1,14500,'paid','yookassa','old-provider','2000-01-01 00:00:00')""")
+    assert db_campaigns.attribute_user_to_campaign(
+        1, campaign["code"], is_new_user=True,
+    )[0] is True
+
+    stats = db_campaigns.list_campaign_stats()[0]
+
+    assert stats["arrivals"] == 1
+    assert stats["paying_users"] == 0
+    assert stats["paid_orders"] == 0
+    assert stats["revenue_cents"] == 0
 
 
 def test_campaign_bonus_reservation_is_retryable_but_applies_once(campaign_db):
@@ -97,7 +135,7 @@ def test_campaign_bonus_reservation_is_retryable_but_applies_once(campaign_db):
     campaign = db_campaigns.create_campaign(
         "Bonus", code="bonus_one", entry_bonus_days=3, payment_bonus_days=7,
     )
-    db_campaigns.attribute_user_to_campaign(1, "bonus_one")
+    db_campaigns.attribute_user_to_campaign(1, "bonus_one", is_new_user=True)
 
     first = db_campaigns.reserve_campaign_bonus(1, "entry")
     db_campaigns.finish_campaign_bonus(1, "entry", False, "no_active_key")
