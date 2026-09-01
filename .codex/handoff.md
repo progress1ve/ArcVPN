@@ -1,6 +1,6 @@
 # ArcVPN current handoff
 
-Updated: 2026-08-31. This file is current state, not a diary.
+Updated: 2026-09-01. This file is current state, not a diary.
 
 ## Authority and topology
 
@@ -13,16 +13,19 @@ Updated: 2026-08-31. This file is current state, not a diary.
 
 ## Current product state
 
-- Direct Telegram website login is deployed through `0b097c5` (`0b7c4eb`
-  runtime): the site now embeds
-  Telegram's official Login Widget, verifies its HMAC and 10-minute freshness
-  server-side, accepts only existing ArcVPN Telegram identities and issues the
-  same 30-day protected web session as email. Local result is 151 tests plus
-  Vite build; production focused result is 12 tests, forged input returns 401,
-  the service/bundle are current and four viewports have no overflow. BotFather
-  now allows `https://arccnet.space` and the live control is interactive. The
-  visual follow-up removes the wide bordered wrapper: host and official iframe
-  are one centered 234x40 control on production, with no nested-button effect.
+- Russia-safe Telegram entry and the mobile admin dock are deployed at
+  `c542d5e`. The standalone login no longer depends on Telegram's iframe: ArcVPN
+  renders its own full-width button and receives the destination from public
+  config as `https://t.me/<bot>?start=site_login`. The existing generic `/start`
+  handler clears stale bot state and renders canonical onboarding/cabinet; Mini
+  App and email auth are unchanged. Telegram may still show its own mandatory
+  first-time Start confirmation. The direct Telegram HMAC backend remains in
+  place but is no longer exposed by the UI. On admin widths up to 560px the dock
+  now has fixed border-box geometry, safe-area spacing, reserved content space
+  and non-distorting horizontal navigation. Local evidence is 151 tests and a
+  Vite build; production serves the new bundle/config, focused tests are 7/7,
+  the subscription service is active and its post-restart error journal is
+  empty.
 
 - Renewal tariff Back destination is corrected at `24ca0d6`: it now calls the
   canonical `start` handler and returns to the full bot personal cabinet with its

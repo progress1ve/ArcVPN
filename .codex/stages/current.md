@@ -20,6 +20,14 @@ content space, respect the device safe area and remain horizontally scrollable
 without distorted or clipped navigation controls at widths up to 560px.
 Rollback: revert the runtime commit and restart only the subscription service.
 
+Status: **passed and deployed at `c542d5e`**. The native button and public
+`bot_url` are live, the old iframe/widget configuration is absent, and the new
+JS/CSS bundles are public. The mobile admin dock uses fixed border-box geometry,
+safe-area-aware placement, stable 48 px controls and reserved bottom content
+space. Local result: Vite build and 151 tests. Production result: 7 focused
+tests, active subscription service and no post-restart errors. The user-owned
+landing prompt remains untouched.
+
 # Current stage: Telegram login visual correction
 
 ## 2026-08-31 remove nested-button appearance
