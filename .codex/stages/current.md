@@ -34,6 +34,19 @@ Topology table: no topology mutation in this stage. All client/CDN/origin/SNI/
 inbound paths and x1 multipliers remain byte-equivalent; only visible label/order
 metadata changes. CDN subscription-refresh work is deferred with no public cutover.
 
+Closeout: **passed**. Runtime commit `d3c3983` was pushed and fast-forwarded on
+Poland; only `arcvpn-subscription.service` restarted. Local focused/full results
+are `9 passed` and `152 passed`; production focused result is `9 passed`.
+Credential-safe public verification returned 13 profiles in the exact accepted
+order, `eu_best=true` and `lowestdelay_headers_absent=true`. Service is active and
+the post-restart journal scan reports zero error/exception/traceback matches.
+The immediate post-restart verifier initially hit the normal readiness window
+with connection refused; the bounded readiness retry and every subsequent public
+check passed. Rollback is `git revert d3c3983`, deploy, and restart only the same
+service. Residual client risk: Happ may retain its old local ordering until the
+subscription is refreshed or reimported. Next step is only a real-device refresh;
+subscription refresh through CDN remains deliberately deferred.
+
 ## 2026-09-01 corrected contract gate
 
 Status: **runtime deployed; Yandex subscription-host cutover and a controlled

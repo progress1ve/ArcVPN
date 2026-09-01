@@ -22,7 +22,7 @@ Updated: 2026-09-01. This file is current state, not a diary.
   still in service. Two owner-only manual XHTTP links were exported to the
   gitignored local `.secrets/owner-xhttp-cdn-links.txt`; never paste their UUIDs
   into chat or docs.
-- Happ catalog order is owner-controlled and fixed: Auto, YouTube, Estonia,
+- Happ catalog order fix is deployed at `d3c3983` and owner-controlled: Auto, YouTube, Estonia,
   Netherlands, Germany, then five bypass rows. Subscription-wide
   `lowestdelay` autoconnect and ping-on-open metadata must remain absent because
   Happ otherwise reorders visible locations by latency. Internal Xray
