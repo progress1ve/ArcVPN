@@ -1,5 +1,23 @@
 # Current stage: redesign five bypass fallbacks after rejected simplification
 
+## 2026-09-01 remove ineffective Happ sort control and show client step
+
+Goal: remove the ineffective advanced `subscriptions-sort-type` metadata now
+that ArcVPN intentionally has no Happ Provider ID. Do not add a UI instruction
+or require manual client configuration. The dedicated Auto profile remains the
+only latency-based selection mechanism.
+
+Acceptance: Provider ID and every sort-control metadata field are absent from
+public/import responses; server JSON order remains fixed; no sorting instruction
+is added to the UI; build/tests and production/public checks pass.
+
+Non-goals: no Provider ID, paid Happ feature, node/CDN/DNS change, or modification
+of internal Auto/Whitenode `leastLoad`. Existing Happ local state cannot be
+changed by ArcVPN without the external Provider integration.
+
+Rollback: revert the runtime commit, rebuild `webapp_dist`, deploy, and restart
+only `arcvpn-subscription.service`. No identifiers or database rows change.
+
 ## 2026-09-01 remove Happ Provider ID and force backend order
 
 Goal: remove the external Happ Provider ID dependency from every import and

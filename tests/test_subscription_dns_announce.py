@@ -75,7 +75,7 @@ def test_happ_subscription_keeps_server_catalog_order_instead_of_lowest_delay_re
     assert "subscription-autoconnect" not in text
     assert "subscription-autoconnect-type" not in text
     assert "subscription-ping-onopen-enabled" not in text
-    assert "#subscriptions-sort-type: without\n" in text
+    assert "subscriptions-sort-type" not in text
     assert "providerid" not in text.lower()
 
     response = _response_from_prepared(
@@ -84,5 +84,5 @@ def test_happ_subscription_keeps_server_catalog_order_instead_of_lowest_delay_re
     assert "subscription-autoconnect" not in response.headers
     assert "subscription-autoconnect-type" not in response.headers
     assert "subscription-ping-onopen-enabled" not in response.headers
-    assert response.headers["subscriptions-sort-type"] == "without"
+    assert "subscriptions-sort-type" not in response.headers
     assert "providerid" not in response.headers

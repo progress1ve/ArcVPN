@@ -31,9 +31,8 @@ Updated: 2026-09-01. This file is current state, not a diary.
 - External Happ Provider ID integration is intentionally removed at `56a2c14`. Do not attach
   `providerid` to import URLs, subscription bodies or response headers; ArcVPN
   must not depend on Happ provider statistics or paid remote-management features.
-  Emit `subscriptions-sort-type: without` in body and HTTP metadata. Existing
-  clients that retain the former provider/sort state may require one delete and
-  reimport after this release.
+  Do not emit `subscriptions-sort-type`, subscription-wide autoconnect, or
+  ping-on-open metadata. The JSON array itself is the only source of catalog order.
 - The earlier one-row subscription draft is rejected and must not be restored.
   The deployed implementation preserves five visible bypass
   rows, rename only `Обход глушилок #1` to `🇪🇺 Лучший обход`, give that row an
