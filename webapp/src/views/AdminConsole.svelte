@@ -398,6 +398,14 @@
   main{width:min(1560px,calc(100% - 64px));padding-top:26px}main>header{margin-bottom:22px;padding-bottom:18px}h1{font-size:32px;letter-spacing:-.035em}.live-tools{gap:10px}
   :global(body.admin-console-open #app){max-width:none}
   @media(max-width:1100px){.console{grid-template-columns:82px minmax(0,1fr)}main{width:calc(100% - 32px)}}
-  @media(max-width:560px){.console{display:block}.console>aside>nav{height:48px;margin-top:0;overflow-x:auto;overflow-y:hidden}}
+  @media(max-width:560px){
+    .console{display:block;height:100dvh}
+    .console>aside{box-sizing:border-box;top:auto;bottom:calc(10px + env(safe-area-inset-bottom,0px));left:50%;right:auto;width:calc(100% - 24px);max-width:480px;height:64px;padding:7px 8px;border-radius:22px;transform:translateX(-50%);box-shadow:0 18px 46px rgba(0,0,0,.48);overflow:hidden}
+    .console>aside>nav{box-sizing:border-box;display:flex;width:100%;height:48px;margin-top:0;padding:0;gap:4px;overflow-x:auto;overflow-y:hidden;scroll-padding-inline:0;scroll-snap-type:x proximity;scrollbar-width:none}
+    .console>aside>nav::-webkit-scrollbar{display:none}
+    .console>aside>nav button{box-sizing:border-box;flex:0 0 48px;width:48px;height:48px;min-height:48px;padding:0;border-radius:16px;scroll-snap-align:start;transform:none}
+    .console>aside>nav button.active{box-shadow:inset 3px 0 #91d6ff}
+    .console>main{height:100dvh;padding-bottom:calc(104px + env(safe-area-inset-bottom,0px));scroll-padding-bottom:calc(104px + env(safe-area-inset-bottom,0px))}
+  }
   @media(max-width:480px){.metrics,.source-grid,.traffic-grid{grid-template-columns:1fr}.periods{box-sizing:border-box;width:100%}.periods button{flex:1;padding-inline:8px}}
 </style>

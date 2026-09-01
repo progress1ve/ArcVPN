@@ -1,3 +1,25 @@
+# Current stage: Russia-safe Telegram entry
+
+## 2026-08-31 restore bot deep link
+
+Goal: make Telegram entry visible without access to Telegram's website-login
+iframe by replacing it with a native ArcVPN button that opens the bot using a
+`start=site_login` deep link. Non-goals: no email, account, subscription, trial,
+payment or node changes. Affected components: public login config, standalone
+login UI/static bundle and focused config tests.
+
+Acceptance: the button renders without loading any Telegram-hosted iframe; its
+destination is `https://t.me/<current bot>?start=site_login`; the existing
+generic `/start` handler accepts this payload, clears state and renders the
+canonical cabinet/onboarding; Mini App auth is unchanged; keyboard focus and
+mobile/tablet/desktop/wide overflow pass; Vite/full tests pass; production
+bundle/service and public destination verify. Telegram may require a first-time
+user to press its own Start confirmation, which cannot be bypassed by a website.
+The admin console mobile dock must also stay fully inside the viewport, reserve
+content space, respect the device safe area and remain horizontally scrollable
+without distorted or clipped navigation controls at widths up to 560px.
+Rollback: revert the runtime commit and restart only the subscription service.
+
 # Current stage: Telegram login visual correction
 
 ## 2026-08-31 remove nested-button appearance

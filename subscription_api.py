@@ -3024,7 +3024,7 @@ def api_public_config():
     username = _get_bot_username()
     return _api_no_store(jsonify({
         "ok": True,
-        "telegram_login_bot": username,
+        "bot_url": f"https://t.me/{username}?start=site_login" if username else "",
     }))
 
 
