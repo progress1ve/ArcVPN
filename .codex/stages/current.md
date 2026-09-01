@@ -2,8 +2,8 @@
 
 ## 2026-09-01 corrected contract gate
 
-Status: **blocked on an explicit topology contract; do not deploy the current
-subscription draft**. The earlier interpretation (replace all five bypass rows
+Status: **runtime deployed; Yandex subscription-host cutover and a controlled
+censorship failover canary remain open**. The earlier interpretation (replace all five bypass rows
 with one Netherlands-only row) is rejected. Preserve five visible bypass rows;
 rename only row #1 to `Лучший обход`. All five profiles must independently
 implement the behavior contract demonstrated by `vozduh443/Whitenode-balancer`:
@@ -18,28 +18,30 @@ Current infrastructure: Estonia has a backed-up x1 XHTTP inbound active in the
 LTE squad and nginx origin on port 80; `cdn-de.arccnet.space` can front Estonia
 without renaming the existing Yandex resource, while `cdn-nd.arccnet.space`
 continues to front Netherlands. Owner-only manual links exist solely in the
-gitignored `.secrets` path recorded in the handoff. The agent-owned local draft
-in `subscription_api.py` and its two verification files is undeployed and must
-be rewritten only after contract approval.
+gitignored `.secrets` path recorded in the handoff.
 
 Additional deliverable: keep the stable `sub.arccnet.space/sub/...` contract but
-serve it through a CDN so clients can refresh during origin blocking. Use a
-separate origin hostname and certificate, preserve the complete request path,
-query, format and User-Agent behavior, disable all CDN/browser caching for the
-personalized response, and preserve response metadata. The DNS cutover is gated
+serve it through the existing CDN resource so clients can refresh during origin
+blocking. Both CDN origins proxy `/sub/` directly to the Poland IP with verified
+TLS/SNI, avoiding a DNS loop after the public CNAME cutover. Preserve the complete
+request path, query, format and User-Agent behavior, disable all CDN/browser
+caching for the personalized response, and preserve response metadata. The DNS cutover is gated
 on two-user cache-isolation tests, revoked/expired behavior, direct-origin and
 CDN fetch parity, Happ refresh during simulated origin blocking and a documented
 TTL rollback. A cached response for one user appearing for another is a hard
 security failure.
 
-Implementation evidence: the local generator now preserves five visible
+Implementation evidence: production commit `28e5635` preserves five visible
 balancer profiles, renames only row #1 to `Лучший обход`, deduplicates and orders
 the hidden CDN outbounds as Estonia (`cdn-de`) then Netherlands (`cdn-nd`), and
 uses the Whitenode contract in every clone: Burst Observatory GET/10s/6 samples/
 5s over both selector prefixes, one `leastLoad` balancer with 3s max RTT and the
-Estonia CDN as `fallbackTag`. CDN telemetry and quota accounting are x1. Focused
-tests and the full suite pass (`4 passed`; `151 passed`). Runtime deployment and
-real Happ behavior remain pending.
+Estonia CDN as `fallbackTag`. CDN telemetry and quota accounting are x1. Local
+full suite passed (`151 passed`); production focused tests passed (`4 passed`),
+the service is active, credential-safe public verification passed, and Xray Core
+26.3.27 accepted all 13 generated configurations. A controlled real-client
+censorship failover/recovery observation remains open and is not replaced by the
+syntax gate.
 
 No second CDN resource is required for subscription refresh. The existing CDN
 origin group can accept `sub.arccnet.space` as an additional hostname. Both EE

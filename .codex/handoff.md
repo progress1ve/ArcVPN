@@ -13,8 +13,7 @@ Updated: 2026-09-01. This file is current state, not a diary.
 
 ## Current product state
 
-- **Pending CDN/fallback stage requires a fresh-chat contract review before any
-  subscription deployment.** Estonia now has an x1 Remnawave XHTTP inbound on
+- **Whitenode-style five-profile fallback is deployed at `28e5635`.** Estonia has an x1 Remnawave XHTTP inbound on
   loopback port 10001, active in the existing LTE squad, plus nginx origin
   proxying `/api-test`; the connected node and LTE squad each report three
   inbounds. The existing `cdn-de.arccnet.space` Yandex resource may keep its
@@ -23,38 +22,45 @@ Updated: 2026-09-01. This file is current state, not a diary.
   still in service. Two owner-only manual XHTTP links were exported to the
   gitignored local `.secrets/owner-xhttp-cdn-links.txt`; never paste their UUIDs
   into chat or docs.
-- The earlier local subscription draft is **rejected and undeployed**: it
-  incorrectly reduced five bypass rows to one Netherlands-only fallback. Dirty
-  agent-owned drafts remain in `subscription_api.py`,
-  `tests/test_happ_fallback_balancer.py`, and
-  `scripts/verify_lte_subscription.py`; the user-owned landing prompt remains
-  untouched. The corrected product request is to preserve five visible bypass
+- The earlier one-row subscription draft is rejected and must not be restored.
+  The deployed implementation preserves five visible bypass
   rows, rename only `Обход глушилок #1` to `Лучший обход`, give that row an
   Estonia-primary/Netherlands-reserve XHTTP fallback, and make the other rows
-  distribute fallback load using latency plus XHTTP user load. Before coding,
-  draw the exact client/CDN/origin/failover graph and obtain user approval. Happ/
-  Xray can measure latency client-side but cannot directly know Remnawave active
-  user counts; define the authoritative server-side weighting/bucketing and
-  refresh behavior explicitly instead of inventing it.
+  follow the accepted Whitenode behavior. Happ/Xray measures latency client-side
+  and does not directly know Remnawave active-user counts; do not invent a second
+  server-side weighting algorithm.
 - The owner then selected the public `vozduh443/Whitenode-balancer` behavior as
   the exact model for **all five** visible bypass profiles: Burst Observatory
   probes both ordinary and hidden CDN outbounds, `leastLoad` selects a healthy
   ordinary outbound, `fallbackTag` moves traffic to hidden CDN only when the
   ordinary set is unavailable, and recovery returns traffic to ordinary
-  infrastructure. Independently implement the small routing contract; do not
+  infrastructure. The production focused tests pass, the subscription service is
+  active, credential-safe public verification passes, and Xray Core 26.3.27
+  accepts all 13 generated configs. A controlled real-client censorship outage
+  and recovery observation remains open. Independently implement the small routing contract; do not
   copy unrelated DNS/domain lists from the external example and do not claim it
   accounts for Remnawave user counts. The repository exposes no license in its
   root, so treat it as a behavior reference, not a code dependency.
 - A second, independent requirement is censorship-resistant subscription
   refresh. Preserve every existing `https://sub.arccnet.space/sub/...` URL while
-  placing that hostname behind a CDN and routing to a separate Poland origin
-  hostname. Dynamic subscription responses must never be shared or stale-cached:
+  placing that hostname behind the existing Yandex CDN resource. EE and NL nginx
+  origins proxy `/sub/` directly to the Poland IP using verified TLS/SNI, which
+  avoids a DNS loop after the CNAME cutover. Dynamic subscription responses must never be shared or stale-cached:
   disable CDN/browser caching, preserve full path/query and relevant User-Agent/
   format behavior, retain TLS and ArcVPN headers, and verify two distinct
   credential-safe subscriptions cannot cross-contaminate. Origin bypass, CDN
   bypass, revoked/expired behavior and real Happ refresh during simulated origin
-  blocking are acceptance gates. Do not change DNS until origin hostname,
-  certificate, nginx routing and rollback TTL are ready.
+  blocking are acceptance gates. Two-user direct/EE/NL byte and header parity is
+  already verified. Do not change DNS until the additional Yandex hostname,
+  certificate, no-cache policy and rollback TTL are ready.
+
+- Agent workflow contracts now treat public URLs, topology, pricing, callbacks,
+  and visible UI as zero-assumption contracts. Node/CDN stages require an accepted
+  route table before mutation and real tunnel evidence after it. Active node
+  references now consistently specify x1 CDN/XHTTP accounting. Use
+  `$arcvpn-repo-hygiene` for classified cleanup; never delete or restore the
+  owner's dirty files. `.codex/stages/current.md` is currently oversized with
+  completed history and should be compacted only as a separately approved cleanup.
 
 - Russia-safe Telegram entry and the mobile admin dock are deployed at
   `c542d5e`. The standalone login no longer depends on Telegram's iframe: ArcVPN

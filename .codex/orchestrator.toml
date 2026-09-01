@@ -16,6 +16,27 @@ require_acceptance_before_implementation = true
 require_component_map = true
 require_risk_and_rollback = true
 require_stage_artifact = true
+assumption_budget_for_public_contracts = 0
+rejected_drafts_are_not_authority = true
+
+[network_topology]
+require_route_table_before_mutation = true
+require_explicit_owner_acceptance = true
+require_public_identifier_impact = true
+require_real_tunnel_evidence = true
+ping_is_not_acceptance = true
+
+[workspace_hygiene]
+classify_before_delete = true
+preserve_owner_dirty_files = true
+cleanup_requires_explicit_scope = true
+separate_cleanup_from_runtime_changes = true
+
+[context]
+handoff_contains_current_state_only = true
+stage_contains_current_evidence_only = true
+durable_decisions_go_to_history = true
+checkpoint_after_material_topology_change = true
 
 [frontend]
 require_browser_inspection = true
