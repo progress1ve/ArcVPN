@@ -1,3 +1,88 @@
+# Current stage: single Netherlands fallback and Estonia CDN feasibility
+
+## 2026-09-01 fallback simplification and stability audit
+
+Goal: make the Happ customer fallback expose one Netherlands CDN route named
+`Лучший обход`, remove Germany CDN from that fallback, account all CDN/XHTTP
+traffic at the physical 1:1 rate, and determine whether the existing Germany CDN
+resource can be safely retargeted to the Estonia origin without creating a new
+CDN resource. Diagnose reported Germany/Netherlands connection drops before any
+topology mutation.
+
+Non-goals: no subscription URL, UUID, user authorization, tariff, quota,
+ordinary Germany/Netherlands transport or Reality material changes; no CDN/DNS/
+certificate/origin mutation until the reuse gate is proven.
+
+Affected components: Happ JSON catalog/fallback builder and tests; production
+Remnawave/CDN/DNS/node state read-only during the feasibility gate. Target
+fallback origin is the existing Netherlands CDN edge. Candidate future origin
+is `ee-1chost`; the Germany CDN resource is only a candidate for reuse.
+
+Acceptance:
+
+1. Generated Happ JSON contains one customer row named `Лучший обход`; its
+   fallback balancer contains exactly one hidden CDN outbound, the Netherlands
+   CDN host, with existing loopback-only activation and no background CDN probe.
+2. Germany CDN is absent from customer fallback output; ordinary profiles and
+   credentials remain byte-equivalent apart from the intentional catalog row.
+3. Plain/base64 compatibility is explicitly checked and public Happ JSON is
+   recursively inspected; subscription URL/UUID and user authorization remain
+   unchanged.
+4. Production NL CDN passes DNS/TLS/edge/origin/XHTTP and a real tunneled request
+   before it becomes the sole fallback.
+5. Germany/Netherlands instability audit records service uptime, resource/load,
+   packet loss or transport evidence and does not equate ping/open ports with a
+   working VPN.
+6. Remnawave reports a `1.0` consumption multiplier for every delivered CDN/
+   XHTTP edge; customer quota remains separate but no physical byte is multiplied.
+7. Reuse of the Germany CDN resource for Estonia is approved only if its origin
+   group can be changed, Estonia has an isolated x1 XHTTP origin and inbound,
+   the chosen public hostname/certificate remains valid or is safely replaced,
+   and rollback can restore Germany without rotating user identities. Otherwise
+   it remains deferred.
+
+Risks: a single fallback edge removes redundancy; stale Happ imports keep old
+profiles until refresh/reimport; CDN retargeting can interrupt existing Germany
+LTE traffic. Rollback: revert the subscription commit and restart only the
+subscription service; any future CDN move must first remove its Host from public
+delivery, preserve the old origin-group values, and restore them on failed gates.
+
+Verification matrix: focused builder tests; full local suite; production source
+profile comparison; recursive JSON assertion; NL CDN edge/origin plus real Xray
+tunnel; node/service/journal/resource checks; public profile re-fetch after
+deployment.
+
+Interim status: **Estonia origin prepared; Yandex resource update and public gate pending**.
+Local builder/full suite passes (`151 passed`): one `Лучший обход`, one hidden
+`cdn-nd` outbound and no `cdn-de` fallback. Production Remnawave reports both
+delivered DHost nodes connected with `consumptionMultiplier=1.0`; the retired
+disconnected Finland LTE node is the only remaining x10 record and is not in the
+delivered LTE squad. Three real Netherlands Hysteria canaries returned HTTP 204;
+three Germany Hysteria canaries failed to establish the SOCKS tunnel, confirming
+the Germany complaint at least for that transport.
+
+The sole-fallback release is not safe yet: `cdn-nd` and `cdn-de` currently resolve
+to the same Yandex GSLB resource, both present Yandex's default wildcard
+certificate rather than an ArcVPN-domain certificate, verified HTTPS fails, and
+direct OPTIONS probes to both origin `/api-test` sites return 404. Estonia is
+connected and x1 but has only TCP Reality/Hysteria2; no isolated XHTTP origin is
+configured. Repair needs authenticated Yandex Cloud access plus working DHost
+SSH access (local DE host key is not enrolled; the stored NL password is rejected).
+On 2026-09-01 the Estonia profile was backed up server-side, then gained the
+`EE_1CHOST_LTE_XHTTP` inbound on loopback port 10001. The inbound is active on
+the connected Estonia node, authorized in the existing ArcVPN LTE squad and the
+node multiplier remains `1.0`. Nginx now accepts HTTP origin traffic on port 80,
+maps OPTIONS to POST for `/api-test` and proxies it without buffering to XHTTP.
+The post-change preview reports three active Estonia inbounds and three LTE
+squad inbounds. No user UUID, subscription URL, quota or public Host changed.
+
+The subscription runtime remains undeployed until Yandex is set to Estonia as
+active origin, Netherlands as backup, HTTP origin protocol, OPTIONS allowed and
+a Certificate Manager certificate valid for `cdn-nd.arccnet.space`. Germany
+must be absent from the origin group. The current shared Yandex resource can be
+reused; `cdn-de` removal from DNS/secondary hostnames waits for the public XHTTP
+canary. The user-owned landing prompt remains untouched.
+
 # Current stage: Russia-safe Telegram entry
 
 ## 2026-08-31 restore bot deep link
