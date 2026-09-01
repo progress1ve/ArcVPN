@@ -20,6 +20,17 @@ Provider association and app settings as client-side state.
 Rollback: revert the runtime commit and restart only
 `arcvpn-subscription.service`. No database or identity migration is involved.
 
+Closeout: **passed** at runtime commit `56a2c14`. Local focused/full results are
+`13 passed` and `151 passed`; production focused result is `13 passed`.
+Credential-safe public verification confirms Provider ID absent from headers,
+subscription body and import page; `subscriptions-sort-type=without`; 13 profiles
+remain in the accepted order. Service is active and the post-restart journal has
+zero error/exception/traceback matches. Public URLs, UUIDs and authorization are
+unchanged. Rollback is `git revert 56a2c14`, deploy and restart only the
+subscription service. Residual client-side state: an already imported Happ
+subscription may require delete/reimport once to discard its former Provider
+binding and cached sort choice.
+
 ## 2026-09-01 fixed Happ catalog order and CDN-refresh deferral
 
 Goal: display the first bypass profile exactly as `🇪🇺 Лучший обход` and keep the

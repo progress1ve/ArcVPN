@@ -28,7 +28,7 @@ Updated: 2026-09-01. This file is current state, not a diary.
   Happ otherwise reorders visible locations by latency. Internal Xray
   `leastLoad` inside Auto/bypass profiles remains required. The first bypass
   display label is exactly `🇪🇺 Лучший обход`.
-- External Happ Provider ID integration is intentionally removed. Do not attach
+- External Happ Provider ID integration is intentionally removed at `56a2c14`. Do not attach
   `providerid` to import URLs, subscription bodies or response headers; ArcVPN
   must not depend on Happ provider statistics or paid remote-management features.
   Emit `subscriptions-sort-type: without` in body and HTTP metadata. Existing
