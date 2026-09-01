@@ -23,16 +23,16 @@ async def audit() -> dict:
                   if isinstance(squads_payload, dict) else squads_payload or [])
         return {
             "nodes": [{
-                "uuid": node.get("uuid"),
                 "name": node.get("name"),
                 "connected": bool(node.get("isConnected")),
-                "inbounds": [{"uuid": item.get("uuid"), "tag": item.get("tag")}
+                "disabled": bool(node.get("isDisabled")),
+                "consumption_multiplier": float(node.get("consumptionMultiplier") or 0),
+                "inbounds": [{"tag": item.get("tag")}
                              for item in ((node.get("configProfile") or {}).get("activeInbounds") or [])],
             } for node in nodes],
             "squads": [{
-                "uuid": squad.get("uuid"),
                 "name": squad.get("name"),
-                "inbounds": [{"uuid": item.get("uuid"), "tag": item.get("tag")}
+                "inbounds": [{"tag": item.get("tag")}
                              for item in (squad.get("inbounds") or [])],
             } for squad in squads],
         }
