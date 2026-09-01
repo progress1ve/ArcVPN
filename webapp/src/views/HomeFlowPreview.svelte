@@ -811,6 +811,12 @@
     if (url) openExternal(url)
   }
 
+  function incyAndroidIntent(incyUrl) {
+    const target = String(incyUrl || '').replace(/^incy:\/\//i, '')
+    const fallback = encodeURIComponent(appCatalog.incy.stores.android)
+    return `intent://${target}#Intent;scheme=incy;package=llc.itdev.incy;S.browser_fallback_url=${fallback};end`
+  }
+
   function importSelectedApp() {
     if (!subKey) return
     if (selectedConnectApp === 'happ' && subKey.import_url) {
@@ -821,7 +827,8 @@
       // Keep encryption synchronous: iOS/Safari rejects a custom-scheme
       // navigation after an awaited promise because the original tap is lost.
       const incyUrl = encryptIncyLink(subKey.sub_url, { name: 'ArcVPN' })
-      openExternal(incyUrl)
+      const android = tg?.platform === 'android' || /Android/i.test(navigator.userAgent)
+      openExternal(android ? incyAndroidIntent(incyUrl) : incyUrl)
     } catch (_) {
       copyText(subKey.sub_url, 'Ссылка подписки скопирована')
     }
@@ -2480,7 +2487,7 @@
     .connect-device-grid { grid-template-columns: 1fr 1fr; }
   }
   @media (min-width: 768px) {
-    .connect-page { padding-top: 100px; }
+    .connect-page { display: flex; flex-direction: column; justify-content: center; padding-top: 80px; padding-bottom: 80px; }
     .connect-page-head > button { visibility: hidden; }
     .connect-app-grid button { height: 360px; }
     .connect-app-grid img { bottom: 34px; width: 180px; }

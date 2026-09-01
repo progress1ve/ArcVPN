@@ -7,9 +7,10 @@ inside the original user click on both the website and Telegram WebApp. Show the
 same neutral `Поддерживается` badge for Happ and INCY.
 
 Acceptance: the browser-safe synchronous INCY encoder is used; generated links
-start with `incy://crypt1/` and decode to the same subscription URL; both app
-cards say `Поддерживается`; production build, focused regression test, and
-mobile/tablet/desktop/wide inspection pass.
+start with `incy://crypt1/` and decode to the same subscription URL; Android
+receives an explicit INCY intent; both app cards say `Поддерживается`; the
+desktop connection flow is vertically centered; production build and focused
+regression tests pass. Responsive browser inspection is excluded by owner request.
 
 Risk and rollback: only the app-choice UI and INCY deeplink generation change.
 Revert the frontend commit and rebuild `webapp_dist`; subscription URLs, device
