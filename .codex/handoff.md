@@ -22,12 +22,18 @@ Updated: 2026-09-01. This file is current state, not a diary.
   still in service. Two owner-only manual XHTTP links were exported to the
   gitignored local `.secrets/owner-xhttp-cdn-links.txt`; never paste their UUIDs
   into chat or docs.
-- Happ catalog order fix is deployed at `d3c3983` and owner-controlled: Auto, YouTube, Estonia,
+- Happ catalog order is owner-controlled: Auto, YouTube, Estonia,
   Netherlands, Germany, then five bypass rows. Subscription-wide
   `lowestdelay` autoconnect and ping-on-open metadata must remain absent because
   Happ otherwise reorders visible locations by latency. Internal Xray
   `leastLoad` inside Auto/bypass profiles remains required. The first bypass
   display label is exactly `🇪🇺 Лучший обход`.
+- External Happ Provider ID integration is intentionally removed. Do not attach
+  `providerid` to import URLs, subscription bodies or response headers; ArcVPN
+  must not depend on Happ provider statistics or paid remote-management features.
+  Emit `subscriptions-sort-type: without` in body and HTTP metadata. Existing
+  clients that retain the former provider/sort state may require one delete and
+  reimport after this release.
 - The earlier one-row subscription draft is rejected and must not be restored.
   The deployed implementation preserves five visible bypass
   rows, rename only `Обход глушилок #1` to `🇪🇺 Лучший обход`, give that row an
@@ -225,16 +231,10 @@ Updated: 2026-09-01. This file is current state, not a diary.
   production shows 13 Happ rows with two Estonia AutoSelect outbounds, and LTE
   identity isolation remains intact. Inventory alias is `ee-1chost`; node control
   port is restricted to Poland.
-- Happ node-setting hardening is deployed through `b8308c7`: `hide-settings: 1`
-  remains in HTTP and plain/base64 metadata, and every browser/device-scoped Happ
-  import now carries the configured eight-character Provider ID in the official
-  URL fragment. Public transport verification and 124 local tests pass, but the
-  owner's real client still exposed settings before this follow-up. Behaviour is
-  not accepted until the same ID is confirmed in the Happ provider dashboard
-  with `sub.arccnet.space`, then the subscription is deleted/reimported in a
-  current client. Production has no explicit provider-ID environment override
-  and uses the repository value. Even when accepted this is client UI/export
-  hardening, not cryptographic secrecy against modified/rooted clients.
+- Happ node-setting hardening retains `hide-settings: 1` in HTTP and plain/base64
+  metadata, but its former Provider ID URL binding is retired and must not be
+  restored. This is client UI/export hardening, not cryptographic secrecy against
+  modified or rooted clients.
 - Three active legacy trials were reconciled after a separate backup: all now
   have unlimited main traffic, exactly 5 GiB LTE and a separate LTE identity.
   DNS v2 is enabled only for Telegram ID `2075630349`; the global profile remains

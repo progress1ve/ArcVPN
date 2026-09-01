@@ -1,5 +1,25 @@
 # Current stage: redesign five bypass fallbacks after rejected simplification
 
+## 2026-09-01 remove Happ Provider ID and force backend order
+
+Goal: remove the external Happ Provider ID dependency from every import and
+refresh path, and explicitly request `subscriptions-sort-type: without` so the
+visible catalog follows the backend JSON order. The dedicated first Auto profile
+remains the only latency-based customer choice.
+
+Acceptance: no Provider ID exists in import URLs, bodies or response headers;
+plain and HTTP metadata both carry `subscriptions-sort-type: without`; JSON order
+remains Auto, YouTube, Estonia, Netherlands, Germany and five bypass rows; public
+URLs/UUIDs/access remain unchanged; focused/full and public checks pass.
+
+Non-goals: no Happ paid/remote-management integration, no node/CDN/DNS changes,
+and no change to internal Whitenode `leastLoad`. CDN subscription refresh remains
+deferred. Existing clients may need one delete/reimport because Happ documents
+Provider association and app settings as client-side state.
+
+Rollback: revert the runtime commit and restart only
+`arcvpn-subscription.service`. No database or identity migration is involved.
+
 ## 2026-09-01 fixed Happ catalog order and CDN-refresh deferral
 
 Goal: display the first bypass profile exactly as `🇪🇺 Лучший обход` and keep the

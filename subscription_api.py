@@ -534,10 +534,6 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # Happ only accepts subscription-wide automatic server selection for registered
 # providers.  The public eight-character provider id is configured separately
 # from the code, while the behaviour itself stays enabled by default.
-HAPP_PROVIDER_ID = str(
-    os.getenv("HAPP_PROVIDER_ID")
-    or getattr(config, "HAPP_PROVIDER_ID", "O7YLTHgc")
-).strip()
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
@@ -947,17 +943,8 @@ def _is_valid_subscription_id(sub_id: str) -> bool:
 
 
 def _happ_subscription_target(url: str) -> str:
-    """Attach Happ's public provider id at import time when it is valid.
-
-    The fragment is consumed by Happ and is intentionally never sent to the
-    subscription endpoint. Header/body metadata remains the refresh-time source.
-    """
-    if not re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
-        return url
-    parts = urllib.parse.urlsplit(url)
-    return urllib.parse.urlunsplit(
-        (parts.scheme, parts.netloc, parts.path, parts.query, f"?providerid={HAPP_PROVIDER_ID}")
-    )
+    """Return the stable ArcVPN URL without an external Happ provider binding."""
+    return url
 
 
 def _happ_add_url(url: str) -> str:
@@ -1105,13 +1092,12 @@ def _build_plain_text_subscription(
         f"#profile-title: base64:{PROFILE_TITLE_BASE64}",
         f"#announce: base64:{announce_base64}",
         f"#profile-update-interval: {PROFILE_UPDATE_INTERVAL_HOURS}",
+        "#subscriptions-sort-type: without",
         "#hide-settings: 1",
         f"#subscription-userinfo: {userinfo_header}",
         f"#support-url: {SUPPORT_URL}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
     ]
-    if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
-        lines.append(f"#providerid {HAPP_PROVIDER_ID}")
     # Информационный блок (как у конкурентов — подсказки для пользователей)
     if SUBSCRIPTION_INFO_LINES:
         lines.extend(SUBSCRIPTION_INFO_LINES)
@@ -1814,6 +1800,7 @@ def _response_from_prepared(
     response.headers["Pragma"] = "no-cache"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["profile-update-interval"] = str(PROFILE_UPDATE_INTERVAL_HOURS)
+    response.headers["subscriptions-sort-type"] = "without"
     response.headers["subscription-auto-update-enable"] = "1"
     response.headers["hide-settings"] = "1"
     response.headers["profile-title"] = f"base64:{encoded_profile_title}"
@@ -1822,8 +1809,6 @@ def _response_from_prepared(
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
     response.headers["Subscription-Userinfo"] = prepared.userinfo_header
     response.headers["subscription-always-hwid-enable"] = "1"
-    if re.fullmatch(r"[A-Za-z0-9_-]{8}", HAPP_PROVIDER_ID):
-        response.headers["providerid"] = HAPP_PROVIDER_ID
     if prepared.routing_link:
         response.headers["routing"] = prepared.routing_link
     return response
