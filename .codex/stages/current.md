@@ -5,13 +5,14 @@
 Status: **blocked on an explicit topology contract; do not deploy the current
 subscription draft**. The earlier interpretation (replace all five bypass rows
 with one Netherlands-only row) is rejected. Preserve five visible bypass rows;
-rename only row #1 to `Лучший обход`. Its intended XHTTP fallback is Estonia
-primary and Netherlands reserve. Rows #2-#5 must distribute XHTTP fallback load
-using both latency and current XHTTP population. Before implementation, document
-which failover is performed by Yandex origin groups versus Happ/Xray, how strict
-EE->NL ordering is expressed, which component owns load telemetry, how users are
-bucketed, when assignments refresh, and what happens when telemetry is stale.
-Client-side observatory latency alone is not accepted as user-load balancing.
+rename only row #1 to `Лучший обход`. All five profiles must independently
+implement the behavior contract demonstrated by `vozduh443/Whitenode-balancer`:
+ordinary and hidden CDN outbounds are probed by Burst Observatory, selected with
+`leastLoad`, CDN is activated through `fallbackTag` only when ordinary outbounds
+are unavailable, and ordinary routing returns after recovery. Do not copy the
+reference project's unrelated DNS/domain lists. Its behavior is client-side
+health/RTT selection, not a Remnawave active-user counter; do not add a second
+load algorithm unless the owner separately requests one after this contract.
 
 Current infrastructure: Estonia has a backed-up x1 XHTTP inbound active in the
 LTE squad and nginx origin on port 80; `cdn-de.arccnet.space` can front Estonia
@@ -20,6 +21,16 @@ continues to front Netherlands. Owner-only manual links exist solely in the
 gitignored `.secrets` path recorded in the handoff. The agent-owned local draft
 in `subscription_api.py` and its two verification files is undeployed and must
 be rewritten only after contract approval.
+
+Additional deliverable: keep the stable `sub.arccnet.space/sub/...` contract but
+serve it through a CDN so clients can refresh during origin blocking. Use a
+separate origin hostname and certificate, preserve the complete request path,
+query, format and User-Agent behavior, disable all CDN/browser caching for the
+personalized response, and preserve response metadata. The DNS cutover is gated
+on two-user cache-isolation tests, revoked/expired behavior, direct-origin and
+CDN fetch parity, Happ refresh during simulated origin blocking and a documented
+TTL rollback. A cached response for one user appearing for another is a hard
+security failure.
 
 ## 2026-09-01 fallback simplification and stability audit
 

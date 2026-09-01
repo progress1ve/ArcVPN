@@ -36,6 +36,25 @@ Updated: 2026-09-01. This file is current state, not a diary.
   Xray can measure latency client-side but cannot directly know Remnawave active
   user counts; define the authoritative server-side weighting/bucketing and
   refresh behavior explicitly instead of inventing it.
+- The owner then selected the public `vozduh443/Whitenode-balancer` behavior as
+  the exact model for **all five** visible bypass profiles: Burst Observatory
+  probes both ordinary and hidden CDN outbounds, `leastLoad` selects a healthy
+  ordinary outbound, `fallbackTag` moves traffic to hidden CDN only when the
+  ordinary set is unavailable, and recovery returns traffic to ordinary
+  infrastructure. Independently implement the small routing contract; do not
+  copy unrelated DNS/domain lists from the external example and do not claim it
+  accounts for Remnawave user counts. The repository exposes no license in its
+  root, so treat it as a behavior reference, not a code dependency.
+- A second, independent requirement is censorship-resistant subscription
+  refresh. Preserve every existing `https://sub.arccnet.space/sub/...` URL while
+  placing that hostname behind a CDN and routing to a separate Poland origin
+  hostname. Dynamic subscription responses must never be shared or stale-cached:
+  disable CDN/browser caching, preserve full path/query and relevant User-Agent/
+  format behavior, retain TLS and ArcVPN headers, and verify two distinct
+  credential-safe subscriptions cannot cross-contaminate. Origin bypass, CDN
+  bypass, revoked/expired behavior and real Happ refresh during simulated origin
+  blocking are acceptance gates. Do not change DNS until origin hostname,
+  certificate, nginx routing and rollback TTL are ready.
 
 - Russia-safe Telegram entry and the mobile admin dock are deployed at
   `c542d5e`. The standalone login no longer depends on Telegram's iframe: ArcVPN
