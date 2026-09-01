@@ -13,6 +13,15 @@ Updated: 2026-09-01. This file is current state, not a diary.
 
 ## Current product state
 
+- Advertising acquisition correctness is deployed at `27b2fcd`. An `ad_*`
+  deep link creates first-touch attribution only when that same `/start` created
+  the bot user; existing users never enter campaign counters or bonuses. Campaign
+  payment metrics include only successful payments at/after attribution and
+  normalize mixed historical RUB/kopeck storage before returning kopecks to the
+  existing UI. The two owner-identified invalid attributions were removed after
+  a separate SQLite backup without changing their accounts, subscriptions or 28
+  historical payments. The affected campaign now reports zero throughout.
+
 - **Whitenode-style five-profile fallback is deployed at `28e5635`.** Estonia has an x1 Remnawave XHTTP inbound on
   loopback port 10001, active in the existing LTE squad, plus nginx origin
   proxying `/api-test`; the connected node and LTE squad each report three

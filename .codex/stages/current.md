@@ -2304,7 +2304,27 @@ changing either user account or payment history.
 - Passed read-only production target check: exactly two supplied usernames, each
   has one attribution to `исма канал`; no campaign bonus rows. Their 26 and 2
   successful historical payments explain the incorrect 28-order aggregate.
-- Pending: production backup and exact two-target correction.
-- Pending: service/public/admin aggregate verification.
+- Passed: production online SQLite backup created before mutation; exact two
+  target attributions deleted in one transaction, zero bonus rows existed, all
+  28 historical payments and both user accounts remained unchanged.
+- Passed: production commit `27b2fcd`; both affected services are active,
+  focused production suite is 8/8, public health is OK and the post-restart
+  warning journal is empty.
+- Passed: `исма канал` now returns arrivals 0, paying users 0, paid/repeat orders
+  0, revenue 0 kopecks and conversion 0%. No account, subscription, VPN key,
+  payment row, public URL or UUID changed.
+
+## Closeout
+
+- Runtime release: `27b2fcd` pushed and fast-forwarded on Poland; only
+  `arcvpn-bot.service` and `arcvpn-subscription.service` restarted.
+- Rollback: `git revert 27b2fcd`, push/pull and restart those two services. The
+  pre-repair SQLite backup is retained separately if the two attribution rows
+  ever need restoration.
+- Residual risk: no legitimate advertising arrival currently remains in this
+  campaign, so the next real new-user click should be checked once as a live
+  acquisition canary.
+- Next step: confirm the next genuinely new advertising user increments arrivals
+  once and only their post-attribution successful payments affect revenue.
 
 ---
