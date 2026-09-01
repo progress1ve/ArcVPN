@@ -32,6 +32,26 @@ CDN fetch parity, Happ refresh during simulated origin blocking and a documented
 TTL rollback. A cached response for one user appearing for another is a hard
 security failure.
 
+Implementation evidence: the local generator now preserves five visible
+balancer profiles, renames only row #1 to `Лучший обход`, deduplicates and orders
+the hidden CDN outbounds as Estonia (`cdn-de`) then Netherlands (`cdn-nd`), and
+uses the Whitenode contract in every clone: Burst Observatory GET/10s/6 samples/
+5s over both selector prefixes, one `leastLoad` balancer with 3s max RTT and the
+Estonia CDN as `fallbackTag`. CDN telemetry and quota accounting are x1. Focused
+tests and the full suite pass (`4 passed`; `151 passed`). Runtime deployment and
+real Happ behavior remain pending.
+
+No second CDN resource is required for subscription refresh. The existing CDN
+origin group can accept `sub.arccnet.space` as an additional hostname. Both EE
+and NL nginx origins now proxy only `/sub/` directly to the Poland IP over
+verified TLS/SNI, so the later public CNAME cannot create a DNS loop. They force
+private/no-store/no-cache headers and do not buffer. Credential-safe checks over
+two distinct active subscriptions returned 200 through direct Poland, EE and NL,
+with byte-identical bodies, identical Subscription-Userinfo, distinct bodies
+between users and no-store on both origins. Yandex hostname/certificate/cache
+configuration and DNS cutover remain an external gate; the current public
+`sub.arccnet.space` DNS is unchanged.
+
 ## 2026-09-01 fallback simplification and stability audit
 
 Goal: make the Happ customer fallback expose one Netherlands CDN route named

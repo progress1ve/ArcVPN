@@ -257,6 +257,8 @@ REMNAWAVE_LTE_ENABLED = bool(getattr(config, "REMNAWAVE_LTE_ENABLED", False))
 REMNAWAVE_LTE_GERMANY_HOST = "cdn.arccnet.space"
 REMNAWAVE_LTE_DHOST_HOSTS = {"cdn-de.arccnet.space", "cdn-nd.arccnet.space"}
 LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a"
+BEST_BYPASS_NAME = "Лучший обход"
+BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space", "cdn-nd.arccnet.space")
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -284,6 +286,8 @@ def _subscription_source_name(name: str) -> str:
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
+    if BEST_BYPASS_NAME in normalized:
+        return BEST_BYPASS_NAME
     if "Обход глушилок" in normalized or "LTE" in normalized:
         number_match = re.search(r"#\s*([1-9][0-9]*)", normalized)
         number = number_match.group(1) if number_match else "1"
@@ -309,6 +313,8 @@ _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
 
 def _profile_country_flag(name: str) -> str:
     value = str(name or "")
+    if BEST_BYPASS_NAME in value:
+        return ""
     if "Обход глушилок" in value or "LTE" in value:
         return "🇪🇺"
     for marker, flag in (
@@ -332,7 +338,7 @@ def _safe_profile_display_name(custom_name: str, source_name: str) -> str:
 def _subscription_protocol_label(source_name: str) -> str:
     """Human-readable transport, kept separate from the editable remark."""
     value = _subscription_source_name(source_name)
-    if "Обход глушилок" in value or "LTE" in value:
+    if BEST_BYPASS_NAME in value or "Обход глушилок" in value or "LTE" in value:
         return "VLESS · XHTTP · TLS · CDN"
     if re.search(r"#\s*(?:2|4)$", value):
         return "Hysteria2 · QUIC · TLS"
@@ -372,6 +378,8 @@ def _subscription_inbound_order(name: str) -> int:
 def _subscription_display_name(name: str) -> str:
     """Keep the expensive LTE route explicit in every client UI."""
     value = str(name or "")
+    if BEST_BYPASS_NAME in value:
+        return BEST_BYPASS_NAME
     if "Обход глушилок" in value:
         number_match = re.search(r"#\s*([1-9][0-9]*)", value)
         number = number_match.group(1) if number_match else "1"
@@ -415,15 +423,21 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
 
 
 def _expand_lte_profile_links(links: list[str]) -> list[str]:
-    """Expose exactly five stable EU-labelled LTE choices over reviewed routes."""
+    """Expose five stable bypass choices over the reviewed x1 CDN routes."""
     main = [link for link in links if not _is_lte_subscription_link(link)]
     lte = [link for link in links if _is_lte_subscription_link(link)]
-    if not lte:
+    by_host: Dict[str, str] = {}
+    for link in lte:
+        host = (urllib.parse.urlsplit(link).hostname or "").lower()
+        if host in BYPASS_CDN_HOST_PRIORITY and host not in by_host:
+            by_host[host] = link
+    sources = [by_host[host] for host in BYPASS_CDN_HOST_PRIORITY if host in by_host]
+    if not sources:
         return main
     expanded = []
     for index in range(5):
-        source = lte[index % len(lte)].rsplit("#", 1)[0]
-        label = f"\U0001f1ea\U0001f1fa Обход глушилок #{index + 1}"
+        source = sources[index % len(sources)].rsplit("#", 1)[0]
+        label = BEST_BYPASS_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
         expanded.append(source + "#" + urllib.parse.quote(label, safe=""))
     return [*main, *expanded]
 
@@ -445,7 +459,7 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
         country_order = 40
     elif "Польша" in name:
         country_order = 50
-    elif "Обход глушилок" in name or "LTE" in name:
+    elif BEST_BYPASS_NAME in name or "Обход глушилок" in name or "LTE" in name:
         country_order = 90
     else:
         country_order = 60
@@ -458,7 +472,7 @@ def _normalize_customer_profile_label(link: str) -> str:
         return link
     payload, encoded_name = link.rsplit("#", 1)
     name = urllib.parse.unquote(encoded_name)
-    if "Ютуб без рекламы" in name or "Обход глушилок" in name:
+    if "Ютуб без рекламы" in name or BEST_BYPASS_NAME in name or "Обход глушилок" in name:
         return link
     name = name.replace("Франция", "Канада")
     countries = (
@@ -1522,7 +1536,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 ],
             },
         }
-        if LTE_NAME_MARKER in name:
+        if _is_lte_subscription_link(link):
             # Keep explicit emergency profiles at the owner's request. They
             # consume CDN traffic whenever selected manually; AutoSelect does
             # not use them while main candidates are healthy.
@@ -1530,7 +1544,15 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 regular.append(regular_profile)
             if include_in_auto:
                 candidate = _json_outbound_from_share_link(link, f"proxy-back-{len(lte_outbounds) + 1}")
+                candidate_host = ""
                 if candidate is not None:
+                    vnext = (candidate.get("settings") or {}).get("vnext") or []
+                    candidate_host = str((vnext[0] if vnext else {}).get("address") or "").lower()
+                existing_hosts = {
+                    str((((item.get("settings") or {}).get("vnext") or [{}])[0]).get("address") or "").lower()
+                    for item in lte_outbounds
+                }
+                if candidate is not None and candidate_host not in existing_hosts:
                     lte_outbounds.append(candidate)
         else:
             if visible_individually:
@@ -1542,17 +1564,23 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 if candidate is not None:
                     auto_outbounds.append(candidate)
 
+    host_priority = {host: index for index, host in enumerate(BYPASS_CDN_HOST_PRIORITY)}
+    lte_outbounds.sort(key=lambda item: host_priority.get(
+        str(((((item.get("settings") or {}).get("vnext") or [{}])[0]).get("address")) or "").lower(),
+        len(host_priority),
+    ))
+    for index, item in enumerate(lte_outbounds, start=1):
+        item["tag"] = f"proxy-back-{index}"
+
     if not auto_outbounds:
         return json.dumps(regular, ensure_ascii=False, separators=(",", ":"))
     auto_profile = {
         "burstObservatory": {
             "pingConfig": {
                 "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
-                "interval": "20s", "sampling": 2, "timeout": "3s",
+                "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
             },
-            # Probing LTE while main is healthy would itself consume CDN
-            # traffic for every subscriber. Only normal routes are observed.
-            "subjectSelector": ["proxy-main"],
+            "subjectSelector": ["proxy-main", "proxy-back"],
         },
         "dns": _client_dns_config(key),
         "inbounds": _json_local_inbounds(key),
@@ -1563,31 +1591,20 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             *lte_outbounds,
             {"protocol": "freedom", "tag": "direct"},
             {"protocol": "blackhole", "tag": "block"},
-            *([{
-                "protocol": "loopback", "tag": "LOOPBACK_TO_BACK",
-                "settings": {"inboundTag": "FROM_LOOPBACK_BACK"},
-            }] if lte_outbounds else []),
         ],
         "remarks": "Автовыбор | Самый быстрый",
         "routing": {
             "balancers": [{
-                # A balancer cannot directly use another balancer as fallback.
-                # Loopback re-enters routing with a dedicated inbound tag and
-                # hands the request to the LTE-only second balancer.
-                "fallbackTag": "LOOPBACK_TO_BACK" if lte_outbounds else "direct",
-                "selector": ["proxy-main"],
-                "strategy": {"settings": {"baselines": ["1s"], "expected": 2, "maxRTT": "1s", "tolerance": 0.01}, "type": "leastLoad"},
+                "fallbackTag": "proxy-back-1" if lte_outbounds else "direct",
+                "selector": ["proxy-main", *(["proxy-back"] if lte_outbounds else [])],
+                "strategy": {
+                    "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
+                    "type": "leastLoad",
+                },
                 "tag": "balancer_main",
-            }, *([{
-                "fallbackTag": "direct", "selector": ["proxy-back"],
-                # No observatory probes for LTE: choose a fallback only after
-                # main actually fails. Multiple LTE routes alternate.
-                "strategy": {"type": "roundRobin"},
-                "tag": "balancer_back",
-            }] if lte_outbounds else [])],
+            }],
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
             "rules": [
-                *([{"inboundTag": ["FROM_LOOPBACK_BACK"], "balancerTag": "balancer_back", "type": "field"}] if lte_outbounds else []),
                 _happ_tiktok_proxy_rule(balancer_tag="balancer_main"),
                 *_happ_direct_rules(),
                 {"balancerTag": "balancer_main", "network": "tcp,udp", "type": "field"},
@@ -1596,7 +1613,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     }
     lte_profiles = [
         profile for profile in regular
-        if "Обход глушилок" in str(profile.get("remarks") or "")
+        if BEST_BYPASS_NAME in str(profile.get("remarks") or "")
+        or "Обход глушилок" in str(profile.get("remarks") or "")
     ]
     normal_profiles = [profile for profile in regular if profile not in lte_profiles]
 
@@ -1633,10 +1651,13 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *visible_country("Германия"),
     ]
     fallback_lte_profiles = []
-    for number in range(1, 6):
-        profile = copy.deepcopy(auto_profile)
-        profile["remarks"] = f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
-        fallback_lte_profiles.append(profile)
+    if lte_outbounds:
+        for index in range(5):
+            profile = copy.deepcopy(auto_profile)
+            profile["remarks"] = (
+                BEST_BYPASS_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
+            )
+            fallback_lte_profiles.append(profile)
     return json.dumps(
         [auto_profile, *visible_main, *fallback_lte_profiles],
         ensure_ascii=False,
@@ -2445,7 +2466,7 @@ async def _native_remnawave_links(key: ActiveKeyRecord) -> list[str]:
 
 def _is_lte_subscription_link(link: str) -> bool:
     label = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else ""
-    return "Обход глушилок" in label or "LTE" in label
+    return BEST_BYPASS_NAME in label or "Обход глушилок" in label or "LTE" in label
 
 
 def _prepare_native_remnawave_subscription(
@@ -5516,8 +5537,8 @@ def api_admin_overview():
                 } for inbound in ((node.get("configProfile") or {}).get("activeInbounds") or [])],
             } for node in (remna_nodes or [])],
         }
-        # Finland LTE is retired from the operator surface. DE/NL XHTTP are
-        # logical CDN edges hosted by the corresponding DHost RemnaNodes, so
+        # Finland and Germany LTE are retired from delivery. EE/NL XHTTP are
+        # logical CDN edges hosted by the corresponding RemnaNodes, so
         # expose them explicitly instead of pretending they are extra VPSes.
         remnawave["nodes"] = [
             node for node in remnawave["nodes"]
@@ -5531,9 +5552,9 @@ def api_admin_overview():
                 "public_host": "cdn-nd.arccnet.space", "profile_name": "🇳🇱 Обход глушилок #4",
             },
             {
-                "id": "lte-de", "name": "Германия LTE", "country_code": "DE",
-                "node_marker": "Germany DHost", "inbound_tag": "DE_DHOST_LTE_XHTTP",
-                "public_host": "cdn-de.arccnet.space", "profile_name": "🇩🇪 Обход глушилок #5",
+                "id": "lte-ee", "name": "Эстония LTE", "country_code": "EE",
+                "node_marker": "Estonia 1chost", "inbound_tag": "EE_1CHOST_LTE_XHTTP",
+                "public_host": "cdn-de.arccnet.space", "profile_name": BEST_BYPASS_NAME,
             },
         )
         lte_edges = []
@@ -5555,7 +5576,7 @@ def api_admin_overview():
                 "network": (inbound or {}).get("network") or "xhttp",
                 "port": (inbound or {}).get("port") or 10001,
                 "path": "/api-test",
-                "traffic_factor": 10,
+                "traffic_factor": 1,
                 "users_online": int((parent or {}).get("users_online") or 0),
                 "traffic_used_gb": float((parent or {}).get("traffic_used_gb") or 0),
                 "diagnostic": (parent or {}).get("diagnostic"),
@@ -5577,10 +5598,10 @@ def api_admin_overview():
             "id": "auto",
             "name": "🇪🇺 Автовыбор | Самый быстрый",
             "kind": "client_balancer",
-            "probe_interval_seconds": 20,
-            "probe_samples": 2,
+            "probe_interval_seconds": 10,
+            "probe_samples": 6,
             "probe_url": "http://www.gstatic.com/generate_204",
-            "failover": "Скрытые DE/NL CDN outbounds",
+            "failover": "Whitenode leastLoad → скрытые EE/NL CDN outbounds",
             "selection_observable": False,
             "online_distribution": node_distribution,
             "members": [
@@ -5588,13 +5609,14 @@ def api_admin_overview():
                 for node in (remna_nodes or []) if not bool(node.get("isDisabled"))
             ],
         }, *[{
-            "id": f"fallback-{number}", "name": f"🇷🇺 Обход глушилок #{number}",
-            "kind": "client_cdn_fallback", "traffic_factor": 10,
+            "id": f"fallback-{number}",
+            "name": BEST_BYPASS_NAME if number == 1 else f"🇪🇺 Обход глушилок #{number}",
+            "kind": "client_cdn_fallback", "traffic_factor": 1,
             "active_only_as_fallback": True,
-            "strategy": "main → loopback → hidden DE/NL CDN",
+            "strategy": "Burst Observatory + leastLoad + CDN fallbackTag",
             "origins": [edge["public_host"] for edge in lte_edges],
-            "healthy": all(edge["healthy"] for edge in lte_edges),
-        } for number in range(1, 4)], *[{
+            "healthy": any(edge["healthy"] for edge in lte_edges),
+        } for number in range(1, 6)], *[{
             "id": edge["id"], "name": edge["profile_name"], "kind": "direct_cdn",
             "public_host": edge["public_host"], "origin": edge["origin"],
             "traffic_factor": edge["traffic_factor"], "active_only_as_fallback": False,

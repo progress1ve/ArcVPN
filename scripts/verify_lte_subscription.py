@@ -50,7 +50,7 @@ def main() -> int:
     main_links, lte_links = [], []
     for link in links:
         name = urllib.parse.unquote(urllib.parse.urlparse(link).fragment)
-        (lte_links if "Обход глушилок" in name or "LTE" in name else main_links).append(link)
+        (lte_links if "Лучший обход" in name or "Обход глушилок" in name or "LTE" in name else main_links).append(link)
     def credentials_match(items, expected):
         return bool(items) and all(urllib.parse.urlparse(item).username == expected for item in items)
     expected_announce = "❗Лимит ГБ тратиться только на Обход глушилок.❗"
@@ -70,10 +70,9 @@ def main() -> int:
         "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы",
         "🇪🇪 Эстония #1", "🇪🇪 Эстония #2",
         "🇳🇱 Нидерланды #1", "🇳🇱 Нидерланды #2",
-        "🇩🇪 Германия #1", "🇩🇪 Германия #2",
-        "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
-        "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
-        "🇪🇺 Обход глушилок #5",
+        "🇩🇪 Германия #1", "🇩🇪 Германия #2", "Лучший обход",
+        "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
+        "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
     ]
     tiktok_routing_ok = True
     for profile in profiles:
@@ -90,6 +89,8 @@ def main() -> int:
               and f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo
               and expected_announce in announce
               and profile_names == expected_names
+              and auto_hosts.count("cdn-nd.arccnet.space") == 1
+              and auto_hosts.count("cdn-de.arccnet.space") == 1
               and auto_hosts.count("ee.arccnet.space") == 2
               and tiktok_routing_ok,
         "main_links": len(main_links), "lte_links": len(lte_links),
@@ -105,6 +106,8 @@ def main() -> int:
         "announce_ok": expected_announce in announce,
         "profile_order_ok": profile_names == expected_names,
         "profile_count": len(profile_names),
+        "netherlands_cdn_fallbacks": auto_hosts.count("cdn-nd.arccnet.space"),
+        "estonia_cdn_fallbacks": auto_hosts.count("cdn-de.arccnet.space"),
         "estonia_auto_outbounds": auto_hosts.count("ee.arccnet.space"),
         "tiktok_routing_ok": tiktok_routing_ok,
     }

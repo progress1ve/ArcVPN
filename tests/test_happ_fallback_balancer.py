@@ -22,7 +22,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
             "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
-            "vless://22222222-2222-2222-2222-222222222222@lte.example:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
+            "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
         ])
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
@@ -33,12 +33,12 @@ class HappFallbackBalancerTests(unittest.TestCase):
             tiktok_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES)
             direct_index = next(i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct")
             self.assertLess(tiktok_index, direct_index)
-            if profile["remarks"].startswith(("Автовыбор", "🇪🇺 Обход")):
+            if profile["remarks"].startswith(("Автовыбор", "Лучший обход", "🇪🇺 Обход")):
                 self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_main")
             else:
                 self.assertEqual(rules[tiktok_index]["outboundTag"], "proxy")
 
-    def test_customer_profile_order_restores_hysteria_then_five_eu_lte(self):
+    def test_customer_profile_order_keeps_five_bypass_balancers(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
             "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Нидерланды%20%231",
@@ -48,26 +48,25 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "hysteria2://eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee@ee.example:8443?insecure=1#Эстония%20%232",
             "vless://22222222-2222-2222-2222-222222222222@de.example:443?security=none&type=tcp#Германия%20%231",
             "hysteria2://bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb@de.example:8443?insecure=1#Германия%20%232%20%E2%9A%A1",
-            "vless://33333333-3333-3333-3333-333333333333@lte-nl.example:443?security=tls&type=xhttp#Обход%20глушилок%20%234",
-            "vless://44444444-4444-4444-4444-444444444444@lte-de.example:443?security=tls&type=xhttp#Обход%20глушилок%20%235",
+            "vless://33333333-3333-3333-3333-333333333333@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%234",
+            "vless://44444444-4444-4444-4444-444444444444@cdn-de.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%235",
         ])
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония #1", "Эстония #2",
             "Нидерланды #1", "Нидерланды #2",
-            "Германия #1", "Германия #2",
-            "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
-            "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
-            "🇪🇺 Обход глушилок #5",
+            "Германия #1", "Германия #2", "Лучший обход",
+            "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
+            "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
 
-    def test_main_falls_through_loopback_to_all_lte_outbounds(self):
+    def test_every_bypass_uses_whitenode_least_load_contract(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
             "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
-            "vless://22222222-2222-2222-2222-222222222222@lte1.example:443?security=none&type=tcp#Обход%20глушилок%20%28LTE%29%20%231",
-            "vless://33333333-3333-3333-3333-333333333333@lte2.example:443?security=none&type=tcp#Обход%20глушилок%20%28LTE%29%20%232",
+            "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
+            "vless://33333333-3333-3333-3333-333333333333@cdn-de.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%232",
         ])
 
         with patch("subscription_api._catalog_overrides", return_value={}):
@@ -76,54 +75,56 @@ class HappFallbackBalancerTests(unittest.TestCase):
         outbounds = {item["tag"]: item for item in auto["outbounds"]}
         balancers = {item["tag"]: item for item in auto["routing"]["balancers"]}
 
-        self.assertIn("LOOPBACK_TO_BACK", outbounds)
-        self.assertEqual(outbounds["LOOPBACK_TO_BACK"]["settings"]["inboundTag"], "FROM_LOOPBACK_BACK")
-        self.assertEqual(balancers["balancer_main"]["fallbackTag"], "LOOPBACK_TO_BACK")
-        self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main"])
-        self.assertEqual(balancers["balancer_back"]["selector"], ["proxy-back"])
-        self.assertEqual(balancers["balancer_back"]["fallbackTag"], "direct")
-        self.assertEqual(balancers["balancer_back"]["strategy"]["type"], "roundRobin")
-        self.assertEqual(auto["burstObservatory"]["subjectSelector"], ["proxy-main"])
-        self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 5)
-        self.assertEqual(auto["routing"]["rules"][0]["inboundTag"], ["FROM_LOOPBACK_BACK"])
+        self.assertNotIn("LOOPBACK_TO_BACK", outbounds)
+        self.assertEqual(balancers["balancer_main"]["fallbackTag"], "proxy-back-1")
+        self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main", "proxy-back"])
+        self.assertEqual(balancers["balancer_main"]["strategy"], {
+            "type": "leastLoad",
+            "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
+        })
+        self.assertEqual(auto["burstObservatory"], {
+            "pingConfig": {
+                "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
+                "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
+            },
+            "subjectSelector": ["proxy-main", "proxy-back"],
+        })
+        self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 2)
+        self.assertEqual(
+            [outbounds[f"proxy-back-{index}"]["settings"]["vnext"][0]["address"] for index in (1, 2)],
+            ["cdn-de.arccnet.space", "cdn-nd.arccnet.space"],
+        )
         profiles = json.loads(built)
         self.assertEqual(len(profiles), 7)
-        self.assertEqual(
-            [item["remarks"] for item in profiles[-5:]],
-            [
-                "🇪🇺 Обход глушилок #1",
-                "🇪🇺 Обход глушилок #2",
-                "🇪🇺 Обход глушилок #3",
-                "🇪🇺 Обход глушилок #4",
-                "🇪🇺 Обход глушилок #5",
-            ],
-        )
+        self.assertEqual([item["remarks"] for item in profiles[-5:]], [
+            "Лучший обход", "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
+            "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
+        ])
         self.assertEqual(profiles[0]["remarks"], "Автовыбор | Самый быстрый")
         for bypass in profiles[-5:]:
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
-            self.assertIn("LOOPBACK_TO_BACK", bypass_outbounds)
+            self.assertNotIn("LOOPBACK_TO_BACK", bypass_outbounds)
             self.assertEqual(bypass["routing"]["balancers"][0]["tag"], "balancer_main")
+            self.assertEqual(bypass["routing"]["balancers"][0]["selector"], ["proxy-main", "proxy-back"])
 
     def test_direct_cdn_links_become_hidden_fallback_outbounds_only(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
             "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
-            "vless://22222222-2222-2222-2222-222222222222@cdn-nd.example:443?security=tls&type=xhttp#%F0%9F%87%B3%F0%9F%87%B1%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%234",
-            "vless://33333333-3333-3333-3333-333333333333@cdn-de.example:443?security=tls&type=xhttp#%F0%9F%87%A9%F0%9F%87%AA%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%235",
+            "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#%F0%9F%87%B3%F0%9F%87%B1%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%234",
+            "vless://33333333-3333-3333-3333-333333333333@cdn-de.arccnet.space:443?security=tls&type=xhttp#%F0%9F%87%A9%F0%9F%87%AA%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%235",
         ])
 
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
 
-        self.assertEqual([item["remarks"] for item in profiles[-5:]], [
-            "🇪🇺 Обход глушилок #1", "🇪🇺 Обход глушилок #2",
-            "🇪🇺 Обход глушилок #3", "🇪🇺 Обход глушилок #4",
-            "🇪🇺 Обход глушилок #5",
-        ])
+        self.assertEqual(profiles[-5]["remarks"], "Лучший обход")
         for profile in profiles[-5:]:
             outbounds = {item["tag"]: item for item in profile["outbounds"]}
             self.assertNotIn("proxy", outbounds)
             self.assertIn("proxy-back-1", outbounds)
             self.assertIn("proxy-back-2", outbounds)
-            self.assertIn("LOOPBACK_TO_BACK", outbounds)
-            self.assertEqual(profile["routing"]["balancers"][0]["fallbackTag"], "LOOPBACK_TO_BACK")
+            self.assertEqual(outbounds["proxy-back-1"]["settings"]["vnext"][0]["address"], "cdn-de.arccnet.space")
+            self.assertEqual(outbounds["proxy-back-2"]["settings"]["vnext"][0]["address"], "cdn-nd.arccnet.space")
+            self.assertNotIn("LOOPBACK_TO_BACK", outbounds)
+            self.assertEqual(profile["routing"]["balancers"][0]["fallbackTag"], "proxy-back-1")
