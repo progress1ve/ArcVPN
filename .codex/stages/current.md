@@ -2354,3 +2354,50 @@ changing either user account or payment history.
   taps the confirmation button and increments arrivals exactly once.
 
 ---
+
+## Stage: bypass quota add-ons and exhaustion UX (2026-09-03)
+
+### Contract
+
+- A paid bypass pack extends only the current LTE/bypass cycle; the base tariff
+  quota is unchanged and the pack is cleared at the next acknowledged cycle reset.
+- At zero remaining quota, subscription output contains exactly two disabled
+  placeholder profiles with the requested Russian messages instead of silently
+  removing every bypass entry. Main profiles remain untouched.
+- LTE notifications are emitted once at 10% remaining and once at 0%, with a
+  WebApp button leading directly to add-ons. Other LTE thresholds are forbidden.
+- Add-ons are server-priced: 5/15/30/45/75/115 GB cost 20/35/60/90/175/290 RUB;
+  one current-term device costs 25 RUB. Fulfillment is idempotent and updates
+  Remnawave before an order is marked applied.
+- Family is 8 devices for future catalog applications. Existing users are never
+  reduced merely by the migration. Custom plans allow 1..15 devices.
+- Custom pricing is monotonic across devices and bypass tiers, preserves exact
+  Economy (2/0), Standard (3/45), and Family (8/115) catalog anchors, and gives
+  bypass capacity more weight than one extra device. Non-anchor configurations
+  retain the existing custom-plan premium without customer-facing markup text.
+- Admin reset clears current LTE usage locally and in Remnawave, preserves quota,
+  and resets notification state. It must be explicit and auditable.
+
+### Acceptance
+
+- Focused tests cover add-on validation/idempotency, cycle-only quota, threshold
+  deduplication, exhausted plain/base64/Happ output, admin reset, catalog anchors,
+  and the complete monotonic custom-price matrix.
+- Bot subscription UI and WebApp/site expose add-on purchase; both use the same
+  server price table and existing YooKassa confirmation/status flow.
+- Local build, Python compile, full tests and diff review pass; production is
+  fast-forward deployed, only affected services restart, and public health plus
+  post-restart logs are verified.
+
+### Evidence
+
+- Local Python compilation, `git diff --check`, Vite production build and the
+  complete test suite pass (`170 passed`).
+- Browser acceptance of `?screen=addons` confirms the complete server-priced
+  package list, centered layout, native Back behavior and the account entry
+  point. Owner changes in `Connect.svelte` and the deleted landing prompt remain
+  outside this stage and outside its commit.
+- Production deployment, migration v61 and public post-restart verification are
+  pending below; the stage is not closed until those checks pass.
+
+---

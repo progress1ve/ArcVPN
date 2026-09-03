@@ -72,11 +72,13 @@ def start_or_preserve_traffic_cycle(
 
         boundary = calendar_anniversary(event, 1)
         event_sql, boundary_sql = _sql(event), _sql(boundary)
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        addon_reset = ", lte_cycle_bonus_gb=0, lte_notified_pct=100" if "lte_cycle_bonus_gb" in columns else ""
         conn.execute(
-            """UPDATE users SET traffic_cycle_anchor_at=?,
+            f"""UPDATE users SET traffic_cycle_anchor_at=?,
                       traffic_cycle_started_at=?, traffic_cycle_reset_at=?,
                       lte_cycle_started_at=?, lte_cycle_reset_at=?,
-                      normal_used_bytes=0, lte_used_bytes=0
+                      normal_used_bytes=0, lte_used_bytes=0{addon_reset}
                WHERE id=?""",
             (event_sql, event_sql, boundary_sql, event_sql, boundary_sql, int(user_id)),
         )
@@ -153,8 +155,10 @@ def complete_traffic_cycle_reset(
         next_index = ((next_boundary.year - anchor.year) * 12
                       + next_boundary.month - anchor.month)
         cycle_started = calendar_anniversary(anchor, max(0, next_index - 1))
+        columns = {column["name"] for column in conn.execute("PRAGMA table_info(users)")}
+        addon_reset = ", lte_cycle_bonus_gb=0, lte_notified_pct=100" if "lte_cycle_bonus_gb" in columns else ""
         cursor = conn.execute(
-            """UPDATE users SET normal_used_bytes=0, lte_used_bytes=0,
+            f"""UPDATE users SET normal_used_bytes=0, lte_used_bytes=0{addon_reset},
                       traffic_cycle_started_at=?, traffic_cycle_reset_at=?,
                       lte_cycle_started_at=?, lte_cycle_reset_at=?
                WHERE id=? AND traffic_cycle_reset_at=?""",

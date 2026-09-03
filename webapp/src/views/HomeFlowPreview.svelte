@@ -7,7 +7,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText } from '../lib/ui.js'
-  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createAddonPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -107,6 +107,8 @@
   let supportError = ''
   let supportPoll = null
   let purchaseOpen = false
+  let addonsOpen = false
+  let addonBusy = ''
   let purchaseCustom = false
   let customDevices = 3
   let customLteGb = 45
@@ -200,8 +202,9 @@
     supportChatOpen
     settingsPage
     connectOpen
+    addonsOpen
     setNativeBackHandler(
-      purchaseOpen || supportChatOpen || settingsPage !== 'main' || connectOpen || paymentMethodOpen
+      purchaseOpen || addonsOpen || supportChatOpen || settingsPage !== 'main' || connectOpen || paymentMethodOpen
         ? handleNativeBack
         : null,
     )
@@ -210,6 +213,7 @@
   function handleNativeBack() {
     haptic('light')
     if (paymentMethodOpen) { paymentMethodOpen = false; return }
+    if (addonsOpen) { addonsOpen = false; return }
     if (connectOpen) {
       if (connectStage === 'guide') { connectStage = 'app'; return }
       if (connectStage === 'app') { connectStage = 'device'; return }
@@ -573,7 +577,7 @@
       const result = await fetchSbpPayment(paymentOrderId)
       if (result.applied) {
         paymentState = 'success'
-        paymentMessage = 'Подписка обновлена и уже готова к работе.'
+        paymentMessage = addonsOpen ? 'Докупка активирована и уже доступна.' : 'Подписка обновлена и уже готова к работе.'
         clearInterval(paymentPoll)
         clearPendingPayment()
         haptic('success')
@@ -607,6 +611,24 @@
     paymentConfirmationUrl = ''
     paymentState = 'idle'
     paymentMessage = ''
+  }
+
+  async function buyAddon(kind, units) {
+    if (addonBusy) return
+    addonBusy = `${kind}:${units}`
+    paymentMessage = ''
+    try {
+      const result = await createAddonPayment(kind, units)
+      paymentOrderId = result.order_id
+      paymentConfirmationUrl = result.confirmation_url
+      paymentState = 'awaiting'
+      savePendingPayment()
+      openPayment(result.confirmation_url)
+      paymentMessage = 'Ожидаем подтверждение банка. После оплаты докупка применится автоматически.'
+      startPaymentPolling()
+    } catch (_) {
+      paymentMessage = 'Не удалось создать платёж. Попробуйте ещё раз.'
+    } finally { addonBusy = '' }
   }
 
   function purchaseAction() {
@@ -703,7 +725,7 @@
   }
 
   function setCustomDevices(value) {
-    customDevices = Math.min(10, Math.max(1, Number(value)))
+    customDevices = Math.min(15, Math.max(1, Number(value)))
     clearCustomQuote()
   }
 
@@ -720,17 +742,22 @@
     if (!prices.economy || !prices.standard || !prices.family) return 0
     const standardDelta = prices.standard - prices.economy
     const familyDelta = prices.family - prices.economy
-    const gbRate = (8 * standardDelta - familyDelta) / 245
-    const deviceRate = standardDelta - 45 * gbRate
-    if (gbRate < 0 || deviceRate < 0) return 0
-    const basePrice = Math.max(1, Math.round(prices.economy + (Number(devices) - 2) * deviceRate + Number(lteGb) * gbRate))
+    const deviceRate = standardDelta / 5
+    const firstBypassRate = (standardDelta - deviceRate) / 45
+    const upperBypassRate = (familyDelta - 6 * deviceRate - 45 * firstBypassRate) / 70
+    if (firstBypassRate < 0 || upperBypassRate < deviceRate / 40) return 0
+    const bypassPart = Math.min(Number(lteGb), 45) * firstBypassRate + Math.max(0, Number(lteGb) - 45) * upperBypassRate
+    const basePrice = Math.max(1, Math.round(prices.economy + (Number(devices) - 2) * deviceRate + bypassPart))
     const anchor = Number(devices) === 2 && Number(lteGb) === 0 ? 'economy'
       : Number(devices) === 3 && Number(lteGb) === 45 ? 'standard'
-      : Number(devices) === 10 && Number(lteGb) === 115 ? 'family'
+      : Number(devices) === 8 && Number(lteGb) === 115 ? 'family'
       : ''
     if (anchor) return prices[anchor]
-    const customPrice = Math.ceil(basePrice * 1.08)
-    return Number(lteGb) > 0 ? Math.max(customPrice, 100 * Number(months)) : customPrice
+    let customPrice = Math.ceil(basePrice * 1.08)
+    if (Number(lteGb) > 0) customPrice = Math.max(customPrice, 100 * Number(months))
+    if (Number(devices) <= 3 && Number(lteGb) <= 45) customPrice = Math.min(customPrice, prices.standard - 1)
+    if (Number(devices) <= 8 && Number(lteGb) <= 115) customPrice = Math.min(customPrice, prices.family - 1)
+    return customPrice
   }
 
   function choosePlan(id) {
@@ -901,7 +928,7 @@
 
   function productDescription(plan) {
     if (plan?.product_code === 'economy') return 'Основной трафик: безлимит · Обход глушилок: нет · 2 устройства'
-    if (plan?.product_code === 'family') return 'Основной трафик: безлимит · Обход глушилок: 115 ГБ · до 10 устройств'
+    if (plan?.product_code === 'family') return 'Основной трафик: безлимит · Обход глушилок: 115 ГБ · до 8 устройств'
     return 'Основной трафик: безлимит · Обход глушилок: 45 ГБ · 3 устройства'
   }
 
@@ -923,11 +950,13 @@
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
     const requestedScreen = pageUrl.searchParams.get('screen')
+    if (requestedScreen === 'addons') addonsOpen = true
     if (requestedScreen === 'devices' || requestedScreen === 'billing' || requestedScreen === 'email') {
       active = 'settings'
       openSettingsPage(requestedScreen)
     } else if (requestedScreen === 'custom-tariff') {
-      purchaseOpen = true
+      if (requestedScreen === 'addons') addonsOpen = true
+      else purchaseOpen = true
       purchaseCustom = true
     }
     let saved = null
@@ -961,7 +990,7 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
-  {#if !purchaseOpen && (supportChatOpen || settingsPage !== 'main')}
+  {#if !purchaseOpen && !addonsOpen && (supportChatOpen || settingsPage !== 'main')}
     <button class="desktop-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
       <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
     </button>
@@ -969,7 +998,19 @@
 
   {#key active}
     <main in:fly={{ y: 14, duration: 260, easing: cubicOut }} out:fade={{ duration: 90 }}>
-      {#if purchaseOpen}
+      {#if addonsOpen}
+        <section class="screen purchase-screen addons-screen" aria-label="Докупка">
+          <button class="purchase-back" aria-label="Назад" on:click={() => addonsOpen=false}><ArcIcon name="back" size={20} weight="bold" /><span>Назад</span></button>
+          <header class="purchase-head"><div><h1>Докупка</h1><span>Добавьте трафик обхода на текущий период или ещё одно устройство.</span></div></header>
+          <section class="addon-block"><h2>Трафик на обход глушилок</h2><div class="addon-grid">
+            {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
+              <button disabled={Boolean(addonBusy)} on:click={() => buyAddon('lte', pack[0])}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
+            {/each}
+          </div></section>
+          <section class="addon-block"><h2>Устройства</h2><button class="device-addon" disabled={Boolean(addonBusy)} on:click={() => buyAddon('device', 1)}><span><b>+1 устройство</b><small>До конца текущей подписки</small></span><strong>25 ₽</strong></button></section>
+          {#if paymentMessage}<p class="purchase-error" role="status">{paymentMessage}</p>{/if}
+        </section>
+      {:else if purchaseOpen}
         <section class="screen purchase-screen" aria-label="Покупка подписки">
           <button class="purchase-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
             <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
@@ -990,8 +1031,8 @@
                 <header><span>Количество устройств</span><strong>{customDevices}</strong></header>
                 <div class="device-stepper">
                   <button aria-label="Уменьшить количество устройств" disabled={customDevices<=1} on:click={() => setCustomDevices(Number(customDevices)-1)}>−</button>
-                  <input aria-label="Количество устройств" type="range" min="1" max="10" step="1" bind:value={customDevices} on:change={() => setCustomDevices(customDevices)} />
-                  <button aria-label="Увеличить количество устройств" disabled={customDevices>=10} on:click={() => setCustomDevices(Number(customDevices)+1)}>+</button>
+                  <input aria-label="Количество устройств" type="range" min="1" max="15" step="1" bind:value={customDevices} on:change={() => setCustomDevices(customDevices)} />
+                  <button aria-label="Увеличить количество устройств" disabled={customDevices>=15} on:click={() => setCustomDevices(Number(customDevices)+1)}>+</button>
                 </div>
                 <small>Одновременно можно подключить до {customDevices} {customDevices === 1 ? 'устройства' : 'устройств'}.</small>
               </div>
@@ -1194,6 +1235,7 @@
           <div class="actions">
             <button class="primary" on:click={openPurchase}><ArcIcon name="wallet" size={20} weight="duotone" />{primary?.is_active ? 'Продлить подписку' : 'Оформить подписку'}</button>
             <button class="secondary" on:click={openConnect}><ArcIcon name="download" size={20} weight="bold" />Подключить VPN</button>
+            {#if primary?.is_active}<button class="secondary addon-open" on:click={() => { addonsOpen=true; window.scrollTo({top:0,behavior:'instant'}) }}><ArcIcon name="wallet" size={20} weight="duotone" />Докупить трафик или устройство</button>{/if}
           </div>
 
           {#if account?.identity_source === 'email' && account?.paid_trial_offer === 'available' && !primary?.is_active && paidTrialDismissed}
@@ -1451,7 +1493,7 @@
     </div>
   {/if}
 
-  {#if $status.loaded && $status.error !== 'unauthorized' && !purchaseOpen && !connectOpen}<div class="dock">
+  {#if $status.loaded && $status.error !== 'unauthorized' && !purchaseOpen && !addonsOpen && !connectOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
       <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
     </div>
@@ -1840,6 +1882,7 @@
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
   .plan-summary{grid-template-columns:1fr}.plan-summary p{max-width:620px}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
   .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-quote{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border:1px solid rgba(117,204,249,.28);border-radius:22px;background:linear-gradient(135deg,rgba(29,77,103,.68),rgba(10,22,34,.92));color:#f6fbff}.custom-quote>span,.custom-quote>strong{display:flex;flex-direction:column;gap:4px}.custom-quote>span{font-size:12px;font-weight:900}.custom-quote>strong{align-items:flex-end;font-size:24px;letter-spacing:-.04em}.custom-quote del{color:#7790a3;font-size:11px;font-weight:750;letter-spacing:0}.custom-quote small{color:#96aabc;font-size:8px;font-weight:700;letter-spacing:0}.custom-quote .custom-saving{color:#87d9ac;font-size:9px}
+  .addons-screen{gap:18px}.addon-block{padding:18px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.addon-block h2{margin:0 0 14px;font-size:15px}.addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.addon-grid button,.device-addon{min-height:58px;border:1px solid rgba(123,203,247,.25);border-radius:16px;color:#eef8ff;background:#102131;font:inherit}.addon-grid button{display:flex;align-items:center;justify-content:space-between;padding:0 15px}.addon-grid b,.device-addon b{font-size:13px}.addon-grid span,.device-addon strong{color:#91d9ff;font-weight:900}.device-addon{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 16px}.device-addon span{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.device-addon small{color:#8298ab;font-size:9px}.addon-grid button:disabled,.device-addon:disabled{opacity:.55}
   .config-copy h2 { max-width: 520px; margin: 0; font-size: 18px; line-height: 1.25; letter-spacing: -.025em; }
   .config-copy p { max-width: 620px; margin: 10px 0 0; color: #c0ceda; font-size: 12px; font-weight:650; line-height: 1.55; }
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }

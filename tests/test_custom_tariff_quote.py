@@ -28,7 +28,7 @@ def test_custom_quote_reproduces_catalog_anchors(months, index):
     for devices, lte, prices in (
         (2, 0, [93, 259, 499, 931]),
         (3, 45, [145, 399, 759, 1469]),
-        (10, 115, [345, 939, 1789, 3389]),
+        (8, 115, [345, 939, 1789, 3389]),
     ):
         quote = api._custom_tariff_quote(selected, devices, lte, CATALOG)
         expected_base = prices[index]
@@ -52,7 +52,18 @@ def test_custom_quote_is_monotonic_for_supported_choices():
     assert 0 < base < more_devices < more_bypass
 
 
-@pytest.mark.parametrize("devices,lte", [(0, 45), (11, 45), (3, 10), (3, 999)])
+@pytest.mark.parametrize("months", [1, 3, 6, 12])
+def test_custom_quote_matrix_has_no_price_inversions(months):
+    lte_choices = [0, 15, 30, 45, 75, 115]
+    for devices in range(1, 16):
+        prices = [api._custom_tariff_quote({"period_months": months}, devices, gb, CATALOG)["price_rub"] for gb in lte_choices]
+        assert prices == sorted(prices)
+    for lte in lte_choices:
+        prices = [api._custom_tariff_quote({"period_months": months}, devices, lte, CATALOG)["price_rub"] for devices in range(1, 16)]
+        assert prices == sorted(prices)
+
+
+@pytest.mark.parametrize("devices,lte", [(0, 45), (16, 45), (3, 10), (3, 999)])
 def test_custom_quote_rejects_values_outside_the_product_choices(devices, lte):
     with pytest.raises(ValueError, match="invalid_custom_entitlements"):
         api._custom_tariff_quote({"period_months": 3}, devices, lte, CATALOG)
@@ -92,3 +103,25 @@ def test_custom_payment_uses_server_quote_and_persists_entitlements():
     assert response.get_json()["base_amount_rub"] == 399
     assert response.get_json()["custom"] is True
     entitlements.assert_called_once_with("custom-order", 3, 45)
+
+
+def test_addon_payment_uses_server_price_table():
+    async def create_payment(**kwargs):
+        assert kwargs["amount_rub"] == 35
+        return {"yookassa_payment_id": "provider-addon", "qr_url": "https://pay.example", "status": "pending"}
+
+    def run(coro, timeout=None):
+        return asyncio.run(coro)
+
+    with patch.object(api, "_webapp_telegram_id", return_value=123), patch.object(
+        api, "get_user_internal_id", return_value=5
+    ), patch.object(api, "get_user_keys_for_display", return_value=[{"id": 9, "is_active": True}]), patch.object(
+        api, "prepare_payment_order", return_value={"order_id": "addon-order"}
+    ) as prepare, patch.object(api, "set_payment_addon", return_value=True) as addon, patch.object(
+        api, "create_yookassa_qr_payment", create_payment
+    ), patch.object(api.ASYNC_EXECUTOR, "run", side_effect=run), patch.object(api, "save_yookassa_payment_id"):
+        response = api.app.test_client().post("/api/payments/sbp", json={"addon": {"kind": "lte", "units": 15}})
+    assert response.status_code == 200
+    assert response.get_json()["amount_rub"] == 35
+    prepare.assert_called_once()
+    addon.assert_called_once_with("addon-order", "lte", 15)

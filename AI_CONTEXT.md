@@ -966,22 +966,23 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   `device_limit` (default 2), `lte_quota_gb` (default 20), `lte_used_bytes`, а
   также поля запрошенных add-ons в `payments`. API `/api/devices` возвращает
   эти лимиты, а subscription device gate читает `device_limit` пользователя.
-  Покупки add-ons пока по-прежнему нельзя принимать до идемпотентного
-  fulfillment и синхронизации `limitIp` на панели.
-- Владелец утвердил модель трафика: `500 ГБ` на месяц, обычный трафик `×1`,
-  inbound обхода глушилок LTE `×10`. Миграция v31 хранит сырой normal/LTE usage
+  Миграция v61 добавляет бонус обхода на текущий цикл и метаданные add-on
+  платежа. Покупки add-ons применяются идемпотентно: пакеты обхода 5/15/30/45/
+  75/115 ГБ стоят 20/35/60/90/175/290 ₽, дополнительное устройство — 25 ₽.
+  Изменение синхронизируется с изолированным LTE identity или `limitIp` основного
+  ключа; при новом цикле временный бонус обхода сбрасывается.
+- Владелец утвердил раздельную модель трафика: обычный трафик безлимитный,
+  а XHTTP CDN обход расходуется `×1`. Миграция v31 хранит сырой normal/LTE usage
   и границы месячного цикла. Не переключать существующие 1024 ГБ до появления
   проверенного раздельного meter по inbound.
 - На поздних этапах обязательно напомнить владельцу: SMTP; юридические
   реквизиты/email; возможные ручные действия YooKassa webhook/чеков;
   утверждение визуального направления картинок; запрос Happ о device ID/модели.
-- WebApp add-ons: сервер является источником цены (`+25 ₽/устройство/месяц`,
-  `+2 ₽/ГБ LTE/месяц`, шаг LTE 5 ГБ), сохраняет requested limits в payment и
-  применяет их один раз после статуса paid. Старые bot-заказы без requested
-  значений не сбрасывают entitlement. `push_key_to_panel()` передаёт
-  персональный `device_limit` как `limitIp`; новый клиент создаётся с ним сразу.
-  LTE entitlement продаётся и хранится, но физическое weighted-списание нельзя
-  включать до готовности раздельного meter.
+- WebApp/site и бот ведут в единый экран докупки трафика обхода или одного
+  устройства. Сервер не доверяет цене клиента, сохраняет тип/объём add-on в
+  payment и применяет его один раз после статуса paid. Старые заказы без add-on
+  метаданных entitlement не меняют. `push_key_to_panel()` передаёт персональный
+  `device_limit` как `limitIp`; новый клиент создаётся с ним сразу.
 - YooKassa webhook endpoint: `POST /api/payments/yookassa/webhook`. Нельзя
   доверять входящему `object.status`: endpoint находит order по provider ID и
   повторно вызывает YooKassa API, затем идемпотентно выполняет fulfillment.
@@ -1233,11 +1234,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 
 ## Payment UI and Remnawave colocation (2026-08-11)
 
-- The subscription purchase screen presents the approved unified 500 GB quota.
-  Do not expose the legacy 20 GB LTE add-on as a purchasable product: LTE usage
-  is already part of the unified quota with the x10 weight. Generic traffic
-  add-ons remain visibly unavailable until their billing and quota application
-  are implemented end to end.
+- Subscription products use unlimited main traffic and a separate bypass quota.
+  Bypass traffic is charged at x1. The deployed add-on contract is 5/15/30/45/
+  75/115 GB for 20/35/60/90/175/290 RUB and one extra device for 25 RUB.
+  Add-ons require an active subscription and are server-priced and idempotent.
 - Payment selection uses one consistent circular checked-state marker, while
   promo code and recurring-payment rows retain readable contrast on the dark
   ArcVPN surface. In Telegram payment keyboards, SBP is the primary/accented

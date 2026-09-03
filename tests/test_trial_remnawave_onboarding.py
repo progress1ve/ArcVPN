@@ -102,4 +102,5 @@ def test_tariff_catalog_always_contains_structured_products():
     assert "78 ₽/мес" in text
     assert "122 ₽/мес" in text
     assert "45 ГБ LTE" in text
-    assert "115 ГБ LTE" in text
+    assert "115 ГБ обхода" in text
+    assert "8 устройств" in text

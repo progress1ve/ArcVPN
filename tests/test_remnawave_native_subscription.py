@@ -317,3 +317,17 @@ def test_native_reality_link_replaces_chrome_fingerprint():
     params = urllib.parse.parse_qs(urllib.parse.urlsplit(normalized).query)
 
     assert params["fp"] == ["firefox"]
+
+
+def test_exhausted_bypass_keeps_two_visible_placeholders(monkeypatch):
+    links = "vless://00000000-0000-4000-8000-000000000002@example.com:443?security=reality#Estonia"
+    monkeypatch.setattr(api, "get_user_entitlements", lambda _telegram_id: {
+        "lte_base_quota_gb": 45, "lte_quota_gb": 45, "lte_remaining_bytes": 0,
+    })
+    prepared = api._prepare_subscription(_key(), links, "json")
+    profiles = json.loads(prepared.body)
+    notices = [profile["remarks"] for profile in profiles if (profile.get("meta") or {}).get("arcvpnAccessState") == "lte_exhausted"]
+    assert notices == [
+        "у вас закончился трафик на обход глушилок",
+        "докупите трафик в боте или на сайте",
+    ]

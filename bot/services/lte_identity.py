@@ -19,6 +19,7 @@ async def provision_lte_identity(
     expires_at: datetime,
     quota_gb: int,
     device_limit: int,
+    persist_base_quota: bool = True,
 ) -> dict:
     """Create/update one LTE identity without touching the stable main UUID."""
     payload = await client._request("GET", "/api/internal-squads")
@@ -58,11 +59,12 @@ async def provision_lte_identity(
 
     with get_db() as conn:
         conn.execute(
-            """UPDATE users SET lte_quota_gb=?,lte_used_bytes=CASE WHEN ? THEN 0 ELSE lte_used_bytes END,
+            """UPDATE users SET lte_quota_gb=CASE WHEN ? THEN ? ELSE lte_quota_gb END,
+                      lte_used_bytes=CASE WHEN ? THEN 0 ELSE lte_used_bytes END,
                       lte_client_uuid=?,lte_panel_username=?,lte_remnawave_user_id=?
                  WHERE id=?""",
             (
-                max(0, int(quota_gb)), int(created), lte_uuid, username,
+                int(persist_base_quota), max(0, int(quota_gb)), int(created), lte_uuid, username,
                 str((verified or {}).get("id") or ""), int(user["id"]),
             ),
         )

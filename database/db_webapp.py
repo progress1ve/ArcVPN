@@ -255,9 +255,12 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
     """Return persisted commercial limits with backwards-compatible defaults."""
     refresh_lte_cycle(telegram_id)
     with get_db() as conn:
+        columns = {column["name"] for column in conn.execute("PRAGMA table_info(users)")}
+        bonus_expr = "COALESCE(lte_cycle_bonus_gb, 0)" if "lte_cycle_bonus_gb" in columns else "0"
         row = conn.execute(
-            """SELECT COALESCE(device_limit, 2) device_limit,
+            f"""SELECT COALESCE(device_limit, 2) device_limit,
                       COALESCE(lte_quota_gb, 0) lte_quota_gb,
+                      {bonus_expr} lte_cycle_bonus_gb,
                       COALESCE(lte_used_bytes, 0) lte_used_bytes,
                       COALESCE(traffic_monthly_limit_gb, 500) traffic_monthly_limit_gb,
                       COALESCE(normal_used_bytes, 0) normal_used_bytes,
@@ -278,9 +281,12 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
             }
         normal_used = max(0, int(row["normal_used_bytes"] or 0))
         lte_used = max(0, int(row["lte_used_bytes"] or 0))
+        effective_lte_quota = max(0, int(row["lte_quota_gb"] or 0)) + max(0, int(row["lte_cycle_bonus_gb"] or 0))
         return {
             "device_limit": max(2, int(row["device_limit"] or 2)),
-            "lte_quota_gb": max(0, int(row["lte_quota_gb"] or 0)),
+            "lte_quota_gb": effective_lte_quota,
+            "lte_base_quota_gb": max(0, int(row["lte_quota_gb"] or 0)),
+            "lte_cycle_bonus_gb": max(0, int(row["lte_cycle_bonus_gb"] or 0)),
             "lte_used_bytes": lte_used,
             "traffic_monthly_limit_gb": max(
                 0,
@@ -291,23 +297,66 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
             "lte_cycle_started_at": row["lte_cycle_started_at"],
             "lte_cycle_reset_at": row["lte_cycle_reset_at"],
             "lte_remaining_bytes": max(
-                0, max(0, int(row["lte_quota_gb"] or 0)) * 1024**3 - lte_used
+                0, effective_lte_quota * 1024**3 - lte_used
             ),
         }
 
 
 def get_user_entitlements_by_id(user_id: int) -> Dict[str, int]:
     with get_db() as conn:
+        columns = {column["name"] for column in conn.execute("PRAGMA table_info(users)")}
+        bonus_expr = "COALESCE(lte_cycle_bonus_gb, 0)" if "lte_cycle_bonus_gb" in columns else "0"
         row = conn.execute(
-            """SELECT COALESCE(device_limit, 2) device_limit,
-                      COALESCE(lte_quota_gb, 0) lte_quota_gb
+            f"""SELECT COALESCE(device_limit, 2) device_limit,
+                      COALESCE(lte_quota_gb, 0) lte_quota_gb,
+                      {bonus_expr} lte_cycle_bonus_gb
                FROM users WHERE id = ?""",
             (user_id,),
         ).fetchone()
         return {
             "device_limit": max(2, int(row["device_limit"] or 2)) if row else 2,
-            "lte_quota_gb": max(0, int(row["lte_quota_gb"] or 0)) if row else 0,
+            "lte_quota_gb": (max(0, int(row["lte_quota_gb"] or 0)) + max(0, int(row["lte_cycle_bonus_gb"] or 0))) if row else 0,
+            "lte_base_quota_gb": max(0, int(row["lte_quota_gb"] or 0)) if row else 0,
+            "lte_cycle_bonus_gb": max(0, int(row["lte_cycle_bonus_gb"] or 0)) if row else 0,
         }
+
+
+def set_payment_addon(order_id: str, kind: str, units: int) -> bool:
+    if kind not in {"lte", "device"} or int(units) <= 0:
+        return False
+    with get_db() as conn:
+        cur = conn.execute(
+            "UPDATE payments SET addon_kind=?, addon_units=? WHERE order_id=? AND status='pending'",
+            (kind, int(units), order_id),
+        )
+        return cur.rowcount == 1
+
+
+def apply_payment_addon(order_id: str) -> Optional[Dict[str, int]]:
+    """Apply a paid add-on once; panel synchronization is handled by billing."""
+    with get_db() as conn:
+        order = conn.execute(
+            """SELECT user_id,status,addon_kind,addon_units,addons_applied_at
+               FROM payments WHERE order_id=?""", (order_id,),
+        ).fetchone()
+        if not order or order["status"] != "paid" or order["addon_kind"] not in {"lte", "device"}:
+            return None
+        if not order["addons_applied_at"]:
+            column = "lte_cycle_bonus_gb" if order["addon_kind"] == "lte" else "device_limit"
+            conn.execute(
+                f"UPDATE users SET {column}=COALESCE({column},0)+?, entitlements_updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (int(order["addon_units"]), int(order["user_id"])),
+            )
+            if order["addon_kind"] == "lte":
+                conn.execute("UPDATE users SET lte_notified_pct=100 WHERE id=?", (int(order["user_id"]),))
+            conn.execute("UPDATE payments SET addons_applied_at=CURRENT_TIMESTAMP WHERE order_id=?", (order_id,))
+        current = conn.execute(
+            """SELECT COALESCE(device_limit,2) device_limit,
+                      COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) lte_quota_gb,
+                      COALESCE(lte_quota_gb,0) lte_base_quota_gb
+               FROM users WHERE id=?""", (int(order["user_id"]),),
+        ).fetchone()
+        return {"device_limit": int(current["device_limit"]), "lte_quota_gb": int(current["lte_quota_gb"])}
 
 
 def set_payment_requested_entitlements(
@@ -392,6 +441,7 @@ def refresh_lte_cycle(telegram_id: int) -> Dict[str, int]:
     """Return LTE counters; authoritative cycle resets run in the scheduler."""
     with get_db() as conn:
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        bonus_expr = "COALESCE(lte_cycle_bonus_gb,0)" if "lte_cycle_bonus_gb" in columns else "0"
         if "traffic_cycle_anchor_at" not in columns:
             # Compatibility for pre-v57/test databases only. Production v57
             # never advances locally before the Remnawave acknowledgement.
@@ -403,7 +453,7 @@ def refresh_lte_cycle(telegram_id: int) -> Dict[str, int]:
                 (telegram_id,),
             )
         row = conn.execute(
-            """SELECT COALESCE(lte_quota_gb,0) quota,
+            f"""SELECT COALESCE(lte_quota_gb,0)+{bonus_expr} quota,
                       COALESCE(lte_used_bytes,0) used,
                       lte_cycle_reset_at reset_at
                FROM users WHERE telegram_id=?""",
@@ -452,7 +502,7 @@ def get_lte_identity(telegram_id: int) -> Optional[Dict[str, Any]]:
         row = conn.execute(
             """SELECT id user_id, telegram_id, lte_client_uuid,
                       lte_panel_username, lte_remnawave_user_id,
-                      COALESCE(lte_quota_gb,0) lte_quota_gb,
+                      COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) lte_quota_gb,
                       COALESCE(lte_used_bytes,0) lte_used_bytes
                FROM users WHERE telegram_id=?""",
             (telegram_id,),
@@ -567,7 +617,8 @@ def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:
         row = conn.execute(
             """SELECT id user_id, telegram_id, lte_client_uuid,
                       lte_panel_username, lte_remnawave_user_id,
-                      COALESCE(lte_quota_gb,0) lte_quota_gb
+                      COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) lte_quota_gb,
+                      COALESCE(lte_quota_gb,0) lte_base_quota_gb
                FROM users WHERE id=?""", (user_id,),
         ).fetchone()
         return dict(row) if row else None
@@ -577,7 +628,7 @@ def list_lte_identities() -> list[Dict[str, Any]]:
     with get_db() as conn:
         return [dict(row) for row in conn.execute(
             """SELECT id user_id, telegram_id, lte_panel_username,
-                      lte_client_uuid, COALESCE(lte_quota_gb,0) lte_quota_gb
+                      lte_client_uuid, COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) lte_quota_gb
                FROM users WHERE lte_panel_username IS NOT NULL
                  AND lte_client_uuid IS NOT NULL"""
         ).fetchall()]

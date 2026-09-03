@@ -1,6 +1,6 @@
 import sqlite3
 
-from database.migrations import migration_55
+from database.migrations import migration_55, migration_61
 
 
 def _schema() -> sqlite3.Connection:
@@ -145,3 +145,60 @@ def test_paid_order_applies_product_entitlements(tmp_path, monkeypatch):
     assert row[:4] == (10, 115, 0, 0)
     assert row[4] is not None
     conn.close()
+
+
+def test_cycle_scoped_lte_addon_is_idempotent(tmp_path, monkeypatch):
+    from database import connection
+    from database.db_webapp import apply_payment_addon
+
+    db_path = tmp_path / "addon.sqlite"
+    monkeypatch.setattr(connection, "DB_PATH", db_path)
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY, device_limit INTEGER, lte_quota_gb INTEGER,
+            lte_cycle_bonus_gb INTEGER DEFAULT 0, lte_notified_pct INTEGER DEFAULT 100,
+            entitlements_updated_at DATETIME
+        );
+        CREATE TABLE payments (
+            order_id TEXT PRIMARY KEY, user_id INTEGER, status TEXT,
+            addon_kind TEXT, addon_units INTEGER, addons_applied_at DATETIME
+        );
+        INSERT INTO users VALUES (1,3,45,0,0,NULL);
+        INSERT INTO payments VALUES ('addon-15',1,'paid','lte',15,NULL);
+    """)
+    conn.close()
+
+    assert apply_payment_addon("addon-15") == {"device_limit": 3, "lte_quota_gb": 60}
+    assert apply_payment_addon("addon-15") == {"device_limit": 3, "lte_quota_gb": 60}
+    conn = sqlite3.connect(db_path)
+    assert conn.execute("SELECT lte_quota_gb,lte_cycle_bonus_gb,lte_notified_pct FROM users").fetchone() == (45, 15, 100)
+    conn.close()
+
+
+def test_migration_61_changes_family_catalog_without_reducing_users():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE users (id INTEGER PRIMARY KEY, device_limit INTEGER);
+        CREATE TABLE tariffs (id INTEGER PRIMARY KEY, product_code TEXT, device_limit INTEGER);
+        CREATE TABLE payments (id INTEGER PRIMARY KEY);
+        INSERT INTO users VALUES (1,10);
+        INSERT INTO tariffs VALUES (1,'family',10);
+    """)
+    migration_61(conn)
+    migration_61(conn)
+    assert conn.execute("SELECT device_limit FROM tariffs").fetchone()[0] == 8
+    assert conn.execute("SELECT device_limit FROM users").fetchone()[0] == 10
+    conn.close()
+
+
+def test_lte_notifications_only_use_ten_percent_and_zero():
+    from bot.services.scheduler import _lte_notification_threshold
+
+    quota = 100 * 1024**3
+    assert _lte_notification_threshold(89 * 1024**3, quota) is None
+    assert _lte_notification_threshold(90 * 1024**3, quota) == 10
+    assert _lte_notification_threshold(99 * 1024**3, quota) == 10
+    assert _lte_notification_threshold(100 * 1024**3, quota) == 0
+    assert _lte_notification_threshold(110 * 1024**3, quota) == 0

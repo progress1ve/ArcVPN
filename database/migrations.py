@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 60
+LATEST_VERSION = 61
 
 
 def get_current_version() -> int:
@@ -2385,6 +2385,17 @@ def migration_60(conn: sqlite3.Connection) -> None:
     logger.info("Migration v60 applied")
 
 
+def migration_61(conn: sqlite3.Connection) -> None:
+    """Cycle-scoped bypass add-ons, alerts, and idempotent add-on orders."""
+    _add_column(conn, "users", "lte_cycle_bonus_gb INTEGER NOT NULL DEFAULT 0")
+    _add_column(conn, "users", "lte_notified_pct INTEGER NOT NULL DEFAULT 100")
+    _add_column(conn, "payments", "addon_kind TEXT")
+    _add_column(conn, "payments", "addon_units INTEGER")
+    conn.execute("""UPDATE tariffs SET device_limit=8
+        WHERE product_code='family' AND COALESCE(device_limit,10)=10""")
+    logger.info("Migration v61 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2446,6 +2457,7 @@ MIGRATIONS = {
     58: migration_58,
     59: migration_59,
     60: migration_60,
+    61: migration_61,
 }
 
 

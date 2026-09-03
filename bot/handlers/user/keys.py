@@ -135,6 +135,10 @@ async def show_my_keys(
             text="📲 Импортировать подписку",
             callback_data="show_subscription",
         ))
+        builder.row(InlineKeyboardButton(
+            text="➕ Докупить трафик или устройство",
+            web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app/?screen=addons"),
+        ))
     builder.row(InlineKeyboardButton(
         text="⚡ Продлить подписку",
         callback_data=f"key_renew:{primary['id']}",

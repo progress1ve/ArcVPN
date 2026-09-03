@@ -126,10 +126,11 @@ Updated: 2026-09-01. This file is current state, not a diary.
 
 - Custom tariff purchase/renewal and compact connection artwork are deployed
   through `4cd3f45` (`eeed783` pricing base). Site and Telegram WebApp expose `Создать свой тариф` below the
-  fixed product selector; the dedicated builder offers 1-10 devices, 0/15/30/45/
+  fixed product selector; the dedicated builder offers 1-15 devices, 0/15/30/45/
   75/115 GB bypass allowance and 1/3/6/12 months. Server pricing is derived from
   the live Economy/Standard/Family anchors per period. Exact Economy, Standard
-  and Family entitlement matches keep the catalog price; other combinations use
+  and Family entitlement matches keep the catalog price (Family is 8 devices /
+  115 GB bypass); other combinations use
   an internal flexibility premium, and any custom option with bypass traffic has
   a 100 RUB-per-purchased-month floor. Thus 1 device/15 GB/3 months is 300 RUB
   and Standard 3/45/3 months is 399 RUB. No markup wording is customer-visible.
@@ -323,6 +324,16 @@ Updated: 2026-09-01. This file is current state, not a diary.
 - Node configuration facts live in `.codex/references/node-config-contract.md`.
 - Non-secret server topology lives in `.codex/server-inventory.toml`; active Poland/Germany/Netherlands credentials are local DPAPI entries managed by `scripts/ops/server-vault.ps1`.
 - Use `$arcvpn-node-ops` for node, Remnawave, Reality, Hysteria2, LTE/XHTTP, CDN, DNS, or certificate work.
+
+## Current stage: bypass quota add-ons
+
+The current 2026-09-03 stage implements cycle-scoped bypass/device add-ons,
+two explicit exhausted-bypass placeholder profiles, LTE alerts only at 10% and
+0%, Family at 8 devices, custom plans up to 15 devices, monotonic anchor-based
+pricing, and an admin bypass-counter reset. Local evidence is `170 passed`, a
+successful Vite production build, diff checks, and browser acceptance of the
+add-on screen and Back behavior. Production rollout and v61 verification remain
+pending until recorded in `.codex/stages/current.md`.
 
 ## Next recommended stage
 

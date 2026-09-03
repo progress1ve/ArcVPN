@@ -92,7 +92,7 @@ const MOCK = {
   tariffs: {
     ok: true,
     tariffs: [
-      ...[['economy','Эконом',500,0,2,[93,259,499,931]],['standard','Стандарт',1024,45,3,[145,399,759,1469]],['family','Семейный',0,115,10,[345,939,1789,3389]]]
+      ...[['economy','Эконом',500,0,2,[93,259,499,931]],['standard','Стандарт',1024,45,3,[145,399,759,1469]],['family','Семейный',0,115,8,[345,939,1789,3389]]]
         .flatMap(([product_code,label,traffic_limit_gb,lte_quota_gb,device_limit,prices], familyIndex) => [1,3,6,12].map((period_months,index) => ({ id: familyIndex*4+index+1, name: `${label} · ${period_months} мес.`, product_code, period_months, duration_days: period_months===12?365:period_months*30, price_rub: prices[index], price_stars: 0, traffic_limit_gb, lte_quota_gb, device_limit, lte_cycle_days: 30 }))),
     ],
   },
@@ -396,6 +396,8 @@ export const createSbpPayment = (tariffId, devices = 2, lteGb = 0, promocode = '
   post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew, custom })
 export const createCardPayment = (tariffId, devices = 2, lteGb = 0, promocode = '', autoRenew = true, custom = false) =>
   post('/api/payments/card', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew, custom })
+export const createAddonPayment = (kind, units, method = 'sbp') =>
+  post(`/api/payments/${method === 'card' ? 'card' : 'sbp'}`, { addon: { kind, units } })
 export const createEmailTrialPayment = (method = 'sbp') => post('/api/payments/email-trial', { method })
 export const validatePromocode = async (tariffId, code, devices = null, lteGb = null, custom = false, quotedBase = null) => {
   if (!import.meta.env.DEV) return post('/api/promocodes/validate', { tariff_id: tariffId, code, devices, lte_gb: lteGb, custom })

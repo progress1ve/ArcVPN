@@ -36,7 +36,7 @@ from bot.services.vpn_api import get_client_from_server_data, VPNAPIError, forma
 from bot.services.notifications import send_to_user, notify_admins
 from bot.services.remnawave_stats import get_remnawave_network_stats, remnawave_authority_enabled
 from bot.utils.git_utils import check_for_updates
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 logger = logging.getLogger(__name__)
@@ -915,6 +915,14 @@ async def process_due_traffic_cycle_resets(*, resetter=None, now=None) -> dict:
                 try:
                     if not await lte_client.reset_client_traffic(0, lte["lte_panel_username"]):
                         raise RuntimeError("authoritative LTE reset rejected")
+                    panel_user = await lte_client.get_user(lte["lte_panel_username"])
+                    if not panel_user:
+                        raise RuntimeError("authoritative LTE identity missing after reset")
+                    await lte_client._request("PATCH", "/api/users", json={
+                        "id": panel_user["id"],
+                        "trafficLimitBytes": int(lte.get("lte_base_quota_gb") or 0) * 1024**3,
+                        "status": "ACTIVE" if int(lte.get("lte_base_quota_gb") or 0) > 0 else "DISABLED",
+                    })
                 finally:
                     await lte_client.close()
             if not complete_traffic_cycle_reset(user_id, boundary, completed_at=now):
@@ -927,7 +935,14 @@ async def process_due_traffic_cycle_resets(*, resetter=None, now=None) -> dict:
     return result
 
 
-async def reconcile_lte_usage() -> dict:
+def _lte_notification_threshold(used_bytes: int, quota_bytes: int) -> Optional[int]:
+    if int(quota_bytes) <= 0:
+        return None
+    remaining_pct = max(0, (1 - max(0, int(used_bytes)) / int(quota_bytes)) * 100)
+    return 0 if remaining_pct <= 0 else 10 if remaining_pct <= 10 else None
+
+
+async def reconcile_lte_usage(bot: Optional[Bot] = None) -> dict:
     """Mirror the isolated LTE identities into the account/announce counters."""
     from database.db_webapp import list_lte_identities, set_lte_usage
     from bot.services.remnawave_stats import remnawave_authority_config
@@ -943,7 +958,23 @@ async def reconcile_lte_usage() -> dict:
                 if not user or str(user.get("vlessUuid") or "") != str(identity["lte_client_uuid"]):
                     raise RuntimeError("LTE identity mismatch")
                 used = int((user.get("userTraffic") or {}).get("usedTrafficBytes") or 0)
-                set_lte_usage(int(identity["telegram_id"]), used)
+                state = set_lte_usage(int(identity["telegram_id"]), used)
+                quota_bytes = int(state.get("lte_quota_gb") or 0) * 1024**3
+                threshold = _lte_notification_threshold(used, quota_bytes)
+                if bot is not None and threshold is not None and notification_allowed(int(identity["telegram_id"]), "traffic"):
+                    from database.connection import get_db
+                    with get_db() as conn:
+                        row = conn.execute("SELECT COALESCE(lte_notified_pct,100) value FROM users WHERE id=?", (identity["user_id"],)).fetchone()
+                        last = int(row["value"] if row else 100)
+                    if threshold < last:
+                        builder = InlineKeyboardBuilder()
+                        webapp_url = os.getenv("WEBAPP_URL", getattr(__import__('config'), 'SUBSCRIPTION_URL', '')).rstrip('/')
+                        builder.row(InlineKeyboardButton(text="➕ Докупить ГБ на обход", web_app=WebAppInfo(url=f"{webapp_url}/app/?screen=addons")))
+                        text = ("⛔ <b>Трафик на обходе глушилок закончился.</b>" if threshold == 0
+                                else "⚠️ <b>Осталось 10% трафика на обходе глушилок.</b>")
+                        if await send_to_user(bot, int(identity["telegram_id"]), text, reply_markup=builder.as_markup()):
+                            with get_db() as conn:
+                                conn.execute("UPDATE users SET lte_notified_pct=? WHERE id=?", (threshold, identity["user_id"]))
                 result["updated"] += 1
             except Exception:
                 result["failed"] += 1
@@ -1389,7 +1420,7 @@ async def run_traffic_sync_scheduler(bot: Bot) -> None:
     while True:
         try:
             await process_due_traffic_cycle_resets()
-            await reconcile_lte_usage()
+            await reconcile_lte_usage(bot)
             await sync_traffic_stats(bot)
             
             # Уведомление и счётчик устройств должны быть практически свежими.

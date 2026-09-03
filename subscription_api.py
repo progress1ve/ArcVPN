@@ -87,6 +87,7 @@ from database.requests import (
     get_user_entitlements,
     get_subscription_device_limit,
     set_payment_requested_entitlements,
+    set_payment_addon,
     save_email_code,
     get_email_code,
     increment_email_attempts,
@@ -1658,17 +1659,50 @@ def _prepare_subscription(
     visible_links = _expand_lte_profile_links(_apply_subscription_catalog(
         item for item in link.splitlines() if item.strip()
     ))
+    try:
+        entitlements = get_user_entitlements(key.telegram_id)
+    except sqlite3.OperationalError:
+        # Minimal legacy/test schemas do not carry commercial LTE counters.
+        entitlements = {"lte_quota_gb": 0, "lte_remaining_bytes": 0}
+    bypass_exhausted = (
+        int(entitlements.get("lte_base_quota_gb") or entitlements.get("lte_quota_gb") or 0) > 0
+        and int(entitlements.get("lte_remaining_bytes") or 0) <= 0
+    )
+    exhausted_notices = (
+        "у вас закончился трафик на обход глушилок",
+        "докупите трафик в боте или на сайте",
+    )
+    exhausted_links = [
+        "vless://00000000-0000-4000-8000-0000000000%02d@127.0.0.1:1?encryption=none&security=none&type=tcp#%s"
+        % (index, urllib.parse.quote(notice))
+        for index, notice in enumerate(exhausted_notices, 1)
+    ] if bypass_exhausted else []
 
     if output_format == "json":
+        body = _build_happ_json_subscription(key, "\n".join(visible_links))
+        if bypass_exhausted:
+            profiles = json.loads(body)
+            for index, (notice, notice_link) in enumerate(zip(exhausted_notices, exhausted_links), 1):
+                profiles.append({
+                    "dns": {"queryStrategy": "UseIP", "servers": ["1.1.1.1"]},
+                    "inbounds": _json_local_inbounds(key), "log": {"loglevel": "none"},
+                    "meta": {"arcvpnAccessState": "lte_exhausted", "noticeIndex": index},
+                    "outbounds": [_json_outbound_from_share_link(notice_link, "proxy"),
+                        {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
+                    "remarks": notice,
+                    "routing": {"domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+                        "rules": [{"network": "tcp,udp", "outboundTag": "proxy", "type": "field"}]},
+                })
+            body = json.dumps(profiles, ensure_ascii=False, separators=(",", ":"))
         return PreparedSubscription(
-            body=_build_happ_json_subscription(key, "\n".join(visible_links)),
+            body=body,
             content_type="application/json; charset=utf-8",
             userinfo_header=userinfo_header,
             announce_base64=announce_base64,
         )
 
     plain_text_subscription = _build_plain_text_subscription(
-        "\n".join(visible_links), routing_link, userinfo_header, announce_base64
+        "\n".join([*visible_links, *exhausted_links]), routing_link, userinfo_header, announce_base64
     )
     if output_format == "base64":
         body = base64.b64encode(plain_text_subscription.encode("utf-8")).decode("ascii")
@@ -3313,7 +3347,7 @@ def api_status():
     return _api_no_store(response)
 
 
-CUSTOM_DEVICE_CHOICES = frozenset(range(1, 11))
+CUSTOM_DEVICE_CHOICES = frozenset(range(1, 16))
 CUSTOM_LTE_CHOICES_GB = frozenset({0, 15, 30, 45, 75, 115})
 CUSTOM_PERIOD_CHOICES = frozenset({1, 3, 6, 12})
 CUSTOM_TARIFF_PREMIUM_PERCENT = 8
@@ -3321,8 +3355,11 @@ CUSTOM_BYPASS_MIN_MONTHLY_RUB = 100
 CUSTOM_TARIFF_ANCHORS = {
     (2, 0): "economy",
     (3, 45): "standard",
-    (10, 115): "family",
+    (8, 115): "family",
 }
+
+BYPASS_ADDON_PRICES_RUB = {5: 20, 15: 35, 30: 60, 45: 90, 75: 175, 115: 290}
+DEVICE_ADDON_PRICE_RUB = 25
 
 
 def _custom_tariff_quote(
@@ -3359,11 +3396,13 @@ def _custom_tariff_quote(
     economy = Fraction(anchors["economy"])
     standard_delta = Fraction(anchors["standard"] - anchors["economy"])
     family_delta = Fraction(anchors["family"] - anchors["economy"])
-    gb_rate = (8 * standard_delta - family_delta) / 245
-    device_rate = standard_delta - 45 * gb_rate
-    if gb_rate < 0 or device_rate < 0:
+    device_rate = standard_delta / 5
+    first_bypass_rate = (standard_delta - device_rate) / 45
+    upper_bypass_rate = (family_delta - 6 * device_rate - 45 * first_bypass_rate) / 70
+    if first_bypass_rate < 0 or upper_bypass_rate < device_rate / 40:
         raise ValueError("custom_catalog_invalid")
-    exact = economy + (devices - 2) * device_rate + lte_gb * gb_rate
+    bypass_component = min(lte_gb, 45) * first_bypass_rate + max(0, lte_gb - 45) * upper_bypass_rate
+    exact = economy + (devices - 2) * device_rate + bypass_component
     base_price = max(1, (exact.numerator * 2 + exact.denominator) // (2 * exact.denominator))
     anchor_code = CUSTOM_TARIFF_ANCHORS.get((devices, lte_gb))
     if anchor_code:
@@ -3372,6 +3411,10 @@ def _custom_tariff_quote(
         price = (base_price * (100 + CUSTOM_TARIFF_PREMIUM_PERCENT) + 99) // 100
         if lte_gb > 0:
             price = max(price, CUSTOM_BYPASS_MIN_MONTHLY_RUB * period)
+        if devices <= 3 and lte_gb <= 45:
+            price = min(price, anchors["standard"] - 1)
+        if devices <= 8 and lte_gb <= 115:
+            price = min(price, anchors["family"] - 1)
     return {
         "period_months": period,
         "device_limit": devices,
@@ -3426,6 +3469,43 @@ def api_create_sbp_payment():
     if recurring_requested and not recurring_ready:
         return _api_error("recurring_method_not_enabled", 409)
     wants_recurring = recurring_requested and recurring_ready
+    addon = payload.get("addon") if isinstance(payload.get("addon"), dict) else None
+    if addon:
+        kind = str(addon.get("kind") or "")
+        try:
+            units = int(addon.get("units") or 0)
+        except (TypeError, ValueError):
+            return _api_error("invalid_addon", 400)
+        price_rub = BYPASS_ADDON_PRICES_RUB.get(units) if kind == "lte" else DEVICE_ADDON_PRICE_RUB if kind == "device" and units == 1 else None
+        user_id = get_user_internal_id(telegram_id)
+        keys = get_user_keys_for_display(telegram_id)
+        active_key = next((key for key in keys if key.get("is_active")), None)
+        key_id = active_key.get("id") if active_key else None
+        if not user_id or not key_id or not price_rub:
+            return _api_error("invalid_addon", 400)
+        order = prepare_payment_order(
+            user_id=user_id, tariff_id=None,
+            payment_type="yookassa_card" if method_type == "bank_card" else "yookassa_qr",
+            vpn_key_id=key_id, amount_cents=int(price_rub) * 100,
+            operation_type=f"addon_{kind}",
+        )
+        if not set_payment_addon(order["order_id"], kind, units):
+            return _api_error("payment_initialization_failed", 500)
+        try:
+            payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
+                amount_rub=int(price_rub), order_id=order["order_id"],
+                description=f"ArcVPN — {units} ГБ обхода" if kind == "lte" else "ArcVPN — дополнительное устройство",
+                bot_name=_get_bot_username(), metadata={"telegram_id": str(telegram_id), "source": "webapp-addon"},
+                return_url=f"{WEBAPP_URL}/app/?payment={order['order_id']}&screen=addons",
+                save_payment_method=False, payment_method_type=method_type,
+            ), timeout=45)
+            save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
+        except Exception:
+            logger.exception("Не удалось создать платёж докупки для user=%s", telegram_id)
+            return _api_error("payment_provider_unavailable", 503)
+        return _api_no_store(jsonify({"ok": True, "order_id": order["order_id"],
+            "confirmation_url": payment["qr_url"], "status": payment["status"],
+            "amount_rub": int(price_rub), "addon": {"kind": kind, "units": units}}))
     try:
         tariff_id = int(payload.get("tariff_id"))
         devices = int(payload.get("devices") or 0)
@@ -4669,6 +4749,7 @@ def api_admin_user_subscription(telegram_id: int):
     payload = request.get_json(silent=True) or {}
     action = str(payload.get("action") or "")
     synchronize_panel = False
+    reset_lte_username = ""
     with get_db() as conn:
         row = conn.execute("""SELECT vk.id,vk.expires_at,vk.user_id FROM vpn_keys vk JOIN users u ON u.id=vk.user_id
             WHERE u.telegram_id=? ORDER BY (vk.expires_at>datetime('now')) DESC,vk.expires_at DESC,vk.id DESC LIMIT 1""", (telegram_id,)).fetchone()
@@ -4698,12 +4779,37 @@ def api_admin_user_subscription(telegram_id: int):
             conn.execute("UPDATE vpn_keys SET sub_id=? WHERE id=?", (secrets.token_urlsafe(32), key_id))
             conn.execute("""UPDATE user_devices SET is_active=0,revoked_at=CURRENT_TIMESTAMP,
                 device_sub_id=lower(hex(randomblob(16))) WHERE user_id=?""", (int(row["user_id"]),))
+        elif action == "reset_lte_traffic":
+            lte = conn.execute("SELECT lte_panel_username FROM users WHERE id=?", (int(row["user_id"]),)).fetchone()
+            reset_lte_username = str(lte["lte_panel_username"] or "") if lte else ""
+            if not reset_lte_username:
+                return _api_error("lte_identity_not_found", 404)
+            metadata["counter"] = "lte"
         else:
             return _api_error("invalid_action", 400)
         result = conn.execute("""SELECT vk.*,
             CASE WHEN vk.expires_at>datetime('now') THEN 1 ELSE 0 END AS active
             FROM vpn_keys vk WHERE vk.id=?""", (key_id,)).fetchone()
-    if synchronize_panel:
+    if reset_lte_username:
+        try:
+            runtime = _load_remnawave_runtime_config()
+            client = RemnawaveClient({
+                "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
+                "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
+            })
+            try:
+                panel_synced = ASYNC_EXECUTOR.run(client.reset_client_traffic(0, reset_lte_username), timeout=15)
+            finally:
+                ASYNC_EXECUTOR.run(client.close(), timeout=5)
+            if panel_synced:
+                with get_db() as conn:
+                    conn.execute("UPDATE users SET lte_used_bytes=0,lte_notified_pct=100,lte_usage_synced_at=CURRENT_TIMESTAMP WHERE id=?", (int(row["user_id"]),))
+        except Exception:
+            logger.exception("Admin LTE traffic reset failed")
+            panel_synced = False
+        if not panel_synced:
+            return _api_error("panel_sync_failed", 502)
+    elif synchronize_panel:
         try:
             panel_synced = ASYNC_EXECUTOR.run(
                 disable_key_on_panel(key_id) if action == "disable" else push_key_to_panel(key_id),
@@ -4728,7 +4834,7 @@ def api_admin_user_subscription(telegram_id: int):
         "active": bool(result["active"]), "subscription": dict(result),
         "timeline_event": {"kind": "admin", "at": datetime.now(timezone.utc).isoformat(),
             "title": "Действие администратора", "detail": f"subscription.manage · {action}"},
-        "panel_synced": bool(synchronize_panel),
+        "panel_synced": bool(synchronize_panel or reset_lte_username),
     }))
 
 
@@ -4738,7 +4844,8 @@ def api_admin_user_detail(telegram_id: int):
         return _api_error("admin_forbidden", 403)
     with get_db() as conn:
         user = conn.execute("""SELECT id,telegram_id,username,first_name,created_at,
-            device_limit,COALESCE(lte_quota_gb,0) AS lte_quota_gb,
+            device_limit,COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) AS lte_quota_gb,
+            COALESCE(lte_cycle_bonus_gb,0) AS lte_cycle_bonus_gb,
             COALESCE(lte_used_bytes,0) AS lte_used_bytes,
             COALESCE(enforce_device_tokens,0) AS enforce_device_tokens,
             COALESCE(personal_balance,0)/100.0 AS balance_rub
@@ -4942,7 +5049,7 @@ def api_admin_users():
             (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS expires_at,
             COALESCE((SELECT SUM(COALESCE(vk.traffic_used,0)) FROM vpn_keys vk WHERE vk.user_id=u.id),0) AS main_used_bytes,
             COALESCE(u.lte_used_bytes,0) AS lte_used_bytes,
-            COALESCE(u.lte_quota_gb,0) AS lte_quota_gb,
+            COALESCE(u.lte_quota_gb,0)+COALESCE(u.lte_cycle_bonus_gb,0) AS lte_quota_gb,
             EXISTS(SELECT 1 FROM payments ep WHERE ep.user_id=u.id
               AND ep.offer_code='email_paid_trial' AND ep.status IN ('paid','succeeded')) AS email_paid_trial,
             COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id

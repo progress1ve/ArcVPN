@@ -31,6 +31,7 @@ from database.requests import (
     update_referral_stat, get_user_by_id, update_order_fulfillment,
     infer_order_operation_type, apply_payment_entitlements,
     get_user_entitlements_by_id,
+    apply_payment_addon,
     start_or_preserve_traffic_cycle,
     validate_email_paid_trial_claim, update_email_paid_trial_claim,
 )
@@ -329,6 +330,44 @@ async def _apply_topup_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
     return True, f"✅ Баланс успешно пополнен на {amount_cents // 100} ₽!", _reload_order(order_id)
 
 
+async def _apply_addon_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
+    """Apply and synchronize a current-cycle traffic or device add-on."""
+    entitlements = apply_payment_addon(order_id)
+    if not entitlements:
+        update_order_fulfillment(order_id, 'manual_review', 'failed to apply addon')
+        return True, "✅ Оплата принята. Докупку проверит поддержка.", _reload_order(order_id)
+    try:
+        from bot.services.lte_identity import provision_lte_identity
+        from bot.services.panels.remnawave import RemnawaveClient
+        from bot.services.remnawave_stats import remnawave_authority_config
+        user = get_user_by_id(int(order['user_id']))
+        key = get_vpn_key_by_id(int(order['vpn_key_id'])) if order.get('vpn_key_id') else None
+        if not user or not key:
+            raise RuntimeError('addon owner has no subscription')
+        expiry = datetime.fromisoformat(str(key['expires_at']).replace('Z', '+00:00'))
+        client = RemnawaveClient(remnawave_authority_config())
+        try:
+            await provision_lte_identity(
+                client, user=user, expires_at=expiry,
+                quota_gb=int(entitlements['lte_quota_gb']),
+                device_limit=int(entitlements['device_limit']),
+                persist_base_quota=False,
+            )
+        finally:
+            await client.close()
+        if order.get('addon_kind') == 'device':
+            from bot.services.vpn_api import push_key_to_panel
+            if not await push_key_to_panel(int(order['vpn_key_id'])):
+                raise RuntimeError('main device limit synchronization failed')
+    except Exception as exc:
+        logger.exception("Add-on synchronization failed for order %s", order_id)
+        update_order_fulfillment(order_id, 'manual_review', str(exc)[:500])
+        return True, "✅ Оплата принята. Применение докупки проверит поддержка.", _reload_order(order_id)
+    update_order_fulfillment(order_id, 'applied')
+    label = f"{int(order.get('addon_units') or 0)} ГБ обхода" if order.get('addon_kind') == 'lte' else "1 устройство"
+    return True, f"✅ Докупка активирована: {label}.", _reload_order(order_id)
+
+
 async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
     from database.requests import get_tariff_by_id as _get_tariff, update_key_tariff
     from bot.services.vpn_api import push_key_to_panel, restore_traffic_limit_in_db
@@ -563,6 +602,10 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
     if not order:
         return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
 
+    operation_type = _get_order_operation_type(order)
+    if operation_type in {'addon_lte', 'addon_device'}:
+        return await _apply_addon_order(order_id, order)
+
     entitlements = apply_payment_entitlements(order_id)
     if not entitlements:
         update_order_fulfillment(order_id, 'manual_review', 'failed to apply entitlements')
@@ -577,7 +620,6 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         use_promocode(order['promocode_id'], order['user_id'])
         logger.info("Промокод %s отмечен как использованный для user %s", order['promocode_id'], order['user_id'])
 
-    operation_type = _get_order_operation_type(order)
     logger.info("Order %s apply started: operation=%s, payment_type=%s", order_id, operation_type, order.get('payment_type'))
 
     if operation_type == 'topup':
