@@ -2397,7 +2397,23 @@ changing either user account or payment history.
   package list, centered layout, native Back behavior and the account entry
   point. Owner changes in `Connect.svelte` and the deleted landing prompt remain
   outside this stage and outside its commit.
-- Production deployment, migration v61 and public post-restart verification are
-  pending below; the stage is not closed until those checks pass.
+- Production release `c7d2824` was pushed and fast-forwarded on Poland after a
+  database backup. Migration v61 is active; both required user/payment column
+  sets exist and all four Family catalog periods resolve to 8 devices.
+- `arcvpn-bot.service` and `arcvpn-subscription.service` are active. The focused
+  production suite passes (`51 passed`), public health returns `OK`, the new
+  JavaScript bundle returns HTTP 200 and the post-restart error journal is empty.
+
+### Closeout
+
+- All acceptance items are complete without changing public subscription URLs,
+  user UUIDs or existing user device limits. Only the future Family catalog was
+  changed to 8 devices; migration coverage proves an existing value of 10 is
+  preserved.
+- Rollback: revert `c7d2824`, push/pull and restart the same two services. The
+  pre-v61 production database backup is retained under the deployment backups.
+- Residual operational risk: the first real YooKassa add-on remains the live
+  provider canary; failures enter `manual_review` instead of silently losing a
+  paid entitlement.
 
 ---

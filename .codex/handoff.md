@@ -327,13 +327,15 @@ Updated: 2026-09-01. This file is current state, not a diary.
 
 ## Current stage: bypass quota add-ons
 
-The current 2026-09-03 stage implements cycle-scoped bypass/device add-ons,
+Release `c7d2824` implements cycle-scoped bypass/device add-ons,
 two explicit exhausted-bypass placeholder profiles, LTE alerts only at 10% and
 0%, Family at 8 devices, custom plans up to 15 devices, monotonic anchor-based
 pricing, and an admin bypass-counter reset. Local evidence is `170 passed`, a
 successful Vite production build, diff checks, and browser acceptance of the
-add-on screen and Back behavior. Production rollout and v61 verification remain
-pending until recorded in `.codex/stages/current.md`.
+add-on screen and Back behavior. On Poland, schema v61 and all expected columns
+are present, Family has 8 devices for every catalog period, both services are
+active, the focused suite is `51 passed`, public health/bundle checks pass and
+the post-restart error journal is empty. Existing users were not reduced.
 
 ## Next recommended stage
 
