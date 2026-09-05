@@ -41,7 +41,15 @@ async def prepare(apply: bool) -> dict:
         if not apply:
             return {"apply": False, "profile_exists": bool(existing_profile), "node_exists": bool(existing_node)}
         if existing_profile or existing_node:
-            raise RuntimeError("Albania profile/node already exists; inspect before retry")
+            if not (existing_profile and existing_node):
+                raise RuntimeError("Albania preparation is partial; inspect before retry")
+            if not SECRET_PATH.exists():
+                keygen = await client._request("GET", "/api/keygen")
+                SECRET_PATH.parent.mkdir(parents=True, exist_ok=True)
+                SECRET_PATH.write_text(str(keygen["secretKey"]) + "\n", encoding="utf-8")
+                os.chmod(SECRET_PATH, 0o600)
+            return {"apply": True, "prepared": True, "connected": bool(existing_node.get("isConnected")),
+                    "secret_file": str(SECRET_PATH), "recovered": True}
 
         keypairs = await client._request("GET", "/api/system/tools/x25519/generate")
         private_key = keypairs["keypairs"][0]["privateKey"]
@@ -82,9 +90,8 @@ async def prepare(apply: bool) -> dict:
             "trafficResetDay": 1, "excludedInbounds": [], "countryCode": "AL",
             "consumptionMultiplier": 1.0,
         })
-        secret = str(node.get("secretKey") or node.get("secret") or "")
-        if not secret:
-            raise RuntimeError("Remnawave did not return a node secret")
+        keygen = await client._request("GET", "/api/keygen")
+        secret = str(keygen["secretKey"])
         STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         STATE_PATH.write_text(json.dumps({"profile_uuid": profile["uuid"], "node_uuid": node["uuid"],
             "tcp_inbound_uuid": inbound_ids[TCP_TAG], "hy2_inbound_uuid": inbound_ids[HY2_TAG]}, indent=2), encoding="utf-8")
