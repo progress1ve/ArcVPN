@@ -11,6 +11,8 @@ Owner acceptance: replace Estonia origin `95.85.245.23` with `95.85.249.187`; ke
 
 Acceptance: DNS and every literal Estonia origin reference use the new IP, RemnaNode is authorized and connected, a fresh generated client profile retains the stable hostname/UUID, and real tunneled traffic succeeds from Russia. Rollback is the old IP in DNS, Remnawave and inventory.
 
+Result at `8b1f9d0`: the Estonia guest primary address, Remnawave node record and repository inventory are `95.85.249.187`; Remnawave reports the node connected. The new raw IP completed a credential-safe real VLESS Reality HTTP canary from Russia with 204. The deployed YouTube least-load profile over Netherlands and Albania also completed the exact generated-profile canary with 204 and uses Netherlands as its fixed fallback. Production subscription service is active on `8b1f9d0`. DNS remains an external gate: REG.RU still resolves `ee.arccnet.space` to `95.85.245.23`, so that old IP is retained as a temporary secondary guest address to avoid outage. Change the REG.RU A record and the Yandex Estonia origin to `95.85.249.187`, verify the public hostname/CDN path, then remove the temporary old secondary address.
+
 ## 2026-09-05: remove Hysteria and repair Estonia/YouTube
 
 Owner acceptance: remove every Hysteria customer connection; retain stable subscription URLs and UUIDs.
