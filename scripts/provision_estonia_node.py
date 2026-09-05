@@ -24,7 +24,7 @@ from bot.services.remnawave_stats import remnawave_authority_config
 PROFILE_NAME = "ArcVPN Estonia 1chost"
 NODE_NAME = "ArcVPN Estonia 1chost"
 DOMAIN = "ee.arccnet.space"
-NODE_ADDRESS = "95.85.245.23"
+NODE_ADDRESS = "95.85.249.187"
 NODE_PORT = 22500
 TCP_TAG = "EE_1CHOST_VLESS_TCP"
 HY2_TAG = "EE_1CHOST_HYSTERIA2"

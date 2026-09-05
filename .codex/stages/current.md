@@ -1,5 +1,16 @@
 # Stage: combined add-ons and payment UX (2026-09-03)
 
+## 2026-09-05: Estonia public IP replacement
+
+Owner acceptance: replace Estonia origin `95.85.245.23` with `95.85.249.187`; keep every public subscription URL, UUID, hostname and Reality identity unchanged.
+
+| Visible profile | Client hostname | CDN resource | Origin group | Active/backup origin | Host/SNI | Inbound/path | Multiplier | Public URL impact | Failure/rollback |
+|---|---|---|---|---|---|---|---|---|---|
+| Estonia | `ee.arccnet.space` | none | none | `95.85.249.187` | existing Reality values unchanged | existing VLESS Reality | x1 | none | restore DNS and Remnawave node address to `95.85.245.23` |
+| Best bypass CDN fallback | existing CDN hostname | existing Yandex resource | existing Estonia/Netherlands group | Estonia `95.85.249.187`, Netherlands reserve | unchanged | existing XHTTP `/api-test` | x1 | none | restore Estonia origin IP only |
+
+Acceptance: DNS and every literal Estonia origin reference use the new IP, RemnaNode is authorized and connected, a fresh generated client profile retains the stable hostname/UUID, and real tunneled traffic succeeds from Russia. Rollback is the old IP in DNS, Remnawave and inventory.
+
 ## 2026-09-05: remove Hysteria and repair Estonia/YouTube
 
 Owner acceptance: remove every Hysteria customer connection; retain stable subscription URLs and UUIDs.
@@ -13,6 +24,16 @@ Owner acceptance: remove every Hysteria customer connection; retain stable subsc
 | YouTube without ads | Netherlands VLESS | dedicated simple profile | none | restore prior selector |
 
 Acceptance: no Hysteria URI/outbound in fresh public output; Estonia and YouTube must be checked through real tunneled traffic. Existing bypass XHTTP x1 paths are unchanged.
+
+### Proposed Russian-route repair awaiting owner acceptance
+
+| Visible profile | Client endpoint | Relay/upstream | Host/SNI | Inbound | Multiplier | Public identifiers | Failure behavior | Rollback |
+|---|---|---|---|---|---|---|---|---|
+| Estonia #1 | `nd.arccnet.space:8443` | Netherlands TCP relay -> Estonia `:443` | Host `nd.arccnet.space`, SNI `google.com` | existing Estonia Reality | x1 | subscription URL and UUID unchanged | profile fails if NL relay or EE upstream fails | restore Host endpoint to `ee.arccnet.space:443`, remove relay |
+| Albania #1 | `nd.arccnet.space:8444` | Netherlands TCP relay -> Albania `:3342` | Host `nd.arccnet.space`, SNI Albania server name | existing Albania Reality | x1 | subscription URL and UUID unchanged | profile fails if NL relay or AL upstream fails | restore Host endpoint to Albania direct, remove relay |
+| YouTube without ads | both endpoints above plus NL direct | Xray leastLoad over NL direct and relayed Albania | per child outbound | existing Reality inbounds | x1 | subscription URL and visible label unchanged | fixed fallback is NL VLESS, never direct | revert generated profile |
+
+Evidence: from the local Russian network, Netherlands tunneled HTTP returned 204; Estonia stalled after TCP dial and even SSH did not deliver a banner, while Poland reached both Estonia services; Albania `3342` was unreachable locally but reachable from Poland and Netherlands. Netherlands has free ports 8443/8444, `systemd-socket-proxyd`, reachable upstreams, and UFW available. No topology mutation has been made for this relay proposal yet.
 
 Result: production main squad has no Hysteria inbound, six active Hysteria Hosts were disabled, and the declarative squad list was updated with a backup. Fresh public plain/Happ output contains only VLESS. Server-side canaries passed, but owner-device Happ still failed on Estonia and the composite YouTube selector; Estonia therefore uses the documented Edge fingerprint fallback and YouTube is reduced to a simple Netherlands VLESS profile. Rollback is the pre-change environment backup plus re-enabling the disabled Hosts and reverting the release.
 

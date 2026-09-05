@@ -34,7 +34,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             direct_index = next(i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct")
             self.assertLess(tiktok_index, direct_index)
             if profile["remarks"] == "🇷🇺 Ютуб без рекламы":
-                self.assertEqual(rules[tiktok_index]["outboundTag"], "proxy")
+                self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_youtube")
             elif profile["remarks"].startswith(("Автовыбор", "🇪🇺 Лучший обход", "🇪🇺 Обход")):
                 self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_main")
             else:
@@ -64,8 +64,12 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
         youtube = profiles[1]
-        self.assertNotIn("balancers", youtube["routing"])
-        self.assertEqual(youtube["outbounds"][0]["protocol"], "vless")
+        self.assertEqual(youtube["routing"]["balancers"][0]["tag"], "balancer_youtube")
+        self.assertEqual(youtube["routing"]["balancers"][0]["fallbackTag"], "proxy-youtube-1")
+        self.assertEqual(
+            [item["tag"] for item in youtube["outbounds"] if item["tag"].startswith("proxy-youtube-")],
+            ["proxy-youtube-1", "proxy-youtube-2"],
+        )
 
     def test_every_bypass_uses_whitenode_least_load_contract(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)

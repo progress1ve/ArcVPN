@@ -550,7 +550,7 @@ NODE_INVENTORY = {
     # capacity until sustained production telemetry proves otherwise.
     "193.233.198.184": {"provider": "dhost", "location": "Германия", "monthly_cost_rub": 300, "capacity_mbps": 1000},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
-    "95.85.245.23": {"provider": "1chost", "location": "Эстония"},
+    "95.85.249.187": {"provider": "1chost", "location": "Эстония"},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
@@ -1635,10 +1635,43 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         )
 
     youtube_profiles = []
-    netherlands_profiles = visible_country("Нидерланды")
-    if netherlands_profiles:
-        youtube_profile = copy.deepcopy(netherlands_profiles[0])
-        youtube_profile["remarks"] = "\U0001f1f7\U0001f1fa Ютуб без рекламы"
+    if youtube_outbounds:
+        youtube_profile = {
+            "burstObservatory": {
+                "pingConfig": {
+                    "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
+                    "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
+                },
+                "subjectSelector": ["proxy-youtube"],
+            },
+            "dns": _client_dns_config(key),
+            "inbounds": _json_local_inbounds(key),
+            "log": {"loglevel": "none"},
+            "meta": None,
+            "outbounds": [
+                *youtube_outbounds,
+                {"protocol": "freedom", "tag": "direct"},
+                {"protocol": "blackhole", "tag": "block"},
+            ],
+            "remarks": "\U0001f1f7\U0001f1fa Ютуб без рекламы",
+            "routing": {
+                "balancers": [{
+                    "fallbackTag": youtube_outbounds[0]["tag"],
+                    "selector": ["proxy-youtube"],
+                    "strategy": {
+                        "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
+                        "type": "leastLoad",
+                    },
+                    "tag": "balancer_youtube",
+                }],
+                "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+                "rules": [
+                    _happ_tiktok_proxy_rule(balancer_tag="balancer_youtube"),
+                    *_happ_direct_rules(),
+                    {"balancerTag": "balancer_youtube", "network": "tcp,udp", "type": "field"},
+                ],
+            },
+        }
         youtube_profiles.append(youtube_profile)
     visible_main = [
         *youtube_profiles,
@@ -2377,7 +2410,7 @@ def _normalize_native_share_link(link: str) -> str:
     if security in {"reality", "tls"}:
         # Happ builds in current use accept Firefox/Edge uTLS fingerprints, while
         # Chrome intermittently fails on the affected Russian mobile routes.
-        params["fp"] = ["edge" if (parsed.hostname or "").lower() == "ee.arccnet.space" else "firefox"]
+        params["fp"] = ["firefox"]
 
     host = (parsed.hostname or "").lower()
     if params.get("type", [""])[0] == "xhttp" and host in {
