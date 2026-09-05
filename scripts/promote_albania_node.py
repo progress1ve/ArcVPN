@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -20,7 +21,7 @@ from provision_albania_node import (
 MAIN_SQUAD = "ArcVPN Staging"
 
 
-async def main():
+async def main(*, allow_disconnected: bool = False):
     client = RemnawaveClient(remnawave_authority_config())
     try:
         profiles = items(await client._request("GET", "/api/config-profiles"), "configProfiles")
@@ -32,7 +33,7 @@ async def main():
         squad = next((x for x in squads if x.get("name") == MAIN_SQUAD), None)
         if not profile or not node or not squad:
             raise RuntimeError("Albania profile, node, or main squad is missing")
-        if not node.get("isConnected"):
+        if not node.get("isConnected") and not allow_disconnected:
             raise RuntimeError("Albania RemnaNode is not connected")
         inbound_ids = {x["tag"]: x["uuid"] for x in profile.get("inbounds", [])}
         created = []
@@ -60,10 +61,17 @@ async def main():
             await client._request("PATCH", "/api/internal-squads", json={
                 "uuid": squad["uuid"], "inbounds": list(dict.fromkeys([*current, *wanted])),
             })
-        print(json.dumps({"promoted": True, "hosts_created": len(created), "connected": True}))
+        print(json.dumps({
+            "promoted": True,
+            "hosts_created": len(created),
+            "connected": bool(node.get("isConnected")),
+        }))
     finally:
         await client.close()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--allow-disconnected", action="store_true")
+    args = parser.parse_args()
+    asyncio.run(main(allow_disconnected=args.allow_disconnected))
