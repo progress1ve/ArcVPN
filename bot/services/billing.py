@@ -355,7 +355,7 @@ async def _apply_addon_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
             )
         finally:
             await client.close()
-        if order.get('addon_kind') == 'device':
+        if int(order.get('addon_device_units') or (order.get('addon_units') if order.get('addon_kind') == 'device' else 0) or 0):
             from bot.services.vpn_api import push_key_to_panel
             if not await push_key_to_panel(int(order['vpn_key_id'])):
                 raise RuntimeError('main device limit synchronization failed')
@@ -364,7 +364,14 @@ async def _apply_addon_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
         update_order_fulfillment(order_id, 'manual_review', str(exc)[:500])
         return True, "✅ Оплата принята. Применение докупки проверит поддержка.", _reload_order(order_id)
     update_order_fulfillment(order_id, 'applied')
-    label = f"{int(order.get('addon_units') or 0)} ГБ обхода" if order.get('addon_kind') == 'lte' else "1 устройство"
+    labels = []
+    lte_gb = int(order.get('addon_lte_gb') or (order.get('addon_units') if order.get('addon_kind') == 'lte' else 0) or 0)
+    devices = int(order.get('addon_device_units') or (order.get('addon_units') if order.get('addon_kind') == 'device' else 0) or 0)
+    if lte_gb:
+        labels.append(f"{lte_gb} ГБ обхода")
+    if devices:
+        labels.append(f"{devices} устр.")
+    label = " + ".join(labels)
     return True, f"✅ Докупка активирована: {label}.", _reload_order(order_id)
 
 
@@ -603,7 +610,7 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
 
     operation_type = _get_order_operation_type(order)
-    if operation_type in {'addon_lte', 'addon_device'}:
+    if operation_type in {'addon_lte', 'addon_device', 'addon_combined'}:
         return await _apply_addon_order(order_id, order)
 
     entitlements = apply_payment_entitlements(order_id)

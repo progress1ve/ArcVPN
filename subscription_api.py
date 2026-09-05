@@ -3471,30 +3471,39 @@ def api_create_sbp_payment():
     wants_recurring = recurring_requested and recurring_ready
     addon = payload.get("addon") if isinstance(payload.get("addon"), dict) else None
     if addon:
-        kind = str(addon.get("kind") or "")
         try:
-            units = int(addon.get("units") or 0)
+            lte_gb = int(addon.get("lte_gb") or 0)
+            device_units = int(addon.get("devices") or 0)
         except (TypeError, ValueError):
             return _api_error("invalid_addon", 400)
-        price_rub = BYPASS_ADDON_PRICES_RUB.get(units) if kind == "lte" else DEVICE_ADDON_PRICE_RUB if kind == "device" and units == 1 else None
         user_id = get_user_internal_id(telegram_id)
         keys = get_user_keys_for_display(telegram_id)
         active_key = next((key for key in keys if key.get("is_active")), None)
         key_id = active_key.get("id") if active_key else None
-        if not user_id or not key_id or not price_rub:
+        current = get_user_entitlements(telegram_id)
+        lte_price = BYPASS_ADDON_PRICES_RUB.get(lte_gb, 0) if lte_gb else 0
+        devices_valid = 0 <= device_units <= 15 - int(current.get("device_limit") or 0)
+        price_rub = lte_price + device_units * DEVICE_ADDON_PRICE_RUB
+        if (not user_id or not key_id or lte_gb < 0 or device_units < 0
+                or (lte_gb and not lte_price) or not devices_valid or price_rub <= 0):
             return _api_error("invalid_addon", 400)
         order = prepare_payment_order(
             user_id=user_id, tariff_id=None,
             payment_type="yookassa_card" if method_type == "bank_card" else "yookassa_qr",
             vpn_key_id=key_id, amount_cents=int(price_rub) * 100,
-            operation_type=f"addon_{kind}",
+            operation_type="addon_combined",
         )
-        if not set_payment_addon(order["order_id"], kind, units):
+        if not set_payment_addon(order["order_id"], lte_gb, device_units):
             return _api_error("payment_initialization_failed", 500)
+        parts = []
+        if lte_gb:
+            parts.append(f"{lte_gb} ГБ обхода")
+        if device_units:
+            parts.append(f"{device_units} устр.")
         try:
             payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
                 amount_rub=int(price_rub), order_id=order["order_id"],
-                description=f"ArcVPN — {units} ГБ обхода" if kind == "lte" else "ArcVPN — дополнительное устройство",
+                description=f"ArcVPN — докупка: {' + '.join(parts)}",
                 bot_name=_get_bot_username(), metadata={"telegram_id": str(telegram_id), "source": "webapp-addon"},
                 return_url=f"{WEBAPP_URL}/app/?payment={order['order_id']}&screen=addons",
                 save_payment_method=False, payment_method_type=method_type,
@@ -3505,7 +3514,7 @@ def api_create_sbp_payment():
             return _api_error("payment_provider_unavailable", 503)
         return _api_no_store(jsonify({"ok": True, "order_id": order["order_id"],
             "confirmation_url": payment["qr_url"], "status": payment["status"],
-            "amount_rub": int(price_rub), "addon": {"kind": kind, "units": units}}))
+            "amount_rub": int(price_rub), "addon": {"lte_gb": lte_gb, "devices": device_units}}))
     try:
         tariff_id = int(payload.get("tariff_id"))
         devices = int(payload.get("devices") or 0)

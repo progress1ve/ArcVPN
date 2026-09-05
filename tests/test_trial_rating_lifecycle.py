@@ -94,9 +94,13 @@ def test_tariff_keyboard_opens_custom_builder_before_back(monkeypatch):
         {"product_code": "standard"},
         {"product_code": "family"},
     ], key_id=42)
-    custom = markup.inline_keyboard[-2][0]
+    custom = markup.inline_keyboard[-3][0]
     assert custom.text == "⚙️ Создать свой тариф"
     assert custom.web_app.url == "https://arccnet.space/app?screen=custom-tariff"
+    addons = markup.inline_keyboard[-2]
+    assert [button.text for button in addons] == ["➕ Докупить устройства", "📡 Докупить обход"]
+    assert "addon=devices" in addons[0].web_app.url
+    assert "addon=traffic" in addons[1].web_app.url
     assert markup.inline_keyboard[-1][0].callback_data == "start"
 
 

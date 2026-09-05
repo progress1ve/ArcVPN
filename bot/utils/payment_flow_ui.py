@@ -38,6 +38,17 @@ def tariff_product_keyboard(tariffs, *, key_id: Optional[int] = None):
         web_app=WebAppInfo(url=f"{webapp_url}/app?screen=custom-tariff"),
         style="primary",
     ))
+    if key_id is not None:
+        builder.row(
+            InlineKeyboardButton(
+                text="➕ Докупить устройства",
+                web_app=WebAppInfo(url=f"{webapp_url}/app/?screen=addons&addon=devices"),
+            ),
+            InlineKeyboardButton(
+                text="📡 Докупить обход",
+                web_app=WebAppInfo(url=f"{webapp_url}/app/?screen=addons&addon=traffic"),
+            ),
+        )
     builder.row(InlineKeyboardButton(text="↩️ Назад", callback_data="start"))
     return builder.as_markup()
 

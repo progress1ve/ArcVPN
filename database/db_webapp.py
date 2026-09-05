@@ -321,13 +321,17 @@ def get_user_entitlements_by_id(user_id: int) -> Dict[str, int]:
         }
 
 
-def set_payment_addon(order_id: str, kind: str, units: int) -> bool:
-    if kind not in {"lte", "device"} or int(units) <= 0:
+def set_payment_addon(order_id: str, lte_gb: int = 0, device_units: int = 0) -> bool:
+    lte_gb = max(0, int(lte_gb))
+    device_units = max(0, int(device_units))
+    if not lte_gb and not device_units:
         return False
     with get_db() as conn:
         cur = conn.execute(
-            "UPDATE payments SET addon_kind=?, addon_units=? WHERE order_id=? AND status='pending'",
-            (kind, int(units), order_id),
+            """UPDATE payments SET addon_kind='combined', addon_units=?,
+                      addon_lte_gb=?, addon_device_units=?
+                 WHERE order_id=? AND status='pending'""",
+            (lte_gb + device_units, lte_gb, device_units, order_id),
         )
         return cur.rowcount == 1
 
@@ -336,18 +340,23 @@ def apply_payment_addon(order_id: str) -> Optional[Dict[str, int]]:
     """Apply a paid add-on once; panel synchronization is handled by billing."""
     with get_db() as conn:
         order = conn.execute(
-            """SELECT user_id,status,addon_kind,addon_units,addons_applied_at
+            """SELECT user_id,status,addon_kind,addon_units,
+                      COALESCE(addon_lte_gb,CASE WHEN addon_kind='lte' THEN addon_units ELSE 0 END) addon_lte_gb,
+                      COALESCE(addon_device_units,CASE WHEN addon_kind='device' THEN addon_units ELSE 0 END) addon_device_units,
+                      addons_applied_at
                FROM payments WHERE order_id=?""", (order_id,),
         ).fetchone()
-        if not order or order["status"] != "paid" or order["addon_kind"] not in {"lte", "device"}:
+        if not order or order["status"] != "paid" or order["addon_kind"] not in {"lte", "device", "combined"}:
             return None
         if not order["addons_applied_at"]:
-            column = "lte_cycle_bonus_gb" if order["addon_kind"] == "lte" else "device_limit"
             conn.execute(
-                f"UPDATE users SET {column}=COALESCE({column},0)+?, entitlements_updated_at=CURRENT_TIMESTAMP WHERE id=?",
-                (int(order["addon_units"]), int(order["user_id"])),
+                """UPDATE users SET
+                      lte_cycle_bonus_gb=COALESCE(lte_cycle_bonus_gb,0)+?,
+                      device_limit=COALESCE(device_limit,0)+?,
+                      entitlements_updated_at=CURRENT_TIMESTAMP WHERE id=?""",
+                (int(order["addon_lte_gb"]), int(order["addon_device_units"]), int(order["user_id"])),
             )
-            if order["addon_kind"] == "lte":
+            if int(order["addon_lte_gb"]):
                 conn.execute("UPDATE users SET lte_notified_pct=100 WHERE id=?", (int(order["user_id"]),))
             conn.execute("UPDATE payments SET addons_applied_at=CURRENT_TIMESTAMP WHERE order_id=?", (order_id,))
         current = conn.execute(

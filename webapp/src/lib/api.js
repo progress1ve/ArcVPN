@@ -396,8 +396,8 @@ export const createSbpPayment = (tariffId, devices = 2, lteGb = 0, promocode = '
   post('/api/payments/sbp', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew, custom })
 export const createCardPayment = (tariffId, devices = 2, lteGb = 0, promocode = '', autoRenew = true, custom = false) =>
   post('/api/payments/card', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew, custom })
-export const createAddonPayment = (kind, units, method = 'sbp') =>
-  post(`/api/payments/${method === 'card' ? 'card' : 'sbp'}`, { addon: { kind, units } })
+export const createAddonPayment = (lteGb = 0, devices = 0, method = 'sbp') =>
+  post(`/api/payments/${method === 'card' ? 'card' : 'sbp'}`, { addon: { lte_gb: lteGb, devices } })
 export const createEmailTrialPayment = (method = 'sbp') => post('/api/payments/email-trial', { method })
 export const validatePromocode = async (tariffId, code, devices = null, lteGb = null, custom = false, quotedBase = null) => {
   if (!import.meta.env.DEV) return post('/api/promocodes/validate', { tariff_id: tariffId, code, devices, lte_gb: lteGb, custom })

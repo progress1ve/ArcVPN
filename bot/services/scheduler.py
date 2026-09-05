@@ -969,7 +969,9 @@ async def reconcile_lte_usage(bot: Optional[Bot] = None) -> dict:
                     if threshold < last:
                         builder = InlineKeyboardBuilder()
                         webapp_url = os.getenv("WEBAPP_URL", getattr(__import__('config'), 'SUBSCRIPTION_URL', '')).rstrip('/')
-                        builder.row(InlineKeyboardButton(text="➕ Докупить ГБ на обход", web_app=WebAppInfo(url=f"{webapp_url}/app/?screen=addons")))
+                        addon_url = f"{webapp_url}/app/?screen=addons&addon=traffic"
+                        builder.row(InlineKeyboardButton(text="🌐 Докупить трафик на сайте", url=addon_url))
+                        builder.row(InlineKeyboardButton(text="🤖 Докупить трафик в боте", web_app=WebAppInfo(url=addon_url)))
                         text = ("⛔ <b>Трафик на обходе глушилок закончился.</b>" if threshold == 0
                                 else "⚠️ <b>Осталось 10% трафика на обходе глушилок.</b>")
                         if await send_to_user(bot, int(identity["telegram_id"]), text, reply_markup=builder.as_markup()):

@@ -1,6 +1,6 @@
 import sqlite3
 
-from database.migrations import migration_55, migration_61
+from database.migrations import migration_55, migration_61, migration_62
 
 
 def _schema() -> sqlite3.Connection:
@@ -162,17 +162,30 @@ def test_cycle_scoped_lte_addon_is_idempotent(tmp_path, monkeypatch):
         );
         CREATE TABLE payments (
             order_id TEXT PRIMARY KEY, user_id INTEGER, status TEXT,
-            addon_kind TEXT, addon_units INTEGER, addons_applied_at DATETIME
+            addon_kind TEXT, addon_units INTEGER, addon_lte_gb INTEGER DEFAULT 0,
+            addon_device_units INTEGER DEFAULT 0, addons_applied_at DATETIME
         );
         INSERT INTO users VALUES (1,3,45,0,0,NULL);
-        INSERT INTO payments VALUES ('addon-15',1,'paid','lte',15,NULL);
+        INSERT INTO payments VALUES ('addon-15',1,'paid','combined',17,15,2,NULL);
     """)
     conn.close()
 
-    assert apply_payment_addon("addon-15") == {"device_limit": 3, "lte_quota_gb": 60}
-    assert apply_payment_addon("addon-15") == {"device_limit": 3, "lte_quota_gb": 60}
+    assert apply_payment_addon("addon-15") == {"device_limit": 5, "lte_quota_gb": 60}
+    assert apply_payment_addon("addon-15") == {"device_limit": 5, "lte_quota_gb": 60}
     conn = sqlite3.connect(db_path)
     assert conn.execute("SELECT lte_quota_gb,lte_cycle_bonus_gb,lte_notified_pct FROM users").fetchone() == (45, 15, 100)
+    conn.close()
+
+
+def test_migration_62_preserves_legacy_addons():
+    conn = sqlite3.connect(":memory:")
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE payments (id INTEGER PRIMARY KEY, addon_kind TEXT, addon_units INTEGER);
+        INSERT INTO payments VALUES (1,'lte',15),(2,'device',1);
+    """)
+    migration_62(conn)
+    assert [tuple(row) for row in conn.execute("SELECT addon_lte_gb,addon_device_units FROM payments ORDER BY id")] == [(15,0),(0,1)]
     conn.close()
 
 

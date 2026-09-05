@@ -107,7 +107,7 @@ def test_custom_payment_uses_server_quote_and_persists_entitlements():
 
 def test_addon_payment_uses_server_price_table():
     async def create_payment(**kwargs):
-        assert kwargs["amount_rub"] == 35
+        assert kwargs["amount_rub"] == 85
         return {"yookassa_payment_id": "provider-addon", "qr_url": "https://pay.example", "status": "pending"}
 
     def run(coro, timeout=None):
@@ -116,12 +116,14 @@ def test_addon_payment_uses_server_price_table():
     with patch.object(api, "_webapp_telegram_id", return_value=123), patch.object(
         api, "get_user_internal_id", return_value=5
     ), patch.object(api, "get_user_keys_for_display", return_value=[{"id": 9, "is_active": True}]), patch.object(
+        api, "get_user_entitlements", return_value={"device_limit": 3}
+    ), patch.object(
         api, "prepare_payment_order", return_value={"order_id": "addon-order"}
     ) as prepare, patch.object(api, "set_payment_addon", return_value=True) as addon, patch.object(
         api, "create_yookassa_qr_payment", create_payment
     ), patch.object(api.ASYNC_EXECUTOR, "run", side_effect=run), patch.object(api, "save_yookassa_payment_id"):
-        response = api.app.test_client().post("/api/payments/sbp", json={"addon": {"kind": "lte", "units": 15}})
+        response = api.app.test_client().post("/api/payments/sbp", json={"addon": {"lte_gb": 15, "devices": 2}})
     assert response.status_code == 200
-    assert response.get_json()["amount_rub"] == 35
+    assert response.get_json()["amount_rub"] == 85
     prepare.assert_called_once()
-    addon.assert_called_once_with("addon-order", "lte", 15)
+    addon.assert_called_once_with("addon-order", 15, 2)

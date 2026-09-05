@@ -109,6 +109,8 @@
   let purchaseOpen = false
   let addonsOpen = false
   let addonBusy = ''
+  let addonLteGb = 0
+  let addonDevices = 0
   let purchaseCustom = false
   let customDevices = 3
   let customLteGb = 45
@@ -175,6 +177,8 @@
     ? Number(promoQuote.final_amount_rub)
     : purchaseBaseRub
   $: purchaseMonthlyRub = Math.round(purchaseTotalRub / purchaseMonths)
+  $: addonTotalRub = ({5:20,15:35,30:60,45:90,75:175,115:290}[addonLteGb] || 0) + addonDevices * 25
+  $: addonDeviceMax = Math.max(0, 15 - deviceLimit)
   $: supportTimeline = supportMessages.map((message, index) => {
     const day = chatDayKey(message.created_at)
     return { ...message, showDay: index === 0 || day !== chatDayKey(supportMessages[index - 1]?.created_at), dayLabel: chatDayLabel(message.created_at) }
@@ -544,6 +548,8 @@
     localStorage.setItem('arcvpn-pending-payment', JSON.stringify({
       orderId: paymentOrderId,
       confirmationUrl: paymentConfirmationUrl,
+      addonLteGb: addonsOpen ? addonLteGb : 0,
+      addonDevices: addonsOpen ? addonDevices : 0,
       savedAt: Date.now(),
     }))
   }
@@ -613,12 +619,12 @@
     paymentMessage = ''
   }
 
-  async function buyAddon(kind, units) {
+  async function buyAddon(method = 'sbp') {
     if (addonBusy) return
-    addonBusy = `${kind}:${units}`
+    addonBusy = method
     paymentMessage = ''
     try {
-      const result = await createAddonPayment(kind, units)
+      const result = await createAddonPayment(addonLteGb, addonDevices, method)
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -629,6 +635,15 @@
     } catch (_) {
       paymentMessage = 'Не удалось создать платёж. Попробуйте ещё раз.'
     } finally { addonBusy = '' }
+  }
+
+  function addonPurchaseAction() {
+    if (!addonTotalRub) return
+    if (paymentState === 'awaiting') return reopenPayment()
+    if (paymentState === 'canceled') resetPayment()
+    paymentMethodOpen = true
+    selectedPaymentMethod = 'sbp'
+    haptic('light')
   }
 
   function purchaseAction() {
@@ -646,6 +661,7 @@
 
   function confirmPaymentMethod() {
     paymentMethodOpen = false
+    if (addonsOpen) return buyAddon(selectedPaymentMethod)
     return buy(selectedPlan, selectedPaymentMethod)
   }
 
@@ -950,13 +966,15 @@
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
     const requestedScreen = pageUrl.searchParams.get('screen')
-    if (requestedScreen === 'addons') addonsOpen = true
+    if (requestedScreen === 'addons') {
+      addonsOpen = true
+      if (pageUrl.searchParams.get('addon') === 'devices') addonDevices = Math.min(1, Math.max(0, 15 - deviceLimit))
+    }
     if (requestedScreen === 'devices' || requestedScreen === 'billing' || requestedScreen === 'email') {
       active = 'settings'
       openSettingsPage(requestedScreen)
     } else if (requestedScreen === 'custom-tariff') {
-      if (requestedScreen === 'addons') addonsOpen = true
-      else purchaseOpen = true
+      purchaseOpen = true
       purchaseCustom = true
     }
     let saved = null
@@ -971,11 +989,15 @@
     }
     const restoredOrderId = returnedOrderId || saved?.orderId
     if (restoredOrderId) {
+      if (addonsOpen) {
+        addonLteGb = Number(saved?.addonLteGb || 0)
+        addonDevices = Number(saved?.addonDevices || 0)
+      }
       paymentOrderId = restoredOrderId
       paymentConfirmationUrl = saved?.confirmationUrl || ''
       paymentState = 'awaiting'
       paymentMessage = 'Проверяем подтверждение банка…'
-      purchaseOpen = true
+      if (!addonsOpen) purchaseOpen = true
       startPaymentPolling(true)
     }
     window.addEventListener('focus', handlePaymentResume)
@@ -1001,14 +1023,18 @@
       {#if addonsOpen}
         <section class="screen purchase-screen addons-screen" aria-label="Докупка">
           <button class="purchase-back" aria-label="Назад" on:click={() => addonsOpen=false}><ArcIcon name="back" size={20} weight="bold" /><span>Назад</span></button>
-          <header class="purchase-head"><div><h1>Докупка</h1><span>Добавьте трафик обхода на текущий период или ещё одно устройство.</span></div></header>
+          <header class="purchase-head"><div><h1>Докупка</h1><span>Можно выбрать устройства, трафик обхода или всё вместе.</span></div></header>
           <section class="addon-block"><h2>Трафик на обход глушилок</h2><div class="addon-grid">
             {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
-              <button disabled={Boolean(addonBusy)} on:click={() => buyAddon('lte', pack[0])}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
+              <button class:active={addonLteGb===pack[0]} aria-pressed={addonLteGb===pack[0]} disabled={Boolean(addonBusy)} on:click={() => addonLteGb=addonLteGb===pack[0]?0:pack[0]}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
             {/each}
           </div></section>
-          <section class="addon-block"><h2>Устройства</h2><button class="device-addon" disabled={Boolean(addonBusy)} on:click={() => buyAddon('device', 1)}><span><b>+1 устройство</b><small>До конца текущей подписки</small></span><strong>25 ₽</strong></button></section>
+          <section class="addon-block"><h2>Устройства</h2><div class="device-stepper"><button aria-label="Уменьшить количество устройств" disabled={addonDevices<=0||Boolean(addonBusy)} on:click={() => addonDevices--}>−</button><strong>{addonDevices}</strong><button aria-label="Увеличить количество устройств" disabled={addonDevices>=addonDeviceMax||Boolean(addonBusy)} on:click={() => addonDevices++}>+</button></div><small>25 ₽ за устройство · максимум 15 устройств в подписке.</small></section>
+          <section class="purchase-total"><div class="total-row"><span>Выбрано</span><small>{addonLteGb ? `${addonLteGb} ГБ` : 'без трафика'} · {addonDevices} устр.</small></div><button disabled={!addonTotalRub||Boolean(addonBusy)} on:click={addonPurchaseAction}><span>{paymentState==='awaiting'?'Открыть оплату снова':'Выбрать способ оплаты'}</span><strong>{rub(addonTotalRub)}</strong></button></section>
           {#if paymentMessage}<p class="purchase-error" role="status">{paymentMessage}</p>{/if}
+          {#if paymentMethodOpen}
+            <div class="payment-method-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор способа оплаты" on:click={closePaymentBackdrop} on:keydown={paymentBackdropKey} transition:fade={{duration:140}}><section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="addon-payment-title" transition:fly={{y:28,duration:220,easing:cubicOut}}><header><h2 id="addon-payment-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header><div class="payment-options"><button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{#if selectedPaymentMethod==='sbp'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button><button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Мир, Visa и Mastercard</small></span><em>{#if selectedPaymentMethod==='card'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button></div><button class="method-confirm" disabled={Boolean(addonBusy)} on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':'картой'} · {rub(addonTotalRub)}</button></section></div>
+          {/if}
         </section>
       {:else if purchaseOpen}
         <section class="screen purchase-screen" aria-label="Покупка подписки">
@@ -1076,6 +1102,7 @@
               {/each}
             </nav>
             <button class="custom-tariff-open" on:click={openCustomTariff}><ArcIcon name="settings" size={18} weight="duotone" /><span>Создать свой тариф</span><ArcIcon name="arrow" size={17} weight="bold" /></button>
+            {#if primary?.is_active}<button class="custom-tariff-open" on:click={() => { addonsOpen=true; purchaseOpen=false; window.scrollTo({top:0,behavior:'instant'}) }}><ArcIcon name="wallet" size={18} weight="duotone" /><span>Докупить трафик или устройства</span><ArcIcon name="arrow" size={17} weight="bold" /></button>{/if}
           {/if}
 
           <section class="purchase-total">
@@ -1235,7 +1262,6 @@
           <div class="actions">
             <button class="primary" on:click={openPurchase}><ArcIcon name="wallet" size={20} weight="duotone" />{primary?.is_active ? 'Продлить подписку' : 'Оформить подписку'}</button>
             <button class="secondary" on:click={openConnect}><ArcIcon name="download" size={20} weight="bold" />Подключить VPN</button>
-            {#if primary?.is_active}<button class="secondary addon-open" on:click={() => { addonsOpen=true; window.scrollTo({top:0,behavior:'instant'}) }}><ArcIcon name="wallet" size={20} weight="duotone" />Докупить трафик или устройство</button>{/if}
           </div>
 
           {#if account?.identity_source === 'email' && account?.paid_trial_offer === 'available' && !primary?.is_active && paidTrialDismissed}
@@ -1882,7 +1908,7 @@
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
   .plan-summary{grid-template-columns:1fr}.plan-summary p{max-width:620px}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
   .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-quote{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border:1px solid rgba(117,204,249,.28);border-radius:22px;background:linear-gradient(135deg,rgba(29,77,103,.68),rgba(10,22,34,.92));color:#f6fbff}.custom-quote>span,.custom-quote>strong{display:flex;flex-direction:column;gap:4px}.custom-quote>span{font-size:12px;font-weight:900}.custom-quote>strong{align-items:flex-end;font-size:24px;letter-spacing:-.04em}.custom-quote del{color:#7790a3;font-size:11px;font-weight:750;letter-spacing:0}.custom-quote small{color:#96aabc;font-size:8px;font-weight:700;letter-spacing:0}.custom-quote .custom-saving{color:#87d9ac;font-size:9px}
-  .addons-screen{gap:18px}.addon-block{padding:18px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.addon-block h2{margin:0 0 14px;font-size:15px}.addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.addon-grid button,.device-addon{min-height:58px;border:1px solid rgba(123,203,247,.25);border-radius:16px;color:#eef8ff;background:#102131;font:inherit}.addon-grid button{display:flex;align-items:center;justify-content:space-between;padding:0 15px}.addon-grid b,.device-addon b{font-size:13px}.addon-grid span,.device-addon strong{color:#91d9ff;font-weight:900}.device-addon{width:100%;display:flex;align-items:center;justify-content:space-between;padding:0 16px}.device-addon span{display:flex;flex-direction:column;align-items:flex-start;gap:3px}.device-addon small{color:#8298ab;font-size:9px}.addon-grid button:disabled,.device-addon:disabled{opacity:.55}
+  .addons-screen{gap:18px}.addon-block{padding:18px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.addon-block h2{margin:0 0 14px;font-size:15px}.addon-block>small{display:block;margin-top:10px;color:#8298ab;font-size:9px}.addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.addon-grid button{display:flex;align-items:center;justify-content:space-between;min-height:58px;padding:0 15px;border:1px solid rgba(123,203,247,.25);border-radius:16px;color:#eef8ff;background:#102131;font:inherit}.addon-grid button.active{border-color:#83d2fb;background:linear-gradient(135deg,rgba(37,110,144,.72),rgba(15,48,68,.88));box-shadow:inset 0 0 0 1px rgba(139,216,255,.12)}.addon-grid b{font-size:13px}.addon-grid span{color:#91d9ff;font-weight:900}.addon-grid button:disabled{opacity:.55}.addons-screen .device-stepper strong{text-align:center;color:#bce8ff;font-size:22px}
   .config-copy h2 { max-width: 520px; margin: 0; font-size: 18px; line-height: 1.25; letter-spacing: -.025em; }
   .config-copy p { max-width: 620px; margin: 10px 0 0; color: #c0ceda; font-size: 12px; font-weight:650; line-height: 1.55; }
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }

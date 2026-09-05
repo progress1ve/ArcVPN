@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 61
+LATEST_VERSION = 62
 
 
 def get_current_version() -> int:
@@ -2396,6 +2396,17 @@ def migration_61(conn: sqlite3.Connection) -> None:
     logger.info("Migration v61 applied")
 
 
+def migration_62(conn: sqlite3.Connection) -> None:
+    """Allow one add-on payment to contain bypass and device units."""
+    _add_column(conn, "payments", "addon_lte_gb INTEGER NOT NULL DEFAULT 0")
+    _add_column(conn, "payments", "addon_device_units INTEGER NOT NULL DEFAULT 0")
+    conn.execute("""UPDATE payments SET
+        addon_lte_gb=CASE WHEN addon_kind='lte' THEN COALESCE(addon_units,0) ELSE addon_lte_gb END,
+        addon_device_units=CASE WHEN addon_kind='device' THEN COALESCE(addon_units,0) ELSE addon_device_units END
+        WHERE addon_kind IN ('lte','device')""")
+    logger.info("Migration v62 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2458,6 +2469,7 @@ MIGRATIONS = {
     59: migration_59,
     60: migration_60,
     61: migration_61,
+    62: migration_62,
 }
 
 
