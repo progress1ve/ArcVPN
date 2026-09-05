@@ -395,6 +395,8 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
     overrides = _catalog_overrides()
     result: list[tuple[tuple[int, int, str], str]] = []
     for link in links:
+        if urllib.parse.urlsplit(link).scheme.lower() in {"hysteria", "hysteria2", "hy2"}:
+            continue
         if "#" not in link:
             result.append((_subscription_link_order(link), link))
             continue

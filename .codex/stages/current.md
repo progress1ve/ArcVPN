@@ -1,5 +1,19 @@
 # Stage: combined add-ons and payment UX (2026-09-03)
 
+## 2026-09-05: remove Hysteria and repair Estonia/YouTube
+
+Owner acceptance: remove every Hysteria customer connection; retain stable subscription URLs and UUIDs.
+
+| Visible path | Desired transport | Auto/selector membership | Public URL impact | Failure/rollback |
+|---|---|---|---|---|
+| Estonia | VLESS Reality only | main Auto | none | restore previous release |
+| Netherlands | VLESS Reality only | main Auto + YouTube | none | restore previous release |
+| Albania | VLESS Reality only | main Auto + YouTube | none | restore previous release |
+| Germany | VLESS Reality only | main Auto | none | restore previous release |
+| YouTube without ads | least-load over NL + AL VLESS | dedicated selector | none | restore NL-only alias |
+
+Acceptance: no Hysteria URI/outbound in fresh public output; Estonia and YouTube must be checked through real tunneled traffic. Existing bypass XHTTP x1 paths are unchanged.
+
 ## Goal
 
 - Move the WebApp add-on entry directly below `Создать свой тариф` and remove
