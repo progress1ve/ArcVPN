@@ -19,7 +19,7 @@ from bot.services.remnawave_stats import remnawave_authority_config
 PROFILE_NAME = "ArcVPN Albania WCloud"
 NODE_NAME = "ArcVPN Albania WCloud"
 NODE_ADDRESS = "al1-goykb.vpvr4ib84nuv6hdkt.ru"
-NODE_PORT = 22500
+NODE_PORT = 3341
 TCP_TAG = "AL_WCLOUD_VLESS_RAW"
 HY2_TAG = "AL_WCLOUD_HYSTERIA2"
 STATE_PATH = Path(".secrets/albania-remnawave-state.json")
