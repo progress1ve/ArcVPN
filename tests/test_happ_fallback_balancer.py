@@ -58,10 +58,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
-            "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония #1", "Эстония #2",
-            "Нидерланды #1", "Нидерланды #2",
-            "Албания #1", "Албания #2",
-            "Германия #1", "Германия #2", "🇪🇺 Лучший обход",
+            "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония #1",
+            "Нидерланды #1", "Албания #1", "Германия #1", "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
@@ -69,7 +67,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual(youtube["routing"]["balancers"][0]["tag"], "balancer_youtube")
         self.assertEqual(
             [item["tag"] for item in youtube["outbounds"] if item["tag"].startswith("proxy-youtube-")],
-            ["proxy-youtube-1", "proxy-youtube-2", "proxy-youtube-3", "proxy-youtube-4"],
+            ["proxy-youtube-1", "proxy-youtube-2"],
         )
 
     def test_every_bypass_uses_whitenode_least_load_contract(self):

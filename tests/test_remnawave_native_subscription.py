@@ -63,6 +63,16 @@ def test_customer_catalog_order_places_albania_after_netherlands():
     ]
 
 
+def test_customer_catalog_removes_all_hysteria_links():
+    links = [
+        "vless://id@host#Эстония%20%231",
+        "hysteria2://id@host#Эстония%20%232",
+        "hy2://id@host#Нидерланды%20%232",
+    ]
+
+    assert api._apply_subscription_catalog(links) == [links[0]]
+
+
 def test_country_labels_and_manual_youtube_alias_are_normalized():
     links = [
         "vless://id@nd.arccnet.space:443?security=reality#Нидерланды%20%231",

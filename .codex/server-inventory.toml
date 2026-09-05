@@ -36,3 +36,10 @@ host = "95.85.245.23"
 ssh_user = "root"
 credential_alias = "ee-1chost"
 status = "active"
+
+[[servers]]
+alias = "al-wcloud"
+role = "managed-vpn-node"
+location = "Albania"
+host = "al1-goykb.vpvr4ib84nuv6hdkt.ru"
+status = "active"

@@ -14,6 +14,8 @@ Owner acceptance: remove every Hysteria customer connection; retain stable subsc
 
 Acceptance: no Hysteria URI/outbound in fresh public output; Estonia and YouTube must be checked through real tunneled traffic. Existing bypass XHTTP x1 paths are unchanged.
 
+Result: production main squad has no Hysteria inbound, six active Hysteria Hosts were disabled, and the declarative squad list was updated with a backup. Fresh public plain/Happ output contains only VLESS. Real Xray HTTP canaries returned 204 for Estonia, Netherlands, Albania, and the exact generated YouTube least-load profile. Rollback is the pre-change environment backup plus re-enabling the disabled Hosts and reverting the release.
+
 ## Goal
 
 - Move the WebApp add-on entry directly below `Создать свой тариф` and remove

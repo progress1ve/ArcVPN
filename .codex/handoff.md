@@ -334,13 +334,13 @@ Updated: 2026-09-01. This file is current state, not a diary.
   and Telegram WebApp buttons. Server pricing is authoritative and resulting
   device capacity is capped at 15. Automated tests were intentionally not run
   at the owner's request; Python compilation and the Vite build passed.
-- Albania is prepared but not customer-visible through `088cd30`/`cd50e38`.
-  Remnawave has the dedicated two-inbound profile and node record, but the node
-  is disconnected until the owner enters the locally delivered WCloud secret
-  and Poland panel IP. `a34c33e` adds guarded catalog support and makes the
-  existing YouTube row a least-load selector over Netherlands plus Albania when
-  Albania becomes available. Promotion must use `scripts/promote_albania_node.py`;
-  it refuses to publish Hosts or squad bindings while disconnected.
+- Albania WCloud is connected on control port 3341 and customer-visible as the
+  VLESS Reality row `Албания #1`. All Hysteria customer links are removed from
+  plain/base64/Happ delivery, their Hosts are disabled, and their inbound UUIDs
+  are absent from the declarative main squad. YouTube remains one least-load
+  profile over Netherlands and Albania VLESS. Credential-safe real HTTP canaries
+  returned 204 through Estonia, Netherlands, Albania, and the exact generated
+  YouTube profile. Stable subscription URLs and user UUIDs are unchanged.
 
 Release `c7d2824` implements cycle-scoped bypass/device add-ons,
 two explicit exhausted-bypass placeholder profiles, LTE alerts only at 10% and

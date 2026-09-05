@@ -1489,7 +1489,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
     links = sorted(
         _expand_lte_profile_links([
-            item.strip() for item in links_text.splitlines() if item.strip()
+            item.strip() for item in links_text.splitlines()
+            if item.strip()
+            and urllib.parse.urlsplit(item.strip()).scheme.lower() not in {"hysteria", "hysteria2", "hy2"}
         ]),
         key=_subscription_link_order,
     )
