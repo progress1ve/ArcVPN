@@ -64,3 +64,22 @@
 - Bot renewal and exhaustion keyboards expose the requested destinations.
 - Focused/full automated checks and production verification are recorded before
   closeout; owner dirty files remain untouched.
+
+## Current evidence
+
+- `@Turan11627` bypass counter was reset in Remnawave and locally after a
+  dedicated production database backup.
+- Add-on runtime `b46c429` is deployed with schema v62; bot and subscription
+  services are active. Per owner instruction, automated tests were not run.
+  Python compilation and the Vite production build completed successfully.
+- Albania profile/node preparation is deployed through `cd50e38`. The generated
+  WCloud RemnaNode secret exists only in root-readable production storage and a
+  user-readable local Downloads copy. The node is not connected yet, so no
+  Albania Host or squad binding has been published.
+- Catalog support and the Netherlands/Albania YouTube least-load profile are
+  deployed at `a34c33e`; Albania children remain absent until the guarded
+  promotion script observes a connected node. Public health is `OK` after the
+  subscription restart.
+- Remaining gate: enter the prepared secret and Poland panel IP in WCloud, then
+  run `scripts/promote_albania_node.py` to create the two Hosts and attach both
+  inbounds to the main squad. Do not bypass its connected-node check.

@@ -327,6 +327,21 @@ Updated: 2026-09-01. This file is current state, not a diary.
 
 ## Current stage: bypass quota add-ons
 
+- Combined add-on UX is deployed at `b46c429` with schema v62. The WebApp entry
+  sits directly below `Создать свой тариф`, a single order may include both a
+  bypass package and device units, and the shared SBP/card method sheet is used.
+  Renewal UI has separate device/bypass entries; exhaustion alerts provide site
+  and Telegram WebApp buttons. Server pricing is authoritative and resulting
+  device capacity is capped at 15. Automated tests were intentionally not run
+  at the owner's request; Python compilation and the Vite build passed.
+- Albania is prepared but not customer-visible through `088cd30`/`cd50e38`.
+  Remnawave has the dedicated two-inbound profile and node record, but the node
+  is disconnected until the owner enters the locally delivered WCloud secret
+  and Poland panel IP. `a34c33e` adds guarded catalog support and makes the
+  existing YouTube row a least-load selector over Netherlands plus Albania when
+  Albania becomes available. Promotion must use `scripts/promote_albania_node.py`;
+  it refuses to publish Hosts or squad bindings while disconnected.
+
 Release `c7d2824` implements cycle-scoped bypass/device add-ons,
 two explicit exhausted-bypass placeholder profiles, LTE alerts only at 10% and
 0%, Family at 8 devices, custom plans up to 15 devices, monotonic anchor-based
