@@ -70,7 +70,9 @@ def test_customer_catalog_removes_all_hysteria_links():
         "hy2://id@host#Нидерланды%20%232",
     ]
 
-    assert api._apply_subscription_catalog(links) == [links[0]]
+    result = api._apply_subscription_catalog(links)
+    assert len(result) == 1
+    assert urllib.parse.unquote(result[0].rsplit("#", 1)[-1]) == "Эстония"
 
 
 def test_country_labels_and_manual_youtube_alias_are_normalized():
@@ -88,11 +90,11 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
 
     assert names == [
         "🇷🇺 Ютуб без рекламы",
-        "🇪🇪 Эстония #1",
+        "🇪🇪 Эстония",
         "🇪🇪 Эстония #2",
-        "🇳🇱 Нидерланды #1",
+        "🇳🇱 Нидерланды",
         "🇳🇱 Нидерланды #2",
-        "🇩🇪 Германия #1",
+        "🇩🇪 Германия",
         "🇩🇪 Германия #2",
     ]
     assert result[0].split("#", 1)[0] == result[3].split("#", 1)[0]

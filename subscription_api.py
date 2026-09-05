@@ -388,7 +388,10 @@ def _subscription_display_name(name: str) -> str:
         number_match = re.search(r"#\s*([1-9][0-9]*)", value)
         number = number_match.group(1) if number_match else "1"
         return f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
-    return re.sub(r"\s*⚡\s*", " ", value).strip()
+    value = re.sub(r"\s*⚡\s*", " ", value).strip()
+    if any(country in value for country in ("Эстония", "Нидерланды", "Албания", "Германия")):
+        value = re.sub(r"\s*#\s*1\s*$", "", value).strip()
+    return value
 
 
 def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
@@ -452,7 +455,9 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     """Stable customer-facing order shared by native and fallback catalogs."""
     name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
     number_match = re.search(r"#\s*([1-9][0-9]*)", name)
-    protocol_order = int(number_match.group(1)) if number_match else 99
+    protocol_order = int(number_match.group(1)) if number_match else (
+        1 if urllib.parse.urlsplit(link).scheme.lower() == "vless" else 99
+    )
     if "Ютуб без рекламы" in name:
         country_order = 5
     elif "Эстония" in name:
@@ -498,7 +503,7 @@ def _normalize_customer_profile_label(link: str) -> str:
         else:
             scheme = urllib.parse.urlsplit(link).scheme.lower()
             is_hysteria = scheme in {"hysteria", "hysteria2", "hy2"}
-            label = f"{flag} {country} #{2 if is_hysteria else 1}"
+            label = f"{flag} {country} #2" if is_hysteria else f"{flag} {country}"
         return payload + "#" + urllib.parse.quote(label, safe="")
     return link
 

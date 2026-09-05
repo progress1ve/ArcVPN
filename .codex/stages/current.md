@@ -1,5 +1,9 @@
 # Stage: combined add-ons and payment UX (2026-09-03)
 
+## 2026-09-05: simplify primary location labels
+
+Owner acceptance: customer-visible VLESS Reality rows for Estonia, Netherlands, Albania and Germany lose the redundant `#1` suffix. Source Host remarks, ordering keys, UUIDs, endpoints, transports, bypass labels and subscription URLs remain unchanged. Acceptance: fresh plain and Happ JSON output show the four country names without `#1`; rollback is a release revert.
+
 ## 2026-09-05: Estonia public IP replacement
 
 Owner acceptance: replace Estonia origin `95.85.245.23` with `95.85.249.187`; keep every public subscription URL, UUID, hostname and Reality identity unchanged.

@@ -58,8 +58,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
-            "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония #1",
-            "Нидерланды #1", "Албания #1", "Германия #1", "🇪🇺 Лучший обход",
+            "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония",
+            "Нидерланды", "Албания", "Германия", "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
