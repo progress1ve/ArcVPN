@@ -337,8 +337,9 @@ Updated: 2026-09-01. This file is current state, not a diary.
 - Albania WCloud is connected on control port 3341 and customer-visible as the
   VLESS Reality row `Албания #1`. All Hysteria customer links are removed from
   plain/base64/Happ delivery, their Hosts are disabled, and their inbound UUIDs
-  are absent from the declarative main squad. YouTube remains one least-load
-  profile over Netherlands and Albania VLESS. Credential-safe real HTTP canaries
+  are absent from the declarative main squad. After owner-device failures with
+  the composite selector, YouTube is one simple Netherlands VLESS profile and
+  Estonia uses the documented Edge fingerprint fallback. Credential-safe real HTTP canaries
   returned 204 through Estonia, Netherlands, Albania, and the exact generated
   YouTube profile. Stable subscription URLs and user UUIDs are unchanged.
 

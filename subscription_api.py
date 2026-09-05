@@ -1635,20 +1635,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         )
 
     youtube_profiles = []
-    if youtube_outbounds:
-        youtube_profile = copy.deepcopy(auto_profile)
+    netherlands_profiles = visible_country("Нидерланды")
+    if netherlands_profiles:
+        youtube_profile = copy.deepcopy(netherlands_profiles[0])
         youtube_profile["remarks"] = "\U0001f1f7\U0001f1fa Ютуб без рекламы"
-        youtube_profile["outbounds"] = [*youtube_outbounds,
-            {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}]
-        youtube_profile["burstObservatory"]["pingConfig"]["subjectSelector"] = ["proxy-youtube"]
-        youtube_profile["routing"]["balancers"] = [{
-            "fallbackTag": "direct", "selector": ["proxy-youtube"],
-            "strategy": {"settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"}, "type": "leastLoad"},
-            "tag": "balancer_youtube",
-        }]
-        for rule in youtube_profile["routing"]["rules"]:
-            if rule.get("balancerTag") == "balancer_main":
-                rule["balancerTag"] = "balancer_youtube"
         youtube_profiles.append(youtube_profile)
     visible_main = [
         *youtube_profiles,
@@ -2387,7 +2377,7 @@ def _normalize_native_share_link(link: str) -> str:
     if security in {"reality", "tls"}:
         # Happ builds in current use accept Firefox/Edge uTLS fingerprints, while
         # Chrome intermittently fails on the affected Russian mobile routes.
-        params["fp"] = ["firefox"]
+        params["fp"] = ["edge" if (parsed.hostname or "").lower() == "ee.arccnet.space" else "firefox"]
 
     host = (parsed.hostname or "").lower()
     if params.get("type", [""])[0] == "xhttp" and host in {

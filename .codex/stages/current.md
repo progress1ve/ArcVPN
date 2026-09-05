@@ -10,11 +10,11 @@ Owner acceptance: remove every Hysteria customer connection; retain stable subsc
 | Netherlands | VLESS Reality only | main Auto + YouTube | none | restore previous release |
 | Albania | VLESS Reality only | main Auto + YouTube | none | restore previous release |
 | Germany | VLESS Reality only | main Auto | none | restore previous release |
-| YouTube without ads | least-load over NL + AL VLESS | dedicated selector | none | restore NL-only alias |
+| YouTube without ads | Netherlands VLESS | dedicated simple profile | none | restore prior selector |
 
 Acceptance: no Hysteria URI/outbound in fresh public output; Estonia and YouTube must be checked through real tunneled traffic. Existing bypass XHTTP x1 paths are unchanged.
 
-Result: production main squad has no Hysteria inbound, six active Hysteria Hosts were disabled, and the declarative squad list was updated with a backup. Fresh public plain/Happ output contains only VLESS. Real Xray HTTP canaries returned 204 for Estonia, Netherlands, Albania, and the exact generated YouTube least-load profile. Rollback is the pre-change environment backup plus re-enabling the disabled Hosts and reverting the release.
+Result: production main squad has no Hysteria inbound, six active Hysteria Hosts were disabled, and the declarative squad list was updated with a backup. Fresh public plain/Happ output contains only VLESS. Server-side canaries passed, but owner-device Happ still failed on Estonia and the composite YouTube selector; Estonia therefore uses the documented Edge fingerprint fallback and YouTube is reduced to a simple Netherlands VLESS profile. Rollback is the pre-change environment backup plus re-enabling the disabled Hosts and reverting the release.
 
 ## Goal
 
