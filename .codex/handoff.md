@@ -340,15 +340,17 @@ Updated: 2026-09-01. This file is current state, not a diary.
   are absent from the declarative main squad. After owner-device failures with
   the initial composite selector, its failure was investigated from a Russian
   network rather than attributed to fingerprinting. Estonia moved to replacement
-  IP `95.85.249.187`; the guest network, Remnawave node record and repository
+  IP `95.85.249.187`; the guest network, Remnawave node/Host records and repository
   inventory use the new address, and the node is connected. The ordinary
   Estonia profile again uses the Firefox fingerprint. YouTube is a real
   least-load selector over Netherlands and Albania with Netherlands as its fixed
   fallback. Credential-safe real HTTP canaries from Russia returned 204 through
   the replacement Estonia IP and the exact generated YouTube selector. REG.RU
-  still resolves `ee.arccnet.space` to the old IP, so the old address remains a
-  temporary secondary address on the same guest until the owner changes the A
-  record; the Yandex Estonia origin must be changed in the same cutover. Stable
+  and the Yandex Estonia origin now point to the replacement address; the old
+  address has been removed from the guest and current runtime. A fresh public
+  Estonia profile publishes the replacement IP directly with `fp=firefox` and
+  returned 204 from Russia. Multitest against Russian servers measured roughly
+  490-1077 Mbps download, 503-1093 Mbps upload and 15-49 ms latency. Stable
   subscription URLs and user UUIDs are unchanged.
 
 Release `c7d2824` implements cycle-scoped bypass/device add-ons,
