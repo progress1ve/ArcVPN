@@ -270,6 +270,8 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Эстония #2",
     "Нидерланды #1",
     "Нидерланды #2",
+    "Албания #1",
+    "Албания #2",
     "Германия #1",
     "Германия #2",
     "Ютуб без рекламы",
@@ -284,7 +286,7 @@ _CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
 
 def _subscription_source_name(name: str) -> str:
     normalized = str(name or "").strip()
-    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇪🇪 ", "🇷🇺 ", "🇫🇷 ", "🇨🇦 "):
+    for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇪🇪 ", "🇦🇱 ", "🇷🇺 ", "🇫🇷 ", "🇨🇦 "):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
             break
@@ -320,7 +322,7 @@ def _profile_country_flag(name: str) -> str:
     if "Обход глушилок" in value or "LTE" in value:
         return "🇪🇺"
     for marker, flag in (
-        ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Германия", "🇩🇪"),
+        ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Албания", "🇦🇱"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
         ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
@@ -455,6 +457,8 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
         country_order = 10
     elif "Нидерланды" in name:
         country_order = 15
+    elif "Албания" in name:
+        country_order = 17
     elif "Германия" in name:
         country_order = 20
     elif "Канада" in name or "Франция" in name:
@@ -480,6 +484,7 @@ def _normalize_customer_profile_label(link: str) -> str:
     countries = (
         ("Нидерланды", "🇳🇱"),
         ("Эстония", "🇪🇪"),
+        ("Албания", "🇦🇱"),
         ("Германия", "🇩🇪"),
         ("Канада", "🇨🇦"),
     )
@@ -1488,6 +1493,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     )
     regular: list[Dict[str, Any]] = []
     auto_outbounds: list[Dict[str, Any]] = []
+    youtube_outbounds: list[Dict[str, Any]] = []
     lte_outbounds: list[Dict[str, Any]] = []
     for index, link in enumerate(links, start=1):
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else f"ArcVPN #{index}"
@@ -1545,6 +1551,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
                 if candidate is not None:
                     auto_outbounds.append(candidate)
+            if include_in_auto and "Ютуб без рекламы" not in name and any(country in name for country in ("Нидерланды", "Албания")):
+                youtube_candidate = _json_outbound_from_share_link(link, f"proxy-youtube-{len(youtube_outbounds) + 1}")
+                if youtube_candidate is not None:
+                    youtube_outbounds.append(youtube_candidate)
 
     host_priority = {host: index for index, host in enumerate(BYPASS_CDN_HOST_PRIORITY)}
     lte_outbounds.sort(key=lambda item: host_priority.get(
@@ -1605,6 +1615,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "Нидерланды": ("Нидерланды", "Netherlands"),
             "Эстония": ("Эстония", "Estonia"),
             "Германия": ("Германия", "Germany"),
+            "Албания": ("Албания", "Albania"),
         }[country]
         candidates = [
             profile for profile in normal_profiles
@@ -1620,16 +1631,26 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         )
 
     youtube_profiles = []
-    for profile in normal_profiles:
-        if "Ютуб без рекламы" not in str(profile.get("remarks") or ""):
-            continue
-        item = copy.deepcopy(profile)
-        item["remarks"] = "\U0001f1f7\U0001f1fa Ютуб без рекламы"
-        youtube_profiles.append(item)
+    if youtube_outbounds:
+        youtube_profile = copy.deepcopy(auto_profile)
+        youtube_profile["remarks"] = "\U0001f1f7\U0001f1fa Ютуб без рекламы"
+        youtube_profile["outbounds"] = [*youtube_outbounds,
+            {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}]
+        youtube_profile["burstObservatory"]["pingConfig"]["subjectSelector"] = ["proxy-youtube"]
+        youtube_profile["routing"]["balancers"] = [{
+            "fallbackTag": "direct", "selector": ["proxy-youtube"],
+            "strategy": {"settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"}, "type": "leastLoad"},
+            "tag": "balancer_youtube",
+        }]
+        for rule in youtube_profile["routing"]["rules"]:
+            if rule.get("balancerTag") == "balancer_main":
+                rule["balancerTag"] = "balancer_youtube"
+        youtube_profiles.append(youtube_profile)
     visible_main = [
         *youtube_profiles,
         *visible_country("Эстония"),
         *visible_country("Нидерланды"),
+        *visible_country("Албания"),
         *visible_country("Германия"),
     ]
     fallback_lte_profiles = []

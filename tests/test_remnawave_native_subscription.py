@@ -39,12 +39,14 @@ def test_germany_reality_fallback_uses_public_domain():
     assert germany["host"] == "de.arccnet.space"
 
 
-def test_customer_catalog_order_is_netherlands_estonia_germany_then_lte():
+def test_customer_catalog_order_places_albania_after_netherlands():
     links = [
         "vless://id@host#Обход%20глушилок%20(LTE)",
         "vless://id@host#Германия%20%231",
         "vless://id@host#Нидерланды%20%232",
         "vless://id@host#Нидерланды%20%231",
+        "vless://id@host#Албания%20%231",
+        "hysteria2://id@host#Албания%20%232",
         "vless://id@host#Эстония%20%232",
         "vless://id@host#Эстония%20%231",
         "vless://id@host#Германия%20%232",
@@ -55,6 +57,7 @@ def test_customer_catalog_order_is_netherlands_estonia_germany_then_lte():
     assert names == [
         "Эстония #1", "Эстония #2",
         "Нидерланды #1", "Нидерланды #2",
+        "Албания #1", "Албания #2",
         "Германия #1", "Германия #2",
         "Обход глушилок (LTE)",
     ]

@@ -33,7 +33,9 @@ class HappFallbackBalancerTests(unittest.TestCase):
             tiktok_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES)
             direct_index = next(i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct")
             self.assertLess(tiktok_index, direct_index)
-            if profile["remarks"].startswith(("Автовыбор", "🇪🇺 Лучший обход", "🇪🇺 Обход")):
+            if profile["remarks"] == "🇷🇺 Ютуб без рекламы":
+                self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_youtube")
+            elif profile["remarks"].startswith(("Автовыбор", "🇪🇺 Лучший обход", "🇪🇺 Обход")):
                 self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_main")
             else:
                 self.assertEqual(rules[tiktok_index]["outboundTag"], "proxy")
@@ -44,6 +46,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Нидерланды%20%231",
             "vless://11111111-1111-1111-1111-111111111111@nl.example:443?security=none&type=tcp#Ютуб%20без%20рекламы",
             "hysteria2://aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa@nl.example:8443?insecure=1#Нидерланды%20%232%20%E2%9A%A1",
+            "vless://99999999-9999-4999-8999-999999999999@al.example:3342?security=reality&type=tcp#Албания%20%231",
+            "hysteria2://88888888-8888-4888-8888-888888888888@al.example:3343?insecure=1#Албания%20%232",
             "vless://55555555-5555-5555-5555-555555555555@ee.example:443?security=none&type=tcp#Эстония%20%231",
             "hysteria2://eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee@ee.example:8443?insecure=1#Эстония%20%232",
             "vless://22222222-2222-2222-2222-222222222222@de.example:443?security=none&type=tcp#Германия%20%231",
@@ -56,10 +60,17 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония #1", "Эстония #2",
             "Нидерланды #1", "Нидерланды #2",
+            "Албания #1", "Албания #2",
             "Германия #1", "Германия #2", "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
+        youtube = profiles[1]
+        self.assertEqual(youtube["routing"]["balancers"][0]["tag"], "balancer_youtube")
+        self.assertEqual(
+            [item["tag"] for item in youtube["outbounds"] if item["tag"].startswith("proxy-youtube-")],
+            ["proxy-youtube-1", "proxy-youtube-2", "proxy-youtube-3", "proxy-youtube-4"],
+        )
 
     def test_every_bypass_uses_whitenode_least_load_contract(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
