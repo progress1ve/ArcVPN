@@ -1687,3 +1687,16 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   sender over STARTTLS port 2587. The secret is stored outside Git in the local
   encrypted vault and a root-only production environment file. SMTP auth and a
   provider acceptance delivery passed; retain a real user OTP as inbox QA.
+## 2026-09-06: private ArcVPN operations MCP workflow
+
+- Private repository `progress1ve/arcvpn-ops-mcp` provides local-stdio,
+  host-key-pinned SSH sessions, bounded/redacted output, background work, SFTP,
+  systemd/journal helpers, health checks, recipes, ProxyJump, SSH agent, and the
+  existing Windows DPAPI vault integration.
+- Project routing uses `.agents/skills/arcvpn-server-ops` for generic server
+  operations and `.agents/skills/arcvpn-node-ops` for topology/protocol work.
+  Both automatically prefer available `arcvpn_*` MCP tools without requiring the
+  owner to invoke them, with the existing vault/SSH helper as fallback.
+- MCP changes transport and context efficiency only. It does not authorize
+  production mutations or replace local checks, reviewed diffs, deployment
+  gates, public verification, or real client/tunnel evidence.

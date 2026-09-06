@@ -321,6 +321,13 @@ Updated: 2026-09-01. This file is current state, not a diary.
 - The stage remains **in progress**, not closed: a real keyboard-only activation pass, one explicitly authorized production Support reply, and a designated safe disabled Remnawave identity for live revoke confirmation are still pending. Do not infer permission to mutate a real user or send a Support message.
 - The non-operational Schemes editor and its graph dependency were removed in `d111e11efa5f86738e54fc6e464fabe3e2dc9bb6`. Axottle-only infrastructure features without ArcVPN backend contracts remain explicitly deferred/rejected in the current stage matrix.
 - Frontend changes require live browser inspection at four viewport classes, not only code/tests.
+- The private `arcvpn-ops-mcp` is globally registered in Codex. Project skills
+  automatically prefer its bounded high-level tools for general server and node
+  work, then fall back to the DPAPI vault plus `ssh_exec.py` when the MCP or host
+  enrollment is unavailable. MCP transport never relaxes authorization,
+  deployment, topology, or real-tunnel acceptance gates. `pl-control` and
+  `nl-dhost` have independently pinned local host keys; other nodes remain
+  unenrolled until their current keys are independently verified.
 - Node configuration facts live in `.codex/references/node-config-contract.md`.
 - Non-secret server topology lives in `.codex/server-inventory.toml`; active Poland/Germany/Netherlands credentials are local DPAPI entries managed by `scripts/ops/server-vault.ps1`.
 - Use `$arcvpn-node-ops` for node, Remnawave, Reality, Hysteria2, LTE/XHTTP, CDN, DNS, or certificate work.

@@ -9,7 +9,13 @@ Before non-trivial work, read `.codex/handoff.md`, `.codex/project-index.md`, an
 - Never print or commit passwords, tokens, Reality private keys, or subscription IDs.
 - Do not delete unknown/user files. Classify first; delete only an explicitly authorized class.
 - For node/protocol/CDN work, use `$arcvpn-node-ops` and follow `.codex/references/node-config-contract.md`.
+- For deployments, service management, logs, health checks, or general server
+  work, use `$arcvpn-server-ops`; automatically prefer the private `arcvpn-ops`
+  MCP when its tools are available.
 - For frontend work, use `$arcvpn-frontend-qa`; browser evidence is part of acceptance.
+- For substantial UI work, separate planning from implementation: agree on the
+  content/interaction contract first, then build and verify it. Preserve the
+  existing Svelte stack unless the owner explicitly approves a migration.
 
 ## Routing
 
