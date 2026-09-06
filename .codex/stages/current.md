@@ -47,7 +47,9 @@ improve task routing, and remove only proven reproducible cache files.
   worktrees, previews, legacy sources, and unknown files remain present.
 - Passed: owner changes to `Connect.svelte` and the deleted landing prompt remain
   unstaged and untouched.
-- Pending: reviewed Git commit, push, and production fast-forward pull.
+- Passed: reviewed commit `e519584`, pushed to `main`, and production
+  fast-forwarded to the same commit. Documentation/skills changed only, so no
+  service restart was performed.
 
 ## Closeout
 
@@ -55,5 +57,8 @@ improve task routing, and remove only proven reproducible cache files.
 - Rollback: revert the documentation/skill commit. Deleted caches regenerate.
 - Residual: Impeccable and shadcn were evaluated but not installed. Official
   shadcn/ui is React-oriented and does not match the current Svelte stack.
+- Residual: the production checkout contains older untracked backups and runtime
+  artifacts. They were outside the requested local-cleanup scope and remain
+  untouched pending a separate classified production cleanup.
 - Next: use the new landing-planning prompt in a fresh task, then implement only
   after its public content and interaction contract is accepted.
