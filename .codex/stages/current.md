@@ -1,5 +1,17 @@
 # Stage: combined add-ons and payment UX (2026-09-03)
 
+## 2026-09-06: Germany Reality bridge through Netherlands
+
+Owner acceptance: bypass the blocked Germany public IP through the faster usable route over the existing Estonia/Netherlands nodes. Netherlands-to-Germany measured approximately 9.8 ms RTT, but the new public relay port stalled on the Russian path and the attempted Netherlands relay was fully removed. Estonia-to-Germany measured approximately 33 ms RTT and passed the complete Russian client gate.
+
+| Visible profile | Client hostname | CDN resource | Origin group | Active/backup origin | Host/SNI | Inbound/path | Multiplier | Public URL impact | Failure/rollback |
+|---|---|---|---|---|---|---|---|---|---|
+| Germany | `95.85.249.187:8445` | none | none | Estonia TCP relay -> Germany `193.233.198.184:443` | client address Estonia; existing Germany Reality SNI unchanged | existing Germany VLESS Reality TCP | x1 | subscription URL and UUID unchanged | fails if EE relay or Germany origin fails; restore Germany Host address/port and remove relay unit/rule |
+
+Acceptance: relay socket is active, Remnawave Host retains its inbound/identity fields, fresh subscription publishes the bridge, and an exact generated client profile completes real tunneled HTTP from Russia.
+
+Result: Estonia runs the persistent `arcvpn-de-bridge.service` TCP relay on 8445. The active Germany Host publishes `95.85.249.187:8445`, keeps `sni=google.com`, `fp=firefox`, the existing inbound and x1 accounting. The exact freshly generated Germany Happ profile completed a real tunneled request from Russia with HTTP 204. The failed Netherlands relay service/socket/firewall rule were removed. Rollback is restoring the Host to `de.arccnet.space:443` and removing the Estonia relay service/firewall rule.
+
 ## 2026-09-05: simplify primary location labels
 
 Owner acceptance: customer-visible VLESS Reality rows for Estonia, Netherlands, Albania and Germany lose the redundant `#1` suffix. Source Host remarks, ordering keys, UUIDs, endpoints, transports, bypass labels and subscription URLs remain unchanged. Acceptance: fresh plain and Happ JSON output show the four country names without `#1`; rollback is a release revert.

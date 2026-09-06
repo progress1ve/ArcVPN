@@ -352,6 +352,13 @@ Updated: 2026-09-01. This file is current state, not a diary.
   returned 204 from Russia. Multitest against Russian servers measured roughly
   490-1077 Mbps download, 503-1093 Mbps upload and 15-49 ms latency. Stable
   subscription URLs and user UUIDs are unchanged.
+- Germany's direct public IP became unreachable from Russia on 2026-09-06. Its
+  existing Reality identity is now reached through a persistent TCP bridge on
+  Estonia `95.85.249.187:8445`; the public Host keeps the Germany SNI, Firefox
+  fingerprint, inbound authorization and x1 accounting. The exact fresh Happ
+  profile returned HTTP 204 from Russia. A lower-latency Netherlands bridge was
+  attempted first, but its public relay port stalled on the Russian path and all
+  related Netherlands units and firewall rules were removed.
 
 Release `c7d2824` implements cycle-scoped bypass/device add-ons,
 two explicit exhausted-bypass placeholder profiles, LTE alerts only at 10% and
