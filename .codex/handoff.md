@@ -1,6 +1,6 @@
 # ArcVPN handoff — public Northern Flow landing
 
-Updated: 2026-09-07. Current production HEAD: `4571145`.
+Updated: 2026-09-07. Current production runtime commit: `4571145`.
 
 ## Shipped
 
