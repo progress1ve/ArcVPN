@@ -820,12 +820,15 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 ## Public Northern Flow landing (2026-09-07, production)
 
 - `/` is implemented as a public Svelte landing and `/app` keeps the existing auth/cabinet flow. `Root.svelte` dynamically separates the landing and App chunks.
-- Landing prices, custom quotes and profile names use `/api/public/tariffs`, `/api/public/custom-tariff-quote` and `/api/public/subscription-catalog`; responses are allowlisted, short-cached and content-ETag enabled.
+- Landing prices and custom quotes use `/api/public/tariffs` and `/api/public/custom-tariff-quote`; responses are allowlisted, short-cached and content-ETag enabled. `/api/public/subscription-catalog` remains available but is no longer rendered as a simulated client on the landing.
 - Landing intent contract is `/app?screen=tariffs&product=<economy|standard|family>&months=<1|3|6|12>`, `/app?screen=custom-tariff` and `/app?screen=connect` (legacy `/app#connect` remains supported).
 - Hero uses the exact owner-supplied Aura blue-ribbon motion as local `assets/landing/northern-flow.webm` plus MP4 fallback, with a matching WebP poster. The 8-second 1280x720 files have no audio and remain below 2.5 MB; mobile, Save-Data and reduced-motion render the poster without creating a video element.
 - Commit `c800338` removes the landing guide lines, Hero product-note and connection-instruction link; mobile navigation is only logo, `ArcVPN` and cabinet CTA. Bypass value is now explained in Hero, feature, dedicated and pricing copy, including that normal unlimited profiles continue after its separate quota is exhausted.
-- Commits `89b1595`, `d6c9613` and `c800338` are deployed on the Poland control plane. Browser QA passed at 360x800, 390x844, 768x1024, 1280x800 and 1600x900 with no overflow or Hero content collision; public landing, app and Hero media checks return HTTP 200.
-- Cabinet proof intentionally contains labelled laptop/phone screenshot placeholders. Instagram/TikTok links stay hidden while their verified HTTPS config values are empty; neither item blocks the current release.
+- Commit `5dfb6df` replaces the simulated subscription client with an honest trial panel: new Telegram users can inspect ArcVPN through the configured free bot trial; a new email account can use the existing 7-day Standard website trial for 10 RUB through `/app`. The website-trial copy discloses auto-renewal. No new payment or eligibility route was invented.
+- Commit `5dfb6df` also installs the owner's anonymized desktop/mobile cabinet captures and restyles pricing/custom tariff surfaces with 25-34 px responsive radii while preserving live server prices and intent URLs. Mobile navigation remains logo, `ArcVPN` and cabinet CTA, with no burger.
+- Commit `4571145` adds explicit smooth navigation for all landing hash links while keeping `prefers-reduced-motion` immediate; it also matches the cabinet image width/height attributes to the encoded assets.
+- Commits `89b1595`, `d6c9613`, `c800338`, `5dfb6df` and `4571145` are deployed on the Poland control plane. Browser QA passed at 360x800, 390x844, 768x1024, 1280x900 and 1600x900 with no overflow; public landing, app, Hero media and cabinet images return HTTP 200.
+- Instagram/TikTok links stay hidden while their verified HTTPS config values are empty; neither item blocks the current release.
 
 ## Arc Flow purchase and UI correction (2026-07-29, local only)
 

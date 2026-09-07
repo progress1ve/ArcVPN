@@ -1,66 +1,57 @@
 # ArcVPN handoff — public Northern Flow landing
 
-Updated: 2026-09-07. Released to production from `main`.
+Updated: 2026-09-07. Current production HEAD: `4571145`.
 
 ## Shipped
 
-- `https://arccnet.space/` is the public Svelte landing; `/app` keeps the
-  existing authentication and cabinet flow.
-- Hero uses the owner-supplied Aura blue-ribbon motion, vendored as an
-  optimized 8-second muted loop: 1.0 MB MP4, 1.82 MB WebM and a 39.2 kB WebP
-  poster. Mobile, Save-Data and reduced-motion render only the poster.
-- Hero type has non-overlapping line metrics, the decorative guide lines are
-  removed, and mobile navigation is limited to logo, `ArcVPN` and the cabinet
-  CTA without a burger.
-- Product proof is a clearly labelled ArcVPN preview with the real public
-  profile catalog. Location initials and names render cleanly; no protocol,
-  host, port, UUID, topology or fabricated ping is exposed.
-- Pricing and the custom builder use server-owned public endpoints. The live
-  3-month / 3-device / 45-GB quote is 399 RUB; changing the period to 6 months
-  returns 759 RUB in production.
-- Cabinet proof uses laptop and phone compositions with explicit places for
-  later anonymized screenshots.
-- Instagram and TikTok stay hidden until exact HTTPS values are configured.
-- Stable landing intents are `/app?screen=tariffs&product=<code>&months=<n>`,
-  `/app?screen=custom-tariff` and `/app?screen=connect`.
+- `https://arccnet.space/` remains the public Svelte landing; `/app` keeps the
+  existing authentication, paid trial and cabinet flows.
+- The rejected fake Happ/INCY-style subscription window is removed. Its place
+  is a concise trial panel explaining many locations, ordinary profiles and
+  separate censorship-bypass profiles.
+- Telegram trial CTA uses the configured public bot URL and is scoped to a new
+  user. Website trial CTA uses `/app` and accurately states: new email account,
+  7 days Standard, 5 GB bypass, 10 RUB and cancellable auto-renewal.
+- The owner's anonymized real cabinet screenshots now form the desktop/phone
+  product proof. Source WebP sizes are 25,164 and 20,166 bytes.
+- Pricing is three separate rounded live-data cards; Standard remains the clear
+  recommendation. Custom tariff uses the server quote inside one cohesive
+  rounded builder and always exposes the numeric result when available.
+- Mobile navigation is logo, `ArcVPN` and cabinet CTA only. The brand is shifted
+  five pixels right; there is no burger menu.
+- Internal landing links use explicit smooth scrolling; reduced-motion users
+  retain immediate navigation.
+- Instagram and TikTok stay hidden until exact HTTPS URLs are configured.
 
 ## Evidence
 
-- Runtime commits: `89b1595`, `d6c9613` and Hero/bypass refinement `c800338`;
-  all pushed to `main` and pulled fast-forward on Poland `pl-control`.
-- `.venv\\Scripts\\python.exe -m pytest -q`: 177 passed.
-- `npm run build`: passed. Landing JS is 15.72 kB gzip and the existing App
-  remains a separate 153.41 kB gzip lazy chunk.
+- Runtime commits `5dfb6df` and `4571145` pushed to `main` and pulled
+  fast-forward on production `pl-control`.
 - `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: exit 0,
   no findings.
-- Production service `arcvpn-subscription.service`: active after the backend
-  release restart.
-- Public `/`, `/app`, tariffs, catalog, custom quote, config, sitemap, Hero
-  poster, MP4 and WebM return HTTP 200. Tariffs have ETag and the profile
-  projection contains only `display_name`, `kind` and `sort_order`.
-- Browser QA at 360x800, 390x844, 768x1024, 1280x800 and 1600x900: no
-  horizontal overflow or Hero content collision. Desktop/tablet video plays;
-  mobile loads only the poster. Mobile has no menu; profile selection and
-  custom quote recalculation work.
-- Browser console has no landing errors. Only expected Telegram WebApp warnings
-  appear when the public page runs outside Telegram.
+- `npm run build`: passed; Landing JS 13.83 kB gzip, CSS 5.98 kB gzip. Existing
+  `HomeFlowPreview.svelte` unused-selector warnings are unchanged.
+- `.venv\\Scripts\\python.exe -m pytest -q`: 177 passed.
+- Browser QA: 360x800, 390x844, 768x1024, 1280x900 and 1600x900; no horizontal
+  overflow, fake client count 0, trial offers 2, tariffs 3, numeric custom quote,
+  no mobile burger, both cabinet images load at natural dimensions.
+- Public `/`, `/app` and both cabinet WebP files return HTTP 200; public config
+  has bot and cabinet URLs. `arcvpn-subscription.service` and `nginx.service`
+  remain active. Static-only deployment required no restart.
 
 ## Owner files intentionally untouched
 
-- `webapp/src/views/Connect.svelte` remains modified in the working tree.
+- `webapp/src/views/Connect.svelte` remains owner-modified.
 - `docs/design/arcvpn-landing-page-prompt.md` remains owner-deleted.
 
 ## Follow-up
 
-- Replace the laptop/phone proof placeholders when anonymized cabinet captures
-  are ready.
-- Configure verified Instagram and TikTok HTTPS URLs when available.
-- Optional: remove pre-existing unused-CSS warnings in `HomeFlowPreview.svelte`
-  as a separate cleanup; they do not affect the landing build or runtime.
+- Add verified Instagram/TikTok HTTPS URLs when ready.
+- Optional separate cleanup: pre-existing unused-CSS warnings in
+  `HomeFlowPreview.svelte`.
 
 ## Rollback
 
-Revert `c800338`, `d6c9613` and `89b1595`, push, pull fast-forward on
-`pl-control`, then
-restart only `arcvpn-subscription.service`. `/app`, authentication, payment,
-import, subscription URLs and user identities were not renamed by this stage.
+Revert `4571145` and `5dfb6df`, push and pull fast-forward on `pl-control`.
+`/app`, payment, authentication and subscription URL contracts are unchanged;
+no service restart is needed for this static-only rollback.

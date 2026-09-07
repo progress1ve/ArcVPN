@@ -1,98 +1,121 @@
-# Stage: Public landing — Hero and bypass refinement
+# Stage: Public landing — proof, trial and pricing refinement
 
 ## Goal
 
-Correct the shipped landing where the Hero typography collides, the global
-guide lines read as an accidental grid, the mobile header is over-controlled,
-and bypass value is under-explained. Bring the Hero closer to the owner-supplied
-Aura reference without copying its product UI or React implementation.
+Remove the rejected subscription-client imitation, replace placeholder cabinet
+proof with the owner's real desktop/mobile screenshots, and give pricing a
+cohesive rounded ArcVPN treatment. Add accurate trial discovery without
+inventing a new purchase route.
 
 ## Exact visible contract
 
 | Surface | Required result |
 |---|---|
-| Hero | Smooth blue ribbon video from the exact owner-supplied Aura prompt, locally optimized; readable copy with no collision |
-| Hero copy | Remove `Подписка для Happ и INCY`; keep one H1, one useful paragraph and two actions |
-| Guides | Remove the two fixed vertical guide lines from the whole landing |
-| Mobile nav | Logo, `ArcVPN` wordmark and `Личный кабинет`; no burger or mobile menu |
-| Applications | Keep the selected-app install CTA; remove `Инструкция подключения` |
-| Bypass | Explain its purpose in Hero/product/features/dedicated section and tariff context without guarantees or infrastructure detail |
-| Motion | Desktop/tablet video only; mobile, Save-Data and reduced-motion use the matching poster |
+| Subscription area | Remove the entire large fake client shown in the owner's first screenshot |
+| Locations/trial | State that the subscription contains many locations and invite visitors to inspect them through a real trial |
+| Telegram trial | `Бесплатно в Telegram`; CTA uses the configured public `bot_url`; copy limits the claim to a new user |
+| Website trial | `7 дней Standard за 10 ₽`; CTA uses the existing `/app` email flow; disclose that the offer is for a new email account and includes auto-renewal |
+| Cabinet proof | Use the supplied anonymized 1844x1068 desktop and 568x920 mobile screenshots, not CSS placeholders |
+| Mobile nav | Keep logo/name/cabinet only; move the brand five pixels to the right |
+| Pricing | Keep live API prices and all current product/period intents, but use three separated rounded plans with a clear Standard recommendation |
+| Custom tariff | Keep server quote and current controls/intent; place them in one rounded builder with a distinct rounded result area |
 
-## Components
+## Design plan
+
+- Palette: Ink `#030508`, Carbon `#080d14`, Raised `#0d151f`, Snow
+  `#f4f7fa`, Arc blue `#79c9f4`, line `rgba(219,234,247,.12)`.
+- Type: existing Manrope only; large sentence-case headings, readable body,
+  numeric price as the main card anchor.
+- Layout: one concise trial panel, two real screenshots in a desktop/phone
+  composition, three independent pricing cards, one horizontal custom builder.
+- Geometry: 28-34 px outer radii for primary surfaces, pill actions, 14-18 px
+  controls. Avoid a universal radius and avoid nested decorative cards.
+- Distinctive element remains the Hero ribbon. Pricing and proof stay quiet and
+  use blue only to explain hierarchy or selection.
+
+## Affected components
 
 - `webapp/src/views/LandingPage.svelte`
-- locally owned Hero WebM/MP4 and poster under `webapp/public/assets/landing/`
-- generated `webapp_dist/` assets
+- `webapp/public/assets/landing/cabinet-desktop.webp`
+- `webapp/public/assets/landing/cabinet-mobile.webp`
+- generated `webapp_dist/`
 
 ## Non-goals
 
-- No changes to `/app`, authentication, payment, subscription URLs, catalog
-  delivery or server topology.
-- No fabricated ping, protocol, host, node, review or performance claim.
-- Do not modify the owner's `webapp/src/views/Connect.svelte` change or deleted
+- No changes to `/app`, authentication, payment fulfillment, tariffs, trial
+  eligibility, subscription URLs or server catalog endpoints.
+- No invented location count, availability guarantee, review, performance
+  metric or hidden infrastructure detail.
+- No Instagram/TikTok URLs until configured.
+- Do not modify the owner's dirty `webapp/src/views/Connect.svelte` or deleted
   `docs/design/arcvpn-landing-page-prompt.md`.
-- Do not hotlink the 16.5 MB CloudFront source in production.
 
 ## Acceptance
 
-- H1, paragraph and actions do not overlap at 360x800, 390x844, 768x1024,
-  1280x800 and 1600x900.
-- The blue ribbon remains clearly visible but never reduces text contrast.
-- No global vertical guide/grid remains.
-- Mobile header contains exactly brand mark, visible `ArcVPN` and cabinet CTA.
-- No mobile menu exists and the desktop anchor navigation remains available.
-- The applications scene has no `Инструкция подключения` action.
-- Bypass copy appears before pricing, explains separate quota and explicitly
-  states that ordinary unlimited profiles keep working after it is exhausted.
-- Video is muted, looped, plays inline, has no controls; WebM and MP4 are each
-  under 2.5 MB and poster dimensions prevent layout shift.
-- Save-Data/reduced-motion/mobile do not download or play video.
-- Impeccable detector, Vite build and relevant tests pass.
-- Production browser has no horizontal overflow or new console errors across
-  all four viewport classes.
+- Rejected client-window markup and its catalogue fetch are absent.
+- Trial copy and CTAs match the existing bot and email-account behavior.
+- Supplied cabinet screenshots are readable, lazy-loaded, correctly cropped and
+  do not expose identifiers.
+- Tariffs and custom quote still load from public server APIs; error states do
+  not show invented prices.
+- Selected period, product CTA and custom tariff CTA retain their existing URL
+  contracts.
+- Pricing has independent rounded surfaces and no square joined ledger.
+- Mobile navigation fits at 360 px and the brand is shifted slightly right.
+- No horizontal overflow at 360x800, 390x844, 768x1024, 1280x800 and 1600x900.
+- Keyboard focus, hover, active, loading/error and reduced-motion states remain
+  visible.
+- Impeccable detector, Vite build and Python tests pass.
+- Production `/`, `/app`, screenshot assets, tariffs and custom quote are
+  verified after a fast-forward deployment.
 
 ## Risks and rollback
 
-- Source video is third-party hosted but was explicitly supplied in the owner's
-  prompt; vendor it locally and retain attribution only in Git history, not the
-  runtime dependency graph.
-- Autoplay can fail; the matching poster is always the initial visual.
-- Roll back the single runtime commit to restore the previous static Hero.
+- Screenshot text can become illegible when scaled. Preserve high-resolution
+  WebP sources, use aspect-ratio containers, and stack the proof on narrow
+  viewports.
+- Trial wording can over-promise eligibility. Explicitly scope both offers to a
+  new user/account and retain the existing application flows.
+- Pricing restyle can hide live failure states. Verify both loaded and local
+  error markup before release.
+- Roll back the single runtime commit to restore the previous landing; `/app`
+  and backend contracts are unchanged.
 
 ## Verification matrix
 
-- Source media: duration, dimensions, no audio, encoded size.
 - Automated: `npx impeccable detect`, `npm run build`, `pytest -q`, diff check.
-- Browser: desktop video, mobile/poster fallback, readable Hero, mobile nav,
-  removed guide/menu/instruction, bypass copy, pricing and calculator.
-- Deployment: scoped commit, push, production fast-forward, public asset and UI
-  checks; restart only if a runtime service file requires it.
+- Browser: trial CTAs/copy, real screenshot composition, tariff periods and
+  quote, mobile nav, overflow and focus across five viewports.
+- Deployment: scoped commit, push, production pull, public UI/assets/API checks;
+  no service restart for static-only changes.
 
-## Completed evidence
+## Result and evidence
 
-- Runtime commit `c800338` was pushed to `main` and pulled fast-forward on
-  production `pl-control`.
-- The Hero uses the exact owner-supplied Aura ribbon source, re-encoded locally
-  to an 8-second, 1280x720, 24-fps loop: MP4 1,000,091 bytes and WebM
-  1,816,648 bytes. Both contain video only; the matching WebP poster is 39,202
-  bytes.
-- `npm run build` passed. Landing JavaScript is 15.72 kB gzip and the existing
-  App remains a separate 153.41 kB gzip chunk. The only warnings are the
-  pre-existing unused selectors in `HomeFlowPreview.svelte`.
-- `.venv\Scripts\python.exe -m pytest -q`: 177 passed.
+- Status: complete and released to production on 2026-09-07.
+- Runtime commits: `5dfb6df` (`fix: refine landing proof and pricing`) and
+  `4571145` (`fix: smooth landing anchor navigation`), pushed to `main` and
+  pulled fast-forward on `pl-control`.
+- The fake subscription client and its catalog request are absent. The new
+  trial panel shows a configured Telegram-bot CTA and the existing `/app`
+  email route for the 10 RUB website trial.
+- Owner captures were exported to 25,164-byte desktop and 20,166-byte mobile
+  WebP assets. Production natural dimensions are 1600x924 and 568x912.
 - `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: exit 0,
   no findings.
-- Local browser matrix passed at 360x800, 390x844, 768x1024, 1280x800 and
-  1600x900: no overflow or content collision; desktop/tablet use video and
-  mobile uses only the poster.
-- Production browser checks passed at 1280-class desktop and 390x844 mobile:
-  no guide lines, no burger, no removed Hero/app text, no horizontal overflow;
-  the custom quote resolves to a numeric server price and the bypass section
-  contains the separate-quota explanation.
-- Public `/`, `/app`, poster, MP4 and WebM return HTTP 200. The subscription
-  service remained active; no restart was required for the static-only release.
-
-## Status
-
-Complete and deployed on 2026-09-07.
+- `npm run build`: passed. Landing chunk is 40.45 kB JS / 13.83 kB gzip and
+  37.20 kB CSS / 5.98 kB gzip. Existing App remains a separate 153.41 kB gzip
+  chunk. Existing unused-selector warnings remain confined to
+  `HomeFlowPreview.svelte`.
+- `.venv\\Scripts\\python.exe -m pytest -q`: 177 passed.
+- Browser QA at 360x800, 390x844, 768x1024, 1280x900 and 1600x900: no
+  horizontal overflow; three tariff cards and two trial offers render; custom
+  quote is numeric; mobile has no burger; cabinet images load at natural size.
+- Public `/`, `/app`, both cabinet WebP assets and public config return HTTP
+  200; `bot_url` is configured. `arcvpn-subscription.service` and
+  `nginx.service` remain active. No restart was performed for the static-only
+  deployment.
+- All landing `#` links now use explicit smooth scrolling while preserving an
+  immediate path for `prefers-reduced-motion`.
+- Rollback: revert `4571145` and `5dfb6df`, push and pull fast-forward on
+  `pl-control`; no service restart is required for the current static serving
+  path.
