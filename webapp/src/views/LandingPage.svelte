@@ -137,6 +137,19 @@
     track('landing_tariff_select', { product: plan.product_code, months: plan.period_months })
     location.href = cabinetUrl({ screen: 'tariffs', product: plan.product_code, months: plan.period_months })
   }
+  function handleLandingClick(event) {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+    const anchor = event.target.closest?.('a[href^="#"]')
+    const href = anchor?.getAttribute('href')
+    const target = href && document.getElementById(decodeURIComponent(href.slice(1)))
+    if (!target) return
+    event.preventDefault()
+    target.scrollIntoView({
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+      block: 'start',
+    })
+    history.pushState(null, '', href)
+  }
 
   onMount(() => {
     document.title = 'ArcVPN — одна подписка для свободного интернета'
@@ -147,6 +160,8 @@
       && !matchMedia('(prefers-reduced-motion: reduce)').matches
       && !navigator.connection?.saveData
     loadPublicData()
+    const landingRoot = document.querySelector('.landing')
+    landingRoot?.addEventListener('click', handleLandingClick)
     const handleScroll = () => scrolled = scrollY > 36
     addEventListener('scroll', handleScroll, { passive: true })
     const observer = new IntersectionObserver((entries) => {
@@ -155,6 +170,7 @@
     }, { rootMargin: '-25% 0px -60%', threshold: [0,.2,.5] })
     document.querySelectorAll('[data-nav-section]').forEach((section) => observer.observe(section))
     return () => {
+      landingRoot?.removeEventListener('click', handleLandingClick)
       removeEventListener('scroll', handleScroll)
       observer.disconnect()
       clearTimeout(quoteTimer)
@@ -330,11 +346,11 @@
       <div class="cabinet-proof">
         <figure class="cabinet-desktop-shot">
           <figcaption>Кабинет на компьютере</figcaption>
-          <img src={`${base}assets/landing/cabinet-desktop.webp`} alt="Главный экран личного кабинета ArcVPN на компьютере" width="1600" height="928" loading="lazy" decoding="async" />
+          <img src={`${base}assets/landing/cabinet-desktop.webp`} alt="Главный экран личного кабинета ArcVPN на компьютере" width="1600" height="924" loading="lazy" decoding="async" />
         </figure>
         <figure class="cabinet-mobile-shot">
           <figcaption>На телефоне</figcaption>
-          <img src={`${base}assets/landing/cabinet-mobile.webp`} alt="Главный экран личного кабинета ArcVPN на телефоне" width="568" height="920" loading="lazy" decoding="async" />
+          <img src={`${base}assets/landing/cabinet-mobile.webp`} alt="Главный экран личного кабинета ArcVPN на телефоне" width="568" height="912" loading="lazy" decoding="async" />
         </figure>
       </div>
       <a class="cabinet-link" href="/app" on:click={() => track('landing_cabinet_click', { place:'cabinet' })}>Открыть личный кабинет <ArcIcon name="arrow" size={18} /></a>
