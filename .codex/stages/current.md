@@ -1,64 +1,79 @@
-# Stage: MCP workflow and repository hygiene
+# Stage: Public ArcVPN landing — art-direction correction
 
 ## Goal
 
-Make ArcVPN server operations automatically prefer the private `arcvpn-ops` MCP,
-improve task routing, and remove only proven reproducible cache files.
+Replace the rejected card-heavy landing treatment with a restrained cinematic
+product narrative while preserving the current cabinet, authentication,
+payment, import, admin and subscription contracts.
 
 ## Non-goals
 
-- Do not change production runtime or topology.
-- Do not modify the owner's current `Connect.svelte` edit or deleted landing prompt.
-- Do not remove secrets, database state, dependencies, worktrees, previews, legacy
-  sources, or any unknown/untracked file.
-- Do not install a frontend framework or UI library during this stage.
+- Do not reproduce Happ or INCY as a fake interactive client.
+- Do not expose protocols, hosts, ports, UUIDs, topology or live node state.
+- Do not fabricate social links, prices, ping values or product screenshots.
+- Do not copy the attached Aura prompt's React/Tailwind implementation or its
+  product copy; use it only for hierarchy, restraint and realistic product proof.
+- Do not modify the owner's `Connect.svelte` edit or deleted landing prompt.
 
 ## Components
 
-- `AGENTS.md`
-- `.agents/skills/arcvpn-server-ops/`
-- `.agents/skills/arcvpn-node-ops/`
-- `.agents/skills/arcvpn-frontend-qa/`
-- reproducible Python and pytest cache directories
+- Public `/` landing and isolated frontend chunk, substantially re-typeset and
+  re-arranged using an Impeccable critique/distill pass.
+- Existing `/app` cabinet with stable landing-intent query parameters.
+- Safe public tariff, catalog, custom quote and public-link endpoints.
+- Stable Hero backdrop with no simulated camera movement or visible loop seam.
+- Realistic client and cabinet device stages with clearly marked screenshot
+  placeholders until owner-supplied proof is available.
+- Metadata, sitemap, no-JavaScript fallback and analytics adapter.
 
 ## Acceptance
 
-- Generic server work automatically routes to `arcvpn-server-ops`.
-- Node/protocol work uses high-level `arcvpn-ops` MCP tools when available and
-  safely falls back to the existing DPAPI SSH path.
-- MCP use never expands authorization or weakens production gates.
-- Only classified reproducible caches are deleted.
-- Existing owner changes remain byte-for-byte untouched.
-- Changed skills pass the skill validator and the final Git diff is reviewed.
+- Product precedes price and all approved content remains, but related sections
+  are consolidated into a few deliberate scenes instead of repeated cards.
+- Hero reads like one cinematic frame, not a centered SaaS template.
+- Subscription proof resembles the information density of a real desktop VPN
+  client while omitting protocol, host, port, UUID and fabricated ping.
+- The custom tariff always shows the server-calculated price; on local preview a
+  transparent preview label is allowed, but production never invents a price.
+- Cabinet proof uses laptop/phone frames and explicit screenshot placeholders.
+- Mobile 360/390, tablet 768 and desktop 1280/1920 have no overflow or overlap.
+- Navigation, menu, demos, pricing, calculator and FAQ are keyboard accessible.
+- Prices and the profile list come from server contracts; local errors stay local.
+- Landing, cabinet and admin-heavy code remain separate build chunks.
+- `/app` authentication and product/period/connect/custom intent still work.
+
+## Release decision
+
+- The owner explicitly requested production publication on 2026-09-07.
+- Screenshot placeholders are accepted for this release and remain clearly
+  labelled; exact Instagram/TikTok links remain hidden until provided.
+- Runtime commits `89b1595` and `d6c9613` are deployed on `pl-control`.
 
 ## Risks and rollback
 
-- Tool unavailable in the current task: fall back to the established vault and
-  host-key-verified SSH helper.
-- Broad terminal access: prefer bounded read-only MCP tools, require the same
-  explicit scope for mutations, and preserve deployment verification.
-- Rollback: revert the workflow commit; caches regenerate automatically.
+- Rollback the landing runtime commit to restore the old root shell; `/app` and
+  public subscription URLs remain stable.
+- Keep public responses allowlisted, short-cached and content-ETag validated.
+
+## Design direction
+
+- Color: ink `#030508`, carbon `#0A0D12`, snow `#F4F7FA`, steel `#8D98A7`,
+  current `#66BFFF`, deep current `#06274A`.
+- Type: Manrope only; editorial left-aligned display, compact product UI, no
+  uppercase eyebrow repeated above every heading.
+- Layout: cinematic hero → one desktop client stage crossing the fold → short
+  feature rail → pricing → custom quote → laptop/phone cabinet proof → steps/FAQ.
+- Principle: spend visual boldness on the blue current and product frames; keep
+  every other surface flat, sparse and aligned to one 1180 px grid.
 
 ## Verification
 
-- Passed: new and changed skills validate with `quick_validate.py`.
-- Passed: cleanup removed 19 reproducible Python/pytest cache directories only.
-- Passed: `.secrets`, database, config, virtual environment, `node_modules`,
-  worktrees, previews, legacy sources, and unknown files remain present.
-- Passed: owner changes to `Connect.svelte` and the deleted landing prompt remain
-  unstaged and untouched.
-- Passed: reviewed commit `e519584`, pushed to `main`, and production
-  fast-forwarded to the same commit. Documentation/skills changed only, so no
-  service restart was performed.
+Previous draft evidence is retained only as before-state. Final evidence:
 
-## Closeout
-
-- Runtime impact: none; no production service restart is required.
-- Rollback: revert the documentation/skill commit. Deleted caches regenerate.
-- Residual: Impeccable and shadcn were evaluated but not installed. Official
-  shadcn/ui is React-oriented and does not match the current Svelte stack.
-- Residual: the production checkout contains older untracked backups and runtime
-  artifacts. They were outside the requested local-cleanup scope and remain
-  untouched pending a separate classified production cleanup.
-- Next: use the new landing-planning prompt in a fresh task, then implement only
-  after its public content and interaction contract is accepted.
+- `pytest -q`: 177 passed; Vite production build passed.
+- Impeccable detector: exit 0 with no findings.
+- Production browser at 390x844, 768x1024, 1280x800 and 1600x900: no overflow,
+  no video, no landing console errors; mobile menu and interactive price/profile
+  states passed.
+- Production `/`, `/app`, all four public endpoints, sitemap and Hero asset:
+  HTTP 200. Service is active and the production revision is `d6c9613`.

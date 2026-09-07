@@ -817,6 +817,15 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 *Создан 2026-07-22 из 21 memory-файла Claude + полного анализа исходников проекта.*
 *При значимых изменениях — обновлять этот файл И WORKING_NOTES.md.*
 
+## Public Northern Flow landing (2026-09-07, production)
+
+- `/` is implemented as a public Svelte landing and `/app` keeps the existing auth/cabinet flow. `Root.svelte` dynamically separates the landing and App chunks.
+- Landing prices, custom quotes and profile names use `/api/public/tariffs`, `/api/public/custom-tariff-quote` and `/api/public/subscription-catalog`; responses are allowlisted, short-cached and content-ETag enabled.
+- Landing intent contract is `/app?screen=tariffs&product=<economy|standard|family>&months=<1|3|6|12>`, `/app?screen=custom-tariff` and `/app?screen=connect` (legacy `/app#connect` remains supported).
+- Hero uses a stable `assets/landing/northern-flow.webp` frame with no video or continuous decorative motion.
+- Commits `89b1595` and `d6c9613` are deployed on the Poland control plane. Production browser QA passed at 390x844, 768x1024, 1280x800 and 1600x900 with no overflow or landing console errors; public landing/API checks return HTTP 200.
+- Cabinet proof intentionally contains labelled laptop/phone screenshot placeholders. Instagram/TikTok links stay hidden while their verified HTTPS config values are empty; neither item blocks the current release.
+
 ## Arc Flow purchase and UI correction (2026-07-29, local only)
 
 - Визуальный фон: центр экрана остаётся почти чёрным; медленные синие Aurora-сгустки движутся только вдоль левого, правого и нижнего краёв и маскируются от центральной рабочей зоны.
