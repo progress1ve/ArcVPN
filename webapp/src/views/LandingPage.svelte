@@ -73,8 +73,6 @@
   let customQuote = null
   let quoteBusy = true
   let quoteTimer
-  let wheelFrame = 0
-  let wheelTarget = 0
 
   $: periodTariffs = tariffs.filter((item) => Number(item.period_months) === selectedPeriod)
   $: selectedStore = appCatalog[selectedApp].stores[selectedDevice]
@@ -139,50 +137,6 @@
     track('landing_tariff_select', { product: plan.product_code, months: plan.period_months })
     location.href = cabinetUrl({ screen: 'tariffs', product: plan.product_code, months: plan.period_months })
   }
-  function handleLandingClick(event) {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-    const anchor = event.target.closest?.('a[href^="#"]')
-    const href = anchor?.getAttribute('href')
-    const target = href && document.getElementById(decodeURIComponent(href.slice(1)))
-    if (!target) return
-    event.preventDefault()
-    cancelSmoothWheel()
-    target.scrollIntoView({
-      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
-      block: 'start',
-    })
-    history.pushState(null, '', href)
-  }
-  function cancelSmoothWheel() {
-    if (wheelFrame) cancelAnimationFrame(wheelFrame)
-    wheelFrame = 0
-    wheelTarget = scrollY
-  }
-  function handleWheel(event) {
-    if (event.defaultPrevented || event.ctrlKey || matchMedia('(prefers-reduced-motion: reduce)').matches) return
-    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
-    if (event.deltaMode === 0 && Math.abs(event.deltaY) < 40) return
-    const unit = event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? innerHeight : 1
-    const delta = Math.max(-480, Math.min(480, event.deltaY * unit * 1.45))
-    const maxScroll = Math.max(0, document.documentElement.scrollHeight - innerHeight)
-    event.preventDefault()
-    if (!wheelFrame) wheelTarget = scrollY
-    if (Math.sign(wheelTarget - scrollY) !== Math.sign(delta)) wheelTarget = scrollY
-    const nextTarget = Math.max(scrollY - 720, Math.min(scrollY + 720, wheelTarget + delta))
-    wheelTarget = Math.max(0, Math.min(maxScroll, nextTarget))
-    const animate = () => {
-      const distance = wheelTarget - scrollY
-      if (Math.abs(distance) < 0.5) {
-        scrollTo(0, wheelTarget)
-        wheelFrame = 0
-        return
-      }
-      scrollTo(0, scrollY + distance * 0.36)
-      wheelFrame = requestAnimationFrame(animate)
-    }
-    if (!wheelFrame) wheelFrame = requestAnimationFrame(animate)
-  }
-
   onMount(() => {
     document.title = 'ArcVPN — одна подписка для свободного интернета'
     const description = document.querySelector('meta[name="description"]')
@@ -192,11 +146,6 @@
       && !matchMedia('(prefers-reduced-motion: reduce)').matches
       && !navigator.connection?.saveData
     loadPublicData()
-    const landingRoot = document.querySelector('.landing')
-    landingRoot?.addEventListener('click', handleLandingClick)
-    addEventListener('wheel', handleWheel, { passive: false })
-    addEventListener('mousedown', cancelSmoothWheel, { passive: true })
-    addEventListener('touchstart', cancelSmoothWheel, { passive: true })
     const handleScroll = () => scrolled = scrollY > 36
     addEventListener('scroll', handleScroll, { passive: true })
     const observer = new IntersectionObserver((entries) => {
@@ -205,11 +154,6 @@
     }, { rootMargin: '-25% 0px -60%', threshold: [0,.2,.5] })
     document.querySelectorAll('[data-nav-section]').forEach((section) => observer.observe(section))
     return () => {
-      landingRoot?.removeEventListener('click', handleLandingClick)
-      removeEventListener('wheel', handleWheel)
-      removeEventListener('mousedown', cancelSmoothWheel)
-      removeEventListener('touchstart', cancelSmoothWheel)
-      cancelSmoothWheel()
       removeEventListener('scroll', handleScroll)
       observer.disconnect()
       clearTimeout(quoteTimer)
@@ -434,7 +378,7 @@
 </div>
 
 <style>
-  :global(.landing-document){scroll-behavior:smooth;scroll-padding-top:105px;background:#030508}
+  :global(.landing-document){scroll-padding-top:105px;background:#030508}
   :global(body:has(.landing)){min-width:320px;overflow-x:hidden;color:#f4f7fa;background:#030508;overscroll-behavior-y:auto}
   :global(body:has(.landing) #app){max-width:none;overflow:visible}
   .landing{--ink:#030508;--carbon:#0a0d12;--surface:#0e131a;--line:rgba(219,234,247,.12);--line-strong:rgba(219,234,247,.22);--snow:#f4f7fa;--steel:#8d98a7;--blue:#66bfff;--deep-blue:#06274a;width:100%;overflow:hidden;color:var(--snow);background:var(--ink);font-family:'Manrope',system-ui,sans-serif}
@@ -460,5 +404,5 @@
   @keyframes spin{to{transform:rotate(360deg)}}
   @media(max-width:900px){.landing-nav{top:12px;width:calc(100% - 24px);height:60px}.landing-nav.compact{transform:translateX(-50%) translateY(-4px)}.desktop-nav{display:none}.nav-cta{margin-left:auto}.hero{min-height:850px;padding-top:125px}.hero h1{font-size:clamp(54px,9vw,76px)}.trial-section,.apps-section,.pricing-section,.cabinet-section,.connection-section,.faq-section,.links-section{width:min(calc(100% - 32px),720px);padding:105px 0}.trial-intro,.split-intro,.faq-section,.links-section{grid-template-columns:1fr;gap:35px}.trial-intro,.split-intro{margin-bottom:50px}.trial-panel article{padding:36px 34px}.apps-proof{grid-template-columns:1fr;min-height:0}.phone-well{min-height:590px}.app-copy{padding:55px 45px;border-top:1px solid var(--line);border-left:0}.feature-ledger{margin-top:70px}.bypass-section{width:min(calc(100% - 32px),720px);grid-template-columns:1fr;gap:45px;padding:60px 44px}.pricing-intro{align-items:flex-start;flex-direction:column;gap:25px}.tariff-grid{grid-template-columns:1fr;gap:14px}.tariff-grid article,.tariff-grid article.recommended,.tariff-grid article.recommended:hover{min-height:430px;transform:none}.custom-builder{grid-template-columns:1fr;gap:32px}.custom-heading p{max-width:440px}.custom-total{min-height:180px}.cabinet-proof{min-height:570px;padding:30px 65px 70px 0}.cabinet-mobile-shot{width:185px}.connection-section ol{grid-template-columns:1fr 1fr;row-gap:35px}.connection-section li:nth-child(3){padding-left:0;border-left:0}.links-section{padding-top:30px}.footer{width:calc(100% - 32px);flex-wrap:wrap;padding:35px 0}.footer nav{order:3;width:100%;margin-left:0}.footer small{margin-left:auto}}
   @media(max-width:560px){.landing-nav{gap:12px;padding:7px 8px 7px 18px}.landing-nav .brand{gap:7px}.landing-nav .brand img{width:23px;height:23px}.landing-nav .brand b{display:block;font-size:13px}.nav-cta{min-height:42px;padding:0 13px;font-size:8.5px}.nav-cta :global(.arc-icon){width:14px;height:14px}.hero{min-height:800px;place-items:center;padding:125px 17px 92px}.hero::before{background:radial-gradient(ellipse 85% 43% at 50% 44%,rgba(3,5,8,.16),rgba(3,5,8,.62) 78%),linear-gradient(180deg,rgba(3,5,8,.3),transparent 26%,rgba(3,5,8,.16) 58%,#030508 96%)}.hero-current{object-position:66% center}.hero-copy{text-align:left;transform:translateY(-2vh)}.hero h1{font-size:clamp(42px,12.2vw,48px);line-height:1;letter-spacing:-.058em}.hero-text{max-width:350px;margin:23px 0 0;font-size:11.5px;line-height:1.62;text-wrap:pretty}.hero-actions{align-items:flex-start;justify-content:flex-start;flex-direction:column;gap:13px;margin-top:27px}.platform-line{right:17px;bottom:19px;left:17px;justify-content:space-between;gap:4px;font-size:6px}.trial-section,.apps-section,.pricing-section,.cabinet-section,.connection-section,.faq-section,.links-section{padding:78px 0}.intro h2,.trial-intro h2{font-size:42px}.intro>p,.trial-intro>p{font-size:12px}.trial-intro{gap:24px;margin-bottom:38px}.trial-panel{grid-template-columns:1fr;border-radius:26px}.trial-panel article{min-height:0;padding:30px 24px}.trial-panel article+article{border-top:1px solid var(--line);border-left:0}.trial-panel strong{font-size:44px}.trial-panel p{font-size:11.5px}.apps-section{padding-top:20px}.phone-well{min-height:505px}.phone-well>img{height:460px}.app-copy{padding:45px 18px}.app-copy h2{font-size:42px}.device-tabs{grid-template-columns:1fr}.device-tabs button:nth-child(odd){border-right:0}.app-actions{align-items:flex-start;flex-direction:column;gap:14px}.feature-ledger{grid-template-columns:1fr}.feature-ledger article{min-height:145px;padding:28px 5px}.feature-ledger article:nth-child(odd){border-right:0}.bypass-section{min-height:0;padding:48px 24px}.bypass-section h2{font-size:40px}.bypass-section p{font-size:11.5px}.periods{width:100%;overflow-x:auto;scrollbar-width:none}.periods::-webkit-scrollbar{display:none}.periods button{min-width:70px}.tariff-grid article,.tariff-grid article.recommended{min-height:425px;padding:28px 22px;border-radius:25px}.plan-price b{font-size:44px}.custom-builder{gap:28px;padding:24px;border-radius:27px}.custom-controls label{grid-template-columns:1fr;gap:10px}.custom-controls label>div{overflow-x:auto;scrollbar-width:none}.custom-controls label>div::-webkit-scrollbar{display:none}.custom-total{min-height:185px;padding:22px}.custom-total>b{font-size:40px}.cabinet-section .split-intro{margin-bottom:28px}.cabinet-proof{min-height:0;display:grid;gap:0;margin:0;padding:0;background:none}.cabinet-desktop-shot{width:100%;border-radius:19px}.cabinet-proof figcaption{top:11px;left:11px;padding:6px 8px;font-size:7px}.cabinet-mobile-shot{position:relative!important;right:auto;bottom:auto;width:min(72%,260px);justify-self:end;margin-top:-28px;padding:5px;border-radius:31px!important;transform:none}.cabinet-mobile-shot img{border-radius:25px}.cabinet-link{margin-top:28px}.connection-section ol{grid-template-columns:1fr;gap:0}.connection-section li,.connection-section li+li,.connection-section li:nth-child(3){padding:23px 0;border-top:1px solid var(--line);border-left:0}.connection-section li>b{margin-top:10px}.faq-list button{min-height:75px}.faq-list button span{font-size:12px}.final-section{width:calc(100% - 32px);min-height:500px;margin-bottom:80px}.final-section>div{padding:45px 18px}.final-section h2{font-size:52px}.final-section nav{align-items:center;flex-direction:column;gap:13px}.links-section nav a{grid-template-columns:1fr auto}.links-section nav a span{display:none}.footer{gap:20px}.footer nav{gap:18px;flex-wrap:wrap}}
-  @media(prefers-reduced-motion:reduce){:global(.landing-document){scroll-behavior:auto}.landing *{transition:none!important}.loading span{animation:none}}
+  @media(prefers-reduced-motion:reduce){.landing *{transition:none!important}.loading span{animation:none}}
 </style>
