@@ -1,79 +1,98 @@
-# Stage: Public ArcVPN landing — art-direction correction
+# Stage: Public landing — Hero and bypass refinement
 
 ## Goal
 
-Replace the rejected card-heavy landing treatment with a restrained cinematic
-product narrative while preserving the current cabinet, authentication,
-payment, import, admin and subscription contracts.
+Correct the shipped landing where the Hero typography collides, the global
+guide lines read as an accidental grid, the mobile header is over-controlled,
+and bypass value is under-explained. Bring the Hero closer to the owner-supplied
+Aura reference without copying its product UI or React implementation.
 
-## Non-goals
+## Exact visible contract
 
-- Do not reproduce Happ or INCY as a fake interactive client.
-- Do not expose protocols, hosts, ports, UUIDs, topology or live node state.
-- Do not fabricate social links, prices, ping values or product screenshots.
-- Do not copy the attached Aura prompt's React/Tailwind implementation or its
-  product copy; use it only for hierarchy, restraint and realistic product proof.
-- Do not modify the owner's `Connect.svelte` edit or deleted landing prompt.
+| Surface | Required result |
+|---|---|
+| Hero | Smooth blue ribbon video from the exact owner-supplied Aura prompt, locally optimized; readable copy with no collision |
+| Hero copy | Remove `Подписка для Happ и INCY`; keep one H1, one useful paragraph and two actions |
+| Guides | Remove the two fixed vertical guide lines from the whole landing |
+| Mobile nav | Logo, `ArcVPN` wordmark and `Личный кабинет`; no burger or mobile menu |
+| Applications | Keep the selected-app install CTA; remove `Инструкция подключения` |
+| Bypass | Explain its purpose in Hero/product/features/dedicated section and tariff context without guarantees or infrastructure detail |
+| Motion | Desktop/tablet video only; mobile, Save-Data and reduced-motion use the matching poster |
 
 ## Components
 
-- Public `/` landing and isolated frontend chunk, substantially re-typeset and
-  re-arranged using an Impeccable critique/distill pass.
-- Existing `/app` cabinet with stable landing-intent query parameters.
-- Safe public tariff, catalog, custom quote and public-link endpoints.
-- Stable Hero backdrop with no simulated camera movement or visible loop seam.
-- Realistic client and cabinet device stages with clearly marked screenshot
-  placeholders until owner-supplied proof is available.
-- Metadata, sitemap, no-JavaScript fallback and analytics adapter.
+- `webapp/src/views/LandingPage.svelte`
+- locally owned Hero WebM/MP4 and poster under `webapp/public/assets/landing/`
+- generated `webapp_dist/` assets
+
+## Non-goals
+
+- No changes to `/app`, authentication, payment, subscription URLs, catalog
+  delivery or server topology.
+- No fabricated ping, protocol, host, node, review or performance claim.
+- Do not modify the owner's `webapp/src/views/Connect.svelte` change or deleted
+  `docs/design/arcvpn-landing-page-prompt.md`.
+- Do not hotlink the 16.5 MB CloudFront source in production.
 
 ## Acceptance
 
-- Product precedes price and all approved content remains, but related sections
-  are consolidated into a few deliberate scenes instead of repeated cards.
-- Hero reads like one cinematic frame, not a centered SaaS template.
-- Subscription proof resembles the information density of a real desktop VPN
-  client while omitting protocol, host, port, UUID and fabricated ping.
-- The custom tariff always shows the server-calculated price; on local preview a
-  transparent preview label is allowed, but production never invents a price.
-- Cabinet proof uses laptop/phone frames and explicit screenshot placeholders.
-- Mobile 360/390, tablet 768 and desktop 1280/1920 have no overflow or overlap.
-- Navigation, menu, demos, pricing, calculator and FAQ are keyboard accessible.
-- Prices and the profile list come from server contracts; local errors stay local.
-- Landing, cabinet and admin-heavy code remain separate build chunks.
-- `/app` authentication and product/period/connect/custom intent still work.
-
-## Release decision
-
-- The owner explicitly requested production publication on 2026-09-07.
-- Screenshot placeholders are accepted for this release and remain clearly
-  labelled; exact Instagram/TikTok links remain hidden until provided.
-- Runtime commits `89b1595` and `d6c9613` are deployed on `pl-control`.
+- H1, paragraph and actions do not overlap at 360x800, 390x844, 768x1024,
+  1280x800 and 1600x900.
+- The blue ribbon remains clearly visible but never reduces text contrast.
+- No global vertical guide/grid remains.
+- Mobile header contains exactly brand mark, visible `ArcVPN` and cabinet CTA.
+- No mobile menu exists and the desktop anchor navigation remains available.
+- The applications scene has no `Инструкция подключения` action.
+- Bypass copy appears before pricing, explains separate quota and explicitly
+  states that ordinary unlimited profiles keep working after it is exhausted.
+- Video is muted, looped, plays inline, has no controls; WebM and MP4 are each
+  under 2.5 MB and poster dimensions prevent layout shift.
+- Save-Data/reduced-motion/mobile do not download or play video.
+- Impeccable detector, Vite build and relevant tests pass.
+- Production browser has no horizontal overflow or new console errors across
+  all four viewport classes.
 
 ## Risks and rollback
 
-- Rollback the landing runtime commit to restore the old root shell; `/app` and
-  public subscription URLs remain stable.
-- Keep public responses allowlisted, short-cached and content-ETag validated.
+- Source video is third-party hosted but was explicitly supplied in the owner's
+  prompt; vendor it locally and retain attribution only in Git history, not the
+  runtime dependency graph.
+- Autoplay can fail; the matching poster is always the initial visual.
+- Roll back the single runtime commit to restore the previous static Hero.
 
-## Design direction
+## Verification matrix
 
-- Color: ink `#030508`, carbon `#0A0D12`, snow `#F4F7FA`, steel `#8D98A7`,
-  current `#66BFFF`, deep current `#06274A`.
-- Type: Manrope only; editorial left-aligned display, compact product UI, no
-  uppercase eyebrow repeated above every heading.
-- Layout: cinematic hero → one desktop client stage crossing the fold → short
-  feature rail → pricing → custom quote → laptop/phone cabinet proof → steps/FAQ.
-- Principle: spend visual boldness on the blue current and product frames; keep
-  every other surface flat, sparse and aligned to one 1180 px grid.
+- Source media: duration, dimensions, no audio, encoded size.
+- Automated: `npx impeccable detect`, `npm run build`, `pytest -q`, diff check.
+- Browser: desktop video, mobile/poster fallback, readable Hero, mobile nav,
+  removed guide/menu/instruction, bypass copy, pricing and calculator.
+- Deployment: scoped commit, push, production fast-forward, public asset and UI
+  checks; restart only if a runtime service file requires it.
 
-## Verification
+## Completed evidence
 
-Previous draft evidence is retained only as before-state. Final evidence:
+- Runtime commit `c800338` was pushed to `main` and pulled fast-forward on
+  production `pl-control`.
+- The Hero uses the exact owner-supplied Aura ribbon source, re-encoded locally
+  to an 8-second, 1280x720, 24-fps loop: MP4 1,000,091 bytes and WebM
+  1,816,648 bytes. Both contain video only; the matching WebP poster is 39,202
+  bytes.
+- `npm run build` passed. Landing JavaScript is 15.72 kB gzip and the existing
+  App remains a separate 153.41 kB gzip chunk. The only warnings are the
+  pre-existing unused selectors in `HomeFlowPreview.svelte`.
+- `.venv\Scripts\python.exe -m pytest -q`: 177 passed.
+- `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: exit 0,
+  no findings.
+- Local browser matrix passed at 360x800, 390x844, 768x1024, 1280x800 and
+  1600x900: no overflow or content collision; desktop/tablet use video and
+  mobile uses only the poster.
+- Production browser checks passed at 1280-class desktop and 390x844 mobile:
+  no guide lines, no burger, no removed Hero/app text, no horizontal overflow;
+  the custom quote resolves to a numeric server price and the bypass section
+  contains the separate-quota explanation.
+- Public `/`, `/app`, poster, MP4 and WebM return HTTP 200. The subscription
+  service remained active; no restart was required for the static-only release.
 
-- `pytest -q`: 177 passed; Vite production build passed.
-- Impeccable detector: exit 0 with no findings.
-- Production browser at 390x844, 768x1024, 1280x800 and 1600x900: no overflow,
-  no video, no landing console errors; mobile menu and interactive price/profile
-  states passed.
-- Production `/`, `/app`, all four public endpoints, sitemap and Hero asset:
-  HTTP 200. Service is active and the production revision is `d6c9613`.
+## Status
+
+Complete and deployed on 2026-09-07.

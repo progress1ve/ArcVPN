@@ -822,8 +822,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - `/` is implemented as a public Svelte landing and `/app` keeps the existing auth/cabinet flow. `Root.svelte` dynamically separates the landing and App chunks.
 - Landing prices, custom quotes and profile names use `/api/public/tariffs`, `/api/public/custom-tariff-quote` and `/api/public/subscription-catalog`; responses are allowlisted, short-cached and content-ETag enabled.
 - Landing intent contract is `/app?screen=tariffs&product=<economy|standard|family>&months=<1|3|6|12>`, `/app?screen=custom-tariff` and `/app?screen=connect` (legacy `/app#connect` remains supported).
-- Hero uses a stable `assets/landing/northern-flow.webp` frame with no video or continuous decorative motion.
-- Commits `89b1595` and `d6c9613` are deployed on the Poland control plane. Production browser QA passed at 390x844, 768x1024, 1280x800 and 1600x900 with no overflow or landing console errors; public landing/API checks return HTTP 200.
+- Hero uses the exact owner-supplied Aura blue-ribbon motion as local `assets/landing/northern-flow.webm` plus MP4 fallback, with a matching WebP poster. The 8-second 1280x720 files have no audio and remain below 2.5 MB; mobile, Save-Data and reduced-motion render the poster without creating a video element.
+- Commit `c800338` removes the landing guide lines, Hero product-note and connection-instruction link; mobile navigation is only logo, `ArcVPN` and cabinet CTA. Bypass value is now explained in Hero, feature, dedicated and pricing copy, including that normal unlimited profiles continue after its separate quota is exhausted.
+- Commits `89b1595`, `d6c9613` and `c800338` are deployed on the Poland control plane. Browser QA passed at 360x800, 390x844, 768x1024, 1280x800 and 1600x900 with no overflow or Hero content collision; public landing, app and Hero media checks return HTTP 200.
 - Cabinet proof intentionally contains labelled laptop/phone screenshot placeholders. Instagram/TikTok links stay hidden while their verified HTTPS config values are empty; neither item blocks the current release.
 
 ## Arc Flow purchase and UI correction (2026-07-29, local only)
