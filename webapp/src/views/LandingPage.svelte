@@ -183,6 +183,10 @@
   function chooseProfile(index) {
     selectedProfile = index
   }
+  function profileInitial(name) {
+    const text = String(name || '').replace(/^[\u{1F1E6}-\u{1F1FF}]{2}\s*/u, '').trim()
+    return text.slice(0, 1) || '•'
+  }
   function selectTariff(plan) {
     track('landing_tariff_select', { product: plan.product_code, months: plan.period_months })
     location.href = cabinetUrl({ screen: 'tariffs', product: plan.product_code, months: plan.period_months })
@@ -288,7 +292,7 @@
                 {#each profiles.slice(0, 7) as profile, index}
                   <button class:selected={selectedProfile === index} on:click={() => chooseProfile(index)}>
                     <i class:service={profile.kind === 'service'} class:bypass={profile.kind === 'bypass'}>
-                      {#if profile.kind === 'location'}<span>{profile.display_name.slice(0,1)}</span>{:else}<ArcIcon name={profile.kind === 'bypass' ? 'signal' : 'pulse'} size={18} />{/if}
+                      {#if profile.kind === 'location'}<span>{profileInitial(profile.display_name)}</span>{:else}<ArcIcon name={profile.kind === 'bypass' ? 'signal' : 'pulse'} size={18} />{/if}
                     </i>
                     <span><b>{profile.display_name}</b><small>{profileCopy[profile.kind] || profileCopy.location}</small></span>
                     <em><u></u>{selectedProfile === index ? 'Выбрано' : 'Доступно'}</em>
