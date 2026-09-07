@@ -94,8 +94,9 @@ inventing a new purchase route.
 - Status: complete and released to production on 2026-09-07.
 - Runtime commits: `5dfb6df` (`fix: refine landing proof and pricing`),
   `4571145` (`fix: smooth landing anchor navigation`) and `3b9eec1`
-  (`feat: add smooth wheel scrolling to landing`), pushed to `main` and pulled
-  fast-forward on `pl-control`.
+  (`feat: add smooth wheel scrolling to landing`), followed by responsive-speed
+  correction `658a2a7`; all pushed to `main` and pulled fast-forward on
+  `pl-control`.
 - The fake subscription client and its catalog request are absent. The new
   trial panel shows a configured Telegram-bot CTA and the existing `/app`
   email route for the 10 RUB website trial.
@@ -117,8 +118,9 @@ inventing a new purchase route.
   deployment.
 - All landing `#` links now use explicit smooth scrolling while preserving an
   immediate path for `prefers-reduced-motion`.
-- Discrete mouse-wheel input is eased with a bounded animation; high-resolution
-  trackpad input remains native and reduced-motion disables the effect.
-- Rollback: revert `3b9eec1`, `4571145` and `5dfb6df`, push and pull
-  fast-forward on `pl-control`; no service restart is required for the current
-  static serving path.
+- Discrete mouse-wheel input is eased with a short bounded animation and capped
+  backlog; direction changes reset immediately. High-resolution trackpad input
+  remains native and reduced-motion disables the effect.
+- Rollback: revert `658a2a7`, `3b9eec1`, `4571145` and `5dfb6df`, push and
+  pull fast-forward on `pl-control`; no service restart is required for the
+  current static serving path.
