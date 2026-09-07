@@ -92,11 +92,9 @@ inventing a new purchase route.
 ## Result and evidence
 
 - Status: complete and released to production on 2026-09-07.
-- Runtime commits: `5dfb6df` (`fix: refine landing proof and pricing`),
-  `4571145` (`fix: smooth landing anchor navigation`) and `3b9eec1`
-  (`feat: add smooth wheel scrolling to landing`), followed by responsive-speed
-  correction `658a2a7`; all pushed to `main` and pulled fast-forward on
-  `pl-control`.
+- Runtime commit `5dfb6df` delivers proof/pricing refinement. Final scrolling
+  correction `9a69ba1` removes all experimental anchor, wheel and CSS smoothing;
+  both are pushed to `main` and pulled fast-forward on `pl-control`.
 - The fake subscription client and its catalog request are absent. The new
   trial panel shows a configured Telegram-bot CTA and the existing `/app`
   email route for the 10 RUB website trial.
@@ -116,11 +114,7 @@ inventing a new purchase route.
   200; `bot_url` is configured. `arcvpn-subscription.service` and
   `nginx.service` remain active. No restart was performed for the static-only
   deployment.
-- All landing `#` links now use explicit smooth scrolling while preserving an
-  immediate path for `prefers-reduced-motion`.
-- Discrete mouse-wheel input is eased with a short bounded animation and capped
-  backlog; direction changes reset immediately. High-resolution trackpad input
-  remains native and reduced-motion disables the effect.
-- Rollback: revert `658a2a7`, `3b9eec1`, `4571145` and `5dfb6df`, push and
-  pull fast-forward on `pl-control`; no service restart is required for the
-  current static serving path.
+- All scrolling is native browser behavior. The landing registers no wheel
+  handler and declares no `scroll-behavior: smooth`.
+- Rollback: revert `9a69ba1` only to restore the removed scrolling experiment;
+  no service restart is required for the current static serving path.

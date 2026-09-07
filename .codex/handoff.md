@@ -1,6 +1,6 @@
 # ArcVPN handoff — public Northern Flow landing
 
-Updated: 2026-09-07. Current production runtime commit: `658a2a7`.
+Updated: 2026-09-07. Current production runtime commit: `9a69ba1`.
 
 ## Shipped
 
@@ -19,17 +19,15 @@ Updated: 2026-09-07. Current production runtime commit: `658a2a7`.
   rounded builder and always exposes the numeric result when available.
 - Mobile navigation is logo, `ArcVPN` and cabinet CTA only. The brand is shifted
   five pixels right; there is no burger menu.
-- Internal landing links use explicit smooth scrolling; reduced-motion users
-  retain immediate navigation.
-- Discrete mouse-wheel scrolling has short, responsive inertia with bounded
-  backlog and immediate direction changes. Trackpads keep native high-resolution
-  scrolling, and reduced-motion disables the interpolation.
+- Page, wheel, trackpad and internal-anchor scrolling use the browser's native
+  behavior. There is no custom wheel interception or CSS smooth scrolling.
 - Instagram and TikTok stay hidden until exact HTTPS URLs are configured.
 
 ## Evidence
 
-- Runtime commits `5dfb6df`, `4571145`, `3b9eec1` and wheel-speed correction
-  `658a2a7` pushed to `main` and pulled fast-forward on production `pl-control`.
+- Runtime commit `9a69ba1` removes the experimental smooth-scrolling handlers
+  and CSS; it is pushed to `main` and pulled fast-forward on production
+  `pl-control`.
 - `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: exit 0,
   no findings.
 - `npm run build`: passed; Landing JS 13.83 kB gzip, CSS 5.98 kB gzip. Existing
@@ -55,7 +53,6 @@ Updated: 2026-09-07. Current production runtime commit: `658a2a7`.
 
 ## Rollback
 
-Revert `658a2a7`, `3b9eec1`, `4571145` and `5dfb6df`, push and pull
-fast-forward on `pl-control`. `/app`, payment, authentication and subscription
-URL contracts are unchanged; no service restart is needed for this static-only
-rollback.
+Revert `9a69ba1` only if the removed scrolling experiment must be restored.
+`/app`, payment, authentication and subscription URL contracts are unchanged;
+no service restart is needed for this static-only rollback.
