@@ -1,6 +1,6 @@
 # ArcVPN handoff — public Northern Flow landing
 
-Updated: 2026-09-07. Current production runtime commit: `4571145`.
+Updated: 2026-09-07. Current production runtime commit: `3b9eec1`.
 
 ## Shipped
 
@@ -21,12 +21,14 @@ Updated: 2026-09-07. Current production runtime commit: `4571145`.
   five pixels right; there is no burger menu.
 - Internal landing links use explicit smooth scrolling; reduced-motion users
   retain immediate navigation.
+- Discrete mouse-wheel scrolling now has gentle inertia. Trackpads keep native
+  high-resolution scrolling, and reduced-motion disables the interpolation.
 - Instagram and TikTok stay hidden until exact HTTPS URLs are configured.
 
 ## Evidence
 
-- Runtime commits `5dfb6df` and `4571145` pushed to `main` and pulled
-  fast-forward on production `pl-control`.
+- Runtime commits `5dfb6df`, `4571145` and `3b9eec1` pushed to `main` and
+  pulled fast-forward on production `pl-control`.
 - `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: exit 0,
   no findings.
 - `npm run build`: passed; Landing JS 13.83 kB gzip, CSS 5.98 kB gzip. Existing
@@ -52,6 +54,6 @@ Updated: 2026-09-07. Current production runtime commit: `4571145`.
 
 ## Rollback
 
-Revert `4571145` and `5dfb6df`, push and pull fast-forward on `pl-control`.
-`/app`, payment, authentication and subscription URL contracts are unchanged;
-no service restart is needed for this static-only rollback.
+Revert `3b9eec1`, `4571145` and `5dfb6df`, push and pull fast-forward on
+`pl-control`. `/app`, payment, authentication and subscription URL contracts
+are unchanged; no service restart is needed for this static-only rollback.
