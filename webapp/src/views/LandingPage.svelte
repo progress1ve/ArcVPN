@@ -73,6 +73,8 @@
   let customQuote = null
   let quoteBusy = true
   let quoteTimer
+  let wheelFrame = 0
+  let wheelTarget = 0
 
   $: periodTariffs = tariffs.filter((item) => Number(item.period_months) === selectedPeriod)
   $: selectedStore = appCatalog[selectedApp].stores[selectedDevice]
@@ -144,11 +146,39 @@
     const target = href && document.getElementById(decodeURIComponent(href.slice(1)))
     if (!target) return
     event.preventDefault()
+    cancelSmoothWheel()
     target.scrollIntoView({
       behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
       block: 'start',
     })
     history.pushState(null, '', href)
+  }
+  function cancelSmoothWheel() {
+    if (wheelFrame) cancelAnimationFrame(wheelFrame)
+    wheelFrame = 0
+    wheelTarget = scrollY
+  }
+  function handleWheel(event) {
+    if (event.defaultPrevented || event.ctrlKey || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
+    if (event.deltaMode === 0 && Math.abs(event.deltaY) < 40) return
+    const unit = event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? innerHeight : 1
+    const delta = Math.max(-360, Math.min(360, event.deltaY * unit * 1.15))
+    const maxScroll = Math.max(0, document.documentElement.scrollHeight - innerHeight)
+    event.preventDefault()
+    if (!wheelFrame) wheelTarget = scrollY
+    wheelTarget = Math.max(0, Math.min(maxScroll, wheelTarget + delta))
+    const animate = () => {
+      const distance = wheelTarget - scrollY
+      if (Math.abs(distance) < 0.5) {
+        scrollTo(0, wheelTarget)
+        wheelFrame = 0
+        return
+      }
+      scrollTo(0, scrollY + distance * 0.16)
+      wheelFrame = requestAnimationFrame(animate)
+    }
+    if (!wheelFrame) wheelFrame = requestAnimationFrame(animate)
   }
 
   onMount(() => {
@@ -162,6 +192,9 @@
     loadPublicData()
     const landingRoot = document.querySelector('.landing')
     landingRoot?.addEventListener('click', handleLandingClick)
+    addEventListener('wheel', handleWheel, { passive: false })
+    addEventListener('mousedown', cancelSmoothWheel, { passive: true })
+    addEventListener('touchstart', cancelSmoothWheel, { passive: true })
     const handleScroll = () => scrolled = scrollY > 36
     addEventListener('scroll', handleScroll, { passive: true })
     const observer = new IntersectionObserver((entries) => {
@@ -171,6 +204,10 @@
     document.querySelectorAll('[data-nav-section]').forEach((section) => observer.observe(section))
     return () => {
       landingRoot?.removeEventListener('click', handleLandingClick)
+      removeEventListener('wheel', handleWheel)
+      removeEventListener('mousedown', cancelSmoothWheel)
+      removeEventListener('touchstart', cancelSmoothWheel)
+      cancelSmoothWheel()
       removeEventListener('scroll', handleScroll)
       observer.disconnect()
       clearTimeout(quoteTimer)
