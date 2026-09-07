@@ -118,6 +118,7 @@
   let planStrip
   let selectedPlanId = null
   let selectedProduct = 'standard'
+  let requestedPlanMonths = 0
   let purchaseDevices = 2
   let purchaseLteGb = 20
   let paymentBusy = false
@@ -159,6 +160,10 @@
   $: plans = $tariffs.data?.tariffs ?? []
   $: productPlans = plans.filter((plan) => (plan.product_code || 'standard') === selectedProduct)
   $: preferredPlan = productPlans.find((plan) => Number(plan.period_months) === 3) || productPlans[0] || plans[0]
+  $: requestedPlan = requestedPlanMonths
+    ? productPlans.find((plan) => Number(plan.period_months) === requestedPlanMonths)
+    : null
+  $: if (requestedPlan?.id && selectedPlanId !== requestedPlan.id) selectedPlanId = requestedPlan.id
   $: if (!selectedPlanId && plans.length) selectedPlanId = preferredPlan?.id || plans[0].id
   $: selectedPlan = plans.find((plan) => plan.id === selectedPlanId) || preferredPlan || null
   $: customPlan = plans.find((plan) => plan.product_code === 'standard' && Number(plan.period_months) === customMonths)
@@ -965,7 +970,16 @@
     }
     const pageUrl = new URL(window.location.href)
     const returnedOrderId = pageUrl.searchParams.get('payment')
-    const requestedScreen = pageUrl.searchParams.get('screen')
+    const requestedScreen = pageUrl.searchParams.get('screen') || (pageUrl.hash === '#connect' ? 'connect' : '')
+    const requestedProduct = pageUrl.searchParams.get('product')
+    const requestedMonths = Number(pageUrl.searchParams.get('months') || 0)
+    if (['economy','standard','family'].includes(requestedProduct)) selectedProduct = requestedProduct
+    if ([1,3,6,12].includes(requestedMonths)) {
+      customMonths = requestedMonths
+      requestedPlanMonths = requestedMonths
+    }
+    if (requestedScreen === 'tariffs') purchaseOpen = true
+    if (requestedScreen === 'connect') connectOpen = true
     if (requestedScreen === 'addons') {
       addonsOpen = true
       if (pageUrl.searchParams.get('addon') === 'devices') addonDevices = Math.min(1, Math.max(0, 15 - deviceLimit))

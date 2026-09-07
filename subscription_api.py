@@ -3109,14 +3109,139 @@ def _admin_access_context() -> Optional[Dict[str, Any]]:
     return None
 
 
+def _cache_public_json(payload: Dict[str, Any], max_age: int = 60) -> Response:
+    """Return a short-lived public response with a stable content ETag."""
+    body = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    etag = hashlib.sha256(body.encode("utf-8")).hexdigest()
+    response = Response(body, mimetype="application/json")
+    response.set_etag(etag)
+    response.headers["Cache-Control"] = f"public, max-age={max_age}, stale-while-revalidate=300"
+    response.make_conditional(request)
+    return response
+
+
+def _public_https_url(value: Any) -> str:
+    """Keep optional landing links empty unless they are absolute HTTPS URLs."""
+    candidate = str(value or "").strip()
+    try:
+        parsed = urllib.parse.urlparse(candidate)
+    except ValueError:
+        return ""
+    return candidate if parsed.scheme == "https" and bool(parsed.netloc) else ""
+
+
 @app.route('/api/public/config')
 def api_public_config():
-    """Expose only safe login destinations needed before authentication."""
+    """Expose safe public destinations used by login and the landing page."""
     username = _get_bot_username()
-    return _api_no_store(jsonify({
+    links = _public_links()
+    return _cache_public_json({
         "ok": True,
         "bot_url": f"https://t.me/{username}?start=site_login" if username else "",
-    }))
+        "cabinet_url": _public_https_url(f"{WEBAPP_URL}/app"),
+        "support_url": _public_https_url(links.get("support_url", "")),
+        "channel_url": _public_https_url(links.get("channel_url", "")),
+        "legal_url": _public_https_url(links.get("legal_url", "")),
+        "instagram_url": _public_https_url(get_setting("instagram_url", "")),
+        "tiktok_url": _public_https_url(get_setting("tiktok_url", "")),
+        "status_url": _public_https_url(get_setting("status_page_url", "")),
+    })
+
+
+def _public_tariff_payload() -> list[Dict[str, Any]]:
+    """Project the commercial catalog without payment or admin-only fields."""
+    result = []
+    for tariff in get_all_tariffs():
+        code = str(tariff.get("product_code") or "")
+        if code not in {"economy", "standard", "family"}:
+            continue
+        period = int(tariff.get("period_months") or max(
+            1, round(int(tariff.get("duration_days") or 30) / 30),
+        ))
+        if period not in {1, 3, 6, 12}:
+            continue
+        price = int(tariff.get("price_rub") or 0)
+        if price <= 0:
+            continue
+        result.append({
+            "product_code": code,
+            "name": str(tariff.get("name") or ""),
+            "period_months": period,
+            "duration_days": int(tariff.get("duration_days") or 0),
+            "price_rub": price,
+            "monthly_rub": max(1, round(price / period)),
+            "device_limit": int(tariff.get("device_limit") or 2),
+            "traffic_limit_gb": int(tariff.get("traffic_limit_gb") or 0),
+            "lte_quota_gb": int(tariff.get("lte_quota_gb") or 0),
+            "lte_cycle_days": int(tariff.get("lte_cycle_days") or 30),
+        })
+    return result
+
+
+@app.route('/api/public/tariffs')
+def api_public_tariffs():
+    return _cache_public_json({"ok": True, "tariffs": _public_tariff_payload()})
+
+
+def _public_profile_kind(name: str) -> str:
+    value = str(name or "").lower()
+    if "автовыбор" in value:
+        return "auto"
+    if "ютуб" in value or "youtube" in value:
+        return "service"
+    if "обход" in value or "lte" in value:
+        return "bypass"
+    return "location"
+
+
+@app.route('/api/public/subscription-catalog')
+def api_public_subscription_catalog():
+    """Return names and ordering only; never expose connection parameters."""
+    overrides = _catalog_overrides()
+    profiles = [{
+        "display_name": "Автовыбор | Самый быстрый",
+        "kind": "auto",
+        "sort_order": -2,
+    }]
+    for fallback_order, raw_name in enumerate(SUBSCRIPTION_INBOUND_ORDER):
+        source = _subscription_source_name(raw_name)
+        override = overrides.get(source) or {}
+        if not bool(override.get("enabled", True)):
+            continue
+        # Hysteria rows are intentionally absent from current customer delivery.
+        if _subscription_protocol_label(source).startswith("Hysteria"):
+            continue
+        display_name = _safe_profile_display_name(
+            str(override.get("display_name") or _subscription_display_name(source)), source,
+        )
+        profiles.append({
+            "display_name": display_name,
+            "kind": _public_profile_kind(display_name),
+            "sort_order": int(override.get("sort_order", fallback_order)),
+        })
+    profiles.sort(key=lambda item: (item["sort_order"], item["display_name"]))
+    return _cache_public_json({"ok": True, "profiles": profiles})
+
+
+@app.route('/api/public/custom-tariff-quote')
+def api_public_custom_tariff_quote():
+    try:
+        period = int(request.args.get("period_months", "3"))
+        devices = int(request.args.get("device_limit", "3"))
+        lte_gb = int(request.args.get("lte_quota_gb", "45"))
+    except (TypeError, ValueError):
+        return _api_error("invalid_custom_entitlements", 400)
+    catalog = get_all_tariffs()
+    selected = next((item for item in catalog
+        if str(item.get("product_code") or "") == "standard"
+        and int(item.get("period_months") or 0) == period), None)
+    if selected is None:
+        return _api_error("custom_catalog_incomplete", 503)
+    try:
+        quote = _custom_tariff_quote(selected, devices, lte_gb, catalog)
+    except ValueError as exc:
+        return _api_error(str(exc), 400)
+    return _cache_public_json({"ok": True, **quote}, max_age=30)
 
 
 def _append_admin_audit_best_effort(action: str, outcome: str, **kwargs: Any) -> None:
@@ -5989,7 +6114,7 @@ def robots_txt():
 def sitemap_xml():
     if request.host.split(":", 1)[0].lower() == "panel.arccnet.space":
         return Response("Not found", status=404, mimetype="text/plain")
-    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://arccnet.space/</loc></url></urlset>\n'
+    body = '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://arccnet.space/</loc></url><url><loc>https://arccnet.space/legal/user-agreement</loc></url></urlset>\n'
     return Response(body, mimetype="application/xml")
 
 

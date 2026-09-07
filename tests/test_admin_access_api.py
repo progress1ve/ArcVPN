@@ -33,10 +33,10 @@ def test_public_config_exposes_bot_start_deep_link(client, monkeypatch):
     monkeypatch.setattr(api, "_get_bot_username", lambda: "arcvpn_bot")
     response = client.get("/api/public/config")
     assert response.status_code == 200
-    assert response.get_json() == {
-        "ok": True,
-        "bot_url": "https://t.me/arcvpn_bot?start=site_login",
-    }
+    assert response.get_json()["ok"] is True
+    assert response.get_json()["bot_url"] == "https://t.me/arcvpn_bot?start=site_login"
+    assert response.get_json()["cabinet_url"].endswith("/app")
+    assert response.headers["ETag"]
 
 
 def test_support_access_exposes_only_effective_permissions(client, monkeypatch):

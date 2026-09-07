@@ -1,10 +1,10 @@
 import './app.css'
-import App from './App.svelte'
+import Root from './Root.svelte'
 import { initTelegram } from './lib/telegram.js'
 
 initTelegram()
 
-const app = new App({
+const app = new Root({
   target: document.getElementById('app'),
 })
 
