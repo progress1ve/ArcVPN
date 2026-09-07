@@ -163,11 +163,13 @@
     if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) return
     if (event.deltaMode === 0 && Math.abs(event.deltaY) < 40) return
     const unit = event.deltaMode === 1 ? 32 : event.deltaMode === 2 ? innerHeight : 1
-    const delta = Math.max(-360, Math.min(360, event.deltaY * unit * 1.15))
+    const delta = Math.max(-480, Math.min(480, event.deltaY * unit * 1.45))
     const maxScroll = Math.max(0, document.documentElement.scrollHeight - innerHeight)
     event.preventDefault()
     if (!wheelFrame) wheelTarget = scrollY
-    wheelTarget = Math.max(0, Math.min(maxScroll, wheelTarget + delta))
+    if (Math.sign(wheelTarget - scrollY) !== Math.sign(delta)) wheelTarget = scrollY
+    const nextTarget = Math.max(scrollY - 720, Math.min(scrollY + 720, wheelTarget + delta))
+    wheelTarget = Math.max(0, Math.min(maxScroll, nextTarget))
     const animate = () => {
       const distance = wheelTarget - scrollY
       if (Math.abs(distance) < 0.5) {
@@ -175,7 +177,7 @@
         wheelFrame = 0
         return
       }
-      scrollTo(0, scrollY + distance * 0.16)
+      scrollTo(0, scrollY + distance * 0.36)
       wheelFrame = requestAnimationFrame(animate)
     }
     if (!wheelFrame) wheelFrame = requestAnimationFrame(animate)
