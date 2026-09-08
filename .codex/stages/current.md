@@ -1,120 +1,93 @@
-# Stage: Public landing — proof, trial and pricing refinement
+# Stage: ArcVPN landing — mobile Hero and applications section
 
 ## Goal
 
-Remove the rejected subscription-client imitation, replace placeholder cabinet
-proof with the owner's real desktop/mobile screenshots, and give pricing a
-cohesive rounded ArcVPN treatment. Add accurate trial discovery without
-inventing a new purchase route.
+Finish the approved product-led landing direction by adapting the Hero to the
+real mobile cabinet capture, rebuilding the third applications section from
+real ArcVPN capabilities, and shipping the accepted landing to production.
 
-## Exact visible contract
+## Visible contract
 
 | Surface | Required result |
 |---|---|
-| Subscription area | Remove the entire large fake client shown in the owner's first screenshot |
-| Locations/trial | State that the subscription contains many locations and invite visitors to inspect them through a real trial |
-| Telegram trial | `Бесплатно в Telegram`; CTA uses the configured public `bot_url`; copy limits the claim to a new user |
-| Website trial | `7 дней Standard за 10 ₽`; CTA uses the existing `/app` email flow; disclose that the offer is for a new email account and includes auto-renewal |
-| Cabinet proof | Use the supplied anonymized 1844x1068 desktop and 568x920 mobile screenshots, not CSS placeholders |
-| Mobile nav | Keep logo/name/cabinet only; move the brand five pixels to the right |
-| Pricing | Keep live API prices and all current product/period intents, but use three separated rounded plans with a clear Standard recommendation |
-| Custom tariff | Keep server quote and current controls/intent; place them in one rounded builder with a distinct rounded result area |
+| Hero | Centered, compact value proposition followed immediately by one clear CTA and the real ArcVPN cabinet proof |
+| Visual language | Black field, restrained cold-blue light and fine orbital structure; the product remains the brightest proof |
+| Transition | No visible rule or ambient blue wash between Hero and trial; the page field is true black |
+| Trial | Centered introduction and two quiet, separate trial cards using only real ArcVPN offers |
+| Mobile Hero | Use the real portrait cabinet capture without cropping a desktop screenshot into a phone-shaped viewport |
+| Applications | Four factual capability cards followed by a focused, interactive Happ/INCY and platform selector |
+| Production | Commit only the approved landing scope, deploy by fast-forward, and verify the public page |
 
-## Design plan
-
-- Palette: Ink `#030508`, Carbon `#080d14`, Raised `#0d151f`, Snow
-  `#f4f7fa`, Arc blue `#79c9f4`, line `rgba(219,234,247,.12)`.
-- Type: existing Manrope only; large sentence-case headings, readable body,
-  numeric price as the main card anchor.
-- Layout: one concise trial panel, two real screenshots in a desktop/phone
-  composition, three independent pricing cards, one horizontal custom builder.
-- Geometry: 28-34 px outer radii for primary surfaces, pill actions, 14-18 px
-  controls. Avoid a universal radius and avoid nested decorative cards.
-- Distinctive element remains the Hero ribbon. Pricing and proof stay quiet and
-  use blue only to explain hierarchy or selection.
-
-## Affected components
+## Components
 
 - `webapp/src/views/LandingPage.svelte`
-- `webapp/public/assets/landing/cabinet-desktop.webp`
-- `webapp/public/assets/landing/cabinet-mobile.webp`
-- generated `webapp_dist/`
+- `.codex/stages/current.md`
 
 ## Non-goals
 
-- No changes to `/app`, authentication, payment fulfillment, tariffs, trial
-  eligibility, subscription URLs or server catalog endpoints.
-- No invented location count, availability guarantee, review, performance
-  metric or hidden infrastructure detail.
-- No Instagram/TikTok URLs until configured.
-- Do not modify the owner's dirty `webapp/src/views/Connect.svelte` or deleted
-  `docs/design/arcvpn-landing-page-prompt.md`.
+- No testimonial, fake customer, invented metric, tariff formula, or API/auth change.
+- No smooth wheel or anchor scrolling.
+- No testimonial, invented success statistic, or fabricated product screen.
+- No change to pricing formulas, authentication, API contracts, or server topology.
+- Do not touch the owner's existing changes in `webapp/src/views/Connect.svelte` or deleted design prompt.
 
 ## Acceptance
 
-- Rejected client-window markup and its catalogue fetch are absent.
-- Trial copy and CTAs match the existing bot and email-account behavior.
-- Supplied cabinet screenshots are readable, lazy-loaded, correctly cropped and
-  do not expose identifiers.
-- Tariffs and custom quote still load from public server APIs; error states do
-  not show invented prices.
-- Selected period, product CTA and custom tariff CTA retain their existing URL
-  contracts.
-- Pricing has independent rounded surfaces and no square joined ledger.
-- Mobile navigation fits at 360 px and the brand is shifted slightly right.
-- No horizontal overflow at 360x800, 390x844, 768x1024, 1280x800 and 1600x900.
-- Keyboard focus, hover, active, loading/error and reduced-motion states remain
-  visible.
-- Impeccable detector, Vite build and Python tests pass.
-- Production `/`, `/app`, screenshot assets, tariffs and custom quote are
-  verified after a fast-forward deployment.
+- Headline, body, CTA, and cabinet proof form one continuous first-screen story
+  without the previous oversized empty gaps.
+- White controls use a neutral grey hover, never a blue-tinted hover.
+- Hero uses the real anonymized ArcVPN cabinet images; no testimonial, invented
+  claim, fake application chrome, moving background, or decorative badge is added.
+- Hero does not introduce page-level horizontal overflow at mobile, tablet,
+  desktop, or wide widths; mobile uses the portrait capture at its native ratio.
+- Applications retain working Happ/INCY, platform, install-link and analytics behavior.
+- Build and Impeccable detector pass; browser evidence covers Hero and applications.
+- The Hero/trial join has no border and no section-transition glow. Trial copy,
+  bot URL, website URL, analytics events, and eligibility wording are unchanged.
 
 ## Risks and rollback
 
-- Screenshot text can become illegible when scaled. Preserve high-resolution
-  WebP sources, use aspect-ratio containers, and stack the proof on narrow
-  viewports.
-- Trial wording can over-promise eligibility. Explicitly scope both offers to a
-  new user/account and retain the existing application flows.
-- Pricing restyle can hide live failure states. Verify both loaded and local
-  error markup before release.
-- Roll back the single runtime commit to restore the previous landing; `/app`
-  and backend contracts are unchanged.
-
-## Verification matrix
-
-- Automated: `npx impeccable detect`, `npm run build`, `pytest -q`, diff check.
-- Browser: trial CTAs/copy, real screenshot composition, tariff periods and
-  quote, mobile nav, overflow and focus across five viewports.
-- Deployment: scoped commit, push, production pull, public UI/assets/API checks;
-  no service restart for static-only changes.
+- A large cabinet screenshot can hurt mobile composition; switch the source at
+  the mobile breakpoint and reserve its portrait aspect ratio.
+- Revert the Hero-only CSS diff in `LandingPage.svelte` to restore the prior
+  treatment. Runtime contracts are unchanged.
 
 ## Result and evidence
 
-- Status: complete and released to production on 2026-09-07.
-- Runtime commit `5dfb6df` delivers proof/pricing refinement. Final scrolling
-  correction `9a69ba1` removes all experimental anchor, wheel and CSS smoothing;
-  both are pushed to `main` and pulled fast-forward on `pl-control`.
-- The fake subscription client and its catalog request are absent. The new
-  trial panel shows a configured Telegram-bot CTA and the existing `/app`
-  email route for the 10 RUB website trial.
-- Owner captures were exported to 25,164-byte desktop and 20,166-byte mobile
-  WebP assets. Production natural dimensions are 1600x924 and 568x912.
-- `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: exit 0,
+- Hero-only CSS refinement implemented. Copy and behavior are unchanged; the
+  headline is calmer, the vertical story is tighter, and more of the real
+  cabinet proof is visible in the first viewport.
+- Product backdrop was revised against the owner's newest close reference: a
+  wide black field now fades into cold-blue illuminated side walls, while the
+  cabinet capture sits inside one heavy dark rounded frame. The prior orbital
+  field and rounded outer capsule are removed.
+- The Hero border and inherited transition light are removed. Document, body,
+  landing, Hero, and trial fields now resolve to true black outside the product
+  side-light treatment.
+- Trial section is rebuilt as a centered reference-led composition with two
+  separate quiet cards. Existing Telegram and website trial facts, conditional
+  bot CTA, URLs, and analytics handlers are unchanged.
+- Desktop browser review at the default 1280-wide viewport passed. Mobile
+  review at 390x844 passed: navigation, headline, copy, CTA, and intentional
+  cabinet crop remain legible and contained.
+- Geometry checked at 390, 768, 1280, and 1600 CSS-pixel widths. The Hero frame
+  remains contained. Existing mobile page overflow comes from the later tariff
+  period control (`12 мес.`), outside this Hero-only stage, and is deferred.
+- `npm --prefix webapp run build`: passed. Existing unused-selector warnings in
+  `LandingPage.svelte` and `HomeFlowPreview.svelte` remain.
+- `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: passed with
   no findings.
-- `npm run build`: passed. Landing chunk is 40.45 kB JS / 13.83 kB gzip and
-  37.20 kB CSS / 5.98 kB gzip. Existing App remains a separate 153.41 kB gzip
-  chunk. Existing unused-selector warnings remain confined to
-  `HomeFlowPreview.svelte`.
-- `.venv\\Scripts\\python.exe -m pytest -q`: 177 passed.
-- Browser QA at 360x800, 390x844, 768x1024, 1280x900 and 1600x900: no
-  horizontal overflow; three tariff cards and two trial offers render; custom
-  quote is numeric; mobile has no burger; cabinet images load at natural size.
-- Public `/`, `/app`, both cabinet WebP assets and public config return HTTP
-  200; `bot_url` is configured. `arcvpn-subscription.service` and
-  `nginx.service` remain active. No restart was performed for the static-only
-  deployment.
-- All scrolling is native browser behavior. The landing registers no wheel
-  handler and declares no `scroll-behavior: smooth`.
-- Rollback: revert `9a69ba1` only to restore the removed scrolling experiment;
-  no service restart is required for the current static serving path.
+- Latest desktop review confirms a seamless black Hero/trial join and no blue
+  wash behind the trial heading. Latest 390x844 review confirms the stacked
+  trial cards remain legible and contained.
+- `npx --yes impeccable install` was attempted twice for a project-local skill
+  and design hook; both downloads timed out before installation and the
+  installer confirmed that nothing was installed. The already available
+  detector remains usable.
+- Mobile Hero now switches to `cabinet-mobile.webp` below 560px and uses its
+  portrait ratio, while desktop keeps the wide cabinet proof.
+- The third section now presents four real subscription capabilities, then the
+  existing application and device choices inside a single focused install scene.
+- The section field is true black; its only illumination is the intentional
+  horizontal cold-blue product light behind the phone, matching the reference.
+- Production evidence will be appended after commit, push, pull and public QA.
