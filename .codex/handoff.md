@@ -1,6 +1,29 @@
 # ArcVPN handoff — public Northern Flow landing
 
-Updated: 2026-09-07. Current production runtime commit: `9a69ba1`.
+Updated: 2026-09-09. Current production runtime commit: `42e60dc`.
+
+## Current landing state
+
+- Hero uses the wide real cabinet capture on desktop and the portrait real
+  cabinet capture on mobile. Its mobile illuminated container leaves deliberate
+  black side margins.
+- Project-local Impeccable skill/hook installation was attempted twice but its
+  bundle download timed out and nothing was installed. The existing
+  `npx --yes impeccable detect` path remains available and passed.
+- The applications section lists Happ and INCY as supported clients and shows
+  iPhone/iPad, Android, Windows and Linux as static text with icons. It has no
+  app selector, store CTA or phone-application screenshot.
+- The fourth section explains bypass traffic as a separate allowance and keeps
+  the existing tariff anchor. One factual summary panel sits on a horizontal
+  cold-blue light field; surrounding page background is true black.
+- Live tariff data is unchanged. The local pricing presentation uses three
+  compact ArcVPN-blue plans with contained top panels, a shared period switch,
+  pill actions and no trailing card space below the CTA.
+- Runtime commit `42e60dc` is pushed and fast-forwarded on production. The
+  separate local login redesign remains uncommitted and was excluded from the
+  generated release bundle.
+- Final checks: Impeccable detector passed, Vite production build passed, 177
+  tests passed, and browser review covered desktop plus 390x844 mobile.
 
 ## Shipped
 

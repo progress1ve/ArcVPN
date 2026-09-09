@@ -105,3 +105,12 @@ reference-led explanation using only real ArcVPN facts.
 - `npm --prefix webapp run build`: passed. Existing unused-selector warnings remain.
 - `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: passed.
 - `.venv\\Scripts\\python.exe -m pytest -q`: 177 passed.
+- Acceptance: passed for static app/platform presentation, removal of the phone
+  mockup and install CTA, mobile Hero width, fourth-section content and light field.
+- Runtime commit `42e60dc` was pushed to `main` and pulled fast-forward on
+  `pl-control`; `nginx.service` and `arcvpn-subscription.service` remain active.
+- Public `/`, release JS and release CSS return HTTP 200 and public HTML points
+  to `index-CHUuioc0.js`. Production mobile browser QA confirms the new section.
+- No service restart was needed because this was a checked-in static build.
+- Rollback is a normal revert of `42e60dc`; no data or API migration occurred.
+- Next step: continue the section-by-section review with pricing.
