@@ -119,3 +119,13 @@ reference-led explanation using only real ArcVPN facts.
 - No service restart was needed because this was a checked-in static build.
 - Rollback is a normal revert of `42e60dc`; no data or API migration occurred.
 - Next step: continue the section-by-section review with pricing.
+- Owner feedback correction shipped in runtime commit `1e533cc`: Hero now has
+  one thin translucent glass rim and no nested black shell.
+- The real Happ and INCY phone screenshots are restored as a static, labelled
+  pair. The section still has no selector, store URL, or install action.
+- The phone and bypass illumination now uses layered elliptical volumes and a
+  diffused horizon; the prior sharp one-pixel light rule is removed.
+- Desktop and 390x844 browser QA passed. Both phone assets load at their
+  natural 480 px width, and the changed mobile surfaces introduce no overflow.
+- Production `pl-control` fast-forwarded to `1e533cc`; nginx and
+  `arcvpn-subscription.service` remained active. New JS/CSS assets return 200.

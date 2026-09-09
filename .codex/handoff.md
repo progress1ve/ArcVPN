@@ -74,6 +74,21 @@ Updated: 2026-09-09. Current production runtime commit: `42e60dc`.
 - Optional separate cleanup: pre-existing unused-CSS warnings in
   `HomeFlowPreview.svelte`.
 
+## 2026-09-09 visual correction
+
+- Production is at `1e533cc` after the owner's Hero/app-proof correction.
+- Hero cabinet proof no longer has the nested black frame. It uses one thin
+  translucent glass rim around the real desktop/portrait cabinet image.
+- Happ and INCY phone screenshots are again visible in the applications
+  section as static labelled product evidence; no selection or install CTA was
+  restored.
+- Phone and bypass light fields use layered, blurred elliptical side volumes
+  without a sharp white horizon rule.
+- Local build, Impeccable detector, 177 tests, desktop browser QA, 390x844 QA,
+  public asset checks, and production service checks passed.
+- Owner changes in `Connect.svelte`, `HomeFlowPreview.svelte`, the deleted
+  design prompt, and unrelated generated/untracked files remain untouched.
+
 ## Rollback
 
 Revert `9a69ba1` only if the removed scrolling experiment must be restored.
