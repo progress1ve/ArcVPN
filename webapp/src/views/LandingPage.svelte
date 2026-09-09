@@ -10,28 +10,6 @@
     standard: 'С отдельным запасом обхода для сложных сетей',
     family: 'Больше устройств и увеличенный запас обхода',
   }
-  const appCatalog = {
-    happ: {
-      label: 'Happ',
-      art: `${base}assets/arc-flow/connect-happ-phone-v2.png`,
-      stores: {
-        iphone: 'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
-        android: 'https://play.google.com/store/apps/details?id=com.happproxy',
-        windows: 'https://github.com/Happ-proxy/happ-desktop/releases/latest/download/setup-Happ.x64.exe',
-        linux: 'https://happ.info/',
-      },
-    },
-    incy: {
-      label: 'INCY',
-      art: `${base}assets/arc-flow/connect-incy-phone-v1.png`,
-      stores: {
-        iphone: 'https://apps.apple.com/ru/app/incy/id6756943388',
-        android: 'https://play.google.com/store/apps/details?id=llc.itdev.incy',
-        windows: 'https://github.com/INCY-DEV/incy-platforms/releases/latest/download/incy-windows-setup.exe',
-        linux: 'https://incy.host/download/linux',
-      },
-    },
-  }
   const devices = [
     { id: 'iphone', label: 'iPhone / iPad', icon: 'apple' },
     { id: 'android', label: 'Android', icon: 'android' },
@@ -63,8 +41,6 @@
   let config = {}
   let dataError = false
   let selectedPeriod = 3
-  let selectedApp = 'happ'
-  let selectedDevice = 'iphone'
   let openFaq = -1
   let customMonths = 3
   let customDevices = 3
@@ -74,7 +50,6 @@
   let quoteTimer
 
   $: periodTariffs = tariffs.filter((item) => Number(item.period_months) === selectedPeriod)
-  $: selectedStore = appCatalog[selectedApp].stores[selectedDevice]
   $: if (customMonths && customDevices && customLte >= 0) scheduleQuote(customMonths, customDevices, customLte)
 
   function track(event, details = {}) {
@@ -236,39 +211,33 @@
 
       <div class="apps-proof">
         <div class="app-copy">
-          <div class="app-switch" aria-label="Выбор приложения">
-            {#each Object.entries(appCatalog) as [id, app]}
-              <button class:active={selectedApp === id} on:click={() => selectedApp = id}>{app.label}</button>
-            {/each}
+          <div class="supported-apps" aria-label="Поддерживаемые приложения">
+            <span>Happ</span><span>INCY</span>
           </div>
-          <h3>Выберите приложение и устройство</h3>
-          <p>Ссылка импорта и следующие шаги появятся в личном кабинете.</p>
-          <div class="device-tabs" role="group" aria-label="Платформа">
+          <h3>Поддерживаем знакомые приложения</h3>
+          <p>ArcVPN работает через Happ и INCY. Ссылка импорта и инструкция появятся в личном кабинете.</p>
+          <div class="device-list" aria-label="Поддерживаемые платформы">
             {#each devices as device}
-              <button class:active={selectedDevice === device.id} on:click={() => selectedDevice = device.id}>
+              <span>
                 <DeviceIcon name={device.icon} size={20} /><span>{device.label}</span>
-              </button>
+              </span>
             {/each}
           </div>
-          <div class="app-actions">
-            <a class="primary" href={selectedStore} target="_blank" rel="noopener" on:click={() => track('landing_app_install_click', { app:selectedApp, platform:selectedDevice })}>Установить {appCatalog[selectedApp].label} <ArcIcon name="arrow" size={18} /></a>
-          </div>
         </div>
-        <div class="phone-well">
-          <img src={appCatalog[selectedApp].art} alt={`Приложение ${appCatalog[selectedApp].label} на телефоне`} />
-        </div>
+        <div class="phone-well" aria-hidden="true"><div class="compatibility-mark"><img src={`${base}assets/arc-flow/arc-logo.svg`} alt="" /><span>Одна подписка</span><b>Happ · INCY</b></div></div>
       </div>
     </section>
 
     <section class="bypass-section">
-      <div>
+      <div class="bypass-copy">
+        <span class="section-chip">Отдельный запас</span>
         <h2>Обход глушилок — отдельный запас</h2>
         <p>Основной трафик ArcVPN остаётся безлимитным. Дополнительные гигабайты расходуются только при выборе специальных профилей обхода — для сетей, где обычное подключение не справляется.</p>
         <p>Если запас закончится, Автовыбор и обычные локации продолжат работать. Объём обхода можно выбрать в тарифе или докупить позже в личном кабинете.</p>
         <small>Доступность зависит от сети, устройства и характера ограничений.</small>
-        <a href="#tariffs">Тарифы с обходом <ArcIcon name="arrow" size={18} /></a>
+        <a class="primary" href="#tariffs">Тарифы с обходом <ArcIcon name="arrow" size={18} /></a>
       </div>
-      <dl><div><dt>Основной интернет</dt><dd>Безлимитно</dd></div><div><dt>Профили обхода</dt><dd>Отдельные гигабайты</dd></div><div><dt>После исчерпания</dt><dd>Обычные профили работают</dd></div><div><dt>Нужен ещё запас</dt><dd>Можно докупить</dd></div></dl>
+      <div class="bypass-well"><dl><div><dt>Основной интернет</dt><dd>Безлимитно</dd></div><div><dt>Профили обхода</dt><dd>Отдельные гигабайты</dd></div><div><dt>После исчерпания</dt><dd>Обычные профили работают</dd></div><div><dt>Нужен ещё запас</dt><dd>Можно докупить</dd></div></dl></div>
     </section>
 
     <section class="pricing-section" id="tariffs" data-nav-section>
@@ -529,4 +498,36 @@
 
   @media(max-width:900px){.apps-section{width:min(calc(100% - 32px),720px);padding-top:112px}.apps-section .feature-ledger{grid-template-columns:1fr 1fr}.apps-proof{margin-top:96px}.device-tabs{flex-wrap:wrap;border-radius:24px}.phone-well::before,.phone-well::after{width:100vw}}
   @media(max-width:620px){.hero-stage{aspect-ratio:568/912}.hero-stage>picture{width:100%;height:100%}.hero-stage>picture>img{width:100%;height:100%;object-fit:cover;object-position:top;transform:none}.apps-section{padding-top:92px}.apps-intro h2{font-size:42px}.apps-section .feature-ledger{grid-template-columns:1fr;gap:10px;margin-top:40px}.apps-section .feature-ledger article{min-height:0;padding:24px 22px}.apps-proof{min-height:660px;margin-top:84px}.app-copy h3{font-size:38px}.device-tabs{display:grid;grid-template-columns:1fr 1fr;width:100%;padding:5px}.device-tabs button{justify-content:center;padding:0 10px}.phone-well{min-height:360px;margin-top:44px}.phone-well::before{height:250px}.phone-well>img{height:340px}}
+
+  /* Static compatibility story and the fourth reference-led section. */
+  .apps-section .feature-ledger{grid-template-columns:repeat(2,1fr);gap:12px;width:min(100%,900px);margin:56px auto 0}
+  .apps-section .feature-ledger article{min-height:150px}
+  .apps-proof{min-height:650px;margin-top:108px}
+  .supported-apps{display:flex;align-items:center;gap:11px;color:#dce8ef;font-size:11px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
+  .supported-apps span{display:inline-flex;align-items:center;gap:8px}
+  .supported-apps span+span::before{content:'';width:3px;height:3px;border-radius:50%;background:#77c9f5;box-shadow:0 0 12px #77c9f5}
+  .device-list{display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:23px;margin-top:30px;color:#8f9aa5;font-size:10px;font-weight:700}
+  .device-list>span{display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
+  .device-list :global(.arc-icon){color:#b7c5cf}
+  .phone-well{min-height:285px;margin-top:42px;place-items:center}
+  .phone-well::before{top:50%;width:100vw;height:270px;background:linear-gradient(180deg,transparent 5%,rgba(7,15,23,.25) 25%,rgba(81,174,230,.16) 44%,rgba(189,231,255,.76) 49%,rgba(84,174,228,.34) 54%,rgba(8,25,39,.18) 72%,transparent 96%),radial-gradient(ellipse 55% 48% at 50% 50%,rgba(126,211,255,.82),rgba(48,140,199,.35) 42%,transparent 74%);filter:blur(13px)}
+  .phone-well::after{top:50%;height:1px;background:linear-gradient(90deg,transparent 8%,rgba(218,241,255,.82) 50%,transparent 92%)}
+  .compatibility-mark{position:relative;z-index:1;min-width:230px;display:grid;grid-template-columns:auto 1fr;align-items:center;gap:3px 11px;padding:20px 24px;border:0;border-radius:22px;background:#070a0e;box-shadow:0 28px 75px rgba(0,0,0,.62),inset 0 1px 0 rgba(255,255,255,.06)}
+  .compatibility-mark img{grid-row:1/3;width:28px;height:28px}.compatibility-mark span{color:#7f8b96;font-size:8px}.compatibility-mark b{font-size:13px;letter-spacing:-.02em}
+
+  .bypass-section{position:relative;width:min(calc(100% - 48px),1080px);min-height:900px;display:flex;align-items:center;flex-direction:column;gap:0;overflow:visible;padding:132px 0 0;border:0;background:#000;text-align:center}
+  .bypass-section::before{display:none}
+  .bypass-copy{display:flex;align-items:center;flex-direction:column;max-width:760px}
+  .section-chip{padding:8px 14px;border:1px solid rgba(255,255,255,.11);border-radius:999px;color:#939da6;font-size:8px;font-weight:800}
+  .bypass-section h2{max-width:720px;margin:27px 0 0;font-size:clamp(44px,4.7vw,66px);font-weight:620;line-height:1.02;letter-spacing:-.055em;text-wrap:balance}
+  .bypass-section p{max-width:610px;margin:20px auto 0;color:#858e97;font-size:11px;line-height:1.7}
+  .bypass-section p+p{margin-top:8px}.bypass-section small{margin-top:14px;color:#626b74}.bypass-section .primary{margin-top:27px;color:#03070b!important}
+  .bypass-well{position:relative;width:100vw;min-height:430px;display:grid;place-items:start center;overflow:hidden;margin-top:48px;padding-top:83px}
+  .bypass-well::before{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 0,rgba(21,65,96,.1) 21%,rgba(121,205,251,.3) 43%,rgba(222,243,255,.86) 49%,rgba(83,171,224,.28) 56%,rgba(8,26,40,.1) 76%,transparent 100%),radial-gradient(ellipse 70% 43% at 50% 49%,rgba(103,197,248,.68),rgba(39,119,170,.24) 43%,transparent 72%);filter:blur(16px)}
+  .bypass-well::after{content:'';position:absolute;top:49%;left:0;width:100%;height:1px;background:linear-gradient(90deg,transparent,rgba(226,245,255,.8),transparent)}
+  .bypass-section dl{position:relative;z-index:1;width:min(calc(100% - 32px),520px);margin:0;padding:18px 24px;border:0;border-radius:24px;background:#070a0e;box-shadow:0 32px 90px rgba(0,0,0,.66),inset 0 1px 0 rgba(255,255,255,.07);text-align:left}
+  .bypass-section dl div{padding:14px 0;border-color:rgba(255,255,255,.07)}
+
+  @media(max-width:900px){.apps-section .feature-ledger{grid-template-columns:1fr 1fr}.bypass-section{width:min(calc(100% - 32px),720px);min-height:820px;padding-top:112px}.bypass-well{width:100vw}}
+  @media(max-width:620px){.hero-visual{width:calc(100vw - 24px);padding-right:14px;padding-left:14px}.apps-section .feature-ledger{grid-template-columns:1fr}.apps-proof{min-height:580px;margin-top:82px}.app-copy h3{font-size:37px}.device-list{gap:18px 20px}.phone-well{min-height:245px}.phone-well::before{height:220px}.bypass-section{min-height:780px;padding-top:92px}.bypass-section h2{font-size:42px}.bypass-section p{font-size:10.5px}.bypass-well{min-height:390px;padding-top:72px}.bypass-section dl{width:calc(100% - 42px);padding:16px 20px}.bypass-section dl div{align-items:flex-start;gap:16px}.bypass-section dd{max-width:145px}}
 </style>

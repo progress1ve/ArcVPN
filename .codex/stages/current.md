@@ -1,10 +1,10 @@
-# Stage: ArcVPN landing — mobile Hero and applications section
+# Stage: ArcVPN landing — supported apps and bypass section
 
 ## Goal
 
-Finish the approved product-led landing direction by adapting the Hero to the
-real mobile cabinet capture, rebuilding the third applications section from
-real ArcVPN capabilities, and shipping the accepted landing to production.
+Refine the third section into a static supported-apps statement, narrow the
+mobile Hero light field, and rebuild the fourth bypass section as a focused
+reference-led explanation using only real ArcVPN facts.
 
 ## Visible contract
 
@@ -15,8 +15,9 @@ real ArcVPN capabilities, and shipping the accepted landing to production.
 | Transition | No visible rule or ambient blue wash between Hero and trial; the page field is true black |
 | Trial | Centered introduction and two quiet, separate trial cards using only real ArcVPN offers |
 | Mobile Hero | Use the real portrait cabinet capture without cropping a desktop screenshot into a phone-shaped viewport |
-| Applications | Four factual capability cards followed by a focused, interactive Happ/INCY and platform selector |
-| Production | Commit only the approved landing scope, deploy by fast-forward, and verify the public page |
+| Applications | Happ, INCY and supported platforms are presented as information, not interactive store choices |
+| Product proof | No phone application screenshot, frame, or install CTA; the light field remains decorative |
+| Fourth section | Centered bypass explanation, one tariff CTA and one compact factual proof panel over a horizontal cold-blue light |
 
 ## Components
 
@@ -40,7 +41,10 @@ real ArcVPN capabilities, and shipping the accepted landing to production.
   claim, fake application chrome, moving background, or decorative badge is added.
 - Hero does not introduce page-level horizontal overflow at mobile, tablet,
   desktop, or wide widths; mobile uses the portrait capture at its native ratio.
-- Applications retain working Happ/INCY, platform, install-link and analytics behavior.
+- Applications list Happ, INCY, iPhone/iPad, Android, Windows and Linux without
+  implying that the visitor must choose or install anything in this section.
+- No outbound application-store link remains in the section.
+- The fourth section preserves the current traffic semantics and tariff anchor.
 - Build and Impeccable detector pass; browser evidence covers Hero and applications.
 - The Hero/trial join has no border and no section-transition glow. Trial copy,
   bot URL, website URL, analytics events, and eligibility wording are unchanged.
@@ -91,3 +95,13 @@ real ArcVPN capabilities, and shipping the accepted landing to production.
 - The section field is true black; its only illumination is the intentional
   horizontal cold-blue product light behind the phone, matching the reference.
 - Production evidence will be appended after commit, push, pull and public QA.
+- Third-section desktop and 390x844 browser review passed: no selectors or
+  install link remain, all four platforms render as one static icon row, and
+  the decorative compatibility proof contains no phone screenshot.
+- Fourth-section desktop review passed: the factual proof panel crosses one
+  horizontal cold-blue light band and the surrounding field remains black.
+- Mobile Hero review at 390x844 confirms the portrait cabinet remains intact
+  while the illuminated container is narrowed to leave black side margins.
+- `npm --prefix webapp run build`: passed. Existing unused-selector warnings remain.
+- `npx --yes impeccable detect webapp/src/views/LandingPage.svelte`: passed.
+- `.venv\\Scripts\\python.exe -m pytest -q`: 177 passed.
