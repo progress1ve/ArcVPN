@@ -16,12 +16,6 @@
     { id: 'windows', label: 'Windows', icon: 'windows' },
     { id: 'linux', label: 'Linux', icon: 'linux' },
   ]
-  const featureRows = [
-    ['Автовыбор', 'Один профиль для обычного использования — без ручного перебора списка.'],
-    ['Обычные локации', 'Выбирайте страну, когда хотите управлять подключением сами.'],
-    ['Обход глушилок', 'Специальные профили расходуют только отдельный запас, а не основной трафик.'],
-    ['Одна ссылка', 'Обычные локации, сервисные профили и обход обновляются вместе с подпиской.'],
-  ]
   const faqs = [
     ['Как установить и подключить ArcVPN?', 'Откройте личный кабинет, выберите устройство и установите Happ или INCY. Затем импортируйте ссылку подписки и выберите Автовыбор.'],
     ['Что такое трафик обхода глушилок?', 'Это отдельный запас для специальных профилей, которые помогают в сложных сетях. Основной трафик остаётся безлимитным и учитывается отдельно.'],
@@ -203,19 +197,11 @@
         <p>Автовыбор, обычные локации и отдельные профили обхода доступны через одну подписку.</p>
       </div>
 
-      <div class="feature-ledger" id="features">
-        {#each featureRows as feature}
-          <article><h3>{feature[0]}</h3><p>{feature[1]}</p></article>
-        {/each}
-      </div>
-
       <div class="apps-proof">
         <div class="app-copy">
-          <div class="supported-apps" aria-label="Поддерживаемые приложения">
-            <span>Happ</span><span>INCY</span>
-          </div>
-          <h3>Поддерживаем знакомые приложения</h3>
-          <p>ArcVPN работает через Happ и INCY. Ссылка импорта и инструкция появятся в личном кабинете.</p>
+          <span class="section-chip">Одна ссылка</span>
+          <h3>Выберите привычное приложение</h3>
+          <p>ArcVPN работает через Happ и INCY. Ссылка импорта и инструкция появятся в личном кабинете — выбирать приложение на этой странице не нужно.</p>
           <div class="device-list" aria-label="Поддерживаемые платформы">
             {#each devices as device}
               <span>
@@ -224,15 +210,9 @@
             {/each}
           </div>
         </div>
-        <div class="phone-well" aria-label="ArcVPN в приложениях Happ и INCY">
-          <figure class="app-phone app-phone-happ">
-            <img src={`${base}assets/arc-flow/connect-happ-phone-v2.png`} alt="Подключение ArcVPN в приложении Happ" loading="lazy" decoding="async" />
-            <figcaption>Happ</figcaption>
-          </figure>
-          <figure class="app-phone app-phone-incy">
-            <img src={`${base}assets/arc-flow/connect-incy-phone-v1.png`} alt="Подключение ArcVPN в приложении INCY" loading="lazy" decoding="async" />
-            <figcaption>INCY</figcaption>
-          </figure>
+        <div class="app-icon-stage" aria-label="Поддерживаемые приложения: Happ и INCY">
+          <div class="app-icon-object app-icon-happ" role="img" aria-label="Заглушка иконки Happ"><i>H</i><b>Happ</b></div>
+          <div class="app-icon-object app-icon-incy" role="img" aria-label="Заглушка иконки INCY"><i>IN</i><b>INCY</b></div>
         </div>
       </div>
     </section>
@@ -542,4 +522,81 @@
 
   @media(max-width:900px){.apps-section .feature-ledger{grid-template-columns:1fr 1fr}.bypass-section{width:min(calc(100% - 32px),720px);min-height:820px;padding-top:112px}.bypass-well{width:100vw}}
   @media(max-width:620px){.hero-visual{width:calc(100vw - 24px);padding-right:14px;padding-left:14px}.hero-stage{padding:5px 5px 0}.hero-stage>picture{border-radius:16px 16px 0 0}.apps-section .feature-ledger{grid-template-columns:1fr}.apps-proof{min-height:650px;margin-top:82px}.app-copy h3{font-size:37px}.device-list{gap:18px 20px}.phone-well{min-height:340px;gap:10px;padding-top:32px}.phone-well::before{height:290px}.app-phone{width:min(43vw,158px)}.app-phone-incy{margin-top:44px}.app-phone figcaption{top:9px;padding:6px 10px;font-size:8px}.bypass-section{min-height:780px;padding-top:92px}.bypass-section h2{font-size:42px}.bypass-section p{font-size:10.5px}.bypass-well{min-height:390px;padding-top:72px}.bypass-section dl{width:calc(100% - 42px);padding:16px 20px}.bypass-section dl div{align-items:flex-start;gap:16px}.bypass-section dd{max-width:145px}}
+
+  /* Complete lower-page composition. */
+  .apps-section{padding-bottom:80px}
+  .apps-proof{min-height:760px;margin-top:72px;justify-content:flex-start}
+  .app-copy .section-chip{margin-bottom:0}
+  .app-copy h3{max-width:690px;margin-top:26px;font-size:clamp(42px,4.8vw,68px)}
+  .app-copy>p{max-width:590px}
+  .device-list{gap:30px;margin-top:34px}
+  .app-icon-stage{position:relative;width:100vw;min-height:450px;display:flex;align-items:center;justify-content:center;gap:36px;isolation:isolate;margin-top:34px;overflow:hidden}
+  .app-icon-stage::before{content:'';position:absolute;z-index:-2;top:32px;left:-8vw;width:118vw;height:420px;background:radial-gradient(ellipse 38% 34% at 12% 18%,rgba(147,219,255,.88),rgba(55,154,213,.38) 42%,transparent 72%),radial-gradient(ellipse 44% 30% at 52% 51%,rgba(205,238,255,.74),rgba(62,162,219,.28) 43%,transparent 72%),radial-gradient(ellipse 39% 35% at 91% 81%,rgba(121,205,249,.82),rgba(43,139,198,.3) 44%,transparent 74%);filter:blur(28px);transform:rotate(4deg)}
+  .app-icon-stage::after{content:'';position:absolute;z-index:-1;top:14%;left:-8%;width:116%;height:74%;background:linear-gradient(166deg,transparent 0 18%,rgba(197,235,255,.22) 38%,rgba(79,178,231,.14) 51%,transparent 74%);filter:blur(42px);transform:skewY(3deg)}
+  .app-icon-object{position:relative;width:210px;height:230px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;border:1px solid rgba(224,241,250,.2);border-radius:42px;background:linear-gradient(145deg,rgba(43,58,69,.72),rgba(5,8,12,.9) 64%);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 38px 90px rgba(0,0,0,.68);backdrop-filter:blur(24px)}
+  .app-icon-object:nth-child(2){margin-top:86px}
+  .app-icon-object i{width:104px;height:104px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:30px;background:linear-gradient(145deg,#f3f6f8,#77838c);box-shadow:0 16px 44px rgba(0,0,0,.38),inset 0 1px 0 #fff;color:#080b0e;font-size:44px;font-style:normal;font-weight:900;letter-spacing:-.08em}
+  .app-icon-object b{font-size:13px;letter-spacing:.04em}
+  .app-icon-incy i{background:linear-gradient(145deg,#14191e,#030507);color:#edf4f7;letter-spacing:-.1em}
+
+  .bypass-section{min-height:940px;padding-top:145px}
+  .bypass-copy{position:relative;z-index:3}
+  .bypass-well{min-height:470px;margin-top:42px;padding-top:102px}
+  .bypass-well::before{inset:-25% -12%;background:radial-gradient(ellipse 41% 32% at 9% 14%,rgba(140,214,252,.82),rgba(49,150,208,.31) 44%,transparent 72%),radial-gradient(ellipse 48% 25% at 51% 49%,rgba(207,239,255,.72),rgba(61,162,218,.24) 44%,transparent 75%),radial-gradient(ellipse 39% 34% at 91% 84%,rgba(119,204,248,.8),rgba(39,135,193,.27) 46%,transparent 75%);filter:blur(29px);transform:rotate(4deg)}
+  .bypass-well::after{top:48%;width:118vw;height:290px;background:linear-gradient(165deg,transparent 12%,rgba(194,234,255,.18) 37%,rgba(74,172,225,.12) 52%,transparent 76%);filter:blur(48px);transform:translate(-50%,-50%) skewY(3deg)}
+  .bypass-section dl{width:min(calc(100% - 32px),560px);padding:22px 30px;border:1px solid rgba(255,255,255,.14);border-radius:28px;background:rgba(5,8,11,.78);backdrop-filter:blur(28px)}
+
+  .pricing-section{width:min(calc(100% - 48px),1120px);padding:150px 0}
+  .pricing-section::before{display:none}
+  .pricing-intro{align-items:center;flex-direction:column;gap:20px;text-align:center}
+  .pricing-intro h2{max-width:800px;font-size:clamp(46px,5vw,70px)}
+  .pricing-intro p{max-width:620px}
+  .periods{margin:42px auto 38px;background:#07090c;box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+  .tariff-grid{gap:12px}
+  .tariff-grid article,.tariff-grid article.recommended{padding:0;overflow:hidden;border:1px solid rgba(255,255,255,.1);border-radius:22px;background:#07080a;box-shadow:none;transform:none}
+  .tariff-grid article:hover,.tariff-grid article.recommended:hover{border-color:rgba(255,255,255,.22);transform:translateY(-4px)}
+  .tariff-top{min-height:248px;padding:30px 28px;border-radius:0!important;background:linear-gradient(155deg,#12151a,#080a0d)!important;box-shadow:inset 0 1px 0 rgba(255,255,255,.055)!important}
+  .tariff-grid article.recommended .tariff-top{background:radial-gradient(circle at 86% 6%,rgba(118,202,246,.23),transparent 42%),linear-gradient(155deg,#182630,#090d11)!important}
+  .tariff-grid ul{margin:0;padding:25px 28px 24px}
+  .tariff-grid article>button{margin:0 20px 20px;border-radius:14px}
+  .custom-builder{grid-template-columns:.72fr 1.2fr .74fr;gap:34px;margin-top:22px;padding:34px;border:1px solid rgba(255,255,255,.1);border-radius:22px;background:radial-gradient(circle at 88% 18%,rgba(71,157,210,.18),transparent 33%),#07090c;box-shadow:none}
+  .custom-total{border-radius:17px}
+
+  .cabinet-section{padding:150px 0 130px}
+  .cabinet-section::before{display:none}
+  .cabinet-section .split-intro{align-items:center;grid-template-columns:1fr;text-align:center}
+  .cabinet-section .split-intro h2{font-size:clamp(48px,5.2vw,72px)}
+  .cabinet-section .split-intro p{max-width:620px;margin:auto}
+  .cabinet-proof{min-height:670px;margin-top:56px;padding:0 78px 50px;background:radial-gradient(ellipse 58% 42% at 50% 62%,rgba(54,151,210,.18),transparent 72%)}
+  .cabinet-proof figure{border:0;background:transparent;box-shadow:0 45px 110px -54px #000}
+  .cabinet-desktop-shot{width:100%;border-radius:24px}
+  .cabinet-mobile-shot{right:28px;bottom:0;width:215px;padding:5px;border:1px solid rgba(255,255,255,.18)!important;background:rgba(9,13,18,.68)!important;backdrop-filter:blur(18px)}
+
+  .connection-section{padding:130px 0}
+  .connection-section::before{display:none}
+  .connection-section .intro{max-width:820px;margin:auto;text-align:center}
+  .connection-section .intro h2{font-size:clamp(44px,4.8vw,66px)}
+  .connection-section ol{gap:10px;margin-top:58px;border:0}
+  .connection-section li,.connection-section li+li{min-height:190px;padding:24px;border:1px solid rgba(255,255,255,.09);border-radius:18px;background:linear-gradient(155deg,#0c0e12,#060709);box-shadow:inset 0 1px 0 rgba(255,255,255,.035)}
+  .connection-section li>span{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;color:#061018;background:#a8ddf8}
+
+  .faq-section{gap:70px;padding:140px 0}
+  .faq-section::before{display:none}
+  .faq-section .intro h2{font-size:clamp(42px,4.7vw,64px)}
+  .faq-list{border-top-color:rgba(255,255,255,.16)}
+  .faq-list article{border-bottom-color:rgba(255,255,255,.12)}
+  .faq-list button{min-height:94px}
+  .faq-list button i{width:34px;height:34px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.12);border-radius:50%}
+
+  .final-section{width:100%;min-height:720px;margin:20px auto 0;border:0}
+  .final-section::after{background:linear-gradient(180deg,#000 0%,rgba(0,0,0,.32) 32%,rgba(0,0,0,.6) 70%,#000 100%)}
+  .final-section>img{opacity:.78;transform:scale(1.08)}
+  .final-section h2{font-size:clamp(54px,6vw,82px)}
+  .links-section{width:min(calc(100% - 48px),1080px);grid-template-columns:.75fr 1.25fr;gap:90px;padding:120px 0 110px}
+  .links-section::before{display:block;top:auto;bottom:-170px;left:-10%;width:65%;height:420px;background:radial-gradient(ellipse,rgba(54,154,214,.28),transparent 70%);filter:blur(70px);transform:none}
+  .links-section nav a{padding:0 10px;border-color:rgba(255,255,255,.1)}
+  .footer{position:relative;width:100%;min-height:190px;padding:55px max(32px,calc((100vw - 1080px)/2));border-top:1px solid rgba(255,255,255,.09);background:#000}
+
+  @media(max-width:900px){.app-icon-stage{min-height:410px}.pricing-section{width:min(calc(100% - 32px),720px)}.custom-builder{grid-template-columns:1fr}.cabinet-proof{min-height:500px;padding:0 55px 40px}.connection-section ol{grid-template-columns:1fr 1fr}.faq-section,.links-section{grid-template-columns:1fr}.links-section{width:min(calc(100% - 32px),720px)}}
+  @media(max-width:620px){.apps-proof{min-height:620px}.app-copy .section-chip{display:inline-flex}.app-icon-stage{min-height:320px;gap:12px;margin-top:25px}.app-icon-stage::before{height:300px}.app-icon-object{width:140px;height:160px;gap:11px;border-radius:28px}.app-icon-object:nth-child(2){margin-top:52px}.app-icon-object i{width:70px;height:70px;border-radius:21px;font-size:30px}.pricing-section{padding:105px 0}.pricing-intro h2{font-size:42px}.periods{max-width:100%;overflow-x:auto}.tariff-grid{gap:12px}.tariff-top{min-height:220px}.custom-builder{padding:20px}.cabinet-section{padding:105px 0}.cabinet-proof{min-height:0;padding:0}.cabinet-mobile-shot{right:auto;width:min(62%,220px);justify-self:end}.connection-section{padding:95px 0}.connection-section ol{grid-template-columns:1fr;gap:9px}.connection-section li,.connection-section li+li{min-height:150px}.faq-section{padding:100px 0}.final-section{min-height:620px}.final-section h2{font-size:44px;line-height:.94}.links-section{gap:48px;padding:95px 0}.footer{padding:42px 20px}}
 </style>
