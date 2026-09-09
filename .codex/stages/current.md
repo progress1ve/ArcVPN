@@ -8,17 +8,17 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
 
 ## Visible contract
 
-| Surface      | Required result                                                                                                                 |
-| ------------ | ------------------------------------------------------------------------------------------------------------------------------- |
-| Applications | One concise device/app story; no four-card feature ledger, phone mockups, `supported-apps`, chooser, store link, or install CTA |
-| App proof    | Two standalone Happ and INCY icon assets over an asymmetric cold-blue light stream                                              |
-| Light        | A soft volume descends from upper-left through the centre and exits lower-right; no straight horizontal bar or one-pixel rule   |
-| Bypass       | Existing factual traffic semantics and tariff CTA, presented as one compact proof object over the same flowing light language   |
-| Pricing      | Live server-backed tariffs remain authoritative; three clearer plans and the custom builder form one composed pricing system    |
-| Cabinet      | Real ArcVPN desktop and mobile captures remain the visual evidence, with reduced nested framing                                 |
-| Steps        | Four onboarding steps read as a continuous sequence rather than a plain ruled list                                              |
-| FAQ          | Questions remain keyboard-operable and gain a calmer two-column editorial layout                                                |
-| Final/footer | Final CTA, useful links, and footer close the page as one dark composition with restrained corner light                         |
+| Surface      | Required result                                                                                                               |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| Applications | Restore the four factual feature cards; keep phone mockups, `supported-apps`, chooser, store link, and install CTA absent     |
+| App proof    | Two standalone Happ and INCY icon assets over an asymmetric cold-blue light stream                                            |
+| Light        | A soft volume descends from upper-left through the centre and exits lower-right; no straight horizontal bar or one-pixel rule |
+| Bypass       | Existing factual traffic semantics and tariff CTA, presented as one compact proof object over the same flowing light language |
+| Pricing      | Live server-backed tariffs remain authoritative; three clearer plans and the custom builder form one composed pricing system  |
+| Cabinet      | Real ArcVPN desktop and mobile captures remain the visual evidence, with reduced nested framing                               |
+| Steps        | Four onboarding steps read as a continuous sequence rather than a plain ruled list                                            |
+| FAQ          | Questions remain keyboard-operable and gain a calmer two-column editorial layout                                              |
+| Final/footer | Final CTA, useful links, and footer close the page as one dark composition with restrained corner light                       |
 
 ## Components
 
@@ -39,8 +39,8 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
 
 ## Acceptance
 
-- `supported-apps`, phone figures and the four-card application feature ledger
-  are absent from rendered HTML.
+- `supported-apps` and phone figures are absent; the four factual application
+  feature cards are restored with their original copy.
 - Happ and INCY are represented by two static, labelled icon objects; supported
   platforms remain visible as a plain icon/text row.
 - The application glow has visibly different vertical positions at its left and
@@ -64,15 +64,15 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
 
 ## Verification matrix
 
-| Check                   | Status  | Evidence                                |
-| ----------------------- | ------- | --------------------------------------- |
-| Source/content contract | Passed  | Removed legacy app grid, phones and label |
+| Check                   | Status  | Evidence                                     |
+| ----------------------- | ------- | -------------------------------------------- |
+| Source/content contract | Passed  | Removed legacy app grid, phones and label    |
 | Mobile 390x844          | Passed  | Icon bounds 41.6–333.6 px; content contained |
-| Tablet 768x1024         | Passed  | Lower sections and controls contained   |
-| Desktop 1280            | Passed  | Applications, pricing and cabinet reviewed |
-| Wide 1600               | Passed  | Pricing remains centred at 1120 px      |
-| Build/detector/tests    | Passed  | Clean build, detector exit 0, 177 tests |
-| Production/public       | Passed  | `a0a0fff`, assets 200, public DOM/browser passed |
+| Tablet 768x1024         | Passed  | Lower sections and controls contained        |
+| Desktop 1280            | Passed  | Applications, pricing and cabinet reviewed   |
+| Wide 1600               | Passed  | Pricing remains centred at 1120 px           |
+| Build/detector/tests    | Passed  | Clean build, detector exit 0, 177 tests      |
+| Production/public       | Pending | commit, pull, HTTP and browser evidence      |
 
 ## Result and evidence
 
@@ -86,10 +86,4 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
   images, analytics and FAQ disclosure behavior are unchanged.
 - Browser QA covered 390, 768, 1280 and 1600 px. FAQ expands with
   `aria-expanded=true`; cabinet images load at natural widths 1600 and 568.
-- Runtime commit `a0a0fff` was pushed and fast-forwarded on `pl-control`.
-  `nginx.service` and `arcvpn-subscription.service` remain active; no restart
-  was needed for the static-only release.
-- Public HTML references `index-mNdF5joT.js`; the release JS and CSS return 200.
-  Public DOM has two app placeholders and zero legacy app grids, phone figures,
-  or `supported-apps` nodes.
-- Rollback is a normal revert of `a0a0fff`.
+- Production verification pending commit and deployment.

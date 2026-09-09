@@ -16,6 +16,12 @@
     { id: 'windows', label: 'Windows', icon: 'windows' },
     { id: 'linux', label: 'Linux', icon: 'linux' },
   ]
+  const featureRows = [
+    ['Автовыбор', 'Один профиль для обычного использования — без ручного перебора списка.'],
+    ['Обычные локации', 'Выбирайте страну, когда хотите управлять подключением сами.'],
+    ['Обход глушилок', 'Специальные профили расходуют только отдельный запас, а не основной трафик.'],
+    ['Одна ссылка', 'Обычные локации, сервисные профили и обход обновляются вместе с подпиской.'],
+  ]
   const faqs = [
     ['Как установить и подключить ArcVPN?', 'Откройте личный кабинет, выберите устройство и установите Happ или INCY. Затем импортируйте ссылку подписки и выберите Автовыбор.'],
     ['Что такое трафик обхода глушилок?', 'Это отдельный запас для специальных профилей, которые помогают в сложных сетях. Основной трафик остаётся безлимитным и учитывается отдельно.'],
@@ -195,6 +201,12 @@
       <div class="apps-intro">
         <h2>Работает на ваших устройствах</h2>
         <p>Автовыбор, обычные локации и отдельные профили обхода доступны через одну подписку.</p>
+      </div>
+
+      <div class="feature-ledger" id="features">
+        {#each featureRows as feature}
+          <article><h3>{feature[0]}</h3><p>{feature[1]}</p></article>
+        {/each}
       </div>
 
       <div class="apps-proof">
@@ -531,8 +543,8 @@
   .app-copy>p{max-width:590px}
   .device-list{gap:30px;margin-top:34px}
   .app-icon-stage{position:relative;width:100vw;min-height:450px;display:flex;align-items:center;justify-content:center;gap:36px;isolation:isolate;margin-top:34px;overflow:hidden}
-  .app-icon-stage::before{content:'';position:absolute;z-index:-2;top:32px;left:-8vw;width:118vw;height:420px;background:radial-gradient(ellipse 38% 34% at 12% 18%,rgba(147,219,255,.88),rgba(55,154,213,.38) 42%,transparent 72%),radial-gradient(ellipse 44% 30% at 52% 51%,rgba(205,238,255,.74),rgba(62,162,219,.28) 43%,transparent 72%),radial-gradient(ellipse 39% 35% at 91% 81%,rgba(121,205,249,.82),rgba(43,139,198,.3) 44%,transparent 74%);filter:blur(28px);transform:rotate(4deg)}
-  .app-icon-stage::after{content:'';position:absolute;z-index:-1;top:14%;left:-8%;width:116%;height:74%;background:linear-gradient(166deg,transparent 0 18%,rgba(197,235,255,.22) 38%,rgba(79,178,231,.14) 51%,transparent 74%);filter:blur(42px);transform:skewY(3deg)}
+  .app-icon-stage::before{content:'';position:absolute;z-index:-2;top:50%;left:50%;width:100vw;height:300px;background:linear-gradient(180deg,transparent 5%,rgba(7,15,23,.25) 25%,rgba(81,174,230,.16) 44%,rgba(189,231,255,.62) 49%,rgba(84,174,228,.3) 55%,rgba(8,25,39,.16) 72%,transparent 96%),radial-gradient(ellipse 58% 48% at 50% 50%,rgba(126,211,255,.68),rgba(48,140,199,.3) 42%,transparent 74%);filter:blur(16px);transform:translate(-50%,-50%)}
+  .app-icon-stage::after{content:'';position:absolute;z-index:-1;top:50%;left:50%;width:100vw;height:190px;background:radial-gradient(ellipse 62% 28% at 50% 50%,rgba(205,239,255,.35),rgba(73,164,216,.14) 46%,transparent 76%);filter:blur(38px);transform:translate(-50%,-50%)}
   .app-icon-object{position:relative;width:210px;height:230px;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:18px;border:1px solid rgba(224,241,250,.2);border-radius:42px;background:linear-gradient(145deg,rgba(43,58,69,.72),rgba(5,8,12,.9) 64%);box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 38px 90px rgba(0,0,0,.68);backdrop-filter:blur(24px)}
   .app-icon-object:nth-child(2){margin-top:86px}
   .app-icon-object i{width:104px;height:104px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.2);border-radius:30px;background:linear-gradient(145deg,#f3f6f8,#77838c);box-shadow:0 16px 44px rgba(0,0,0,.38),inset 0 1px 0 #fff;color:#080b0e;font-size:44px;font-style:normal;font-weight:900;letter-spacing:-.08em}
