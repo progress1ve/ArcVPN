@@ -8,16 +8,18 @@ reference-led explanation using only real ArcVPN facts.
 
 ## Visible contract
 
-| Surface | Required result |
-|---|---|
-| Hero | Centered, compact value proposition followed immediately by one clear CTA and the real ArcVPN cabinet proof |
-| Visual language | Black field, restrained cold-blue light and fine orbital structure; the product remains the brightest proof |
-| Transition | No visible rule or ambient blue wash between Hero and trial; the page field is true black |
-| Trial | Centered introduction and two quiet, separate trial cards using only real ArcVPN offers |
-| Mobile Hero | Use the real portrait cabinet capture without cropping a desktop screenshot into a phone-shaped viewport |
-| Applications | Happ, INCY and supported platforms are presented as information, not interactive store choices |
-| Product proof | No phone application screenshot, frame, or install CTA; the light field remains decorative |
-| Fourth section | Centered bypass explanation, one tariff CTA and one compact factual proof panel over a horizontal cold-blue light |
+| Surface         | Required result                                                                                                   |
+| --------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Hero            | Centered, compact value proposition followed immediately by one clear CTA and the real ArcVPN cabinet proof       |
+| Visual language | Black field, restrained cold-blue light and fine orbital structure; the product remains the brightest proof       |
+| Transition      | No visible rule or ambient blue wash between Hero and trial; the page field is true black                         |
+| Trial           | Centered introduction and two quiet, separate trial cards using only real ArcVPN offers                           |
+| Mobile Hero     | Use the real portrait cabinet capture without cropping a desktop screenshot into a phone-shaped viewport          |
+| Applications    | Happ, INCY and supported platforms are presented as information, not interactive store choices                    |
+| Product proof   | Real Happ and INCY phone screenshots return as a static pair; there is no selector, store link, or install CTA    |
+| Hero frame      | The cabinet proof has one thin translucent glass rim and no nested black shell                                    |
+| Light field     | A broad diffused horizon with asymmetric side volumes replaces the sharp white line                               |
+| Fourth section  | Centered bypass explanation, one tariff CTA and one compact factual proof panel over a horizontal cold-blue light |
 
 ## Components
 
@@ -44,6 +46,9 @@ reference-led explanation using only real ArcVPN facts.
 - Applications list Happ, INCY, iPhone/iPad, Android, Windows and Linux without
   implying that the visitor must choose or install anything in this section.
 - No outbound application-store link remains in the section.
+- Both supported application screenshots are visible as non-interactive product evidence.
+- The Hero cabinet has no heavy black or opaque grey nested frame.
+- Phone and bypass light fields contain no sharp one-pixel horizon rule.
 - The fourth section preserves the current traffic semantics and tariff anchor.
 - Build and Impeccable detector pass; browser evidence covers Hero and applications.
 - The Hero/trial join has no border and no section-transition glow. Trial copy,
