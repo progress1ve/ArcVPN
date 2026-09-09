@@ -1,8 +1,17 @@
 # ArcVPN handoff — public Northern Flow landing
 
-Updated: 2026-09-09. Current production runtime commit: `42e60dc`.
+Updated: 2026-09-09. Current production runtime commit: `a0a0fff`.
 
 ## Current landing state
+
+- Every section after the trial block now uses the completed lower-page system:
+  asymmetric upper-left to lower-right light, compact live pricing, reduced
+  product framing, sequenced onboarding, editorial FAQ, and composed CTA/footer.
+- The former four-card applications grid, Happ/INCY phone mockups, and
+  `supported-apps` label are removed. Two code-native Happ/INCY placeholders are
+  intentionally temporary and can be replaced without changing layout.
+- Runtime commit `a0a0fff` is deployed on production. Public release assets
+  return 200; nginx and the subscription service remain active.
 
 - Hero uses the wide real cabinet capture on desktop and the portrait real
   cabinet capture on mobile. Its mobile illuminated container leaves deliberate

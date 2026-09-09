@@ -72,7 +72,7 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
 | Desktop 1280            | Passed  | Applications, pricing and cabinet reviewed |
 | Wide 1600               | Passed  | Pricing remains centred at 1120 px      |
 | Build/detector/tests    | Passed  | Clean build, detector exit 0, 177 tests |
-| Production/public       | Pending | commit, pull, HTTP and browser evidence |
+| Production/public       | Passed  | `a0a0fff`, assets 200, public DOM/browser passed |
 
 ## Result and evidence
 
@@ -86,4 +86,10 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
   images, analytics and FAQ disclosure behavior are unchanged.
 - Browser QA covered 390, 768, 1280 and 1600 px. FAQ expands with
   `aria-expanded=true`; cabinet images load at natural widths 1600 and 568.
-- Production verification pending commit and deployment.
+- Runtime commit `a0a0fff` was pushed and fast-forwarded on `pl-control`.
+  `nginx.service` and `arcvpn-subscription.service` remain active; no restart
+  was needed for the static-only release.
+- Public HTML references `index-mNdF5joT.js`; the release JS and CSS return 200.
+  Public DOM has two app placeholders and zero legacy app grids, phone figures,
+  or `supported-apps` nodes.
+- Rollback is a normal revert of `a0a0fff`.
