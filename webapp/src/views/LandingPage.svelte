@@ -201,6 +201,7 @@
       <div class="apps-intro">
         <h2>Работает на ваших устройствах</h2>
         <p>Автовыбор, обычные локации и отдельные профили обхода доступны через одну подписку.</p>
+        <div class="apps-signal" aria-hidden="true"><i></i><span><img src={`${base}assets/arc-flow/arc-logo.svg`} alt="" /></span><i></i></div>
       </div>
 
       <div class="feature-ledger" id="features">
@@ -222,8 +223,8 @@
           </div>
         </div>
         <div class="app-icon-stage" aria-label="Поддерживаемые приложения: Happ и INCY">
-          <figure class="app-phone app-phone-happ"><img src={`${base}assets/arc-flow/connect-happ-phone-v2.png`} alt="Приложение Happ на телефоне" width="480" height="712" loading="lazy" decoding="async" /><figcaption>Happ</figcaption></figure>
-          <figure class="app-phone app-phone-incy"><img src={`${base}assets/arc-flow/connect-incy-phone-v1.png`} alt="Приложение INCY на телефоне" width="480" height="664" loading="lazy" decoding="async" /><figcaption>INCY</figcaption></figure>
+          <figure class="app-phone app-phone-happ"><img src={`${base}assets/arc-flow/connect-happ-phone-v2.png`} alt="Приложение Happ на телефоне" width="480" height="712" loading="lazy" decoding="async" /></figure>
+          <figure class="app-phone app-phone-incy"><img src={`${base}assets/arc-flow/connect-incy-phone-v1.png`} alt="Приложение INCY на телефоне" width="480" height="664" loading="lazy" decoding="async" /></figure>
         </div>
       </div>
     </section>
@@ -698,28 +699,37 @@
 
   /* Direct visual corrections from the owner's screenshots. */
   .app-copy h3{margin-top:0}
-  .app-icon-stage{align-items:flex-end;padding:54px 42px 0}
+  .apps-intro{position:relative}
+  .apps-intro::before{content:'';position:absolute;z-index:-1;top:50%;left:50%;width:min(720px,86vw);height:270px;border-radius:50%;background:radial-gradient(ellipse,rgba(54,157,216,.16),rgba(16,60,89,.06) 45%,transparent 72%);filter:blur(38px);transform:translate(-50%,-50%)}
+  .apps-signal{width:min(430px,70vw);display:grid;grid-template-columns:1fr 46px 1fr;align-items:center;gap:12px;margin-top:30px}
+  .apps-signal i{height:1px;background:linear-gradient(90deg,transparent,rgba(157,219,251,.5));box-shadow:0 0 16px rgba(88,186,237,.24)}
+  .apps-signal i:last-child{background:linear-gradient(90deg,rgba(157,219,251,.5),transparent)}
+  .apps-signal span{width:46px;height:46px;display:grid;place-items:center;border:1px solid rgba(169,220,247,.2);border-radius:50%;background:rgba(10,18,25,.82);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 34px rgba(74,174,226,.16)}
+  .apps-signal img{width:20px;height:20px}
+  .app-icon-stage{position:relative;align-items:flex-end;justify-content:center;gap:0;padding:54px 20px 0}
   .app-phone{position:relative;z-index:1;flex:none;margin:0;filter:drop-shadow(0 36px 58px rgba(0,0,0,.78))}
-  .app-phone-happ{width:190px}
-  .app-phone-incy{width:245px;margin:0 0 -10px 10px}
+  .app-phone-happ{z-index:1;width:215px;transform:translate(42px,38px) rotate(-2.2deg)}
+  .app-phone-incy{z-index:2;width:276px;transform:translateX(-28px) rotate(1.2deg)}
   .app-phone img{display:block;width:100%;height:auto}
-  .app-phone figcaption{position:absolute;top:17px;left:50%;padding:7px 13px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(3,8,13,.72);box-shadow:inset 0 1px 0 rgba(255,255,255,.1);backdrop-filter:blur(12px);color:#eef7fb;font-size:9px;font-weight:800;transform:translateX(-50%)}
 
   .bypass-well{overflow:hidden;background:#000}
-  .bypass-well::before{inset:0;width:100%;height:100%;background:radial-gradient(ellipse 34% 36% at 3% 53%,rgba(170,226,255,.98) 0%,rgba(86,183,236,.68) 22%,rgba(31,112,169,.28) 48%,transparent 75%),radial-gradient(ellipse 34% 36% at 97% 53%,rgba(170,226,255,.98) 0%,rgba(86,183,236,.68) 22%,rgba(31,112,169,.28) 48%,transparent 75%),radial-gradient(ellipse 66% 19% at 50% 54%,rgba(188,231,255,.62),rgba(74,169,222,.25) 38%,rgba(14,54,82,.08) 64%,transparent 82%);filter:blur(24px);transform:none}
-  .bypass-well::after{top:54%;width:116vw;height:250px;background:radial-gradient(ellipse 60% 20% at 50% 50%,rgba(214,241,255,.46),rgba(78,173,225,.18) 44%,transparent 76%);filter:blur(42px);transform:translate(-50%,-50%)}
+  .bypass-well::before{inset:-8% -3%;width:106%;height:116%;background:radial-gradient(ellipse 39% 58% at -4% 54%,rgba(191,235,255,.98) 0%,rgba(93,192,241,.72) 20%,rgba(35,127,183,.34) 43%,transparent 73%),radial-gradient(ellipse 39% 58% at 104% 54%,rgba(191,235,255,.98) 0%,rgba(93,192,241,.72) 20%,rgba(35,127,183,.34) 43%,transparent 73%),radial-gradient(ellipse 78% 35% at 50% 56%,rgba(154,216,248,.42),rgba(55,153,207,.2) 38%,rgba(8,34,52,.05) 68%,transparent 84%);filter:blur(31px);transform:none}
+  .bypass-well::after{top:57%;width:126vw;height:430px;background:linear-gradient(166deg,transparent 16%,rgba(110,200,245,.07) 31%,rgba(220,244,255,.3) 47%,rgba(71,169,222,.13) 58%,transparent 78%);filter:blur(48px);transform:translate(-50%,-50%) skewY(-2deg)}
+  .bypass-section dl{box-shadow:0 54px 140px rgba(0,0,0,.78),inset 0 1px 0 rgba(255,255,255,.08),0 0 100px rgba(79,178,231,.11)}
 
   @media(max-width:900px){
     .app-icon-stage{padding:46px 32px 0}
-    .app-phone-happ{width:190px}
-    .app-phone-incy{width:240px}
+    .app-phone-happ{width:205px;transform:translate(36px,34px) rotate(-2deg)}
+    .app-phone-incy{width:262px;transform:translateX(-25px) rotate(1deg)}
   }
 
   @media(max-width:620px){
     .app-icon-stage{align-items:flex-end;gap:4px;padding:35px 10px 0}
-    .app-phone-happ{width:min(42vw,164px)}
-    .app-phone-incy{width:min(51vw,198px);margin:0 0 -6px -4px}
-    .app-phone figcaption{top:10px;padding:6px 10px;font-size:8px}
-    .bypass-well::before{background:radial-gradient(ellipse 56% 32% at -8% 54%,rgba(165,224,255,.9),rgba(62,159,216,.42) 38%,transparent 74%),radial-gradient(ellipse 56% 32% at 108% 54%,rgba(165,224,255,.9),rgba(62,159,216,.42) 38%,transparent 74%),radial-gradient(ellipse 88% 18% at 50% 54%,rgba(178,225,250,.42),rgba(55,151,207,.16) 42%,transparent 80%)}
+    .app-phone-happ{width:min(44vw,172px);transform:translate(27px,25px) rotate(-2deg)}
+    .app-phone-incy{width:min(55vw,215px);margin:0;transform:translateX(-20px) rotate(1deg)}
+    .apps-signal{grid-template-columns:1fr 40px 1fr;width:min(300px,82vw);margin-top:24px}
+    .apps-signal span{width:40px;height:40px}
+    .apps-signal img{width:18px;height:18px}
+    .bypass-well::before{inset:-10% -8%;width:116%;height:120%;background:radial-gradient(ellipse 67% 54% at -18% 55%,rgba(188,233,255,.94),rgba(73,172,226,.5) 35%,transparent 72%),radial-gradient(ellipse 67% 54% at 118% 55%,rgba(188,233,255,.94),rgba(73,172,226,.5) 35%,transparent 72%),radial-gradient(ellipse 96% 31% at 50% 57%,rgba(158,216,246,.34),rgba(44,139,194,.14) 44%,transparent 82%)}
   }
 </style>
