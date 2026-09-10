@@ -1019,7 +1019,7 @@
   })
 </script>
 
-<div class="flow-preview">
+<div class="flow-preview" class:login-mode={$status.error === 'unauthorized'}>
   <div class="aurora" aria-hidden="true">
     <i class="aurora-blob blob-one"></i>
     <i class="aurora-blob blob-two"></i>
@@ -1228,10 +1228,9 @@
         </section>
       {:else if $status.error === 'unauthorized'}
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
-          {#if !isTelegramWebApp}<a class="login-back" href="/"><ArcIcon name="back" size={16} weight="bold" />На главную</a>{/if}
           <div class="login-inner">
-            <div class="login-mark"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></div>
-            <div class="login-copy"><h1>С возвращением<br />в ArcVPN</h1><span>Войдите по email или через Telegram. Если аккаунта ещё нет, мы создадим его после подтверждения — пароль не нужен.</span></div>
+            <div class="login-brand"><div class="login-mark"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></div><span>ArcVPN</span></div>
+            <div class="login-copy"><h1>Добро пожаловать<br />в ArcVPN</h1><span>Войдите по email или через Telegram. Если аккаунта ещё нет, мы создадим его после подтверждения — пароль не нужен.</span></div>
             <section class="email-form login-form">
               <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
               {#if emailStep === 'code'}<label><span>Код из письма</span><input inputmode="numeric" maxlength="6" autocomplete="one-time-code" bind:value={emailCode} placeholder="000000" /></label>{/if}
@@ -2579,13 +2578,15 @@
     .desktop-back.telegram-mobile-hidden, .purchase-back.telegram-mobile-hidden,
     .connect-page-head > button.telegram-mobile-hidden { display: none; }
   }
-  .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:#15171c}
-  .login-screen::before{content:'';position:absolute;z-index:-2;inset:0;background:radial-gradient(ellipse 32% 45% at 100% 0%,rgba(109,184,235,.2),transparent 70%),radial-gradient(ellipse 38% 48% at 0% 100%,rgba(84,155,211,.18),transparent 72%),linear-gradient(145deg,#15171b,#0f1115 58%,#15171b)}
+  .flow-preview.login-mode{background:#050506}
+  .flow-preview.login-mode::before,.flow-preview.login-mode::after{display:none}
+  .flow-preview.login-mode .aurora{display:none}
+  .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:#0d0e10}
+  .login-screen::before{content:'';position:absolute;z-index:-2;inset:0;background:radial-gradient(ellipse 45% 52% at 100% 0%,rgba(255,255,255,.035),transparent 72%),radial-gradient(ellipse 42% 48% at 0% 100%,rgba(255,255,255,.025),transparent 74%),#0d0e10}
   .login-screen::after{content:'';position:absolute;z-index:-1;inset:1px;border:1px solid rgba(210,231,248,.08);border-radius:34px;pointer-events:none}
-  .login-back{position:absolute;top:32px;left:34px;min-height:42px;display:flex;align-items:center;gap:7px;padding:0 14px;border:1px solid rgba(220,235,247,.1);border-radius:999px;color:#aab5bf;font-size:10px;font-weight:750;background:rgba(5,8,12,.22)}
-  .login-back:hover{color:#fff;border-color:rgba(157,215,249,.32)}
   .login-inner{width:min(100%,410px);display:flex;align-items:center;flex-direction:column}
-  .login-mark{width:54px;height:54px;display:grid;place-items:center;margin-bottom:28px;border:1px solid rgba(205,230,247,.1);border-radius:17px;background:linear-gradient(145deg,rgba(255,255,255,.08),rgba(255,255,255,.015));box-shadow:0 22px 60px rgba(0,0,0,.34)}
+  .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;color:#f4f6f8;font-size:16px;font-weight:750;letter-spacing:-.025em}
+  .login-mark{width:48px;height:48px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.1);border-radius:15px;background:linear-gradient(145deg,rgba(255,255,255,.09),rgba(255,255,255,.025));box-shadow:0 18px 48px rgba(0,0,0,.38),inset 0 1px 0 rgba(255,255,255,.05)}
   .login-mark img{width:27px;height:27px;object-fit:contain;filter:brightness(0) invert(1)}
   .login-copy h1{font-size:34px;font-weight:630;line-height:1.06;letter-spacing:-.05em}
   .login-copy>span{max-width:380px;margin-top:12px;color:#8f98a4;font-size:11px;line-height:1.6}
@@ -2603,6 +2604,6 @@
   .login-screen .form-message{width:100%;margin:10px 2px 0;text-align:left}
   .login-screen .login-help{max-width:370px;margin:18px auto 0;color:#6f7984;text-align:center;font-size:9px;line-height:1.55}
   @media(min-width:900px){.login-screen{min-height:calc(100dvh - 64px)!important;width:calc(100% - 64px)!important;margin:32px!important;border-radius:34px}.login-screen::after{border-radius:34px}}
-  @media(max-width:700px){.login-screen{min-height:100dvh;padding:92px 20px 48px!important}.login-screen::after{display:none}.login-back{top:calc(var(--safe-top-flow) + 18px);left:18px}.login-copy h1{font-size:32px}.login-copy>span{font-size:10.5px}}
+  @media(max-width:700px){.login-screen{min-height:100dvh;padding:72px 20px 48px!important}.login-screen::after{display:none}.login-copy h1{font-size:32px}.login-copy>span{font-size:10.5px}}
   .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}
 </style>

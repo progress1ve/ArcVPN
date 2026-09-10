@@ -2,6 +2,10 @@
 
 ## 2026-09-10 result
 
+- Visual follow-up: login background is neutral black with no blue aurora, the
+  home link is removed, the logo keeps its dark tile and sits beside the ArcVPN
+  wordmark, and the heading reads “Добро пожаловать в ArcVPN”.
+
 - `/app/` login: warm welcome heading, email-code flow first, Telegram second,
   reference-led dark panel, preserved auth behavior.
 - Bot onboarding: current legal-version acceptance is required; channel
