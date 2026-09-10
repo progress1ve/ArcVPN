@@ -21,6 +21,30 @@
 - Focused tests, Vite build, browser QA, diff review, deployment, service state
   and public content checks pass.
 
+## 2026-09-10 result
+
+- Public legal page now has separate User Agreement and Privacy Policy parts,
+  optional auto-renewal/cancellation terms, lawful refund wording, actual data
+  categories, processor classes, retention, security and user rights.
+- Unset operator fields are no longer exposed as `[УКАЖИТЕ ...]`; production
+  still requires the owner's verified legal name, INN, OGRN/OGRNIP, address and
+  legal email for a complete operator disclosure.
+- Applications intro is centered and `.apps-signal` is absent from source,
+  generated assets and public markup.
+- Four focused tests passed; Vite production build passed with pre-existing
+  unused-selector warnings. The broader landing route test could not collect in
+  the isolated worktree without the production-local config/database.
+- Browser QA passed on the public legal page and desktop applications section.
+  Public checks returned HTTP 200, no placeholders, current date and both legal
+  parts. `arcvpn-subscription.service` and nginx are active.
+- Runtime commits: `ea12398`, `470a325`; production is at `470a325`.
+
+## Residual risk
+
+The document is a product-aligned draft rather than individual legal advice.
+Add verified operator requisites and obtain counsel review before treating it
+as a final compliance document.
+
 ## Previous stage record
 
 ## Goal

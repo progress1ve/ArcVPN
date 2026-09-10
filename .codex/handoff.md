@@ -141,3 +141,20 @@ Updated: 2026-09-09. Current production runtime commit: `a0a0fff`.
 Revert `9a69ba1` only if the removed scrolling experiment must be restored.
 `/app`, payment, authentication and subscription URL contracts are unchanged;
 no service restart is needed for this static-only rollback.
+
+## 2026-09-10 legal revision and apps-intro polish
+
+- Production is at `470a325` after `ea12398` and the placeholder hardening.
+- `/legal/user-agreement` contains distinct ArcVPN User Agreement and Privacy
+  Policy parts dated 10 September 2026. It covers Telegram/email accounts,
+  YooKassa-backed payments, opt-in auto-renewal, self-service cancellation,
+  lawful refund handling, actual data categories, processors, retention,
+  security and data-subject rights.
+- Production operator requisites remain unset. The renderer suppresses raw
+  `[УКАЖИТЕ ...]` values, but the owner must provide verified legal name, INN,
+  OGRN/OGRNIP, address and legal email before final legal sign-off.
+- “Работает на ваших устройствах” is centered at every breakpoint and the
+  decorative `.apps-signal` markup/styles were removed. Hero and trial were not
+  changed.
+- Focused tests (4), syntax, Vite build, staged diff, public browser QA, HTTP
+  checks and service checks passed. Nginx and subscription service are active.
