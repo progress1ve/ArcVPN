@@ -732,4 +732,9 @@
     .apps-signal img{width:18px;height:18px}
     .bypass-well::before{inset:-10% -8%;width:116%;height:120%;background:radial-gradient(ellipse 67% 54% at -18% 55%,rgba(188,233,255,.94),rgba(73,172,226,.5) 35%,transparent 72%),radial-gradient(ellipse 67% 54% at 118% 55%,rgba(188,233,255,.94),rgba(73,172,226,.5) 35%,transparent 72%),radial-gradient(ellipse 96% 31% at 50% 57%,rgba(158,216,246,.34),rgba(44,139,194,.14) 44%,transparent 82%)}
   }
+
+  /* Keep the app proof neutral: the phones are the visual focus, not another light field. */
+  .apps-proof{box-shadow:none}
+  .app-icon-stage{background:#050608}
+  .app-icon-stage::before,.app-icon-stage::after{display:none}
 </style>
