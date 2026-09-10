@@ -1,5 +1,17 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-10 bypass light and tablet pricing
+
+- Production runtime `6ef7795` replaces the grey full-width bypass wash with
+  two contained blue side sources and a dark centre.
+- At 720-900px, the three live tariff cards form one compact row; public browser
+  evidence at 770px showed 356/360/356px card heights and no horizontal overflow.
+- Hero, trial, app proof, pricing data and actions are unchanged. Vite build,
+  public root/CSS/JS checks and public browser verification passed; nginx and
+  the subscription service remain active. Static deployment needed no restart.
+- Pending owner choice: page-pacing composition, asymmetric capability story,
+  and replacement direction for the final CTA background.
+
 ## 2026-09-10 neutral application proof
 
 - Production runtime is `0c910a0` after removing the decorative blue light and

@@ -1720,3 +1720,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   application proof on a neutral near-black background with no outer glow; the
   overlapping phone captures provide enough visual emphasis. Do not reintroduce
   decorative light there unless the owner explicitly requests it.
+
+## 2026-09-10: bypass light and tablet tariff density
+
+- Bypass proof must keep a dark centre and use only restrained local side
+  sources; full-width grey-blue fog and hard polygonal beams were rejected.
+- At 720-900px, the three live tariff cards use one compact row rather than
+  three tall stacked cards. Pricing values, controls and mobile layout remain
+  authoritative and unchanged.

@@ -118,3 +118,17 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
   width all three tariff cards fit in one compact row with no horizontal
   overflow; mobile remains one column; build and browser checks pass.
 - Rollback: revert the single static landing commit; no service restart needed.
+
+### Result
+
+- Passed: bypass proof uses only two soft side sources; there is no central grey
+  wash or sharp beam.
+- Passed: at the public 770px viewport tariff columns are `234px 234px 234px`,
+  heights are `356/360/356px`, and page scroll width is below viewport width.
+- Passed: Vite build, staged diff, commit `6ef7795`, push, production fast-forward
+  pull, public root/CSS/JS HTTP 200, service state and public browser rendering.
+- Deferred: exact 390px screenshot automation loaded only the shell spinner;
+  the current change does not alter mobile tariff layout, and Hero remains an
+  explicit exclusion.
+- Next step: owner selects one of the proposed pacing/card/final-background
+  directions before those broader visual changes are implemented.
