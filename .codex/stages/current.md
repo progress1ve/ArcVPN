@@ -104,3 +104,17 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
   browser during this correction; responsive rules were not changed.
 - Next step: improve product proof and page pacing only after owner approval;
   do not add more decorative light as a substitute for content.
+
+## 2026-09-10 bypass light and tablet pricing correction
+
+- Approved implementation: replace the full-width grey-blue bypass fog with
+  two contained side sources and a dark centre; compact the three live tariff
+  cards into one row at 720-900px without changing pricing or actions.
+- Proposal-only scope: page pacing, capability-card composition and final CTA
+  background remain unchanged until the owner selects a direction.
+- Preserve Hero, navigation, trial, app-proof composition, copy, pricing data,
+  handlers and public links.
+- Acceptance: no grey full-width bypass wash; card stays legible; at tablet
+  width all three tariff cards fit in one compact row with no horizontal
+  overflow; mobile remains one column; build and browser checks pass.
+- Rollback: revert the single static landing commit; no service restart needed.

@@ -737,4 +737,23 @@
   .apps-proof{box-shadow:none}
   .app-icon-stage{background:#050608}
   .app-icon-stage::before,.app-icon-stage::after{display:none}
+
+  /* Focused light sources for bypass proof: no full-width grey fog. */
+  .bypass-well::before{inset:12% -2%;width:104%;height:76%;background:radial-gradient(ellipse 31% 54% at -4% 55%,rgba(128,211,255,.92) 0%,rgba(31,143,205,.54) 23%,rgba(7,63,101,.2) 48%,transparent 73%),radial-gradient(ellipse 31% 54% at 104% 55%,rgba(128,211,255,.92) 0%,rgba(31,143,205,.54) 23%,rgba(7,63,101,.2) 48%,transparent 73%);filter:blur(25px);transform:none}
+  .bypass-well::after{display:none}
+  .bypass-section dl{box-shadow:0 48px 120px rgba(0,0,0,.82),inset 0 1px 0 rgba(255,255,255,.08)}
+
+  @media(min-width:720px) and (max-width:900px){
+    .tariff-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+    .tariff-top{min-height:190px;padding:22px 18px}
+    .tariff-grid header{gap:8px}.tariff-grid header span{font-size:12px}.tariff-grid header em{padding:5px 7px;font-size:7px}
+    .tariff-grid .tariff-top>p{min-height:48px;margin:13px 0 17px;font-size:9px}
+    .plan-price b{font-size:36px}.plan-price{gap:5px}
+    .tariff-grid ul{gap:11px;margin:0;padding:18px 18px 16px}.tariff-grid li{gap:7px;font-size:9px}
+    .tariff-grid article>button{min-height:44px;margin:0 12px 12px}
+  }
+
+  @media(max-width:620px){
+    .bypass-well::before{inset:15% -8%;width:116%;height:70%;background:radial-gradient(ellipse 47% 50% at -13% 55%,rgba(120,207,253,.88),rgba(27,135,197,.44) 30%,rgba(7,54,87,.14) 52%,transparent 76%),radial-gradient(ellipse 47% 50% at 113% 55%,rgba(120,207,253,.88),rgba(27,135,197,.44) 30%,rgba(7,54,87,.14) 52%,transparent 76%)}
+  }
 </style>
