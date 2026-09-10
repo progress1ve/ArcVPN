@@ -845,7 +845,7 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
 
         from database.db_legal_consent import record_legal_consent
         from database.requests import get_setting
-        consent_version = get_setting('legal_consent_version', '2026-08-26')
+        consent_version = get_setting('legal_consent_version', '2026-09-10')
         if not record_legal_consent(user_id, consent_version, 'telegram_channel_gate'):
             logger.error("Не удалось сохранить согласие пользователя %s", user_id)
             await callback.answer("Не удалось сохранить согласие. Попробуйте ещё раз.", show_alert=True)

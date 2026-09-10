@@ -3,7 +3,7 @@
 
 Включает:
 - Отправку суточной статистики администраторам
-- Создание и отправку архива с бэкапами (БД бота + VPN панелей)
+- Создание локальных бэкапов (БД бота + VPN панелей)
 - Синхронизацию трафика с VPN-серверами (каждые 5 минут)
 - Уведомления о заканчивающемся трафике
 """
@@ -13,13 +13,10 @@ import json
 import logging
 import os
 import shutil
-import zipfile
 from datetime import datetime, time as dt_time, timedelta
-from io import BytesIO
-from typing import Optional
 
 from aiogram import Bot
-from aiogram.types import BufferedInputFile, FSInputFile
+from aiogram.types import FSInputFile
 
 from config import ADMIN_IDS, GITHUB_REPO_URL
 from database.requests import (
@@ -262,59 +259,6 @@ async def send_daily_stats(bot: Bot) -> None:
         logger.error(f"Ошибка при отправке суточной статистики: {e}")
 
 
-async def create_backup_archive() -> Optional[bytes]:
-    """
-    Создаёт ZIP-архив с бэкапами.
-    
-    Включает:
-    - vpn_bot.db — база данных бота
-    - server_NAME_x-ui.db — база каждого VPN-сервера
-    
-    Returns:
-        Байты ZIP-архива или None при ошибке
-    """
-    try:
-        archive_buffer = BytesIO()
-        
-        with zipfile.ZipFile(archive_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            # Добавляем базу данных бота
-            bot_db_path = os.path.abspath(BOT_DB_PATH)
-            if os.path.exists(bot_db_path):
-                zf.write(bot_db_path, 'vpn_bot.db')
-                logger.info(f"Добавлен в архив: vpn_bot.db ({os.path.getsize(bot_db_path)} байт)")
-            else:
-                logger.warning(f"База данных бота не найдена: {bot_db_path}")
-            
-            # Скачиваем и добавляем бэкапы VPN-серверов
-            servers = get_all_servers()
-            for server in servers:
-                if not server.get('is_active'):
-                    continue
-                    
-                try:
-                    client = get_client_from_server_data(server)
-                    backup_data = await client.get_database_backup()
-                    
-                    # Имя файла: server_НАЗВАНИЕ_x-ui.db
-                    safe_name = server['name'].replace(' ', '_').replace('/', '_')
-                    filename = f"server_{safe_name}_x-ui.db"
-                    
-                    zf.writestr(filename, backup_data)
-                    logger.info(f"Добавлен в архив: {filename} ({len(backup_data)} байт)")
-                    
-                except VPNAPIError as e:
-                    logger.warning(f"Не удалось скачать бэкап сервера {server['name']}: {e}")
-                except Exception as e:
-                    logger.error(f"Ошибка при скачивании бэкапа сервера {server['name']}: {e}")
-        
-        archive_buffer.seek(0)
-        return archive_buffer.read()
-        
-    except Exception as e:
-        logger.error(f"Ошибка при создании архива бэкапов: {e}")
-        return None
-
-
 async def save_local_backup() -> None:
     """
     Сохраняет локальные копии всех баз данных в папку backup/YYYY-MM-DD/.
@@ -404,49 +348,10 @@ def cleanup_old_backups() -> None:
         logger.error(f"Ошибка при очистке старых бэкапов: {e}")
 
 
-async def send_backup_archive(bot: Bot) -> None:
-    """
-    Создаёт и отправляет архив бэкапов всем администраторам.
-    Также сохраняет локальные копии и чистит старые бэкапы.
-    
-    Args:
-        bot: Экземпляр бота
-    """
-    try:
-        # Сохраняем локальные бэкапы (неархивированные .db файлы)
-        await save_local_backup()
-        
-        # Удаляем бэкапы старше 7 дней
-        cleanup_old_backups()
-        
-        # Создаём ZIP-архив для отправки в Telegram
-        archive_data = await create_backup_archive()
-        
-        if not archive_data:
-            logger.error("Не удалось создать архив бэкапов")
-            return
-        
-        # Имя файла с датой
-        today = datetime.now().strftime("%Y-%m-%d")
-        filename = f"backup_{today}.zip"
-        
-        # Отправляем админам
-        for admin_id in ADMIN_IDS:
-            try:
-                await bot.send_document(
-                    chat_id=admin_id,
-                    document=BufferedInputFile(archive_data, filename=filename),
-                    caption=f"📦 <b>Ежедневный бэкап за {today}</b>\n\nСодержит базы данных бота и VPN-серверов.",
-                    parse_mode="HTML"
-                )
-                logger.info(f"Бэкап отправлен админу {admin_id}")
-            except Exception as e:
-                logger.warning(f"Не удалось отправить бэкап админу {admin_id}: {e}")
-        
-        logger.info(f"✅ Бэкап отправлен ({len(archive_data)} байт)")
-        
-    except Exception as e:
-        logger.error(f"Ошибка при отправке бэкапа: {e}")
+async def maintain_local_backups() -> None:
+    """Create retained local backups without sending files to Telegram."""
+    await save_local_backup()
+    cleanup_old_backups()
 
 
 def _pluralize_days(n: int) -> str:
@@ -588,7 +493,7 @@ async def run_daily_tasks(bot: Bot) -> None:
     Расписание (изменено на 09:00 UTC = 12:00 МСК):
     - 09:00 — Уведомления об истечении подписок
     - 09:05 — Суточная статистика
-    - 09:10 — Архив с бэкапами
+    - 09:10 — Локальный бэкап без отправки в Telegram
 
     Args:
         bot: Экземпляр бота
@@ -623,9 +528,9 @@ async def run_daily_tasks(bot: Bot) -> None:
             # Ждём 5 минут
             await asyncio.sleep(300)
             
-            # 09:10 - Отправляем бэкап
-            logger.info("📦 Запуск создания и отправки бэкапа...")
-            await send_backup_archive(bot)
+            # 09:10 - Сохраняем локальный бэкап. Админам файлы не отправляем.
+            logger.info("📦 Запуск создания локального бэкапа...")
+            await maintain_local_backups()
             
             # Ждём немного чтобы не запуститься повторно в ту же минуту
             await asyncio.sleep(60)

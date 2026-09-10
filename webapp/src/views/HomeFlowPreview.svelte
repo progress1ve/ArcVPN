@@ -1406,7 +1406,7 @@
 
             <section class="settings-group">
               <h2>Информация</h2>
-              <button class="setting-row" on:click={() => openSettingsPage('agreement')}><i><ArcIcon name="file" size={21} weight="duotone" /></i><span><b>Пользовательское соглашение</b><small>Обновлено 29 июля 2026</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
+              <button class="setting-row" on:click={() => openSettingsPage('agreement')}><i><ArcIcon name="file" size={21} weight="duotone" /></i><span><b>Соглашение и конфиденциальность</b><small>Редакция от 10 сентября 2026</small></span><ArcIcon name="caret" size={17} weight="bold" /></button>
             </section>
           {:else if settingsPage === 'devices'}
             <p class="subpage-intro">Устройство появляется сразу после импорта в Happ. Модель определяем автоматически, когда браузер разрешает передать её; иначе показываем платформу и размер экрана.</p>
@@ -1474,14 +1474,10 @@
             {/if}
           {:else}
             <article class="agreement">
-              <div class="agreement-meta"><span>Пользовательское соглашение ArcVPN</span><small>Обновлено 29 июля 2026</small></div>
-              <h2>Коротко и понятно</h2>
-              <p>Используя ArcVPN, вы соглашаетесь применять сервис законно, не передавать доступ посторонним и не использовать его для атак, спама или нарушения прав других людей.</p>
-              <h3>Подписка и оплата</h3><p>Доступ предоставляется на оплаченный срок. Условия тарифа показываются до оплаты. Вопросы по ошибочным платежам решаются через поддержку с учётом применимого законодательства.</p>
-              <h3>Доступность</h3><p>Мы поддерживаем работу сервиса и устраняем сбои, но не обещаем абсолютную доступность каждого сервера, сайта или протокола в любой момент.</p>
-              <h3>Данные</h3><p>Для работы аккаунта используются Telegram ID, имя пользователя, подтверждённый email, данные подписки и оплаты. При импорте мы сохраняем тип устройства и модель только если её сообщает система. Содержимое вашего интернет-трафика не сохраняется.</p>
-              <h3>Изменения</h3><p>При существенном изменении условий обновится дата документа. Продолжение использования сервиса после публикации означает принятие новой версии.</p>
-              <h3>Реквизиты оператора</h3><p>[УКАЖИТЕ ФИО/НАЗВАНИЕ] · ИНН [УКАЖИТЕ ИНН] · ОГРНИП/ОГРН [УКАЖИТЕ НОМЕР] · [УКАЖИТЕ EMAIL]</p>
+              <div class="agreement-meta"><span>Документы ArcVPN</span><small>Редакция от 10 сентября 2026</small></div>
+              <h2>Соглашение и конфиденциальность</h2>
+              <p>Полная актуальная версия содержит условия подписки, оплаты и автопродления, правила возвратов и использования сервиса, а также состав обрабатываемых данных, сроки хранения и права пользователя.</p>
+              <a class="agreement-link" href="/legal/user-agreement" target="_blank" rel="noopener"><ArcIcon name="file" size={18} weight="duotone" />Открыть полный документ</a>
               <button on:click={openSupport}><ArcIcon name="chat" size={18} weight="duotone" />Задать вопрос поддержке</button>
             </article>
           {/if}
@@ -1847,9 +1843,9 @@
   .agreement-meta span { font-size: 10px; font-weight: 800; }
   .agreement-meta small { color: var(--muted); font-size: 9px; }
   .agreement h2 { margin: 21px 0 10px; font-size: 22px; letter-spacing: -.04em; }
-  .agreement h3 { margin: 19px 0 6px; font-size: 12px; }
   .agreement p { margin: 0; color: #b7c1cc; font-size: 10.5px; line-height: 1.58; }
-  .agreement button { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; border-radius: 15px; color: #b9e2fb; background: var(--surface-raised); font-size: 11px; font-weight: 800; }
+  .agreement button,.agreement-link { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 20px; border-radius: 15px; color: #b9e2fb; background: var(--surface-raised); font-size: 11px; font-weight: 800; text-decoration: none; }
+  .agreement button { margin-top: 10px; }
   .login-screen { display: flex; justify-content: center; flex-direction: column; max-width: 460px; margin: auto; padding-bottom: calc(42px + var(--safe-bottom-flow)); }
   .session-loading{display:flex;align-items:center;justify-content:center;flex-direction:column;min-height:100dvh;text-align:center}.session-loading .brand{margin-bottom:24px}.session-loading>i{width:28px;height:28px;border:2px solid rgba(143,215,251,.18);border-top-color:#8fd7fb;border-radius:50%;animation:payment-spin .8s linear infinite}.session-loading>p{margin:12px 0 0;color:var(--muted);font-size:10px}
   .login-screen .brand { justify-content: center; margin-bottom: 32px; }

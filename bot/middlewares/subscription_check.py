@@ -90,7 +90,7 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
             "👋 <b>Добро пожаловать в ArcVPN!</b>\n\n"
             "<blockquote>Для использования бота необходимо подписаться на наш канал 👇</blockquote>\n\n"
             "Нажимая «Я подписался», вы принимаете "
-            f'<a href="{agreement_url}">Пользовательское соглашение</a>.'
+            f'<a href="{agreement_url}">Пользовательское соглашение и Политику конфиденциальности</a>.'
         )
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
