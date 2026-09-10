@@ -27,6 +27,7 @@ def test_daily_scheduler_keeps_local_backup_without_telegram_archive():
     daily = source[source.index("async def run_daily_tasks"):source.index("async def check_and_notify_updates")]
 
     assert "await maintain_local_backups()" in daily
+    assert "await send_daily_stats(bot)" not in daily
     assert "send_document" not in daily
     assert "send_backup_archive" not in source
     assert "BufferedInputFile" not in source

@@ -16,7 +16,7 @@ administrators while preserving local backup creation and cleanup.
 | Telegram gate | Names both documents and records version `2026-09-10` |
 | Production setting | `legal_consent_version` is explicitly `2026-09-10` |
 | Daily scheduler | Still creates a local DB backup and removes expired local backups; sends no backup archive/document to admins |
-| Other notifications | Daily statistics, expiry notices and failure logging remain unchanged |
+| Other notifications | Daily statistics and backup delivery are disabled; expiry notices and failure logging remain unchanged |
 
 ## Components
 
@@ -31,7 +31,7 @@ administrators while preserving local backup creation and cleanup.
 
 - No change to the legal text, tariffs, payment processing or existing consent history.
 - No deletion of local/server backups and no disabling backup creation.
-- No removal of daily admin statistics, user expiry alerts, error logging or manually requested admin log exports.
+- No removal of user expiry alerts, error logging or manually requested admin log exports.
 - No Hero or landing-content changes.
 
 ## Risks and rollback
@@ -60,7 +60,8 @@ administrators while preserving local backup creation and cleanup.
   `2026-09-10`; production setting was explicitly written and read back.
 - Daily scheduler no longer builds or sends a Telegram backup archive. It still
   runs `save_local_backup()` and `cleanup_old_backups()` at 09:10 UTC. Daily
-  statistics, expiry alerts, error logs and manual admin log export remain.
+  statistics are also no longer sent; expiry alerts, error logs and manual
+  admin log export remain.
 
 ## Verification result
 
