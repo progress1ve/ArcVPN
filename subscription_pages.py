@@ -498,13 +498,28 @@ def render_user_agreement(
     title = html.escape(profile_title)
     updated = html.escape(updated_date)
     support = html.escape(support_url, quote=True)
+    def public_legal_value(value: str) -> str:
+        clean = str(value or "").strip()
+        return "" if clean.startswith("[УКАЖИТЕ ") else html.escape(clean)
+
     legal = {
-        "name": html.escape(operator_name),
-        "inn": html.escape(operator_inn),
-        "registration": html.escape(operator_registration),
-        "address": html.escape(operator_address),
-        "email": html.escape(contact_email),
+        "name": public_legal_value(operator_name),
+        "inn": public_legal_value(operator_inn),
+        "registration": public_legal_value(operator_registration),
+        "address": public_legal_value(operator_address),
+        "email": public_legal_value(contact_email),
     }
+    legal_rows = "".join(
+        f"<dt>{label}</dt><dd>{value}</dd>"
+        for label, value in (
+            ("Оператор", legal["name"]),
+            ("ИНН", legal["inn"]),
+            ("ОГРНИП/ОГРН", legal["registration"]),
+            ("Адрес", legal["address"]),
+            ("Email", legal["email"]),
+        )
+        if value
+    )
     return f"""<!doctype html>
 <html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#03070e"><title>Соглашение и конфиденциальность — {title}</title>
@@ -552,5 +567,5 @@ p,li{{color:#b5c0cc;font-size:14px;line-height:1.7}}ul{{padding-left:22px}}li+li
 
 <article id="contacts"><p class="eyebrow">Связь с оператором</p><h2>Контакты и реквизиты</h2>
 <p class="note">Вопросы по сервису, оплате, возвратам и данным можно направить <a href="{support}">в поддержку {title}</a> или на email, указанный ниже.</p>
-<dl class="details"><dt>Оператор</dt><dd>{legal['name']}</dd><dt>ИНН</dt><dd>{legal['inn']}</dd><dt>ОГРНИП/ОГРН</dt><dd>{legal['registration']}</dd><dt>Адрес</dt><dd>{legal['address']}</dd><dt>Email</dt><dd>{legal['email']}</dd></dl></article>
+<dl class="details">{legal_rows}</dl></article>
 </main></body></html>"""

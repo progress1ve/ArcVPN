@@ -37,3 +37,18 @@ def test_user_agreement_escapes_dynamic_legal_values():
     assert "<img" not in page
     assert 'onclick="alert(1)' not in page
     assert "&lt;mail@example.test&gt;" in page
+
+
+def test_user_agreement_does_not_publish_configuration_placeholders():
+    page = render_user_agreement(
+        profile_title="ArcVPN",
+        updated_date="10 сентября 2026",
+        support_url="https://support.example",
+        operator_name="[УКАЖИТЕ ФИО ИЛИ НАЗВАНИЕ]",
+        operator_inn="[УКАЖИТЕ ИНН]",
+        operator_registration="[УКАЖИТЕ ОГРНИП/ОГРН]",
+        operator_address="[УКАЖИТЕ АДРЕС]",
+        contact_email="[УКАЖИТЕ EMAIL]",
+    )
+
+    assert "[УКАЖИТЕ" not in page
