@@ -2,9 +2,11 @@
 
 ## 2026-09-10 result
 
-- Visual follow-up: login background is neutral black with no blue aurora, the
-  home link is removed, the logo keeps its dark tile and sits beside the ArcVPN
-  wordmark, and the heading reads “Добро пожаловать в ArcVPN”.
+- Visual follow-up: login background matches the personal cabinet's deep navy
+  field with soft blue aurora glows; the home link is removed, the logo keeps
+  its dark tile and sits beside the ArcVPN wordmark, and the heading reads
+  “Добро пожаловать в ArcVPN”. Runtime and built assets are deployed at
+  `a682b6c`; the public desktop screen was visually verified.
 
 - `/app/` login: warm welcome heading, email-code flow first, Telegram second,
   reference-led dark panel, preserved auth behavior.

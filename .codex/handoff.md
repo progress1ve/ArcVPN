@@ -2,6 +2,10 @@
 
 ## 2026-09-10 login and consent release
 
+- Visual follow-up `a682b6c` is deployed: the login again uses the personal
+  cabinet's deep navy background and soft blue aurora glows. The glass panel,
+  ArcVPN tile/wordmark, “Добро пожаловать” heading, and removed home link were
+  verified in the public browser; this static-only update needed no restart.
 - The unauthenticated `/app/` screen now uses a dark welcome composition with
   passwordless email as the primary path and “Войти через Telegram” as the
   secondary path. Both reuse the existing authentication APIs.
