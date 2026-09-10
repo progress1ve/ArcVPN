@@ -11,7 +11,8 @@
 - Legacy `check_subscribe` callbacks remain accepted so old bot messages do not
   strand users. Advertising attribution and automatic trial provisioning remain.
 - Responsive browser QA covered 390, 768, 1280, and 1600 px; 178 local tests and
-  the Vite production build passed. See the current stage for deployment evidence.
+  the Vite production build passed. Runtime commit `89b41d2` is deployed;
+  `arcvpn-bot.service` is active and the public page/assets return HTTP 200.
 
 ## 2026-09-10 hierarchy, Hero and Arc horizon
 

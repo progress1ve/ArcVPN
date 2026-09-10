@@ -10,7 +10,9 @@
 - Browser acceptance: 390x844, 768x1024, 1280x900, 1600x900 contained all
   controls with no horizontal overflow; email-to-code transition verified.
 - Verification: 178 tests passed in the primary checkout and clean Vite build
-  passed. Deployment/public checks are recorded at closeout.
+  passed. Runtime commit `89b41d2` was pushed and fast-forwarded on production;
+  the bot restarted active, startup logs are healthy, and the public login plus
+  hashed JS/CSS assets return HTTP 200. Desktop and 390 px public UI were checked.
 
 ## Previous stage: legal-version synchronization and quiet daily backups
 
