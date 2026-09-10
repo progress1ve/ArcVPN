@@ -205,8 +205,15 @@
       </div>
 
       <div class="feature-ledger" id="features">
-        {#each featureRows as feature}
-          <article><h3>{feature[0]}</h3><p>{feature[1]}</p></article>
+        {#each featureRows as feature, index}
+          <article class:feature-primary={index === 0}>
+            {#if index === 0}
+              <div class="route-orbit" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
+            {:else}
+              <span class="feature-index">0{index + 1}</span>
+            {/if}
+            <div><h3>{feature[0]}</h3><p>{feature[1]}</p></div>
+          </article>
         {/each}
       </div>
 
@@ -307,7 +314,7 @@
     </section>
 
     <section class="final-section">
-      <img src={`${base}assets/landing/northern-flow.webp`} alt="" aria-hidden="true" />
+      <div class="arc-horizon" aria-hidden="true"></div>
       <div><h2>ArcVPN готов<br />к подключению</h2><p>Одна подписка. Ваши устройства. Управление через сайт и Telegram.</p><nav><a class="primary" href="/app">Личный кабинет <ArcIcon name="arrow" size={18} /></a><a class="quiet-link" href="#tariffs">Посмотреть тарифы</a></nav></div>
     </section>
 
@@ -755,5 +762,74 @@
 
   @media(max-width:620px){
     .bypass-well::before{inset:15% -8%;width:116%;height:70%;background:radial-gradient(ellipse 47% 50% at -13% 55%,rgba(120,207,253,.88),rgba(27,135,197,.44) 30%,rgba(7,54,87,.14) 52%,transparent 76%),radial-gradient(ellipse 47% 50% at 113% 55%,rgba(120,207,253,.88),rgba(27,135,197,.44) 30%,rgba(7,54,87,.14) 52%,transparent 76%)}
+  }
+
+  /* Approved hierarchy and pacing pass. */
+  .hero{min-height:100svh;align-content:start;padding:104px 20px 0}
+  .hero-copy{transform:none}
+  .hero-visual{width:min(1040px,calc(100vw - 32px));margin-top:28px;padding:38px 70px 0}
+  .hero-stage{width:min(820px,100%)}
+
+  .apps-section{padding-top:112px;padding-bottom:108px}
+  .apps-intro{align-items:flex-start;text-align:left}
+  .apps-intro::before{left:24%;width:min(620px,72vw);transform:translate(-50%,-50%)}
+  .apps-signal{width:min(360px,58vw)}
+  .apps-section .feature-ledger{grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);grid-template-rows:repeat(3,minmax(112px,auto));gap:12px;margin-top:52px}
+  .apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n){grid-column:2;min-height:0;display:flex;align-items:center;justify-content:space-between;flex-direction:row;gap:24px;padding:24px 28px;border-radius:22px;background:#080a0d}
+  .apps-section .feature-ledger article.feature-primary{grid-column:1;grid-row:1 / 4;align-items:flex-start;justify-content:flex-end;flex-direction:column;min-height:360px;padding:38px;background:radial-gradient(circle at 68% 28%,rgba(80,174,226,.18),transparent 35%),linear-gradient(145deg,#10151a,#06080a 72%)}
+  .apps-section .feature-ledger article::before{display:none}
+  .apps-section .feature-ledger h3{font-size:20px}.apps-section .feature-ledger article.feature-primary h3{font-size:32px}
+  .apps-section .feature-ledger p{margin-top:8px}
+  .feature-index{align-self:flex-start;color:#63717d;font-size:10px;font-weight:800;letter-spacing:.16em}
+  .route-orbit{position:absolute;top:38px;right:38px;left:38px;height:185px;border:1px solid rgba(144,213,249,.14);border-radius:999px;transform:rotate(-8deg)}
+  .route-orbit::before,.route-orbit::after,.route-orbit i,.route-orbit b{content:'';position:absolute;width:12px;height:12px;border:1px solid rgba(160,222,253,.38);border-radius:50%;background:#0c1820;box-shadow:0 0 24px rgba(75,179,232,.3)}
+  .route-orbit::before{top:22%;left:9%}.route-orbit::after{right:12%;bottom:16%}.route-orbit i:nth-child(1){top:5%;left:55%}.route-orbit i:nth-child(2){right:30%;bottom:3%}.route-orbit i:nth-child(3){bottom:18%;left:22%}
+  .route-orbit b{top:50%;left:50%;width:42px;height:42px;border-color:rgba(177,226,250,.42);background:#0b1720;box-shadow:inset 0 0 0 10px rgba(103,195,241,.06),0 0 44px rgba(76,180,232,.22);transform:translate(-50%,-50%)}
+  .apps-proof{margin-top:76px}
+  .bypass-section{min-height:820px;padding-top:122px}
+  .pricing-section{padding:128px 0}
+  .connection-section{padding:112px 0}.faq-section{padding:120px 0}.links-section{padding:110px 0 96px}
+
+  .tariff-grid article,.tariff-grid article.recommended{height:100%;transform:none}
+  .tariff-grid article:hover,.tariff-grid article.recommended:hover{transform:translateY(-3px)}
+
+  .final-section{isolation:isolate;min-height:700px;overflow:hidden;background:#000}
+  .final-section>div:not(.arc-horizon){position:relative;z-index:2}
+  .arc-horizon{position:absolute!important;z-index:0!important;inset:0;overflow:hidden;background:#000}
+  .arc-horizon::before,.arc-horizon::after{content:'';position:absolute;border-radius:50%;background:radial-gradient(ellipse at 58% 28%,rgba(17,58,80,.88),rgba(4,13,20,.92) 38%,#010204 68%);box-shadow:0 -1px 0 rgba(118,205,248,.45),0 -20px 70px rgba(42,147,204,.13)}
+  .arc-horizon::before{right:-18%;bottom:-46%;width:94%;height:104%;transform:rotate(-16deg)}
+  .arc-horizon::after{bottom:-62%;left:-26%;width:92%;height:92%;opacity:.72;transform:rotate(13deg)}
+  .final-section::after{z-index:1;background:radial-gradient(ellipse at center,rgba(0,0,0,.08),rgba(0,0,0,.58) 72%),linear-gradient(180deg,#000 0%,transparent 24%,rgba(0,0,0,.2) 68%,#000 100%)}
+
+  @media(min-width:901px) and (max-height:900px){
+    .hero{padding-top:94px}.hero h1{font-size:clamp(48px,4.6vw,64px)}.landing .hero-text{margin-top:18px}.hero-actions{margin-top:19px}
+    .hero-visual{margin-top:22px;padding-top:24px}.hero-stage{width:min(710px,100%)}
+  }
+
+  @media(min-width:901px) and (max-height:800px){
+    .hero{padding-top:88px}.hero h1{font-size:clamp(46px,4.3vw,59px)}
+    .hero-visual{margin-top:18px;padding-top:18px}.hero-stage{width:min(650px,100%)}
+  }
+
+  @media(max-width:900px){
+    .hero{min-height:100svh;padding-top:96px}.hero-visual{width:calc(100vw - 20px);margin-top:26px;padding:30px 38px 0}.hero-stage{width:min(680px,100%);border-width:7px}
+    .apps-intro{align-items:center;text-align:center}.apps-intro::before{left:50%;transform:translate(-50%,-50%)}.apps-signal{width:min(360px,70vw)}
+    .apps-section .feature-ledger{grid-template-columns:1.1fr .9fr;grid-template-rows:repeat(3,minmax(104px,auto))}
+    .apps-section .feature-ledger article.feature-primary{min-height:330px;padding:30px}.apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n){padding:20px 22px}
+    .route-orbit{top:30px;right:30px;left:30px;height:158px}
+  }
+
+  @media(min-width:720px) and (max-width:900px){.tariff-grid article:hover,.tariff-grid article.recommended:hover{transform:none}}
+
+  @media(max-width:620px){
+    .landing-nav{width:calc(100vw - 24px);gap:10px;padding-left:13px}.brand{gap:7px}.brand b{font-size:14px}.nav-cta{min-height:44px;padding:0 14px;font-size:9.5px}
+    .hero{min-width:0;display:block;overflow:hidden;padding:92px 12px 0}.hero-copy{min-width:0;width:100%;margin:0 auto}.hero h1{width:100%;font-size:34px}.hero h1 span{display:block;max-width:100%;white-space:nowrap}.landing .hero-text{max-width:330px;margin:18px auto 0}.hero-actions{margin-top:20px}
+    .hero-visual{width:calc(100vw - 12px);margin:22px auto 0;padding:22px 12px 0}.hero-stage{width:min(300px,80vw,calc((100svh - 360px)*.623));min-width:188px;aspect-ratio:568/912;margin:0 auto;border-width:5px}
+    .apps-section{padding-top:92px;padding-bottom:88px}.apps-section .feature-ledger{grid-template-columns:1fr;grid-template-rows:auto;gap:10px;margin-top:38px}
+    .apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n),.apps-section .feature-ledger article.feature-primary{grid-column:1;grid-row:auto;min-height:126px;padding:23px 22px}
+    .apps-section .feature-ledger article.feature-primary{min-height:300px}.route-orbit{top:24px;right:24px;left:24px;height:145px}
+    .apps-section .feature-ledger h3,.apps-section .feature-ledger article.feature-primary h3{font-size:21px}
+    .apps-proof{margin-top:60px}.bypass-section{padding-top:96px}.pricing-section{padding:104px 0}.connection-section,.faq-section{padding:96px 0}
+    .final-section{min-height:610px}.arc-horizon::before{right:-58%;bottom:-34%;width:150%;height:86%}.arc-horizon::after{bottom:-58%;left:-62%;width:142%;height:78%}
   }
 </style>

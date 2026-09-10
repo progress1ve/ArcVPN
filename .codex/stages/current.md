@@ -132,3 +132,18 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
   explicit exclusion.
 - Next step: owner selects one of the proposed pacing/card/final-background
   directions before those broader visual changes are implemented.
+
+## 2026-09-10 approved hierarchy implementation
+
+- Owner approved all proposed directions and explicitly allowed Hero changes.
+- Implement: viewport-height-aware Hero that keeps the complete product capture
+  visible; stable Standard hover at 720-900px; asymmetric capability hierarchy;
+  shorter alternating section rhythm; code-native `Arc horizon` final backdrop.
+- Preserve all factual copy, live tariffs, actions, phone captures, navigation,
+  trial behavior, API contracts and public links.
+- Acceptance: full Hero product capture fits 390x844, 768x1024, common laptop
+  heights, 1280x900 and 1600x900 without horizontal overflow; Standard does not
+  change height or vertical position on tablet hover; capabilities read as one
+  primary Auto-select story plus three compact supporting facts; final CTA has
+  no raster wallpaper or noisy texture; build and public browser checks pass.
+- Rollback: revert the single static landing commit; no service restart needed.
