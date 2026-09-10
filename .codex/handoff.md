@@ -1,5 +1,17 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-10 neutral application proof
+
+- Production runtime is `0c910a0` after removing the decorative blue light and
+  external glow from the Happ/INCY proof frame.
+- The two phone captures, their overlap, copy, platform list and surrounding
+  applications content are unchanged. Hero and trial remain untouched.
+- Vite build passed. Public root and the new landing CSS/JS return HTTP 200;
+  `nginx` and `arcvpn-subscription.service` are active. The public browser shows
+  a neutral dark app frame with both phone captures loaded.
+- Owner changes in the main checkout remain excluded; release work used the
+  isolated clean worktree.
+
 Updated: 2026-09-09. Current production runtime commit: `a0a0fff`.
 
 ## Current landing state

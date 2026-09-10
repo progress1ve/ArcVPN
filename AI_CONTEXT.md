@@ -1713,3 +1713,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - MCP changes transport and context efficiency only. It does not authorize
   production mutations or replace local checks, reviewed diffs, deployment
   gates, public verification, or real client/tunnel evidence.
+
+## 2026-09-10: landing application proof stays neutral
+
+- The owner rejected the blue light field behind the Happ/INCY phones. Keep the
+  application proof on a neutral near-black background with no outer glow; the
+  overlapping phone captures provide enough visual emphasis. Do not reintroduce
+  decorative light there unless the owner explicitly requests it.

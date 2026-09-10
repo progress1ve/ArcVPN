@@ -87,3 +87,20 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
 - Browser QA covered 390, 768, 1280 and 1600 px. FAQ expands with
   `aria-expanded=true`; cabinet images load at natural widths 1600 and 568.
 - Production verification pending commit and deployment.
+
+## 2026-09-10 app-proof light correction
+
+- Feedback: the blue glow behind the Happ/INCY phones competed with the product
+  images and was removed entirely.
+- Scope: only the app-proof shadow and internal decorative light layers. Phone
+  composition, copy, Hero, navigation, trial and bypass remain unchanged.
+- Acceptance: passed locally and publicly at the available tablet/desktop
+  browser size; both phones remain legible and overlapping. Vite build passed,
+  public root and new CSS/JS returned HTTP 200, and both production services are
+  active.
+- Runtime commit: `0c910a0`. Static deployment required no restart. Rollback is
+  a normal revert of that commit.
+- Residual: exact 390x844 and 1600x900 captures were not available in the app
+  browser during this correction; responsive rules were not changed.
+- Next step: improve product proof and page pacing only after owner approval;
+  do not add more decorative light as a substitute for content.
