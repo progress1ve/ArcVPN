@@ -2578,11 +2578,9 @@
     .desktop-back.telegram-mobile-hidden, .purchase-back.telegram-mobile-hidden,
     .connect-page-head > button.telegram-mobile-hidden { display: none; }
   }
-  .flow-preview.login-mode{background:#050506}
-  .flow-preview.login-mode::before,.flow-preview.login-mode::after{display:none}
-  .flow-preview.login-mode .aurora{display:none}
-  .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:#0d0e10}
-  .login-screen::before{content:'';position:absolute;z-index:-2;inset:0;background:radial-gradient(ellipse 45% 52% at 100% 0%,rgba(255,255,255,.035),transparent 72%),radial-gradient(ellipse 42% 48% at 0% 100%,rgba(255,255,255,.025),transparent 74%),#0d0e10}
+  .flow-preview.login-mode{background:radial-gradient(95% 48% at 50% -10%,rgba(23,65,116,.17),transparent 68%),radial-gradient(80% 42% at 15% 108%,rgba(26,88,145,.12),transparent 72%),#02050b}
+  .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:rgba(4,9,16,.68);backdrop-filter:blur(8px)}
+  .login-screen::before{content:'';position:absolute;z-index:-2;inset:0;background:radial-gradient(ellipse 54% 70% at 104% 8%,rgba(57,139,204,.14),transparent 72%),radial-gradient(ellipse 58% 68% at -4% 92%,rgba(31,105,170,.16),transparent 72%),linear-gradient(145deg,rgba(8,16,27,.5),rgba(3,7,13,.72))}
   .login-screen::after{content:'';position:absolute;z-index:-1;inset:1px;border:1px solid rgba(210,231,248,.08);border-radius:34px;pointer-events:none}
   .login-inner{width:min(100%,410px);display:flex;align-items:center;flex-direction:column}
   .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;color:#f4f6f8;font-size:16px;font-weight:750;letter-spacing:-.025em}
