@@ -148,7 +148,7 @@
       <b>ArcVPN</b>
     </a>
     <nav class="desktop-nav" aria-label="Основная навигация">
-      {#each [['subscription','Попробовать'],['apps','Приложения'],['tariffs','Тарифы'],['cabinet','Кабинет'],['faq','Вопросы']] as item}
+      {#each [['subscription','Попробовать'],['apps','Приложения'],['tariffs','Тарифы'],['faq','Вопросы']] as item}
         <a class:active={activeSection === item[0]} href={`#${item[0]}`}>{item[1]}</a>
       {/each}
     </nav>
@@ -211,7 +211,6 @@
 
       <div class="apps-proof">
         <div class="app-copy">
-          <span class="section-chip">Одна ссылка</span>
           <h3>Выберите привычное приложение</h3>
           <p>ArcVPN работает через Happ и INCY. Ссылка импорта и инструкция появятся в личном кабинете — выбирать приложение на этой странице не нужно.</p>
           <div class="device-list" aria-label="Поддерживаемые платформы">
@@ -223,8 +222,8 @@
           </div>
         </div>
         <div class="app-icon-stage" aria-label="Поддерживаемые приложения: Happ и INCY">
-          <div class="app-icon-object app-icon-happ" role="img" aria-label="Заглушка иконки Happ"><i>H</i><b>Happ</b></div>
-          <div class="app-icon-object app-icon-incy" role="img" aria-label="Заглушка иконки INCY"><i>IN</i><b>INCY</b></div>
+          <figure class="app-phone app-phone-happ"><img src={`${base}assets/arc-flow/connect-happ-phone-v2.png`} alt="Приложение Happ на телефоне" width="480" height="712" loading="lazy" decoding="async" /><figcaption>Happ</figcaption></figure>
+          <figure class="app-phone app-phone-incy"><img src={`${base}assets/arc-flow/connect-incy-phone-v1.png`} alt="Приложение INCY на телефоне" width="480" height="664" loading="lazy" decoding="async" /><figcaption>INCY</figcaption></figure>
         </div>
       </div>
     </section>
@@ -290,24 +289,6 @@
           <a href="/app?screen=custom-tariff" on:click={() => track('landing_custom_tariff_click')}>Создать тариф <ArcIcon name="arrow" size={17} /></a>
         </div>
       </div>
-    </section>
-
-    <section class="cabinet-section" id="cabinet" data-nav-section>
-      <div class="intro split-intro">
-        <h2>Подписка всегда<br />под рукой</h2>
-        <p>Один кабинет для срока, трафика, устройств, продления, уведомлений и поддержки. Это реальные интерфейсы ArcVPN на компьютере и телефоне.</p>
-      </div>
-      <div class="cabinet-proof">
-        <figure class="cabinet-desktop-shot">
-          <figcaption>Кабинет на компьютере</figcaption>
-          <img src={`${base}assets/landing/cabinet-desktop.webp`} alt="Главный экран личного кабинета ArcVPN на компьютере" width="1600" height="924" loading="lazy" decoding="async" />
-        </figure>
-        <figure class="cabinet-mobile-shot">
-          <figcaption>На телефоне</figcaption>
-          <img src={`${base}assets/landing/cabinet-mobile.webp`} alt="Главный экран личного кабинета ArcVPN на телефоне" width="568" height="912" loading="lazy" decoding="async" />
-        </figure>
-      </div>
-      <a class="cabinet-link" href="/app" on:click={() => track('landing_cabinet_click', { place:'cabinet' })}>Открыть личный кабинет <ArcIcon name="arrow" size={18} /></a>
     </section>
 
     <section class="connection-section" id="steps">
@@ -713,5 +694,32 @@
     .faq-section{padding:110px 0}
     .final-section{min-height:650px}
     .final-section h2{font-size:46px}
+  }
+
+  /* Direct visual corrections from the owner's screenshots. */
+  .app-copy h3{margin-top:0}
+  .app-icon-stage{align-items:flex-end;padding:54px 42px 0}
+  .app-phone{position:relative;z-index:1;flex:none;margin:0;filter:drop-shadow(0 36px 58px rgba(0,0,0,.78))}
+  .app-phone-happ{width:190px}
+  .app-phone-incy{width:245px;margin:0 0 -10px 10px}
+  .app-phone img{display:block;width:100%;height:auto}
+  .app-phone figcaption{position:absolute;top:17px;left:50%;padding:7px 13px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(3,8,13,.72);box-shadow:inset 0 1px 0 rgba(255,255,255,.1);backdrop-filter:blur(12px);color:#eef7fb;font-size:9px;font-weight:800;transform:translateX(-50%)}
+
+  .bypass-well{overflow:hidden;background:#000}
+  .bypass-well::before{inset:0;width:100%;height:100%;background:radial-gradient(ellipse 34% 36% at 3% 53%,rgba(170,226,255,.98) 0%,rgba(86,183,236,.68) 22%,rgba(31,112,169,.28) 48%,transparent 75%),radial-gradient(ellipse 34% 36% at 97% 53%,rgba(170,226,255,.98) 0%,rgba(86,183,236,.68) 22%,rgba(31,112,169,.28) 48%,transparent 75%),radial-gradient(ellipse 66% 19% at 50% 54%,rgba(188,231,255,.62),rgba(74,169,222,.25) 38%,rgba(14,54,82,.08) 64%,transparent 82%);filter:blur(24px);transform:none}
+  .bypass-well::after{top:54%;width:116vw;height:250px;background:radial-gradient(ellipse 60% 20% at 50% 50%,rgba(214,241,255,.46),rgba(78,173,225,.18) 44%,transparent 76%);filter:blur(42px);transform:translate(-50%,-50%)}
+
+  @media(max-width:900px){
+    .app-icon-stage{padding:46px 32px 0}
+    .app-phone-happ{width:190px}
+    .app-phone-incy{width:240px}
+  }
+
+  @media(max-width:620px){
+    .app-icon-stage{align-items:flex-end;gap:4px;padding:35px 10px 0}
+    .app-phone-happ{width:min(42vw,164px)}
+    .app-phone-incy{width:min(51vw,198px);margin:0 0 -6px -4px}
+    .app-phone figcaption{top:10px;padding:6px 10px;font-size:8px}
+    .bypass-well::before{background:radial-gradient(ellipse 56% 32% at -8% 54%,rgba(165,224,255,.9),rgba(62,159,216,.42) 38%,transparent 74%),radial-gradient(ellipse 56% 32% at 108% 54%,rgba(165,224,255,.9),rgba(62,159,216,.42) 38%,transparent 74%),radial-gradient(ellipse 88% 18% at 50% 54%,rgba(178,225,250,.42),rgba(55,151,207,.16) 42%,transparent 80%)}
   }
 </style>
