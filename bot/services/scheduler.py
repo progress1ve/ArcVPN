@@ -14,6 +14,7 @@ import logging
 import os
 import shutil
 from datetime import datetime, time as dt_time, timedelta
+from typing import Optional
 
 from aiogram import Bot
 from aiogram.types import FSInputFile
