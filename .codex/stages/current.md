@@ -1,4 +1,18 @@
-# Stage: legal-version synchronization and quiet daily backups
+# Stage: ArcVPN login and Telegram consent redesign
+
+## 2026-09-10 result
+
+- `/app/` login: warm welcome heading, email-code flow first, Telegram second,
+  reference-led dark panel, preserved auth behavior.
+- Bot onboarding: current legal-version acceptance is required; channel
+  membership is never queried or required and is presented only as advice.
+- Compatibility: legacy callback accepted; campaign payload and trial flow kept.
+- Browser acceptance: 390x844, 768x1024, 1280x900, 1600x900 contained all
+  controls with no horizontal overflow; email-to-code transition verified.
+- Verification: 178 tests passed in the primary checkout and clean Vite build
+  passed. Deployment/public checks are recorded at closeout.
+
+## Previous stage: legal-version synchronization and quiet daily backups
 
 ## Goal
 

@@ -1,5 +1,18 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-10 login and consent release
+
+- The unauthenticated `/app/` screen now uses a dark welcome composition with
+  passwordless email as the primary path and “Войти через Telegram” as the
+  secondary path. Both reuse the existing authentication APIs.
+- The Telegram middleware no longer checks channel membership. It gates only on
+  the current legal document version, with one “Принять и продолжить” button;
+  the channel is an optional recommendation for news, bonuses, and service status.
+- Legacy `check_subscribe` callbacks remain accepted so old bot messages do not
+  strand users. Advertising attribution and automatic trial provisioning remain.
+- Responsive browser QA covered 390, 768, 1280, and 1600 px; 178 local tests and
+  the Vite production build passed. See the current stage for deployment evidence.
+
 ## 2026-09-10 hierarchy, Hero and Arc horizon
 
 - Production runtime `bb2551b` makes Hero height-aware so the full real cabinet

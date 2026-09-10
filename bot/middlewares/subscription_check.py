@@ -1,16 +1,10 @@
-"""
-Middleware для проверки обязательной подписки на канал.
-"""
+"""Versioned legal-consent gate for Telegram bot users."""
 import logging
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from config import ADMIN_IDS
-
 logger = logging.getLogger(__name__)
 
-# ID канала для обязательной подписки (укажите свой)
-REQUIRED_CHANNEL_ID = "@arcvpn1"  # Можно указать @username или -100123456789
 REQUIRED_CHANNEL_LINK = "https://t.me/arcvpn1"
 
 
@@ -27,7 +21,7 @@ def advertising_start_payload(event: Message | CallbackQuery) -> str | None:
 
 
 class SubscriptionCheckMiddleware(BaseMiddleware):
-    """Проверяет подписку пользователя на обязательный канал."""
+    """Require the current agreement version, never channel membership."""
     
     async def __call__(
         self,
@@ -35,7 +29,7 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
         event: Message | CallbackQuery,
         data: Dict[str, Any]
     ) -> Any:
-        """Проверяет подписку перед выполнением хендлера."""
+        """Show the agreement before the first protected interaction."""
         
         # Получаем user_id
         if isinstance(event, Message):
@@ -45,62 +39,48 @@ class SubscriptionCheckMiddleware(BaseMiddleware):
             user_id = event.from_user.id
             message = event.message
         
-        # Пропускаем callback "check_subscribe" чтобы не было бесконечного цикла
-        if isinstance(event, CallbackQuery) and event.data == "check_subscribe":
+        # Keep the old callback as an alias for already delivered keyboards.
+        if isinstance(event, CallbackQuery) and event.data in {"accept_legal", "check_subscribe"}:
             return await handler(event, data)
-        
-        # Проверяем подписку
-        bot = data.get("bot")
-        if not bot:
-            return await handler(event, data)
-        
-        logger.debug(f"Checking subscription for user {user_id}")
-        
+
         try:
-            member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL_ID, user_id=user_id)
-            logger.debug(f"User {user_id} subscription status: {member.status}")
-            
-            # Если пользователь не подписан
-            if member.status in ["left", "kicked"]:
-                payload = advertising_start_payload(event)
-                state = data.get("state")
-                if payload and state is not None:
-                    await state.update_data(pending_start_args=payload)
-                await self.send_subscription_required(message)
-                
-                # Если это callback, отвечаем на него
-                if isinstance(event, CallbackQuery):
-                    await event.answer("❌ Необходимо подписаться на канал", show_alert=True)
-                
-                return  # Прерываем выполнение хендлера
-                
-        except Exception as e:
-            logger.error(f"Ошибка проверки подписки для {user_id}: {e}")
-            # В случае ошибки пропускаем пользователя
+            from database.db_legal_consent import get_legal_consent
+            from database.requests import get_setting
+            consent_version = get_setting('legal_consent_version', '2026-09-10')
+            consent = get_legal_consent(user_id)
+        except Exception:
+            logger.exception("Ошибка проверки согласия пользователя %s", user_id)
             return await handler(event, data)
-        
-        # Пользователь подписан, продолжаем
+
+        if not consent or consent.get("version") != consent_version:
+            payload = advertising_start_payload(event)
+            state = data.get("state")
+            if payload and state is not None:
+                await state.update_data(pending_start_args=payload)
+            await self.send_subscription_required(message)
+            if isinstance(event, CallbackQuery):
+                await event.answer("Сначала примите пользовательское соглашение", show_alert=True)
+            return
+
         return await handler(event, data)
     
     async def send_subscription_required(self, message: Message):
-        """Отправляет сообщение о необходимости подписки."""
+        """Send the required agreement and an optional channel recommendation."""
         from config import SUBSCRIPTION_URL
         agreement_url = f"{SUBSCRIPTION_URL.rstrip('/')}/legal/user-agreement"
         text = (
             "👋 <b>Добро пожаловать в ArcVPN!</b>\n\n"
-            "<blockquote>Для использования бота необходимо подписаться на наш канал 👇</blockquote>\n\n"
-            "Нажимая «Я подписался», вы принимаете "
-            f'<a href="{agreement_url}">Пользовательское соглашение и Политику конфиденциальности</a>.'
+            "Чтобы продолжить, ознакомьтесь и примите "
+            f'<a href="{agreement_url}">Пользовательское соглашение и Политику конфиденциальности</a>.\n\n'
+            f'Подпишитесь на <a href="{REQUIRED_CHANNEL_LINK}">наш канал</a>, '
+            "чтобы не пропускать важные новости, бонусы и статус сервиса. "
+            "Подписка добровольная."
         )
         
         keyboard = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(
-                text="📢 Подписаться на канал",
-                url=REQUIRED_CHANNEL_LINK
-            )],
-            [InlineKeyboardButton(
-                text="✅ Я подписался",
-                callback_data="check_subscribe"
+                text="✅ Принять и продолжить",
+                callback_data="accept_legal"
             )]
         ])
         

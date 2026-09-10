@@ -123,14 +123,14 @@ async def main():
     storage = MemoryStorage()
     dp = Dispatcher(storage=storage)
     
-    # Регистрируем middleware для проверки подписки
+    # Регистрируем middleware для актуальной версии пользовательского соглашения
     from bot.middlewares.subscription_check import SubscriptionCheckMiddleware
     from bot.middlewares.debug_logging import DebugLoggingMiddleware
     
     # Сначала debug middleware (чтобы логировать ВСЕ события)
     dp.callback_query.middleware(DebugLoggingMiddleware())
     
-    # Потом subscription check
+    # Потом legal consent gate
     dp.message.middleware(SubscriptionCheckMiddleware())
     dp.callback_query.middleware(SubscriptionCheckMiddleware())
     

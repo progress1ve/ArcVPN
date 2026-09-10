@@ -1,7 +1,5 @@
 import asyncio
 from datetime import datetime, timezone
-from types import SimpleNamespace
-
 from aiogram.types import Chat, Message, User
 
 from bot.handlers.user import start
@@ -40,7 +38,7 @@ def test_advertising_start_payload_accepts_bot_deep_link_only():
     assert advertising_start_payload(message("hello")) is None
 
 
-def test_channel_gate_preserves_advertising_payload(monkeypatch):
+def test_legal_gate_preserves_advertising_payload(monkeypatch):
     middleware = SubscriptionCheckMiddleware()
     state = FakeState()
     delivered = []
@@ -49,24 +47,18 @@ def test_channel_gate_preserves_advertising_payload(monkeypatch):
         delivered.append(True)
 
     async def handler(_event, _data):
-        raise AssertionError("channel gate must stop the original /start")
+        raise AssertionError("legal gate must stop the original /start")
 
     monkeypatch.setattr(middleware, "send_subscription_required", send_required)
-    bot = SimpleNamespace(
-        get_chat_member=lambda **_kwargs: None,
-    )
-
-    async def get_chat_member(**_kwargs):
-        return SimpleNamespace(status="left")
-
-    bot.get_chat_member = get_chat_member
-    asyncio.run(middleware(handler, message("/start ad_campaign_one"), {"bot": bot, "state": state}))
+    monkeypatch.setattr("database.db_legal_consent.get_legal_consent", lambda _user_id: None)
+    monkeypatch.setattr("database.requests.get_setting", lambda _key, default: default)
+    asyncio.run(middleware(handler, message("/start ad_campaign_one"), {"state": state}))
 
     assert delivered == [True]
     assert state.data["pending_start_args"] == "ad_campaign_one"
 
 
-def test_channel_callback_attributes_new_user_and_consumes_payload(monkeypatch):
+def test_legal_callback_attributes_new_user_and_consumes_payload(monkeypatch):
     state_context = FakeState({"pending_start_args": "ad_campaign_one"})
     calls = []
 
@@ -81,3 +73,23 @@ def test_channel_callback_attributes_new_user_and_consumes_payload(monkeypatch):
     )) is True
     assert calls == [(42, "campaign_one", True)]
     assert state_context.data["pending_start_args"] is None
+
+
+def test_current_legal_consent_does_not_require_channel_membership(monkeypatch):
+    middleware = SubscriptionCheckMiddleware()
+    handled = []
+
+    monkeypatch.setattr(
+        "database.db_legal_consent.get_legal_consent",
+        lambda _user_id: {"version": "2026-09-10"},
+    )
+    monkeypatch.setattr("database.requests.get_setting", lambda _key, _default: "2026-09-10")
+
+    async def handler(_event, _data):
+        handled.append(True)
+        return "ok"
+
+    result = asyncio.run(middleware(handler, message("/start"), {}))
+
+    assert result == "ok"
+    assert handled == [True]

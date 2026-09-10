@@ -819,22 +819,13 @@ async def noop_handler(callback: CallbackQuery):
     """Заглушка: нажатие на заголовок группы ничего не делает."""
     await callback.answer()
 
-@router.callback_query(F.data == 'check_subscribe')
+@router.callback_query(F.data.in_({'accept_legal', 'check_subscribe'}))
 async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
-    """Проверяет подписку пользователя на канал."""
-    from bot.middlewares.subscription_check import REQUIRED_CHANNEL_ID
+    """Record agreement acceptance and continue onboarding."""
     from database.requests import get_or_create_user, is_trial_enabled, has_used_trial, is_referral_enabled
     
     user_id = callback.from_user.id
-    bot = callback.bot
-    
     try:
-        member = await bot.get_chat_member(chat_id=REQUIRED_CHANNEL_ID, user_id=user_id)
-        
-        if member.status in ["left", "kicked"]:
-            await callback.answer("❌ Вы еще не подписались на канал", show_alert=True)
-            return
-        
         # Middleware intercepts the first /start before the normal handler, so
         # the user may not exist yet when this callback arrives.
         user, created = get_or_create_user(
@@ -846,13 +837,13 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         from database.db_legal_consent import record_legal_consent
         from database.requests import get_setting
         consent_version = get_setting('legal_consent_version', '2026-09-10')
-        if not record_legal_consent(user_id, consent_version, 'telegram_channel_gate'):
+        if not record_legal_consent(user_id, consent_version, 'telegram_agreement_gate'):
             logger.error("Не удалось сохранить согласие пользователя %s", user_id)
             await callback.answer("Не удалось сохранить согласие. Попробуйте ещё раз.", show_alert=True)
             return
-        await callback.answer("✅ Спасибо за подписку!")
+        await callback.answer("✅ Соглашение принято")
         
-        # После проверки обязательного канала триал тоже выдаётся сам. Это
+        # После принятия соглашения триал тоже выдаётся сам. Это
         # покрывает пользователя, которого middleware успел создать раньше
         # первого /start, и не оставляет в интерфейсе устаревший CTA.
         trial_result = None
@@ -861,9 +852,9 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             try:
                 trial_result = await provision_trial_for_user(user)
                 if not trial_result:
-                    logger.warning("Авто-триал после проверки канала не создан для %s", user_id)
+                    logger.warning("Авто-триал после принятия соглашения не создан для %s", user_id)
             except Exception:
-                logger.exception("Ошибка авто-триала после проверки канала для %s", user_id)
+                logger.exception("Ошибка авто-триала после принятия соглашения для %s", user_id)
         if attributed:
             try:
                 from bot.services.billing import process_campaign_bonus
@@ -897,5 +888,5 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
         )
         
     except Exception as e:
-        logger.error(f"Ошибка проверки подписки: {e}", exc_info=True)
-        await callback.answer("❌ Ошибка проверки подписки", show_alert=True)
+        logger.error(f"Ошибка принятия соглашения: {e}", exc_info=True)
+        await callback.answer("❌ Не удалось принять соглашение", show_alert=True)

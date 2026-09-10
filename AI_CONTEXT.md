@@ -819,6 +819,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 
 ## Public Northern Flow landing (2026-09-07, production)
 
+- 2026-09-10 login/consent contract: `/app/` keeps passwordless email-code auth
+  as the primary path and the existing Telegram bot login as the secondary path.
+  Bot onboarding requires only acceptance of the current versioned legal terms;
+  membership in the news channel is optional and must never block bot access.
+
 - `/` is implemented as a public Svelte landing and `/app` keeps the existing auth/cabinet flow. `Root.svelte` dynamically separates the landing and App chunks.
 - Landing prices and custom quotes use `/api/public/tariffs` and `/api/public/custom-tariff-quote`; responses are allowlisted, short-cached and content-ETag enabled. `/api/public/subscription-catalog` remains available but is no longer rendered as a simulated client on the landing.
 - Landing intent contract is `/app?screen=tariffs&product=<economy|standard|family>&months=<1|3|6|12>`, `/app?screen=custom-tariff` and `/app?screen=connect` (legacy `/app#connect` remains supported).
