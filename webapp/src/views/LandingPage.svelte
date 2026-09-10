@@ -201,7 +201,6 @@
       <div class="apps-intro">
         <h2>Работает на ваших устройствах</h2>
         <p>Автовыбор, обычные локации и отдельные профили обхода доступны через одну подписку.</p>
-        <div class="apps-signal" aria-hidden="true"><i></i><span><img src={`${base}assets/arc-flow/arc-logo.svg`} alt="" /></span><i></i></div>
       </div>
 
       <div class="feature-ledger" id="features">
@@ -708,11 +707,6 @@
   .app-copy h3{margin-top:0}
   .apps-intro{position:relative}
   .apps-intro::before{content:'';position:absolute;z-index:-1;top:50%;left:50%;width:min(720px,86vw);height:270px;border-radius:50%;background:radial-gradient(ellipse,rgba(54,157,216,.16),rgba(16,60,89,.06) 45%,transparent 72%);filter:blur(38px);transform:translate(-50%,-50%)}
-  .apps-signal{width:min(430px,70vw);display:grid;grid-template-columns:1fr 46px 1fr;align-items:center;gap:12px;margin-top:30px}
-  .apps-signal i{height:1px;background:linear-gradient(90deg,transparent,rgba(157,219,251,.5));box-shadow:0 0 16px rgba(88,186,237,.24)}
-  .apps-signal i:last-child{background:linear-gradient(90deg,rgba(157,219,251,.5),transparent)}
-  .apps-signal span{width:46px;height:46px;display:grid;place-items:center;border:1px solid rgba(169,220,247,.2);border-radius:50%;background:rgba(10,18,25,.82);box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 0 34px rgba(74,174,226,.16)}
-  .apps-signal img{width:20px;height:20px}
   .app-icon-stage{position:relative;align-items:flex-end;justify-content:center;gap:0;padding:54px 20px 0}
   .app-phone{position:relative;z-index:1;flex:none;margin:0;filter:drop-shadow(0 36px 58px rgba(0,0,0,.78))}
   .app-phone-happ{z-index:1;width:215px;transform:translate(42px,38px) rotate(-2.2deg)}
@@ -734,9 +728,6 @@
     .app-icon-stage{align-items:flex-end;gap:4px;padding:35px 10px 0}
     .app-phone-happ{width:min(44vw,172px);transform:translate(27px,25px) rotate(-2deg)}
     .app-phone-incy{width:min(55vw,215px);margin:0;transform:translateX(-20px) rotate(1deg)}
-    .apps-signal{grid-template-columns:1fr 40px 1fr;width:min(300px,82vw);margin-top:24px}
-    .apps-signal span{width:40px;height:40px}
-    .apps-signal img{width:18px;height:18px}
     .bypass-well::before{inset:-10% -8%;width:116%;height:120%;background:radial-gradient(ellipse 67% 54% at -18% 55%,rgba(188,233,255,.94),rgba(73,172,226,.5) 35%,transparent 72%),radial-gradient(ellipse 67% 54% at 118% 55%,rgba(188,233,255,.94),rgba(73,172,226,.5) 35%,transparent 72%),radial-gradient(ellipse 96% 31% at 50% 57%,rgba(158,216,246,.34),rgba(44,139,194,.14) 44%,transparent 82%)}
   }
 
@@ -771,9 +762,8 @@
   .hero-stage{width:min(820px,100%)}
 
   .apps-section{padding-top:112px;padding-bottom:108px}
-  .apps-intro{align-items:flex-start;text-align:left}
-  .apps-intro::before{left:24%;width:min(620px,72vw);transform:translate(-50%,-50%)}
-  .apps-signal{width:min(360px,58vw)}
+  .apps-intro{align-items:center;text-align:center}
+  .apps-intro::before{left:50%;width:min(620px,72vw);transform:translate(-50%,-50%)}
   .apps-section .feature-ledger{grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);grid-template-rows:repeat(3,minmax(112px,auto));gap:12px;margin-top:52px}
   .apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n){grid-column:2;min-height:0;display:flex;align-items:center;justify-content:space-between;flex-direction:row;gap:24px;padding:24px 28px;border-radius:22px;background:#080a0d}
   .apps-section .feature-ledger article.feature-primary{grid-column:1;grid-row:1 / 4;align-items:flex-start;justify-content:flex-end;flex-direction:column;min-height:360px;padding:38px;background:radial-gradient(circle at 68% 28%,rgba(80,174,226,.18),transparent 35%),linear-gradient(145deg,#10151a,#06080a 72%)}
@@ -813,7 +803,7 @@
 
   @media(max-width:900px){
     .hero{min-height:100svh;padding-top:96px}.hero-visual{width:calc(100vw - 20px);margin-top:26px;padding:30px 38px 0}.hero-stage{width:min(680px,100%);border-width:7px}
-    .apps-intro{align-items:center;text-align:center}.apps-intro::before{left:50%;transform:translate(-50%,-50%)}.apps-signal{width:min(360px,70vw)}
+    .apps-intro{align-items:center;text-align:center}.apps-intro::before{left:50%;transform:translate(-50%,-50%)}
     .apps-section .feature-ledger{grid-template-columns:1.1fr .9fr;grid-template-rows:repeat(3,minmax(104px,auto))}
     .apps-section .feature-ledger article.feature-primary{min-height:330px;padding:30px}.apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n){padding:20px 22px}
     .route-orbit{top:30px;right:30px;left:30px;height:158px}

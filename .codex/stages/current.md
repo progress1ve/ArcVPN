@@ -1,4 +1,27 @@
-# Stage: ArcVPN landing — complete lower-page redesign
+# Stage: ArcVPN legal revision and landing polish
+
+## Current scope — 2026-09-10
+
+- Rewrite the public legal page into a product-specific User Agreement and
+  Privacy Policy using the supplied GG's VPN text only as a structural example.
+- Keep operator identity and contacts dynamic; do not invent legal details.
+- Match actual Telegram/email accounts, YooKassa payments, optional
+  auto-renewal and self-service cancellation.
+- Preserve mandatory consumer and data-subject rights; reject blanket
+  no-refund, chargeback-ban and exclusive-forum clauses from the example.
+- Center “Работает на ваших устройствах” and remove `.apps-signal` entirely.
+- Do not change Hero, trial, billing, authentication or product behavior.
+
+## Current acceptance
+
+- Distinct agreement and privacy-policy parts with readable navigation.
+- Dynamic legal values remain escaped; no secret or invented value enters Git.
+- `apps-signal` is absent from source and rendered output; applications intro is
+  centered at every breakpoint.
+- Focused tests, Vite build, browser QA, diff review, deployment, service state
+  and public content checks pass.
+
+## Previous stage record
 
 ## Goal
 
