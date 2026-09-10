@@ -1728,3 +1728,15 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - At 720-900px, the three live tariff cards use one compact row rather than
   three tall stacked cards. Pricing values, controls and mobile layout remain
   authoritative and unchanged.
+
+## 2026-09-10: landing hierarchy and viewport-aware Hero
+
+- Owner approved breaking the repeated centred-heading/card rhythm. Current
+  capability proof gives Auto-select one dominant route-diagram card and keeps
+  the other three facts as compact supporting rows.
+- Hero must show the complete real cabinet capture on common viewport heights;
+  desktop/laptop widths respond to viewport height and mobile uses the full
+  portrait capture rather than cropping it.
+- Final CTA uses the code-native matte `Arc horizon` with thin blue edges. Do
+  not restore the removed noisy raster wallpaper. Standard tariff hover must
+  not translate or appear taller at 720-900px.

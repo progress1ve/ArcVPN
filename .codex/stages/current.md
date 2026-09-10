@@ -121,6 +121,22 @@ falling light field, clear live tariffs, and a deliberate final/footer sequence.
 
 ### Result
 
+- Passed: public 770x930 Hero stage ends at 781px and the complete product
+  capture is visible; local 1366x768 and 1600x900 captures also contain it.
+- Passed: capability hierarchy is asymmetric and factual; no invented product
+  UI or claims were introduced.
+- Passed: public 770px tariffs are three equal 360px cards, Standard has no
+  tablet hover translation, and scroll width is below viewport width.
+- Passed: final CTA renders the code-native `Arc horizon`; the raster background
+  was removed from markup.
+- Passed: Vite build, Impeccable detector, staged diff, commit `bb2551b`, push,
+  production fast-forward pull, public HTTP/browser and service checks.
+- Rollback: revert `bb2551b`; static change, no service restart.
+- Next step: owner visual review on personal phones; tune only specific feedback
+  without re-expanding page spacing or restoring generic card symmetry.
+
+### Result
+
 - Passed: bypass proof uses only two soft side sources; there is no central grey
   wash or sharp beam.
 - Passed: at the public 770px viewport tariff columns are `234px 234px 234px`,

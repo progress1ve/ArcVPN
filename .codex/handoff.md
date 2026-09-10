@@ -1,5 +1,19 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-10 hierarchy, Hero and Arc horizon
+
+- Production runtime `bb2551b` makes Hero height-aware so the full real cabinet
+  capture remains visible at tablet, laptop and wide heights; mobile uses the
+  full portrait capture with a viewport-derived width.
+- Capability proof is now one primary Auto-select story with a route diagram
+  plus three compact supporting facts. Section spacing is shorter and less
+  repetitive. The final CTA uses a code-native matte `Arc horizon`; the old
+  raster wallpaper is no longer rendered.
+- Standard tariff hover is fixed at 720-900px: all public 770px tariff cards are
+  exactly 360px high and do not translate. Page scroll width remains contained.
+- Vite build and Impeccable detector passed. Public root/new CSS/new JS return
+  HTTP 200; nginx and the subscription service are active. No restart required.
+
 ## 2026-09-10 bypass light and tablet pricing
 
 - Production runtime `6ef7795` replaces the grey full-width bypass wash with
