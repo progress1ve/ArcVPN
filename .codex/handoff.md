@@ -173,3 +173,7 @@ no service restart is needed for this static-only rollback.
 - Seven focused tests, scheduler import, Python compilation, Vite build, public
   asset/browser checks and production setting checks passed. Bot, subscription
   and nginx services are active.
+- Follow-up `1fe7b69` also disables the daily “Суточная статистика” Telegram
+  report to admins. Production verification confirms both daily admin outputs
+  are absent while local backup maintenance remains enabled; all services are
+  active.
