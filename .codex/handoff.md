@@ -158,3 +158,18 @@ no service restart is needed for this static-only rollback.
   changed.
 - Focused tests (4), syntax, Vite build, staged diff, public browser QA, HTTP
   checks and service checks passed. Nginx and subscription service are active.
+
+## 2026-09-10 legal synchronization and backup-notification removal
+
+- Production runtime is `e989cf3` (`9c3c452` plus scheduler import correction).
+- WebApp settings use the 10 September 2026 revision and link to the canonical
+  full Agreement + Privacy Policy; the stale embedded summary and placeholders
+  are removed. Purchase links remain canonical.
+- Telegram channel gate names both documents, and production records new
+  consent as `2026-09-10`.
+- Daily 09:10 UTC backup maintenance still creates retained local DB copies and
+  cleans expired copies, but no longer creates or sends a Telegram archive to
+  admins. Daily stats, expiry notifications and manual log exports are intact.
+- Seven focused tests, scheduler import, Python compilation, Vite build, public
+  asset/browser checks and production setting checks passed. Bot, subscription
+  and nginx services are active.
