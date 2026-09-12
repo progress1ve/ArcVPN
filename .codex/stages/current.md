@@ -172,3 +172,10 @@ by bot restart; static WebApp files do not require subscription-service restart.
 - Passed: production fast-forwarded to `53ebcc4`; nginx, bot and subscription
   services remain active. Static-only release required no restart.
 - Rollback: revert `53ebcc4`. No known residual functional risk.
+
+### Owner follow-up: stronger Standard light
+
+- Increase the integrated lower radial mass to the visual strength of the
+  supplied pricing reference while retaining a long, continuous falloff.
+- Keep the implementation inside the card background: no pseudo-element, hard
+  stop, horizontal seam or blue perimeter.
