@@ -245,3 +245,15 @@ no service restart is needed for this static-only rollback.
 - Runtime `8792cda` aligns Hero with the customer cabinet: deep navy base, edge
   auroras, cabinet CTA gradient and centred/lowered copy led by “Свободный
   интернет. От 80 ₽ в месяц.” Public CSS is `LandingPage-DR7tkSXA.css`.
+
+## 2026-09-12 landing-wide cabinet release
+
+- Production runtime is `8658c14`. The Hero CTA is now transparent and
+  bordered; its approved composition/copy remain intact and the edge auroras
+  are modestly stronger.
+- Trial, capability/apps, bypass, steps, FAQ, final CTA, links and footer share
+  the cabinet navy canvas, translucent surfaces, cold hairlines and one cyan
+  accent family. Pricing structure and live server pricing are unchanged.
+- The bypass proof is compact two-column on desktop and stacks below 900 px;
+  public CSS is `LandingPage-CmCkdfYn.css`. Public interaction and overflow
+  checks pass, and all three production services are active.

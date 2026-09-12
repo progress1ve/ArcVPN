@@ -335,3 +335,13 @@ by bot restart; static WebApp files do not require subscription-service restart.
   selector. Horizontal overflow is zero.
 - 500x844, 768x1024 and 1280x720 captures/checks passed. Vite build and
   Impeccable detector exit 0; unrelated pre-existing Svelte warnings remain.
+
+### Production result
+
+- Deployed as runtime `8658c14`; public CSS is
+  `LandingPage-CmCkdfYn.css`.
+- Public computed styles confirm the transparent bordered Hero CTA, transparent
+  section canvases, cabinet FAQ surface and 574/470 px desktop bypass layout.
+- Public tariff-period selection and FAQ expansion pass; horizontal overflow is
+  zero. Nginx, bot and subscription services remain active. Static release
+  required no restart; rollback is a normal revert of `8658c14`.

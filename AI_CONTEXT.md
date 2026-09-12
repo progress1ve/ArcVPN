@@ -1768,6 +1768,14 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Final CTA uses the code-native matte `Arc horizon` with thin blue edges. Do
   not restore the removed noisy raster wallpaper. Standard tariff hover must
   not translate or appear taller at 720-900px.
+- The approved Hero primary action is a transparent cabinet-style button with a
+  cold blue border, not a filled light pill. Its edge auroras may be noticeable
+  but must leave the copy centre dark and avoid a broad cyan floor.
+- Downstream landing sections share the Hero/customer-cabinet canvas rather
+  than alternating pure-black rectangles. Reuse translucent `#070d17` surfaces,
+  `#101a27` raised panels, low-contrast cold borders and muted blue-grey copy.
+  The bypass proof stays compact: copy beside its four-row ledger on desktop,
+  stacked below 900 px. Pricing keeps its separately approved structure.
 
 ## 2026-09-12: pricing accent system
 
