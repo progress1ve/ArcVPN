@@ -269,7 +269,11 @@
                   <div class="plan-price"><b>{plan.monthly_rub.toLocaleString('ru-RU')} ₽</b><span>в месяц</span></div>
                   <small>{plan.price_rub.toLocaleString('ru-RU')} ₽ за {plan.period_months} {plan.period_months === 1 ? 'месяц' : 'месяца'}</small>
                 </div>
-                <ul><li>Основной трафик безлимитный</li><li>{plan.device_limit} {plan.device_limit >= 2 && plan.device_limit <= 4 ? 'устройства' : 'устройств'}</li><li>{plan.lte_quota_gb ? `${plan.lte_quota_gb} ГБ обхода` : 'Без трафика обхода'}</li></ul>
+                <ul>
+                  <li><ArcIcon name="signal" size={17} />Основной трафик безлимитный</li>
+                  <li><ArcIcon name="devices" size={17} />{plan.device_limit} {plan.device_limit >= 2 && plan.device_limit <= 4 ? 'устройства' : 'устройств'}</li>
+                  <li><ArcIcon name={plan.lte_quota_gb ? 'lte' : 'shield'} size={17} />{plan.lte_quota_gb ? `${plan.lte_quota_gb} ГБ обхода` : 'Без трафика обхода'}</li>
+                </ul>
                 <button on:click={() => selectTariff(plan)}>Выбрать <ArcIcon name="arrow" size={17} /></button>
               </article>
             {/if}
@@ -830,22 +834,23 @@
   .periods button{min-width:88px;min-height:38px;color:#858a92}
   .periods button.active{color:#f5f7f8;background:#35373d;box-shadow:inset 0 1px 0 rgba(255,255,255,.12)}
   .tariff-grid{align-items:stretch;gap:12px}
-  .tariff-grid article,.tariff-grid article.recommended{min-height:500px;padding:0;border-color:rgba(255,255,255,.09);border-radius:22px;background:linear-gradient(155deg,#111216,#090a0d 72%);box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transform:none}
-  .tariff-grid article.recommended{overflow:hidden;border-color:rgba(112,205,251,.34);background:linear-gradient(180deg,#111318 0%,#10151a 52%,#074b70 78%,#079ee0 100%);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+  .tariff-grid article,.tariff-grid article.recommended{min-height:0;padding:0;border-color:rgba(255,255,255,.09);border-radius:22px;background:linear-gradient(155deg,#111216,#090a0d 72%);box-shadow:inset 0 1px 0 rgba(255,255,255,.025);transform:none}
+  .tariff-grid article.recommended{overflow:hidden;border-color:rgba(255,255,255,.12);background:radial-gradient(ellipse 125% 54% at 50% 112%,rgba(14,174,234,.96),rgba(7,91,132,.72) 44%,transparent 78%),linear-gradient(155deg,#111318,#090b0e 72%);box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
   .tariff-top,.tariff-grid article.recommended .tariff-top{min-height:250px;padding:30px 28px;border-radius:0!important;background:transparent!important;box-shadow:none!important}
   .tariff-grid header span{font-size:13px;font-weight:780;letter-spacing:.08em}
   .tariff-grid header em{border-color:rgba(137,215,255,.28);background:rgba(102,196,244,.08)}
   .tariff-grid .tariff-top>p{margin:17px 0 27px;color:#8f959e}
   .plan-price b{font-size:44px;font-weight:560}
-  .tariff-grid ul{flex:1;margin:0;padding:25px 28px 22px;border-top:1px solid rgba(255,255,255,.07)}
-  .tariff-grid article.recommended ul{border-top-color:rgba(220,245,255,.12)}
-  .tariff-grid li{color:#aeb3bb}
+  .tariff-grid ul{flex:1;margin:0;padding:25px 28px 22px;border-top:0}
+  .tariff-grid li{align-items:center;color:#aeb3bb}
+  .tariff-grid li::before{content:none}
+  .tariff-grid li :global(.arc-icon){width:28px;height:28px;border:1px solid rgba(133,205,243,.16);border-radius:9px;color:#8dd7fb;background:rgba(90,184,233,.06)}
   .tariff-grid article.recommended li{color:#eef9ff}
   .tariff-grid article>button,.tariff-grid article.recommended>button{min-height:48px;margin:0 20px 20px;border-color:rgba(255,255,255,.12);border-radius:999px;color:#f2f4f6;background:#27292e}
   .tariff-grid article.recommended>button{border-color:rgba(255,255,255,.7);color:#071018;background:#f5fbfe}
-  .custom-builder{grid-template-columns:.72fr 1.28fr .68fr;align-items:stretch;gap:34px;margin-top:12px;padding:30px;border-color:rgba(255,255,255,.09);border-radius:22px;background:#111216;box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
+  .custom-builder{grid-template-columns:.72fr 1.28fr .68fr;align-items:stretch;gap:34px;margin-top:12px;padding:30px;border-color:rgba(255,255,255,.09);border-radius:22px;background:linear-gradient(155deg,#111216,#090a0d 72%);box-shadow:inset 0 1px 0 rgba(255,255,255,.025)}
   .custom-heading{align-self:center}
-  .custom-total{min-height:176px;border-color:rgba(112,205,251,.18);background:linear-gradient(145deg,rgba(37,133,187,.24),rgba(9,16,22,.62))}
+  .custom-total{min-height:176px;border-color:rgba(255,255,255,.1);background:radial-gradient(ellipse 120% 85% at 50% 120%,rgba(14,174,234,.82),rgba(7,91,132,.45) 48%,transparent 80%),#0d1014}
   @media(hover:hover) and (min-width:901px){.tariff-grid article:hover,.tariff-grid article.recommended:hover{border-color:rgba(151,214,247,.32);transform:translateY(-4px)}}
   @media(max-width:900px){.pricing-section{width:min(calc(100% - 32px),760px);padding:115px 0}.tariff-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.tariff-grid article,.tariff-grid article.recommended,.tariff-grid article:hover,.tariff-grid article.recommended:hover{min-height:430px;transform:none}.tariff-top,.tariff-grid article.recommended .tariff-top{min-height:205px;padding:24px 18px}.tariff-grid header{align-items:flex-start;flex-direction:column;gap:9px}.tariff-grid .tariff-top>p{min-height:48px;margin:13px 0 20px}.plan-price{align-items:flex-start;flex-direction:column;gap:5px}.plan-price b{font-size:34px}.tariff-grid ul{padding:20px 18px 18px}.tariff-grid article>button,.tariff-grid article.recommended>button{margin:0 14px 14px}.custom-builder{grid-template-columns:1fr;gap:24px;padding:26px}.custom-heading p{max-width:520px}.custom-total{min-height:160px}}
   @media(max-width:620px){.pricing-section{padding:100px 0}.pricing-intro h2{font-size:42px}.periods{width:100%;margin:30px auto 24px}.periods button{min-width:72px}.tariff-grid{grid-template-columns:1fr}.tariff-grid article,.tariff-grid article.recommended{min-height:0}.tariff-top,.tariff-grid article.recommended .tariff-top{min-height:215px;padding:25px 22px}.tariff-grid header{align-items:center;flex-direction:row}.plan-price{align-items:baseline;flex-direction:row}.tariff-grid .tariff-top>p{min-height:0}.tariff-grid ul{padding:22px}.custom-builder{padding:22px}}

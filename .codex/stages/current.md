@@ -110,3 +110,15 @@ by bot restart; static WebApp files do not require subscription-service restart.
   `transform: none`; no hover position jump remains.
 - Build and public browser verification passed for production commit `cfad811`.
   Static deployment required no service restart.
+
+## 2026-09-12 pricing polish follow-up
+
+- Replace tariff checkmarks with existing inline SVG product icons.
+- Remove the translucent `rgba(4,9,16,.68)` login-screen background so the
+  cabinet aurora is not covered.
+- Remove the 500 px tariff minimum height and the Standard card's hard blue
+  gradient boundary; retain a contained soft lower accent.
+- Make the custom tariff visually part of the same pricing-card family while
+  preserving server quote controls and navigation.
+- Acceptance: no sharp cyan rule, no forced 500 px cards, transparent login
+  surface, responsive pricing without overflow, successful build and public QA.

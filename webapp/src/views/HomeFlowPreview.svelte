@@ -2579,7 +2579,7 @@
     .connect-page-head > button.telegram-mobile-hidden { display: none; }
   }
   .flow-preview.login-mode{background:radial-gradient(95% 48% at 50% -10%,rgba(23,65,116,.17),transparent 68%),radial-gradient(80% 42% at 15% 108%,rgba(26,88,145,.12),transparent 72%),#02050b}
-  .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:rgba(4,9,16,.68);backdrop-filter:blur(8px)}
+  .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:transparent;backdrop-filter:none}
   .login-inner{width:min(100%,410px);display:flex;align-items:center;flex-direction:column}
   .login-brand{display:flex;align-items:center;gap:11px;margin-bottom:28px;color:#f4f6f8;font-size:16px;font-weight:750;letter-spacing:-.025em}
   .login-mark{width:48px;height:48px;display:grid;place-items:center}
