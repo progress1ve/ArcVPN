@@ -222,3 +222,12 @@ by bot restart; static WebApp files do not require subscription-service restart.
   remains neutral.
 - Vite build and Impeccable detector pass. Existing unrelated Svelte unused-CSS
   warnings remain unchanged.
+
+### Production result
+
+- Passed: production fast-forwarded to `6fbb72a`; nginx, bot and subscription
+  services remain active and required no restart for the static release.
+- Passed: public browser loads `LandingPage-RT20uY6Q.css`, renders zero Hero
+  image/frame nodes, the ArcVPN cyan/navy background and the neutral Standard
+  perimeter with an elliptical blurred inner light. Horizontal overflow is 0.
+- Rollback: revert `6fbb72a`. No known residual functional risk.

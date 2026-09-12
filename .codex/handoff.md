@@ -228,3 +228,14 @@ no service restart is needed for this static-only rollback.
 - Owner follow-up `a04b38f` strengthens the same integrated Standard radial
   light to reference-level intensity without restoring the rejected seam or
   pseudo-layer. Current public CSS is `LandingPage-BZ0SXwmu.css`.
+
+## 2026-09-12 centered Hero release
+
+- Production runtime is `6fbb72a`. Hero has no application screenshot/frame;
+  centered sales copy and CTA sit over an ArcVPN cyan/navy light field derived
+  from the structural reference.
+- Standard now uses an oversized blurred elliptical source inside its neutral
+  card, avoiding the horizontal boundary from the prior integrated gradient.
+- Local browser checks covered 500x844, 768x1024 and 1280x720. Vite build,
+  Impeccable detector and public browser verification passed; current public
+  CSS is `LandingPage-RT20uY6Q.css`. Static release required no restart.

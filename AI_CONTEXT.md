@@ -1752,9 +1752,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Owner approved breaking the repeated centred-heading/card rhythm. Current
   capability proof gives Auto-select one dominant route-diagram card and keeps
   the other three facts as compact supporting rows.
-- Hero must show the complete real cabinet capture on common viewport heights;
-  desktop/laptop widths respond to viewport height and mobile uses the full
-  portrait capture rather than cropping it.
+- As of `6fbb72a`, Hero intentionally contains no cabinet capture or frame. It
+  keeps centered headline/copy/CTA over a continuous ArcVPN cyan-to-navy light
+  field. The later cabinet proof remains the product screenshot surface.
 - Final CTA uses the code-native matte `Arc horizon` with thin blue edges. Do
   not restore the removed noisy raster wallpaper. Standard tariff hover must
   not translate or appear taller at 720-900px.
@@ -1764,8 +1764,8 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Pricing uses `#78cfff` as its single interactive blue accent, with related
   translucent/hover tokens rather than unrelated cyan values. Apply it to the
   custom selector state, range control and custom-plan CTA.
-- Standard emphasis is a restrained radial layer integrated into the card
-  background. Do not restore a blurred `::after`, hard cyan boundary, bright
+- Standard emphasis is an oversized blurred radial `::before` inside a neutral
+  clipped card. Do not restore a hard horizontal gradient stop, bright blue
   perimeter or strong full-card blue gradient.
 - The custom plan is customer-facing copy: do not restore the internal-style
   `// СВОЙ ТАРИФ` kicker. Keep clear separation between the monthly price and
