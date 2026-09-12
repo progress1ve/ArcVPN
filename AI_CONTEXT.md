@@ -1776,6 +1776,17 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   `#101a27` raised panels, low-contrast cold borders and muted blue-grey copy.
   The bypass proof stays compact: copy beside its four-row ledger on desktop,
   stacked below 900 px. Pricing keeps its separately approved structure.
+- Current acquisition hierarchy is explicit: a free seven-day Telegram trial
+  is primary and the seven-day website trial for 10 RUB is secondary. Do not
+  restore the rejected post-Hero four-fact strip or label trial offers as a
+  location catalogue.
+- Landing support copy must remain at least 14 px on mobile. Keep capabilities
+  consolidated to Auto-select, country choice and bypass, and describe Happ /
+  INCY as two supported import applications rather than asking for a choice and
+  then saying no choice is needed.
+- Pricing belongs to the cabinet design system: translucent deep-navy surfaces,
+  cold hairlines and the same cyan control family. Standard may have contained
+  blue depth, but no hard seam, detached halo or hover-induced height change.
 
 ## 2026-09-12: pricing accent system
 

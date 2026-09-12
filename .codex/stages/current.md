@@ -93,3 +93,25 @@ story without changing the 5/5 Hero composition or the live pricing contract.
   surfaces, cold hairlines, cyan action family and restrained blue Standard
   light as the rest of the product. The former neutral grey/black treatment is
   gone and no hard glow seam is visible in the rendered desktop capture.
+
+## Production result
+
+- Runtime commits: `67a94ee` (source/content stage) and `3e9d533` (final rebuilt
+  static bundle). Public CSS is `LandingPage-6QnRz83G.css`.
+- Public page has no rejected Hero proof strip. Real production config exposes
+  both final trial actions: free Telegram and 10 RUB website activation.
+- Public tariff cards compute to the cabinet navy gradients; Standard keeps a
+  restrained contained glow without a seam. At 768 px all three cards remain
+  equal at 455 px.
+- Public 390x844 and 768x1024 checks retain 14 px key body/tariff copy and zero
+  horizontal overflow. The 6-month selector and FAQ expansion pass publicly.
+- Nginx, bot and subscription services are active. Static-only release required
+  no restart. Acceptance is passed; rollback is a normal revert of `67a94ee`
+  and `3e9d533`.
+
+## Residual risk and next step
+
+- No unverified social proof, speed, uptime, location counts or privacy claims
+  were added. Add such proof only when an authoritative product source exists.
+- Next step: observe conversion analytics before changing the approved Hero or
+  acquisition hierarchy again.

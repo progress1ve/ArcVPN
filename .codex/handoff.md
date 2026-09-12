@@ -257,3 +257,20 @@ no service restart is needed for this static-only rollback.
 - The bypass proof is compact two-column on desktop and stacks below 900 px;
   public CSS is `LandingPage-CmCkdfYn.css`. Public interaction and overflow
   checks pass, and all three production services are active.
+
+## 2026-09-12 concise conversion release
+
+- Production runtime is `3e9d533`; public CSS is
+  `LandingPage-6QnRz83G.css`.
+- Hero remains approved and unchanged. The rejected post-Hero fact strip is
+  absent. Trial copy now describes the two verified acquisition routes instead
+  of promising a location list: Telegram is free and primary; website trial is
+  the explicit 10 RUB alternative.
+- Capabilities are consolidated to Auto-select, country choice and bypass; app
+  copy gives one clear Happ/INCY import path. Supporting text is 14–15 px, empty
+  section intervals are reduced, and mobile onboarding is a compact 2x2 grid.
+- Pricing now uses the customer cabinet's translucent navy surfaces, cold
+  borders and cyan controls. Standard has contained blue depth with no seam;
+  720–900 px cards remain equal and do not change height on hover.
+- Public mobile/tablet checks, tariff selection, FAQ expansion and overflow
+  checks pass. Nginx, bot and subscription services are active; no restart.
