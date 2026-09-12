@@ -852,9 +852,9 @@
   @media(max-width:620px){.pricing-section{padding:100px 0}.pricing-intro h2{font-size:42px}.periods{width:100%;margin:30px auto 24px}.periods button{min-width:72px}.tariff-grid{grid-template-columns:1fr}.tariff-grid article,.tariff-grid article.recommended{min-height:0}.tariff-top,.tariff-grid article.recommended .tariff-top{min-height:215px;padding:25px 22px}.tariff-grid header{align-items:center;flex-direction:row}.plan-price{align-items:baseline;flex-direction:row}.tariff-grid .tariff-top>p{min-height:0}.tariff-grid ul{padding:22px}.custom-builder{padding:22px}}
 
   /* Final Hero: centered message over one continuous ArcVPN light field. */
-  .hero{min-height:clamp(700px,100svh,940px);display:grid;place-items:center;padding:132px 24px 110px;overflow:hidden;background:radial-gradient(ellipse 92% 48% at 50% 104%,rgba(218,243,255,.92) 0,rgba(120,207,255,.74) 20%,rgba(45,159,211,.5) 48%,rgba(19,83,116,.16) 72%,transparent 86%),radial-gradient(ellipse 72% 52% at 50% 66%,rgba(66,186,242,.42),rgba(7,75,112,.2) 48%,transparent 76%),linear-gradient(180deg,#02050b 0,#06131f 42%,#073453 76%,#04131f 100%)}
+  .hero{min-height:100svh;display:grid;place-items:center;padding:132px 24px 110px;overflow:hidden;background:radial-gradient(ellipse 92% 48% at 50% 104%,rgba(218,243,255,.92) 0,rgba(120,207,255,.74) 20%,rgba(45,159,211,.5) 48%,rgba(19,83,116,.16) 72%,transparent 86%),radial-gradient(ellipse 72% 52% at 50% 66%,rgba(66,186,242,.42),rgba(7,75,112,.2) 48%,transparent 76%),linear-gradient(180deg,#02050b 0,#06131f 42%,#073453 76%,#04131f 100%)}
   .hero::before,.hero::after{content:none}
-  .hero-copy{position:relative;z-index:1;width:min(100%,960px);text-align:center;transform:none}
+  .hero-copy{position:relative;z-index:1;width:min(100%,960px);text-align:center;transform:translateY(5svh)}
   .hero h1{font-size:clamp(58px,7vw,102px);font-weight:560;line-height:.94;letter-spacing:-.067em;text-shadow:0 8px 46px rgba(0,12,42,.62)}
   .hero h1 span{color:#eef7ff}
   .landing .hero-text{max-width:610px;margin:30px auto 0;color:#b4c8dc;font-size:14px;line-height:1.7}
@@ -862,6 +862,6 @@
   .tariff-grid article.recommended{isolation:isolate;background:linear-gradient(155deg,#111216,#090a0d 72%)}
   .tariff-grid article.recommended::before{content:'';position:absolute;z-index:0;top:20%;right:-14%;bottom:-18%;left:-14%;border-radius:50%;background:radial-gradient(ellipse at 50% 82%,rgba(120,207,255,.86) 0,rgba(45,159,211,.58) 38%,rgba(19,83,116,.24) 62%,transparent 80%);filter:blur(18px);pointer-events:none}
   .tariff-grid article.recommended>*{position:relative;z-index:1}
-  @media(max-width:900px){.hero{min-height:760px;padding:120px 24px 96px}.hero h1{font-size:clamp(56px,9vw,78px)}.landing .hero-text{max-width:560px}}
-  @media(max-width:560px){.hero{min-height:700px;padding:112px 18px 82px}.hero h1{max-width:100%;font-size:clamp(38px,10.5vw,46px);line-height:.98}.hero h1 span{white-space:normal}.landing .hero-text{max-width:350px;margin-top:24px;font-size:11.5px;line-height:1.65}.hero-actions{margin-top:28px}}
+  @media(max-width:900px){.hero{min-height:100svh;padding:120px 24px 96px}.hero-copy{transform:translateY(4svh)}.hero h1{font-size:clamp(56px,9vw,78px)}.landing .hero-text{max-width:560px}}
+  @media(max-width:560px){.hero{min-height:100svh;padding:112px 18px 82px}.hero-copy{transform:translateY(2.5svh)}.hero h1{max-width:100%;font-size:clamp(38px,10.5vw,46px);line-height:.98}.hero h1 span{white-space:normal}.landing .hero-text{max-width:350px;margin-top:24px;font-size:11.5px;line-height:1.65}.hero-actions{margin-top:28px}}
 </style>

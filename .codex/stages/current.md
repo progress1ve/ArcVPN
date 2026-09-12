@@ -231,3 +231,18 @@ by bot restart; static WebApp files do not require subscription-service restart.
   image/frame nodes, the ArcVPN cyan/navy background and the neutral Standard
   perimeter with an elliptical blurred inner light. Horizontal overflow is 0.
 - Rollback: revert `6fbb72a`. No known residual functional risk.
+
+### Owner viewport correction
+
+- Hero must cover at least the complete visible viewport at every breakpoint;
+  remove the 940 px height cap that exposed the next black section on tall
+  displays.
+- Move the centered copy group lower without changing its content or alignment.
+- Acceptance: computed Hero height is never less than the viewport height on
+  mobile, tablet, desktop and tall/wide checks; no black strip appears inside
+  the first screen and horizontal overflow remains zero.
+
+- Passed locally: 1600x1200 capture is filled by Hero edge-to-edge with no black
+  strip; the copy group is shifted down by 5svh (4svh tablet, 2.5svh mobile).
+- Passed: 500x844, 768x1024 and 1600x1200 visual checks retain readable centered
+  copy; Vite build and Impeccable detector exit 0.
