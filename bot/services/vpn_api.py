@@ -405,7 +405,9 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
     inbound_id = key.get('panel_inbound_id')
     client_uuid = key.get('client_uuid')
     
-    if not email or not inbound_id or not client_uuid:
+    # Remnawave is user-centric and intentionally stores inbound_id=0. Only a
+    # missing value is invalid; zero must survive this compatibility row.
+    if not email or inbound_id is None or not client_uuid:
         logger.warning(f'push_key_to_panel: ключ {key_id} — неполные данные панели')
         return False
     
@@ -440,7 +442,12 @@ async def push_key_to_panel(key_id: int, reset_traffic: bool = False) -> bool:
     
     try:
         server_data = _server_data_from_key(key)
-        client = get_client_from_server_data(server_data)
+        # Remnawave remains authoritative while compatibility key rows retain
+        # a legacy server_id so stable subscription URLs and UUIDs do not move.
+        from bot.services.remnawave_stats import remnawave_authority_config
+        authority = remnawave_authority_config()
+        target = authority if authority.get('panel_api_url') and authority.get('panel_api_token') else server_data
+        client = get_client_from_server_data(target)
         
         # Сброс счётчиков up/down на панели (если требуется)
         if reset_traffic:
