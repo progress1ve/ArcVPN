@@ -1759,6 +1759,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   device. Keep the centered copy slightly below geometric centre (5svh desktop,
   4svh tablet and 2.5svh mobile) and do not expose the next black section inside
   the initial viewport.
+- Hero visual language must match the customer cabinet: `#03070e` base,
+  restrained blue edge auroras, muted blue-grey body copy and the cabinet CTA
+  gradient `#b6e7ff -> #6bc0ef`. Avoid a broad flat cyan floor.
+- Current Hero hierarchy is “Свободный интернет. От 80 ₽ в месяц.” followed by
+  stable locations, separate bypass profiles and quality in difficult networks.
+  Its grid track is truly centred with `place-content`, then optically lowered.
 - Final CTA uses the code-native matte `Arc horizon` with thin blue edges. Do
   not restore the removed noisy raster wallpaper. Standard tariff hover must
   not translate or appear taller at 720-900px.

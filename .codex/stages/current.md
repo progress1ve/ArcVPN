@@ -282,3 +282,11 @@ by bot restart; static WebApp files do not require subscription-service restart.
   consistent cabinet-style navy negative space and restrained aurora edges.
 - CTA computes to the customer cabinet gradient `#b6e7ff -> #6bc0ef`; Hero base
   is `#03070e`. Vite build and Impeccable detector pass.
+
+### Production result
+
+- Passed at runtime `8792cda`: public headline and cabinet-gradient CTA match
+  the local result; Hero height matches the 930 px viewport within subpixel
+  rounding, copy centre is 48 px below viewport centre and overflow is zero.
+- Nginx, bot and subscription services remain active. Static release required
+  no restart. Rollback is a normal revert of `8792cda`.

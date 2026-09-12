@@ -242,3 +242,6 @@ no service restart is needed for this static-only rollback.
 - Follow-up `31aee4d` removes the 940 px Hero cap: the light field now covers at
   least `100svh`, including tall displays, and the copy is shifted slightly
   lower per breakpoint. Public CSS is `LandingPage-CBmkrkur.css`.
+- Runtime `8792cda` aligns Hero with the customer cabinet: deep navy base, edge
+  auroras, cabinet CTA gradient and centred/lowered copy led by “Свободный
+  интернет. От 80 ₽ в месяц.” Public CSS is `LandingPage-DR7tkSXA.css`.
