@@ -122,3 +122,14 @@ by bot restart; static WebApp files do not require subscription-service restart.
   preserving server quote controls and navigation.
 - Acceptance: no sharp cyan rule, no forced 500 px cards, transparent login
   surface, responsive pricing without overflow, successful build and public QA.
+
+### Owner correction
+
+- INCY phone moves down by 4 px.
+- SVG tariff icons lose their tiles and inherit the adjacent neutral text color.
+- At page top the navigation has no visible shell; the bordered rounded shell
+  returns only after scrolling.
+- Standard uses a neutral card with a diffuse bottom glow layer, including hover,
+  so no blue perimeter or horizontal seam can appear.
+- Custom pricing reads as one wide enterprise-style tariff: clear left offer,
+  three compact control rows and a high-contrast price/action column.
