@@ -147,3 +147,15 @@ by bot restart; static WebApp files do not require subscription-service restart.
 - Passed: Vite build, diff check, production fast-forward and public asset/browser
   verification. Runtime commit `4eedf60`; static release, no restart required.
 - Rollback: revert `4eedf60`. No known residual functional risk.
+
+## 2026-09-12 Impeccable pricing color pass
+
+- Remove the internal `// СВОЙ ТАРИФ` kicker from the customer-facing custom plan.
+- Consolidate pricing interaction, CTA and Standard-card light into one restrained
+  ArcVPN blue accent family instead of unrelated cyan values.
+- Replace the detached blurred Standard pseudo-layer with a soft integrated lower
+  highlight that cannot create a hard cyan seam.
+- Increase the visual gap between the custom monthly price and its creation CTA.
+- Acceptance: Vite build and Impeccable detector pass; pricing has no horizontal
+  overflow at 390, 768 and 900 px; Standard has no generated glow layer; active
+  controls and CTA share the same accent token; public browser QA passes.
