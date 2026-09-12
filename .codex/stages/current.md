@@ -159,3 +159,16 @@ by bot restart; static WebApp files do not require subscription-service restart.
 - Acceptance: Vite build and Impeccable detector pass; pricing has no horizontal
   overflow at 390, 768 and 900 px; Standard has no generated glow layer; active
   controls and CTA share the same accent token; public browser QA passes.
+
+### Result and evidence
+
+- Passed: `// СВОЙ ТАРИФ` is absent from source and rendered DOM.
+- Passed: Standard `::after` computes to `none`; the highlight is an integrated
+  two-step radial layer with a neutral `rgba(255,255,255,.09)` perimeter.
+- Passed: selected custom control and CTA both compute to `rgb(120, 207, 255)`;
+  their price-to-CTA gap is 28 px.
+- Passed: Vite production build and `impeccable detect` exit 0; browser has no
+  horizontal overflow and public loads `LandingPage-Bxwwu1jX.css`.
+- Passed: production fast-forwarded to `53ebcc4`; nginx, bot and subscription
+  services remain active. Static-only release required no restart.
+- Rollback: revert `53ebcc4`. No known residual functional risk.

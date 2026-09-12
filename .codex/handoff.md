@@ -212,3 +212,16 @@ no service restart is needed for this static-only rollback.
   report to admins. Production verification confirms both daily admin outputs
   are absent while local backup maintenance remains enabled; all services are
   active.
+
+## 2026-09-12 pricing accent consolidation
+
+- Production runtime is `53ebcc4`. Pricing now uses one ArcVPN accent family:
+  `#78cfff` for selected custom controls and the custom-plan CTA, with one
+  related hover tint and restrained translucent variants.
+- The customer-facing `// СВОЙ ТАРИФ` kicker is removed. The custom CTA has a
+  measured 28 px gap after the monthly-price label.
+- Standard no longer uses a detached blurred pseudo-layer. Its lower emphasis
+  is integrated into the card background, remains inside the neutral border and
+  has no hard cyan seam.
+- Vite build, Impeccable detector, local browser and public browser checks
+  passed. Public CSS is `LandingPage-Bxwwu1jX.css`; static release, no restart.

@@ -1758,3 +1758,15 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Final CTA uses the code-native matte `Arc horizon` with thin blue edges. Do
   not restore the removed noisy raster wallpaper. Standard tariff hover must
   not translate or appear taller at 720-900px.
+
+## 2026-09-12: pricing accent system
+
+- Pricing uses `#78cfff` as its single interactive blue accent, with related
+  translucent/hover tokens rather than unrelated cyan values. Apply it to the
+  custom selector state, range control and custom-plan CTA.
+- Standard emphasis is a restrained radial layer integrated into the card
+  background. Do not restore a blurred `::after`, hard cyan boundary, bright
+  perimeter or strong full-card blue gradient.
+- The custom plan is customer-facing copy: do not restore the internal-style
+  `// СВОЙ ТАРИФ` kicker. Keep clear separation between the monthly price and
+  creation CTA (currently 28 px).
