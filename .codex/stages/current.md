@@ -183,3 +183,42 @@ by bot restart; static WebApp files do not require subscription-service restart.
 - Passed locally and publicly: the stronger radial field renders from the lower
   half of Standard, `::after` remains `none`, horizontal overflow is zero and
   production serves `LandingPage-BZ0SXwmu.css` at commit `a04b38f`.
+
+## 2026-09-12 centered luminous Hero
+
+### Contract
+
+- Keep the existing ArcVPN headline, explanatory copy and primary cabinet CTA,
+  centered as the only Hero content.
+- Remove the desktop/mobile cabinet screenshot and its decorative frame from
+  Hero. The later cabinet proof remains untouched.
+- Build the atmosphere from deep navy into a broad soft electric-blue lower
+  light inspired by the supplied reference, using the existing ArcVPN cyan and
+  navy accent family rather than the reference's cobalt palette.
+- Replace Standard's visible gradient boundary with a neutral card plus a
+  bottom light layer whose transparent falloff starts inside the card.
+- Preserve navigation, anchors, live tariff data, interactions and all sections
+  after Hero.
+
+### Acceptance
+
+- Mobile, tablet, desktop and wide Hero: centered copy remains readable, CTA is
+  reachable, no screenshot/frame remains and no horizontal overflow appears.
+- Standard has strong lower blue emphasis without a horizontal seam or blue
+  perimeter; hover does not change its height at 720-900 px.
+- Keyboard focus and reduced-motion behavior remain intact.
+- Vite build, Impeccable detector, local browser visual QA, staged diff, deploy
+  and public browser verification pass.
+
+### Local result
+
+- Hero contains zero image/picture/frame nodes and keeps only centered copy and
+  the cabinet CTA over the ArcVPN cyan/navy light field.
+- Browser visual checks passed at 500x844, 768x1024 and 1280x720; the 390px CSS
+  state additionally removes the inherited no-wrap title rule. No horizontal
+  overflow was found.
+- Standard uses a blurred oversized radial source on a neutral card; its fade is
+  elliptical rather than a horizontal gradient boundary, and its perimeter
+  remains neutral.
+- Vite build and Impeccable detector pass. Existing unrelated Svelte unused-CSS
+  warnings remain unchanged.

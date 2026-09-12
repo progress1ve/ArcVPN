@@ -164,14 +164,6 @@
           <a class="primary" href="/app" on:click={() => track('landing_cabinet_click', { place:'hero' })}>Начать пользоваться <ArcIcon name="arrow" size={18} /></a>
         </div>
       </div>
-      <div class="hero-visual">
-        <div class="hero-stage" aria-label="Личный кабинет ArcVPN">
-          <picture>
-            <source media="(max-width: 560px)" srcset={`${base}assets/landing/cabinet-mobile.webp`} />
-            <img src={`${base}assets/landing/cabinet-desktop.webp`} alt="Главный экран личного кабинета ArcVPN" width="1600" height="924" fetchpriority="high" decoding="async" />
-          </picture>
-        </div>
-      </div>
     </section>
 
     <section class="trial-section" id="subscription" data-nav-section>
@@ -858,4 +850,18 @@
   @media(hover:hover) and (min-width:901px){.tariff-grid article:hover{border-color:rgba(151,214,247,.25);transform:translateY(-4px)}.tariff-grid article.recommended:hover{border-color:rgba(255,255,255,.09)}}
   @media(max-width:900px){.pricing-section{width:min(calc(100% - 32px),760px);padding:115px 0}.tariff-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.tariff-grid article,.tariff-grid article.recommended,.tariff-grid article:hover,.tariff-grid article.recommended:hover{min-height:430px;transform:none}.tariff-top,.tariff-grid article.recommended .tariff-top{min-height:205px;padding:24px 18px}.tariff-grid header{align-items:flex-start;flex-direction:column;gap:9px}.tariff-grid .tariff-top>p{min-height:48px;margin:13px 0 20px}.plan-price{align-items:flex-start;flex-direction:column;gap:5px}.plan-price b{font-size:34px}.tariff-grid ul{padding:20px 18px 18px}.tariff-grid article>button,.tariff-grid article.recommended>button{margin:0 14px 14px}.custom-builder{grid-template-columns:1fr;gap:24px;padding:26px}.custom-heading p{max-width:520px}.custom-total{min-height:190px}}
   @media(max-width:620px){.pricing-section{padding:100px 0}.pricing-intro h2{font-size:42px}.periods{width:100%;margin:30px auto 24px}.periods button{min-width:72px}.tariff-grid{grid-template-columns:1fr}.tariff-grid article,.tariff-grid article.recommended{min-height:0}.tariff-top,.tariff-grid article.recommended .tariff-top{min-height:215px;padding:25px 22px}.tariff-grid header{align-items:center;flex-direction:row}.plan-price{align-items:baseline;flex-direction:row}.tariff-grid .tariff-top>p{min-height:0}.tariff-grid ul{padding:22px}.custom-builder{padding:22px}}
+
+  /* Final Hero: centered message over one continuous ArcVPN light field. */
+  .hero{min-height:clamp(700px,100svh,940px);display:grid;place-items:center;padding:132px 24px 110px;overflow:hidden;background:radial-gradient(ellipse 92% 48% at 50% 104%,rgba(218,243,255,.92) 0,rgba(120,207,255,.74) 20%,rgba(45,159,211,.5) 48%,rgba(19,83,116,.16) 72%,transparent 86%),radial-gradient(ellipse 72% 52% at 50% 66%,rgba(66,186,242,.42),rgba(7,75,112,.2) 48%,transparent 76%),linear-gradient(180deg,#02050b 0,#06131f 42%,#073453 76%,#04131f 100%)}
+  .hero::before,.hero::after{content:none}
+  .hero-copy{position:relative;z-index:1;width:min(100%,960px);text-align:center;transform:none}
+  .hero h1{font-size:clamp(58px,7vw,102px);font-weight:560;line-height:.94;letter-spacing:-.067em;text-shadow:0 8px 46px rgba(0,12,42,.62)}
+  .hero h1 span{color:#eef7ff}
+  .landing .hero-text{max-width:610px;margin:30px auto 0;color:#b4c8dc;font-size:14px;line-height:1.7}
+  .hero-actions{justify-content:center;margin-top:34px}
+  .tariff-grid article.recommended{isolation:isolate;background:linear-gradient(155deg,#111216,#090a0d 72%)}
+  .tariff-grid article.recommended::before{content:'';position:absolute;z-index:0;top:20%;right:-14%;bottom:-18%;left:-14%;border-radius:50%;background:radial-gradient(ellipse at 50% 82%,rgba(120,207,255,.86) 0,rgba(45,159,211,.58) 38%,rgba(19,83,116,.24) 62%,transparent 80%);filter:blur(18px);pointer-events:none}
+  .tariff-grid article.recommended>*{position:relative;z-index:1}
+  @media(max-width:900px){.hero{min-height:760px;padding:120px 24px 96px}.hero h1{font-size:clamp(56px,9vw,78px)}.landing .hero-text{max-width:560px}}
+  @media(max-width:560px){.hero{min-height:700px;padding:112px 18px 82px}.hero h1{max-width:100%;font-size:clamp(38px,10.5vw,46px);line-height:.98}.hero h1 span{white-space:normal}.landing .hero-text{max-width:350px;margin-top:24px;font-size:11.5px;line-height:1.65}.hero-actions{margin-top:28px}}
 </style>
