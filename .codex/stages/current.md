@@ -1,77 +1,75 @@
-# Current stage — Admin Platform foundation
+# Current stage — BEDOLAGA-inspired admin visual reset
 
 ## Goal
 
-Ship the first independently releasable slice of the approved Admin roadmap:
-a route-based, permission-aware Svelte shell with a standalone authentication
-surface, grouped navigation and denser operational layout. Existing business
-behavior and API contracts remain unchanged.
+Replace the rejected ArcVPN admin visual layer with an original Svelte
+implementation that follows the approved BEDOLAGA-like operational language:
+flat near-black canvas, restrained dark surfaces, compact type, consistent
+spacing, table-first information density and clear status accents.
 
 ## Non-goals
 
-- No payment mutations, ticket workflow, node writes or database migration.
-- No React migration and no source/component copying from BEDOLAGA.
-- No changes to subscription URLs, user UUIDs or active-user access.
+- No React/Tailwind migration and no BEDOLAGA source or component copying.
+- No API, database, permission, payment or subscription behavior changes.
+- No changes to public subscription URLs, UUIDs or customer access.
 
 ## Components
 
-- `webapp/src/views/AdminConsole.svelte`
-- `webapp/src/components/admin/AdminLogin.svelte`
-- `webapp/src/components/admin/AdminNavigation.svelte`
-- `webapp/src/components/admin/AdminPageHeader.svelte`
+- `webapp/src/views/AdminConsole.svelte`: dashboard hierarchy and shared tokens.
+- `webapp/src/components/admin/AdminNavigation.svelte`: restrained sidebar.
+- `webapp/src/components/admin/AdminPageHeader.svelte`: compact page heading.
+- `webapp/src/components/admin/AdminLogin.svelte`: matching auth surface.
+- `webapp/src/views/admin/AdminUsers.svelte`: table-first users and Client 360.
+- generated `webapp_dist` assets.
 
-## Contract
+## Accepted visual contract
 
-- `/admin` opens Overview; `/admin/<section>` deep-links to an allowed section.
-- Browser back/forward changes the active section without a reload.
-- Unknown or forbidden sections fall back to the first permitted destination.
-- Navigation groups are Operations, Clients, Finance, Infrastructure, Growth,
-  and System; groups containing no allowed pages are hidden.
-- Until access is established, sidebar and operational header are not rendered.
-- Login preserves existing password and Telegram session behavior.
-- Existing permission checks and every current section remain available.
+- Near-black flat background; no large decorative aurora in the workspace.
+- Sidebar is quiet and compact; active item uses a subtle blue surface, not a
+  bright filled pill or edge stripe.
+- Page titles are 24–28 px; controls use 8/12/16/24 px rhythm.
+- KPI cards are compact, use a small semantic icon tile and avoid nested cards.
+- Nodes, operational queue and users read as dense lists/tables.
+- Borders are thin, radii are mostly 10–16 px, shadows are minimal.
+- Blue is reserved for selection/actions; green, amber and red mean status.
+- Mobile keeps essential actions and uses a compact bottom navigation.
 
 ## Acceptance
 
-- Existing sections render through the new shell without API/business changes.
-- Active route, browser history and permission fallback work in a real browser.
-- Login is a standalone centered surface with no leaked workspace chrome.
-- Layout passes 390, 768, 1280 and 1600 px review with no horizontal overflow.
-- Loading, authentication, forbidden and stale-refresh states remain explicit.
-- `npm run build` passes and generated `webapp_dist` is reviewed in the diff.
+- Shell, Overview and Users/Client 360 visibly share the new system.
+- No old bright sidebar selection, giant headings, excessive glow, or oversized
+  rounded dashboard cards remain in those surfaces.
+- Existing loading, empty, error, stale, forbidden and permission states work.
+- Routes and browser back/forward from the previous stage still work.
+- No horizontal overflow at 390, 768, 1280 and 1600 px.
+- Production build and browser review pass before deployment.
 
 ## Risks and rollback
 
-- Deep links can select a page before permissions load; resolve only after access
-  is known and replace invalid history entries.
-- Telegram auth query parameters must survive route navigation.
-- Rollback is a single stage commit plus rebuild of committed static assets.
+- Dense tables can become unreadable below tablet width; mobile rows must
+  deliberately collapse instead of shrinking every column.
+- Legacy component-local CSS may override new tokens; verify computed output.
+- Rollback by reverting the visual-reset commit and pulling it on production;
+  static-only release requires no service restart.
 
-## Verification plan
+## Verification matrix
 
-- Build the Svelte application.
-- Inspect diff and generated asset references.
-- Exercise direct navigation, click navigation and browser back/forward.
-- Capture browser evidence at all four target widths, including unauthenticated
-  layout where locally reproducible.
+- Local Svelte build and staged diff check.
+- Browser: Overview and Users at 390/768/1280/1600.
+- Browser: navigation, user drawer, keyboard focus and unauthorized login.
+- Production: bundle asset requests, public login, service health.
 
-## Evidence
+## Local evidence
 
-- Production Svelte build passes (183 modules transformed).
-- Direct navigation to `/admin/users`, click navigation, and browser back to
-  `/admin` were verified in the in-app browser.
-- Unknown `/admin/not-a-section?source=qa` is replaced with
-  `/admin?source=qa`; the query string is preserved.
-- A support-only role requesting `/admin/users` is routed to `/admin/support`
-  and receives no Users navigation item.
-- Width checks at 390, 768, 1280 and 1600 px report no horizontal overflow.
-- Unauthorized mobile state at 390 px renders `Вход в Admin` without the
-  sidebar and without horizontal overflow.
-- Existing Svelte unused-selector warnings remain non-blocking; the new login
-  autofocus warning was removed.
-- Released as `cbcd98c` to `origin/main` and pulled fast-forward on the Poland
-  control plane. No service restart was required because only committed static
-  assets and frontend source changed.
-- Public `https://arccnet.space/admin` loads the new production bundle and shows
-  the standalone login without workspace navigation. Subscription API and nginx
-  remained active after release.
+- Vite production build passed: 183 modules transformed.
+- Desktop 1600 px: four compact KPI blocks, nodes and work queue above growth
+  panels, flat sidebar state and no horizontal overflow.
+- Users 1600 px: visible Client/Payments/Subscription/Traffic/Status columns;
+  opening a row renders six facts, subscriptions, payments, timeline and actions.
+- Users with the Client 360 drawer open passed 390, 768, 1280 and 1600 px
+  overflow checks.
+- Mobile 390x844 collapses table-only columns, keeps the identity/status row and
+  exposes Client 360 as a readable two-column detail flow.
+- Unauthorized 390 px view contains no sidebar, focuses the password input via
+  keyboard navigation and has no horizontal overflow.
+- Existing unused-selector warnings outside this stage remain non-blocking.
