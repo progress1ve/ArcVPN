@@ -17,10 +17,9 @@
     { id: 'linux', label: 'Linux', icon: 'linux' },
   ]
   const featureRows = [
-    ['Автовыбор', 'Один профиль для обычного использования — без ручного перебора списка.'],
-    ['Обычные локации', 'Выбирайте страну, когда хотите управлять подключением сами.'],
-    ['Обход глушилок', 'Специальные профили расходуют только отдельный запас, а не основной трафик.'],
-    ['Одна ссылка', 'Обычные локации, сервисные профили и обход обновляются вместе с подпиской.'],
+    ['Автовыбор', 'Проверяет доступные подключения и помогает начать с подходящего профиля.'],
+    ['Выбор страны', 'Откройте нужную локацию, когда хотите управлять подключением сами.'],
+    ['Обход глушилок', 'Отдельные профили для сетей, где обычного подключения недостаточно.'],
   ]
   const faqs = [
     ['Как установить и подключить ArcVPN?', 'Откройте личный кабинет, выберите устройство и установите Happ или INCY. Затем импортируйте ссылку подписки и выберите Автовыбор.'],
@@ -168,12 +167,12 @@
 
     <section class="trial-section" id="subscription" data-nav-section>
       <div class="trial-intro">
-        <h2>Много локаций.<br />Проверьте сами.</h2>
-        <p>В подписке есть Автовыбор, обычные локации и отдельные профили обхода. Актуальный список обновляется автоматически — проще открыть пробный доступ и выбрать подходящий вариант на своём устройстве.</p>
+        <h2>Попробуйте ArcVPN<br />на своей сети</h2>
+        <p>Оба варианта дают новому пользователю 7 дней доступа и 5 ГБ для профилей обхода. Выберите удобный способ активации.</p>
       </div>
       <div class="trial-panel">
         <article class="trial-free">
-          <span>В Telegram</span>
+          <span>Основной способ · Telegram</span>
           <strong>Бесплатно</strong>
           <p>Для нового пользователя: 7 дней ArcVPN и 5 ГБ обхода глушилок. Бот активирует пробную подписку автоматически.</p>
           {#if config.bot_url}
@@ -181,7 +180,7 @@
           {/if}
         </article>
         <article class="trial-site">
-          <span>На сайте</span>
+          <span>Альтернатива · на сайте</span>
           <strong>10 ₽</strong>
           <p>Для нового email-аккаунта: 7 дней Standard и 5 ГБ обхода. Автопродление можно отключить в настройках.</p>
           <a href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a>
@@ -192,7 +191,7 @@
     <section class="apps-section" id="apps" data-nav-section>
       <div class="apps-intro">
         <h2>Работает на ваших устройствах</h2>
-        <p>Автовыбор, обычные локации и отдельные профили обхода доступны через одну подписку.</p>
+        <p>Один кабинет управляет подпиской, устройствами и всеми доступными профилями подключения.</p>
       </div>
 
       <div class="feature-ledger" id="features">
@@ -210,8 +209,8 @@
 
       <div class="apps-proof">
         <div class="app-copy">
-          <h3>Выберите привычное приложение</h3>
-          <p>ArcVPN работает через Happ и INCY. Ссылка импорта и инструкция появятся в личном кабинете — выбирать приложение на этой странице не нужно.</p>
+          <h3>Happ или INCY — как вам удобнее</h3>
+          <p>Установите подходящее приложение. Готовая ссылка импорта и инструкция для вашего устройства появятся в личном кабинете.</p>
           <div class="device-list" aria-label="Поддерживаемые платформы">
             {#each devices as device}
               <span>
@@ -295,7 +294,7 @@
     </section>
 
     <section class="connection-section" id="steps">
-      <div class="intro"><h2>Четыре действия до подключения</h2></div>
+      <div class="intro"><h2>Подключение за четыре шага</h2><p>Короткий путь от тарифа до работающего подключения.</p></div>
       <ol><li><span>1</span><b>Выберите тариф</b><p>Готовый вариант или свои параметры.</p></li><li><span>2</span><b>Получите ссылку</b><p>Она появится после активации.</p></li><li><span>3</span><b>Установите приложение</b><p>Подойдут Happ или INCY.</p></li><li><span>4</span><b>Импортируйте подписку</b><p>Выберите Автовыбор и подключитесь.</p></li></ol>
     </section>
 
@@ -310,11 +309,11 @@
 
     <section class="final-section">
       <div class="arc-horizon" aria-hidden="true"></div>
-      <div><h2>ArcVPN готов<br />к подключению</h2><p>Одна подписка. Ваши устройства. Управление через сайт и Telegram.</p><nav><a class="primary" href="/app">Личный кабинет <ArcIcon name="arrow" size={18} /></a><a class="quiet-link" href="#tariffs">Посмотреть тарифы</a></nav></div>
+      <div><h2>Проверьте ArcVPN<br />на своей сети</h2><p>7 дней для нового пользователя: бесплатно через Telegram или за 10 ₽ на сайте.</p><nav>{#if config.bot_url}<a class="primary" href={config.bot_url} target="_blank" rel="noopener">Попробовать бесплатно <ArcIcon name="arrow" size={18} /></a>{/if}<a class="quiet-link" href="/app">Попробовать на сайте за 10 ₽</a></nav></div>
     </section>
 
     <section class="links-section">
-      <h2>Оставайтесь на связи</h2>
+      <h2>Поддержка и управление</h2>
       <nav>
         {#if config.bot_url}<a href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_social_click', { channel:'bot' })}><b>Telegram-бот</b><span>Подключение и уведомления</span><ArcIcon name="arrow" size={18} /></a>{/if}
         {#if config.channel_url}<a href={config.channel_url} target="_blank" rel="noopener" on:click={() => track('landing_social_click', { channel:'channel' })}><b>Telegram-канал</b><span>Новости ArcVPN</span><ArcIcon name="arrow" size={18} /></a>{/if}
@@ -899,4 +898,97 @@
   .links-section nav a:last-child{border-bottom:0}.footer{border-top-color:var(--cabinet-hairline)}
   @media(max-width:900px){.bypass-section{width:min(calc(100% - 32px),720px);grid-template-columns:1fr;gap:48px;padding:112px 0;text-align:center}.bypass-copy{max-width:650px;margin:auto}.bypass-section p{margin-right:auto;margin-left:auto}.bypass-well{min-height:390px}.faq-list{padding:0 20px}}
   @media(max-width:620px){.bypass-section{padding:96px 0}.bypass-well{min-height:350px;border-radius:24px}.bypass-section dl{width:calc(100% - 32px);padding:16px 20px}.faq-list,.links-section nav{padding:0 16px;border-radius:22px}.final-section{width:calc(100% - 24px);border-radius:26px}}
+
+  /* 10/10 refinement: readable type, concise rhythm and verified proof. */
+  .trial-section{padding:88px 0 96px}
+  .trial-intro{margin-bottom:42px}
+  .trial-panel{grid-template-columns:1.18fr .82fr;border-radius:28px;background:transparent;box-shadow:none}
+  .trial-panel article{min-height:286px;padding:34px 36px}
+  .trial-panel strong{font-size:clamp(42px,4vw,54px)}
+  .trial-panel span{color:#9cafc0;font-size:11px;letter-spacing:.02em}
+  .trial-panel p{margin:18px 0 24px;color:#aebdcc;font-size:14px;line-height:1.65}
+  .trial-panel a{min-height:46px;font-size:11px}
+  .trial-site{background:rgba(7,13,23,.58)!important}
+  .trial-site strong{color:#c8d5df;font-size:clamp(38px,3.5vw,48px)}
+  .apps-section{padding:86px 0 92px}
+  .apps-intro p,.intro>p,.trial-intro>p{color:#aebdcc;font-size:15px;line-height:1.7}
+  .apps-section .feature-ledger{grid-template-columns:minmax(0,1.3fr) minmax(280px,.7fr);grid-template-rows:repeat(2,minmax(132px,auto));margin-top:44px}
+  .apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n){grid-column:2;min-height:0;padding:26px 28px}
+  .apps-section .feature-ledger article.feature-primary{grid-column:1;grid-row:1 / 3;min-height:292px;padding:34px}
+  .apps-section .feature-ledger h3,.apps-section .feature-ledger article.feature-primary h3{font-size:22px}
+  .apps-section .feature-ledger article.feature-primary h3{font-size:30px}
+  .apps-section .feature-ledger p{color:#aebdcc;font-size:14px;line-height:1.6}
+  .apps-proof{min-height:510px;margin-top:62px;border:1px solid var(--cabinet-hairline);border-radius:30px;overflow:hidden}
+  .app-copy{padding:48px 54px}
+  .app-copy h3{font-size:clamp(38px,4.2vw,54px)}
+  .app-copy>p{margin-top:20px;color:#aebdcc;font-size:15px;line-height:1.7}
+  .device-list span{font-size:12px}
+  .app-icon-stage{min-height:510px}
+  .app-phone{max-height:470px}
+  .bypass-section{gap:60px;padding:92px 0}
+  .bypass-section p{color:#aebdcc;font-size:15px;line-height:1.68}
+  .bypass-section small{color:#899baa;font-size:12px}
+  .bypass-well{min-height:350px}
+  .bypass-section dt,.bypass-section dd{font-size:13px}
+  .pricing-section{padding:96px 0 92px}
+  .pricing-intro p{color:#aebdcc;font-size:15px}
+  .periods{margin:36px auto 32px}
+  .periods{border-color:var(--cabinet-hairline);background:rgba(7,13,23,.9);box-shadow:inset 0 1px rgba(255,255,255,.035)}
+  .periods button{font-size:11px}.periods button.active{color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef)}
+  .tariff-grid article,.tariff-grid article.recommended{border-color:var(--cabinet-hairline);background:linear-gradient(150deg,rgba(16,26,39,.96),rgba(7,13,23,.92) 72%);box-shadow:inset 0 1px rgba(255,255,255,.035),0 28px 80px rgba(0,0,0,.25)}
+  .tariff-grid article.recommended{border-color:rgba(120,207,255,.22);background:linear-gradient(150deg,rgba(17,32,47,.98),rgba(7,15,25,.94) 72%)}
+  .tariff-grid article.recommended::before{top:32%;right:-18%;bottom:-22%;left:-18%;background:radial-gradient(ellipse at 50% 84%,rgba(107,189,233,.55),rgba(45,120,187,.28) 42%,rgba(17,55,83,.12) 64%,transparent 80%);filter:blur(22px)}
+  .tariff-grid header em{border-color:rgba(120,207,255,.24);color:#b9e2fb;background:rgba(107,189,233,.07)}
+  .tariff-grid .tariff-top>p{color:#aeb7c1;font-size:14px}
+  .tariff-grid li{font-size:13px}
+  .plan-price span,.tariff-grid article>small{font-size:11px}
+  .tariff-grid article>button{border-color:var(--cabinet-hairline);color:#c9d9e5;background:#101a27}
+  .tariff-grid article.recommended>button{border-color:rgba(185,226,251,.56);color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef)}
+  .custom-builder{border-color:var(--cabinet-hairline);background:linear-gradient(150deg,rgba(16,26,39,.96),rgba(7,13,23,.92) 72%);box-shadow:inset 0 1px rgba(255,255,255,.035),0 28px 80px rgba(0,0,0,.22)}
+  .custom-controls label>div{background:rgba(3,8,14,.64)}
+  .custom-total{border-color:rgba(120,207,255,.14);background:linear-gradient(150deg,rgba(19,38,55,.9),rgba(8,17,27,.9))}
+  .custom-heading p{color:#aeb7c1;font-size:13px}
+  .custom-controls label>span{font-size:12px}
+  .custom-controls button{font-size:11px}
+  .custom-total .custom-label,.custom-total>span,.custom-total>small:not(.custom-label){font-size:11px}
+  .connection-section{padding:88px 0}
+  .connection-section .intro{max-width:850px}
+  .connection-section .intro>p{margin-top:18px}
+  .connection-section ol{margin-top:42px}
+  .connection-section li{min-height:170px;padding:28px}
+  .connection-section li>span{font-size:12px}
+  .connection-section li>b{font-size:16px}
+  .connection-section li>p{color:#aebdcc;font-size:14px;line-height:1.55}
+  .faq-section{gap:64px;padding:88px 0}
+  .faq-list button span{font-size:15px}
+  .faq-list p{color:#aebdcc;font-size:14px;line-height:1.7}
+  .final-section{min-height:490px;margin:12px auto 56px}
+  .final-section h2{font-size:clamp(48px,5.8vw,76px)}
+  .final-section p{max-width:620px;color:#aebdcc;font-size:15px;line-height:1.65}
+  .links-section{gap:64px;padding:54px 0 62px}
+  .links-section nav a{min-height:70px}
+  .links-section nav b{font-size:14px}
+  .links-section nav span{color:#9cafc0;font-size:12px}
+
+  @media(max-width:900px){
+    .trial-section{padding:78px 0 82px}.trial-panel{grid-template-columns:1.15fr .85fr}.trial-panel article{min-height:270px;padding:30px 28px}
+    .apps-section{padding:78px 0 82px}.apps-section .feature-ledger{grid-template-columns:1fr 1fr;grid-template-rows:auto}.apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n),.apps-section .feature-ledger article.feature-primary{grid-column:auto;grid-row:auto;min-height:160px;padding:26px}.apps-section .feature-ledger article.feature-primary{grid-column:1 / 3;min-height:280px}
+    .apps-proof{min-height:0;margin-top:52px}.app-icon-stage{min-height:430px}.app-copy{padding:42px}
+    .bypass-section{gap:38px;padding:78px 0}.bypass-well{min-height:320px}
+    .pricing-section{padding:86px 0}.tariff-grid article,.tariff-grid article.recommended,.tariff-grid article:hover,.tariff-grid article.recommended:hover{min-height:390px}.tariff-grid li{font-size:12px}
+    .connection-section{padding:78px 0}.faq-section{gap:40px;padding:78px 0}.links-section{gap:36px;padding:48px 0 56px}
+  }
+  @media(max-width:620px){
+    .landing .hero-text{font-size:14px;line-height:1.6}
+    .trial-section{padding:68px 0}.trial-intro{margin-bottom:30px}.trial-intro h2,.intro h2,.apps-intro h2{font-size:38px}.trial-intro>p,.intro>p,.apps-intro p{font-size:14px}
+    .trial-panel{grid-template-columns:1fr;gap:0}.trial-panel article{min-height:0;padding:28px 24px}.trial-panel article+article{border-top:1px solid var(--cabinet-hairline)}.trial-panel p{font-size:14px}.trial-site strong{font-size:40px}
+    .apps-section{padding:66px 0}.apps-section .feature-ledger{grid-template-columns:1fr;margin-top:32px}.apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n),.apps-section .feature-ledger article.feature-primary{grid-column:1;min-height:130px;padding:22px}.apps-section .feature-ledger article.feature-primary{min-height:260px}.apps-section .feature-ledger p{font-size:14px}
+    .apps-proof{margin-top:42px;border-radius:24px}.app-copy{padding:34px 22px}.app-copy h3{font-size:36px}.app-copy>p{font-size:14px}.device-list span{font-size:11px}.app-icon-stage{min-height:300px;margin-top:0}.app-phone{width:min(41vw,148px);max-height:290px}
+    .bypass-section{padding:68px 0}.bypass-section h2{font-size:38px}.bypass-section p{font-size:14px}.bypass-section small{font-size:11px}.bypass-well{min-height:290px}.bypass-section dt,.bypass-section dd{font-size:12px}
+    .pricing-section{padding:72px 0}.pricing-intro h2{font-size:38px}.pricing-intro p{font-size:14px}.tariff-grid .tariff-top>p,.tariff-grid li{font-size:14px}.plan-price span,.tariff-grid article>small{font-size:12px}.custom-heading p,.custom-controls label>span,.custom-controls button,.custom-total .custom-label,.custom-total>span,.custom-total>small:not(.custom-label){font-size:12px}
+    .connection-section{padding:66px 0}.connection-section ol{grid-template-columns:1fr 1fr;gap:8px;margin-top:30px}.connection-section li,.connection-section li+li,.connection-section li:nth-child(3){min-height:150px;padding:20px;border:1px solid var(--cabinet-hairline);border-radius:20px}.connection-section li>p{font-size:14px}
+    .faq-section{gap:30px;padding:66px 0}.faq-list button span{font-size:14px}.faq-list p{font-size:14px}
+    .final-section{min-height:440px;margin-bottom:42px}.final-section>div{padding:38px 20px}.final-section h2{font-size:42px}.final-section p{font-size:14px}.final-section nav{gap:14px}
+    .links-section{gap:28px;padding:38px 0 48px}.links-section h2{font-size:36px}.links-section nav a{min-height:64px}.links-section nav b{font-size:13px}.links-section nav span{font-size:11px}
+  }
 </style>
