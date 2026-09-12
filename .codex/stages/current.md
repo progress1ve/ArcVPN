@@ -251,3 +251,34 @@ by bot restart; static WebApp files do not require subscription-service restart.
   px in the live browser, Hero bottom equals the viewport bottom, copy shift is
   36 px and horizontal overflow is zero. Production services remain active;
   static release required no restart. Rollback is a normal revert of `31aee4d`.
+
+## 2026-09-12 cabinet-system Hero alignment
+
+### Contract
+
+- Replace the landing's broad bright floor with the customer cabinet's deep
+  `#03070e` base, restrained blue edge auroras and the cabinet CTA gradient.
+- Hero message hierarchy: free internet, price from 80 RUB per month, separate
+  bypass profiles for jammed networks, stable quality.
+- Keep one centered text/CTA group. Centre the grid track itself with
+  `place-content`, then use one small viewport-relative optical shift so the
+  group is consistently just below centre across breakpoints.
+- Preserve navigation, all downstream sections, pricing behavior and routes.
+
+### Acceptance
+
+- At mobile, tablet, desktop and wide sizes the copy group centre remains close
+  to the viewport centre and below it; headline fits without clipping.
+- Hero uses the same base, aurora family and primary-button colors as the
+  customer cabinet; no flat bright cyan floor remains.
+- Full-viewport coverage, zero horizontal overflow, keyboard focus, reduced
+  motion, build, Impeccable detector and browser QA remain passing.
+
+### Local result
+
+- At 1280x720 the copy centre is 42 px below the viewport centre; Hero height is
+  exactly 720 px and horizontal overflow is zero.
+- 500x844 and 768x1024 captures show centred, unclipped headline/body/CTA with
+  consistent cabinet-style navy negative space and restrained aurora edges.
+- CTA computes to the customer cabinet gradient `#b6e7ff -> #6bc0ef`; Hero base
+  is `#03070e`. Vite build and Impeccable detector pass.
