@@ -1,5 +1,14 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-12 pricing/navigation polish
+
+- Production runtime `4eedf60` is deployed. At scroll top the landing navigation
+  has no visible container; its bordered rounded shell returns after scrolling.
+- Standard uses a neutral card with a separate diffuse lower light layer. Tariff
+  SVGs are unboxed neutral icons, INCY is offset 4 px, and the custom tariff is a
+  wide three-column enterprise-style builder.
+- Vite build and public desktop/mobile browser checks passed; no service restart.
+
 ## 2026-09-12 frontend closeout
 
 - Production `cfad811`: login pseudo-layers and logo backing removed.

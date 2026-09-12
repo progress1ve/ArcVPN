@@ -133,3 +133,17 @@ by bot restart; static WebApp files do not require subscription-service restart.
   so no blue perimeter or horizontal seam can appear.
 - Custom pricing reads as one wide enterprise-style tariff: clear left offer,
   three compact control rows and a high-contrast price/action column.
+
+### Result and evidence
+
+- Passed: desktop browser shows a transparent square navigation shell at the
+  page top and restores the dark bordered pill after scrolling.
+- Passed: Standard has a neutral `rgba(255,255,255,.09)` perimeter; its light is
+  a separate blurred bottom pseudo-layer with no hard horizontal edge.
+- Passed: INCY computed `top` is 4 px; tariff icons inherit neutral text color
+  and have no tile background or border.
+- Passed: the wide custom tariff renders as three readable columns; mobile has
+  no horizontal overflow (`scrollWidth` equals `clientWidth`).
+- Passed: Vite build, diff check, production fast-forward and public asset/browser
+  verification. Runtime commit `4eedf60`; static release, no restart required.
+- Rollback: revert `4eedf60`. No known residual functional risk.

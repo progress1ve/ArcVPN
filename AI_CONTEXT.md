@@ -7,6 +7,10 @@
 - `login-mark` is a transparent standalone logo, not a bordered tile.
 - Landing pricing uses equal dark comparison cards, with blue emphasis contained
   inside Standard and disabled positional hover at 720-900 px.
+- Keep Standard's perimeter neutral and render its blue emphasis as a separate
+  blurred lower layer; a blue border or full-card gradient creates a visible seam.
+- Landing navigation is visually shell-free at scroll top and becomes a bordered
+  dark pill only in its `compact` scrolled state.
 
 ## Advertising acquisition contract (2026-09-01)
 
