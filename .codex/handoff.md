@@ -239,3 +239,6 @@ no service restart is needed for this static-only rollback.
 - Local browser checks covered 500x844, 768x1024 and 1280x720. Vite build,
   Impeccable detector and public browser verification passed; current public
   CSS is `LandingPage-RT20uY6Q.css`. Static release required no restart.
+- Follow-up `31aee4d` removes the 940 px Hero cap: the light field now covers at
+  least `100svh`, including tall displays, and the copy is shifted slightly
+  lower per breakpoint. Public CSS is `LandingPage-CBmkrkur.css`.

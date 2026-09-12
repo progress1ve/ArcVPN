@@ -246,3 +246,8 @@ by bot restart; static WebApp files do not require subscription-service restart.
   strip; the copy group is shifted down by 5svh (4svh tablet, 2.5svh mobile).
 - Passed: 500x844, 768x1024 and 1600x1200 visual checks retain readable centered
   copy; Vite build and Impeccable detector exit 0.
+
+- Passed publicly at `31aee4d`: computed Hero and viewport heights are both 720
+  px in the live browser, Hero bottom equals the viewport bottom, copy shift is
+  36 px and horizontal overflow is zero. Production services remain active;
+  static release required no restart. Rollback is a normal revert of `31aee4d`.

@@ -1755,6 +1755,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - As of `6fbb72a`, Hero intentionally contains no cabinet capture or frame. It
   keeps centered headline/copy/CTA over a continuous ArcVPN cyan-to-navy light
   field. The later cabinet proof remains the product screenshot surface.
+- Hero has no maximum-height cap: it must cover at least `100svh` on every
+  device. Keep the centered copy slightly below geometric centre (5svh desktop,
+  4svh tablet and 2.5svh mobile) and do not expose the next black section inside
+  the initial viewport.
 - Final CTA uses the code-native matte `Arc horizon` with thin blue edges. Do
   not restore the removed noisy raster wallpaper. Standard tariff hover must
   not translate or appear taller at 720-900px.
