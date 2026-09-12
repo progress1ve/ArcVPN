@@ -303,7 +303,6 @@
           <div><span>Помощь</span>{#if config.support_url}<a href={config.support_url} target="_blank" rel="noopener">Поддержка</a>{/if}<a href="#faq">Вопросы</a>{#if config.status_url}<a href={config.status_url} target="_blank" rel="noopener">Статус</a>{/if}</div>
         </nav>
       </div>
-      <div class="footer-wordmark" aria-hidden="true">ArcVPN</div>
       <div class="footer-bottom"><small>© {new Date().getFullYear()} ArcVPN</small><nav aria-label="Правовая информация"><a href="/legal/user-agreement">Соглашение и конфиденциальность</a></nav></div>
     </div>
   </footer>
@@ -976,7 +975,7 @@
   .faq-list button i :global(.arc-icon){display:block}
 
   .footer{display:block;width:100%;min-height:0;margin:0;padding:0 24px 24px;border:0;background:var(--cabinet-bg)}
-  .footer-shell{position:relative;isolation:isolate;display:flex;width:min(100%,1440px);min-height:620px;overflow:hidden;flex-direction:column;margin:0 auto;padding:64px 72px 28px;border:1px solid var(--cabinet-hairline);border-radius:42px;background:radial-gradient(circle at 4% 8%,rgba(45,120,187,.17),transparent 30%),radial-gradient(circle at 92% 14%,rgba(107,189,233,.1),transparent 27%),linear-gradient(150deg,#0b1522,#050a12 70%);box-shadow:inset 0 1px rgba(255,255,255,.04),0 28px 90px rgba(0,0,0,.28)}
+  .footer-shell{position:relative;isolation:isolate;width:min(100%,1440px);margin:0 auto;padding:48px 56px 26px;border:1px solid var(--cabinet-hairline);border-radius:30px;background:linear-gradient(150deg,#0b1522,#050a12 70%);box-shadow:inset 0 1px rgba(255,255,255,.04)}
   .footer-top{position:relative;z-index:2;display:grid;grid-template-columns:minmax(250px,.78fr) minmax(560px,1.42fr);gap:80px}
   .footer-lead{max-width:330px}.footer-lead .brand{width:max-content}.footer-lead p{margin:24px 0 0;color:#9cafc0;font-size:14px;line-height:1.65}
   .footer .footer-nav{display:grid;width:auto;grid-template-columns:repeat(3,minmax(0,1fr));gap:34px;margin:0;padding:0;order:initial}
@@ -984,14 +983,13 @@
   .footer .footer-nav span{margin-bottom:5px;color:#6f8292;font-size:10px;font-weight:760;letter-spacing:.12em;text-transform:uppercase}
   .footer .footer-nav a{color:#c5d4df;font-size:13px;line-height:1.35;transition:color .2s ease,transform .2s ease}
   .footer .footer-nav a:hover{color:#b9e2fb;transform:translateX(3px)}
-  .footer-wordmark{position:relative;z-index:1;margin:auto 0 -.16em;font-size:clamp(160px,21vw,340px);font-weight:720;line-height:.72;letter-spacing:-.085em;white-space:nowrap;color:#dcecf5;filter:drop-shadow(0 22px 55px rgba(68,158,207,.12));user-select:none}
-  .footer-bottom{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:24px;padding-top:24px;border-top:1px solid var(--cabinet-hairline)}
+  .footer-bottom{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:24px;margin-top:42px;padding-top:22px;border-top:1px solid var(--cabinet-hairline)}
   .footer-bottom small,.footer-bottom a{color:#718493;font-size:10px}.footer-bottom a:hover{color:#b9e2fb}
 
   @media(max-width:900px){
-    .footer{padding:0 16px 16px}.footer-shell{min-height:580px;padding:50px 42px 24px;border-radius:32px}.footer-top{grid-template-columns:1fr;gap:38px}.footer-lead{max-width:520px}.footer .footer-nav{grid-template-columns:repeat(3,minmax(0,1fr))}.footer-wordmark{font-size:clamp(120px,23vw,210px)}
+    .footer{padding:0 16px 16px}.footer-shell{padding:42px 38px 24px;border-radius:28px}.footer-top{grid-template-columns:1fr;gap:38px}.footer-lead{max-width:520px}.footer .footer-nav{grid-template-columns:repeat(3,minmax(0,1fr))}
   }
   @media(max-width:620px){
-    .apps-proof{margin-top:34px}.footer{padding:0 10px 10px}.footer-shell{min-height:0;padding:34px 24px 22px;border-radius:28px}.footer-top{gap:34px}.footer-lead p{margin-top:18px;font-size:13px}.footer .footer-nav{grid-template-columns:1fr 1fr;gap:30px 18px}.footer .footer-nav div:last-child{grid-column:1 / -1}.footer .footer-nav a{font-size:12px}.footer-wordmark{margin-top:70px;margin-bottom:-.11em;font-size:clamp(86px,30vw,130px)}.footer-bottom{align-items:flex-start;flex-direction:column;gap:10px;padding-top:18px}.footer-bottom nav{display:block}
+    .apps-proof{margin-top:34px}.footer{padding:0 10px 10px}.footer-shell{padding:32px 22px 20px;border-radius:24px}.footer-top{gap:32px}.footer-lead p{margin-top:18px;font-size:13px}.footer .footer-nav{grid-template-columns:1fr 1fr;gap:28px 18px}.footer .footer-nav div:last-child{grid-column:1 / -1}.footer .footer-nav a{font-size:12px}.footer-bottom{align-items:flex-start;flex-direction:column;gap:10px;margin-top:34px;padding-top:18px}.footer-bottom nav{display:block}
   }
 </style>
