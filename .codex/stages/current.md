@@ -1,4 +1,22 @@
-# Current stage — application and bypass visual alignment
+# Current stage — referral deep-link recovery
+
+## Result
+
+- Acceptance passed: `ref_…` and `ad_…` survive the consent gate; referral
+  binding precedes trial provisioning; existing users are not rebound.
+- Acceptance passed: Remnawave zero-inbound compatibility rows synchronize
+  bonus expiry through the authority panel.
+- Verification: focused tests 8 passed; Python compile and diff checks passed;
+  production commits `460c86e` and `ce952ab` pulled fast-forward; bot active.
+- Production repair: one verifiable invite attempt, zero paid invite evidence,
+  +5 days credited. SQLite backup and admin audit record created. DB, main
+  Remnawave and LTE expiry all verified at 2026-09-23 13:51:26 UTC.
+- Residual limitation: discarded historical Telegram payloads cannot be mapped
+  back to a friend account. No speculative referral edge was created.
+- Rollback: revert the two commits and restart the bot. Restore the exact
+  pre-repair backup only if the manual +5-day compensation must be reversed.
+
+# Previous stage — application and bypass visual alignment
 
 ## Goal
 

@@ -1,5 +1,15 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## Referral gate repair (2026-09-12)
+
+- The legal-consent middleware must preserve both `ad_…` and `ref_…` Telegram
+  `/start` attribution payloads in FSM state. On consent, consume the payload
+  once, bind a new referral before provisioning the automatic trial, and never
+  rebind an existing user.
+- Remnawave compatibility key rows intentionally use `panel_inbound_id=0` and
+  may retain a legacy server ID. `push_key_to_panel` must accept zero and use the
+  configured Remnawave authority when credentials are available.
+
 ## Login and pricing visual contract (2026-09-12)
 
 - The unauthenticated cabinet screen relies on the shared deep-navy aurora;

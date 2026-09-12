@@ -1,4 +1,23 @@
-# ArcVPN handoff — public Northern Flow landing
+# ArcVPN handoff — referral deep-link recovery
+
+## 2026-09-12 production repair
+
+- Production is at `ce952ab`. Telegram `ref_…` payloads now survive the legal
+  consent gate and are bound before automatic trial provisioning; advertising
+  attribution remains intact and repeated callbacks cannot rebind a user.
+- Bonus expiry sync now accepts Remnawave's intentional `panel_inbound_id=0`
+  compatibility rows and targets the configured Remnawave authority.
+- The screenshot client was uniquely identified without exposing identifiers.
+  Historical loss left no recoverable Telegram friend identity; one invite-page
+  hit and no paid invite were verifiable. A conservative +5-day manual
+  compensation was backed up and audited.
+- The resulting expiry is 2026-09-23 16:51 Moscow time in SQLite, the main
+  Remnawave identity, and the LTE identity. Bot service is active.
+- Focused regression tests: 8 passed. The full suite from the isolated worktree
+  could not collect because its ignored local settings DB was intentionally not
+  copied into the clean checkout.
+
+# Previous handoff — public Northern Flow landing
 
 ## 2026-09-12 integrated footer release
 
