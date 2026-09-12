@@ -1,5 +1,17 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-12 integrated footer release
+
+- Production `2ae95c6` replaces the separate support directory and small footer
+  with one responsive cabinet-style closing surface and an oversized ArcVPN
+  wordmark. It includes management/help links plus the owner-supplied Instagram
+  and TikTok destinations.
+- The three capability cards, bypass chip and “Тарифы с обходом” action are
+  removed. Preset and custom tariff actions now enter plain `/app`.
+- FAQ controls use rotating SVG arrows with preserved `aria-expanded` state.
+  Vite build, Impeccable detector, local browser QA and public DOM/visual checks
+  passed; public CSS is `LandingPage-_qWWOCID.css`. No service restart.
+
 ## 2026-09-12 pricing/navigation polish
 
 - Production runtime `4eedf60` is deployed. At scroll top the landing navigation

@@ -1780,10 +1780,11 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   is primary and the seven-day website trial for 10 RUB is secondary. Do not
   restore the rejected post-Hero four-fact strip or label trial offers as a
   location catalogue.
-- Landing support copy must remain at least 14 px on mobile. Keep capabilities
-  consolidated to Auto-select, country choice and bypass, and describe Happ /
-  INCY as two supported import applications rather than asking for a choice and
-  then saying no choice is needed.
+- Landing support copy must remain at least 14 px on mobile. The former
+  Auto-select/country/bypass capability cards were removed by owner request;
+  keep the product explanation in the remaining application and bypass proofs.
+  Describe Happ / INCY as two supported import applications rather than asking
+  for a choice and then saying no choice is needed.
 - Pricing belongs to the cabinet design system: translucent deep-navy surfaces,
   cold hairlines and the same cyan control family. Standard may have contained
   blue depth, but no hard seam, detached halo or hover-induced height change.
@@ -1799,3 +1800,14 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - The custom plan is customer-facing copy: do not restore the internal-style
   `// СВОЙ ТАРИФ` kicker. Keep clear separation between the monthly price and
   creation CTA (currently 28 px).
+
+## 2026-09-12: integrated landing footer and direct tariff entry
+
+- Support/management links and the legal footer are one rounded deep-navy
+  closing surface with an oversized solid ArcVPN wordmark. Keep it in the
+  customer-cabinet palette rather than copying the reference's light canvas.
+- Instagram and TikTok use the exact owner-supplied HTTPS destinations and must
+  remain visible even when public config omits optional social fields.
+- Preset tariff selection and custom tariff creation enter plain `/app`; do not
+  restore product, month or screen query parameters unless the owner asks.
+- FAQ rows use rotating code-native SVG arrows and keep `aria-expanded` in sync.

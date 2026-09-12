@@ -57,3 +57,8 @@ features, bypass actions, tariff destinations and FAQ controls exactly as asked.
 - Browser interactions: FAQ arrow changes from 90 to -90 degrees and
   `aria-expanded` becomes true; exact Instagram/TikTok URLs and custom `/app`
   destination were confirmed from the rendered DOM.
+- Production: commit `2ae95c6` fast-forwarded on Poland; nginx,
+  `arcvpn-bot.service` and `arcvpn-subscription.service` remained active.
+- Public `https://arccnet.space/`: stylesheet `LandingPage-_qWWOCID.css`, zero
+  overflow, exact social destinations, plain custom `/app`, all removed-element
+  counts zero, and the integrated footer was visually inspected.
