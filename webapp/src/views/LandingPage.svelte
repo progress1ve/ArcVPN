@@ -16,11 +16,6 @@
     { id: 'windows', label: 'Windows', icon: 'windows' },
     { id: 'linux', label: 'Linux', icon: 'linux' },
   ]
-  const featureRows = [
-    ['Автовыбор', 'Проверяет доступные подключения и помогает начать с подходящего профиля.'],
-    ['Выбор страны', 'Откройте нужную локацию, когда хотите управлять подключением сами.'],
-    ['Обход глушилок', 'Отдельные профили для сетей, где обычного подключения недостаточно.'],
-  ]
   const faqs = [
     ['Как установить и подключить ArcVPN?', 'Откройте личный кабинет, выберите устройство и установите Happ или INCY. Затем импортируйте ссылку подписки и выберите Автовыбор.'],
     ['Что такое трафик обхода глушилок?', 'Это отдельный запас для специальных профилей, которые помогают в сложных сетях. Основной трафик остаётся безлимитным и учитывается отдельно.'],
@@ -53,10 +48,6 @@
 
   function track(event, details = {}) {
     window.dataLayer?.push({ event, ...details })
-  }
-  function cabinetUrl(params = {}) {
-    const query = new URLSearchParams(params)
-    return `/app${query.size ? `?${query}` : ''}`
   }
   function scheduleQuote(months, devicesCount, lte) {
     clearTimeout(quoteTimer)
@@ -108,7 +99,7 @@
   }
   function selectTariff(plan) {
     track('landing_tariff_select', { product: plan.product_code, months: plan.period_months })
-    location.href = cabinetUrl({ screen: 'tariffs', product: plan.product_code, months: plan.period_months })
+    location.href = '/app'
   }
   onMount(() => {
     document.title = 'ArcVPN — одна подписка для свободного интернета'
@@ -194,19 +185,6 @@
         <p>Один кабинет управляет подпиской, устройствами и всеми доступными профилями подключения.</p>
       </div>
 
-      <div class="feature-ledger" id="features">
-        {#each featureRows as feature, index}
-          <article class:feature-primary={index === 0}>
-            {#if index === 0}
-              <div class="route-orbit" aria-hidden="true"><i></i><i></i><i></i><b></b></div>
-            {:else}
-              <span class="feature-index">0{index + 1}</span>
-            {/if}
-            <div><h3>{feature[0]}</h3><p>{feature[1]}</p></div>
-          </article>
-        {/each}
-      </div>
-
       <div class="apps-proof">
         <div class="app-copy">
           <h3>Happ или INCY — как вам удобнее</h3>
@@ -228,12 +206,10 @@
 
     <section class="bypass-section">
       <div class="bypass-copy">
-        <span class="section-chip">Отдельный запас</span>
         <h2>Обход глушилок — отдельный запас</h2>
         <p>Основной трафик ArcVPN остаётся безлимитным. Дополнительные гигабайты расходуются только при выборе специальных профилей обхода — для сетей, где обычное подключение не справляется.</p>
         <p>Если запас закончится, Автовыбор и обычные локации продолжат работать. Объём обхода можно выбрать в тарифе или докупить позже в личном кабинете.</p>
         <small>Доступность зависит от сети, устройства и характера ограничений.</small>
-        <a class="primary" href="#tariffs">Тарифы с обходом <ArcIcon name="arrow" size={18} /></a>
       </div>
       <div class="bypass-well"><dl><div><dt>Основной интернет</dt><dd>Безлимитно</dd></div><div><dt>Профили обхода</dt><dd>Отдельные гигабайты</dd></div><div><dt>После исчерпания</dt><dd>Обычные профили работают</dd></div><div><dt>Нужен ещё запас</dt><dd>Можно докупить</dd></div></dl></div>
     </section>
@@ -288,7 +264,7 @@
           <span>{customMonths} мес. · {customDevices} устр. · {customLte} ГБ обхода</span>
           <b>{quoteBusy ? '…' : customQuote ? `${customQuote.price_rub.toLocaleString('ru-RU')} ₽` : 'Цена недоступна'}</b>
           {#if customQuote?.monthly_rub}<small>{customQuote.monthly_rub.toLocaleString('ru-RU')} ₽ в месяц</small>{/if}
-          <a href="/app?screen=custom-tariff" on:click={() => track('landing_custom_tariff_click')}>Создать тариф <ArcIcon name="arrow" size={17} /></a>
+          <a href="/app" on:click={() => track('landing_custom_tariff_click')}>Создать тариф <ArcIcon name="arrow" size={17} /></a>
         </div>
       </div>
     </section>
@@ -302,7 +278,7 @@
       <div class="intro"><h2>Вопросы перед подключением</h2></div>
       <div class="faq-list">
         {#each faqs as faq, index}
-          <article><h3><button aria-expanded={openFaq === index} aria-controls={`answer-${index}`} on:click={() => { openFaq = openFaq === index ? -1 : index; track('landing_faq_open', { index }) }}><span>{faq[0]}</span><i>{openFaq === index ? '−' : '+'}</i></button></h3>{#if openFaq === index}<div id={`answer-${index}`}><p>{faq[1]}</p></div>{/if}</article>
+          <article><h3><button aria-expanded={openFaq === index} aria-controls={`answer-${index}`} on:click={() => { openFaq = openFaq === index ? -1 : index; track('landing_faq_open', { index }) }}><span>{faq[0]}</span><i class:open={openFaq === index} aria-hidden="true"><ArcIcon name="arrow" size={17} /></i></button></h3>{#if openFaq === index}<div id={`answer-${index}`}><p>{faq[1]}</p></div>{/if}</article>
         {/each}
       </div>
     </section>
@@ -312,22 +288,24 @@
       <div><h2>Проверьте ArcVPN<br />на своей сети</h2><p>7 дней для нового пользователя: бесплатно через Telegram или за 10 ₽ на сайте.</p><nav>{#if config.bot_url}<a class="primary" href={config.bot_url} target="_blank" rel="noopener">Попробовать бесплатно <ArcIcon name="arrow" size={18} /></a>{/if}<a class="quiet-link" href="/app">Попробовать на сайте за 10 ₽</a></nav></div>
     </section>
 
-    <section class="links-section">
-      <h2>Поддержка и управление</h2>
-      <nav>
-        {#if config.bot_url}<a href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_social_click', { channel:'bot' })}><b>Telegram-бот</b><span>Подключение и уведомления</span><ArcIcon name="arrow" size={18} /></a>{/if}
-        {#if config.channel_url}<a href={config.channel_url} target="_blank" rel="noopener" on:click={() => track('landing_social_click', { channel:'channel' })}><b>Telegram-канал</b><span>Новости ArcVPN</span><ArcIcon name="arrow" size={18} /></a>{/if}
-        {#if config.instagram_url}<a href={config.instagram_url} target="_blank" rel="noopener" on:click={() => track('landing_social_click', { channel:'instagram' })}><b>Instagram</b><span>ArcVPN в Instagram</span><ArcIcon name="arrow" size={18} /></a>{/if}
-        {#if config.tiktok_url}<a href={config.tiktok_url} target="_blank" rel="noopener" on:click={() => track('landing_social_click', { channel:'tiktok' })}><b>TikTok</b><span>ArcVPN в TikTok</span><ArcIcon name="arrow" size={18} /></a>{/if}
-        <a href="/app"><b>Личный кабинет</b><span>Подписка и устройства</span><ArcIcon name="arrow" size={18} /></a>
-      </nav>
-    </section>
   </main>
 
   <footer class="footer">
-    <a class="brand" href="#top"><img src={`${base}assets/arc-flow/arc-logo.svg`} alt="" /><b>ArcVPN</b></a>
-    <nav>{#if config.support_url}<a href={config.support_url}>Поддержка</a>{/if}<a href="/legal/user-agreement">Соглашение</a>{#if config.status_url}<a href={config.status_url}>Статус</a>{/if}<a href="/app">Кабинет</a></nav>
-    <small>© {new Date().getFullYear()} ArcVPN</small>
+    <div class="footer-shell">
+      <div class="footer-top">
+        <div class="footer-lead">
+          <a class="brand" href="#top"><img src={`${base}assets/arc-flow/arc-logo.svg`} alt="" /><b>ArcVPN</b></a>
+          <p>Свободный интернет, управление подпиской и поддержка в одном месте.</p>
+        </div>
+        <nav class="footer-nav" aria-label="Поддержка и управление">
+          <div><span>Управление</span><a href="/app">Личный кабинет</a>{#if config.bot_url}<a href={config.bot_url} target="_blank" rel="noopener">Telegram-бот</a>{/if}</div>
+          <div><span>Сообщество</span>{#if config.channel_url}<a href={config.channel_url} target="_blank" rel="noopener">Telegram-канал</a>{/if}<a href="https://www.instagram.com/arc_vpnn?stkn=MW1scmgwc2s0ZjM3dw==" target="_blank" rel="noopener">Instagram</a><a href="https://www.tiktok.com/@arcvpn4?_r=1&amp;_t=ZT-99fjaeRQ9dO" target="_blank" rel="noopener">TikTok</a></div>
+          <div><span>Помощь</span>{#if config.support_url}<a href={config.support_url} target="_blank" rel="noopener">Поддержка</a>{/if}<a href="#faq">Вопросы</a>{#if config.status_url}<a href={config.status_url} target="_blank" rel="noopener">Статус</a>{/if}</div>
+        </nav>
+      </div>
+      <div class="footer-wordmark" aria-hidden="true">ArcVPN</div>
+      <div class="footer-bottom"><small>© {new Date().getFullYear()} ArcVPN</small><nav aria-label="Правовая информация"><a href="/legal/user-agreement">Соглашение и конфиденциальность</a></nav></div>
+    </div>
   </footer>
 </div>
 
@@ -990,5 +968,30 @@
     .faq-section{gap:30px;padding:66px 0}.faq-list button span{font-size:14px}.faq-list p{font-size:14px}
     .final-section{min-height:440px;margin-bottom:42px}.final-section>div{padding:38px 20px}.final-section h2{font-size:42px}.final-section p{font-size:14px}.final-section nav{gap:14px}
     .links-section{gap:28px;padding:38px 0 48px}.links-section h2{font-size:36px}.links-section nav a{min-height:64px}.links-section nav b{font-size:13px}.links-section nav span{font-size:11px}
+  }
+  /* Integrated support and footer: one cabinet-native closing surface. */
+  .apps-proof{margin-top:42px}
+  .faq-list button i{display:grid;flex:0 0 36px;width:36px;height:36px;place-items:center;border:1px solid var(--cabinet-hairline);border-radius:50%;transform:rotate(90deg);transition:transform .24s ease,border-color .24s ease,background .24s ease}
+  .faq-list button i.open{border-color:rgba(120,207,255,.28);background:rgba(107,189,233,.1);transform:rotate(-90deg)}
+  .faq-list button i :global(.arc-icon){display:block}
+
+  .footer{display:block;width:100%;min-height:0;margin:0;padding:0 24px 24px;border:0;background:var(--cabinet-bg)}
+  .footer-shell{position:relative;isolation:isolate;display:flex;width:min(100%,1440px);min-height:620px;overflow:hidden;flex-direction:column;margin:0 auto;padding:64px 72px 28px;border:1px solid var(--cabinet-hairline);border-radius:42px;background:radial-gradient(circle at 4% 8%,rgba(45,120,187,.17),transparent 30%),radial-gradient(circle at 92% 14%,rgba(107,189,233,.1),transparent 27%),linear-gradient(150deg,#0b1522,#050a12 70%);box-shadow:inset 0 1px rgba(255,255,255,.04),0 28px 90px rgba(0,0,0,.28)}
+  .footer-top{position:relative;z-index:2;display:grid;grid-template-columns:minmax(250px,.78fr) minmax(560px,1.42fr);gap:80px}
+  .footer-lead{max-width:330px}.footer-lead .brand{width:max-content}.footer-lead p{margin:24px 0 0;color:#9cafc0;font-size:14px;line-height:1.65}
+  .footer .footer-nav{display:grid;width:auto;grid-template-columns:repeat(3,minmax(0,1fr));gap:34px;margin:0;padding:0;order:initial}
+  .footer .footer-nav div{display:flex;min-width:0;align-items:flex-start;flex-direction:column;gap:12px}
+  .footer .footer-nav span{margin-bottom:5px;color:#6f8292;font-size:10px;font-weight:760;letter-spacing:.12em;text-transform:uppercase}
+  .footer .footer-nav a{color:#c5d4df;font-size:13px;line-height:1.35;transition:color .2s ease,transform .2s ease}
+  .footer .footer-nav a:hover{color:#b9e2fb;transform:translateX(3px)}
+  .footer-wordmark{position:relative;z-index:1;margin:auto 0 -.16em;font-size:clamp(160px,21vw,340px);font-weight:720;line-height:.72;letter-spacing:-.085em;white-space:nowrap;color:#dcecf5;filter:drop-shadow(0 22px 55px rgba(68,158,207,.12));user-select:none}
+  .footer-bottom{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:24px;padding-top:24px;border-top:1px solid var(--cabinet-hairline)}
+  .footer-bottom small,.footer-bottom a{color:#718493;font-size:10px}.footer-bottom a:hover{color:#b9e2fb}
+
+  @media(max-width:900px){
+    .footer{padding:0 16px 16px}.footer-shell{min-height:580px;padding:50px 42px 24px;border-radius:32px}.footer-top{grid-template-columns:1fr;gap:38px}.footer-lead{max-width:520px}.footer .footer-nav{grid-template-columns:repeat(3,minmax(0,1fr))}.footer-wordmark{font-size:clamp(120px,23vw,210px)}
+  }
+  @media(max-width:620px){
+    .apps-proof{margin-top:34px}.footer{padding:0 10px 10px}.footer-shell{min-height:0;padding:34px 24px 22px;border-radius:28px}.footer-top{gap:34px}.footer-lead p{margin-top:18px;font-size:13px}.footer .footer-nav{grid-template-columns:1fr 1fr;gap:30px 18px}.footer .footer-nav div:last-child{grid-column:1 / -1}.footer .footer-nav a{font-size:12px}.footer-wordmark{margin-top:70px;margin-bottom:-.11em;font-size:clamp(86px,30vw,130px)}.footer-bottom{align-items:flex-start;flex-direction:column;gap:10px;padding-top:18px}.footer-bottom nav{display:block}
   }
 </style>
