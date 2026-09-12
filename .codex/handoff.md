@@ -225,3 +225,6 @@ no service restart is needed for this static-only rollback.
   has no hard cyan seam.
 - Vite build, Impeccable detector, local browser and public browser checks
   passed. Public CSS is `LandingPage-Bxwwu1jX.css`; static release, no restart.
+- Owner follow-up `a04b38f` strengthens the same integrated Standard radial
+  light to reference-level intensity without restoring the rejected seam or
+  pseudo-layer. Current public CSS is `LandingPage-BZ0SXwmu.css`.

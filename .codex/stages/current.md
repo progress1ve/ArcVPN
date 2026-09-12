@@ -179,3 +179,7 @@ by bot restart; static WebApp files do not require subscription-service restart.
   supplied pricing reference while retaining a long, continuous falloff.
 - Keep the implementation inside the card background: no pseudo-element, hard
   stop, horizontal seam or blue perimeter.
+
+- Passed locally and publicly: the stronger radial field renders from the lower
+  half of Standard, `::after` remains `none`, horizontal overflow is zero and
+  production serves `LandingPage-BZ0SXwmu.css` at commit `a04b38f`.
