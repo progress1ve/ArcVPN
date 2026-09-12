@@ -98,3 +98,15 @@ administrators while preserving local backup creation and cleanup.
 
 Runtime commits: `9c3c452`, `e989cf3`. Rollback remains a normal revert followed
 by bot restart; static WebApp files do not require subscription-service restart.
+
+## 2026-09-12 login surface and pricing reference
+
+- Removed the `login-screen` `::before` and `::after` layers and the visual tile
+  behind `login-mark`; the existing cabinet aurora is now unobstructed.
+- Pricing follows the supplied structure: centered intro and segmented term
+  control, three equal comparison cards, Standard highlighted inside its lower
+  surface, and one wide custom-tariff row below.
+- At tablet width the three rendered cards are exactly 430 px high with
+  `transform: none`; no hover position jump remains.
+- Build and public browser verification passed for production commit `cfad811`.
+  Static deployment required no service restart.

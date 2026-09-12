@@ -1,5 +1,13 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## Login and pricing visual contract (2026-09-12)
+
+- The unauthenticated cabinet screen relies on the shared deep-navy aurora;
+  `login-screen` must not add full-cover `::before`/`::after` layers.
+- `login-mark` is a transparent standalone logo, not a bordered tile.
+- Landing pricing uses equal dark comparison cards, with blue emphasis contained
+  inside Standard and disabled positional hover at 720-900 px.
+
 ## Advertising acquisition contract (2026-09-01)
 
 - Рекламный `start=ad_*` считается привлечением только если этот же `/start`

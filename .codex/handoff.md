@@ -1,5 +1,13 @@
 # ArcVPN handoff — public Northern Flow landing
 
+## 2026-09-12 frontend closeout
+
+- Production `cfad811`: login pseudo-layers and logo backing removed.
+- Pricing composition updated from the owner reference without changing live
+  tariff data, quote calculation or selection behavior.
+- Public browser verification passed; current landing stylesheet is
+  `LandingPage-C0y5E1qs.css`. No services were restarted.
+
 ## 2026-09-10 login and consent release
 
 - Visual follow-up `a682b6c` is deployed: the login again uses the personal
