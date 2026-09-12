@@ -1,64 +1,53 @@
-# Current stage — integrated ArcVPN footer
+# Current stage — application and bypass visual alignment
 
 ## Goal
 
-Replace the separate support block and small footer with one large editorial
-ArcVPN footer derived structurally from the owner reference, while simplifying
-features, bypass actions, tariff destinations and FAQ controls exactly as asked.
+Bring the Happ/INCY proof onto the cabinet navy canvas and replace the abstract
+bypass ledger with a reference-led split composition using the owner's real
+INCY screenshot inside a code-native phone frame.
 
 ## Non-goals
 
-- No Hero, trial terms, live pricing, backend, bot or WebApp redesign.
-- No copying the reference's light palette or brand identity.
-- No unverified social, infrastructure or privacy claims.
+- No Hero, pricing data, trial terms, footer or application-flow changes.
+- No green accent from the structural reference and no fabricated app UI.
 
-## Components and public contract
+## Components
 
-- `webapp/src/views/LandingPage.svelte` only.
-- TikTok: `https://www.tiktok.com/@arcvpn4?_r=1&_t=ZT-99fjaeRQ9dO`.
-- Instagram: `https://www.instagram.com/arc_vpnn?stkn=MW1scmgwc2s0ZjM3dw==`.
-- Every preset tariff “Выбрать” action and custom “Создать тариф” action goes
-  directly to `/app`; analytics events remain.
-- Remove the three capability cards, bypass chip and bypass tariff link.
-- FAQ uses code-native SVG arrows with accessible expanded state.
+- `webapp/src/views/LandingPage.svelte`
+- New optimized public asset derived from the owner-supplied INCY screenshot.
 
 ## Acceptance
 
-- Support/management links and footer form one responsive dark-navy shell with
-  clear brand, management, community, help and legal hierarchy plus oversized
-  ArcVPN wordmark treatment.
-- Exact TikTok and Instagram URLs are visible, external and safe (`noopener`).
-- No removed feature, chip or bypass CTA remains in DOM.
-- All four tariff actions resolve to `/app`; no product/month/custom query is
-  emitted from the landing.
-- FAQ arrows rotate without shifting row height; expansion still works.
-- Mobile 390x844, tablet 768x1024, desktop 1280x900 and wide 1600x900 have no
-  overflow or clipped footer content.
-- Vite build, Impeccable detector, local/public browser checks and deployment
-  workflow pass.
+- Application proof uses the same deep navy/translucent surface family as the
+  landing and no black-on-different-black container or black active control.
+- Bypass section is a desktop split: left-aligned copy, real INCY screen in a
+  large phone on the right; it stacks cleanly on tablet/mobile.
+- Phone content remains legible, correctly cropped and not stretched.
+- No horizontal overflow at mobile, tablet or desktop sizes.
+- Vite build and rendered browser review pass before deployment.
 
 ## Risks and rollback
 
-- Risk: oversized footer wordmark clips interactive links or produces overflow.
-- Risk: removing tariff intent parameters changes the cabinet entry context;
-  this is explicitly requested and must resolve to plain `/app`.
-- Rollback: revert the runtime commit and rebuild static assets.
+- Tall screenshot can dominate mobile height; constrain with responsive phone
+  height and top-aligned cover crop.
+- Rollback by reverting this stage commit and rebuilding static assets.
 
 ## Evidence
 
-- Before: support links and the legal footer were two disconnected sections;
-  social links depended on unset config, so Instagram/TikTok were absent.
-- Local build: `npm run build` passed; generated landing assets
-  `LandingPage-DnJeUPZy.js` and `LandingPage-_qWWOCID.css`.
-- Design lint: `impeccable detect src/views/LandingPage.svelte` passed with no
-  findings after replacing decorative gradient text with a solid wordmark.
-- Browser at 926x930: zero horizontal overflow; footer shell 863x620; removed
-  feature cards, chip and bypass tariff link all have zero DOM matches.
-- Browser interactions: FAQ arrow changes from 90 to -90 degrees and
-  `aria-expanded` becomes true; exact Instagram/TikTok URLs and custom `/app`
-  destination were confirmed from the rendered DOM.
-- Production: commit `2ae95c6` fast-forwarded on Poland; nginx,
-  `arcvpn-bot.service` and `arcvpn-subscription.service` remained active.
-- Public `https://arccnet.space/`: stylesheet `LandingPage-_qWWOCID.css`, zero
-  overflow, exact social destinations, plain custom `/app`, all removed-element
-  counts zero, and the integrated footer was visually inspected.
+- Before: application proof and active platform control use neutral black while
+  surrounding sections use cabinet navy; bypass is an abstract ledger without
+  the requested product screen.
+- Generated with the built-in image tool: corrected premium 3D phone with an
+  iPhone-style status bar, straight device geometry, real INCY/ArcVPN hierarchy
+  and transparent alpha; saved as
+  `webapp/public/assets/landing/incy-bypass-phone-3d-v2.png`.
+- Application proof now uses the cabinet navy surface; the near-black website
+  trial action uses the shared raised navy control color.
+- Local Vite build passed. Browser review confirmed the corrected `9:41` iPhone
+  status area, loaded 1024x1536 asset and zero horizontal overflow.
+- Owner follow-up removed the rectangular bypass background entirely; only a
+  borderless local elliptical light remains behind the phone. Browser computed
+  background is `none` and overflow remains zero.
+- Bypass support copy is reduced to 13 px with a 10.5 px secondary note
+  (12/10 px on mobile). Standard hover is pinned to identical height, border,
+  transform and glow geometry so it cannot jump or expose a seam.

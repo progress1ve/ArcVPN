@@ -211,7 +211,9 @@
         <p>Если запас закончится, Автовыбор и обычные локации продолжат работать. Объём обхода можно выбрать в тарифе или докупить позже в личном кабинете.</p>
         <small>Доступность зависит от сети, устройства и характера ограничений.</small>
       </div>
-      <div class="bypass-well"><dl><div><dt>Основной интернет</dt><dd>Безлимитно</dd></div><div><dt>Профили обхода</dt><dd>Отдельные гигабайты</dd></div><div><dt>После исчерпания</dt><dd>Обычные профили работают</dd></div><div><dt>Нужен ещё запас</dt><dd>Можно докупить</dd></div></dl></div>
+      <div class="bypass-phone" aria-label="Профиль обхода ArcVPN в приложении INCY">
+        <img src={`${base}assets/landing/incy-bypass-phone-3d-v2.png`} alt="Профиль Лучший обход и подписка ArcVPN в приложении INCY на телефоне" width="1024" height="1536" loading="lazy" decoding="async" />
+      </div>
     </section>
 
     <section class="pricing-section" id="tariffs" data-nav-section>
@@ -996,4 +998,27 @@
   .connection-section .intro{display:flex;align-items:center;flex-direction:column;margin-right:auto;margin-left:auto;text-align:center}
   .connection-section .intro>p{margin-right:auto;margin-left:auto;text-align:center}
   .final-section{margin:0;border:0;border-radius:0}
+
+  /* Product-native application and bypass surfaces. */
+  .apps-proof{border-color:var(--cabinet-hairline);background:radial-gradient(circle at 78% 48%,rgba(75,163,216,.15),transparent 34%),linear-gradient(145deg,rgba(15,29,44,.94),rgba(6,13,22,.94));box-shadow:inset 0 1px rgba(255,255,255,.04)}
+  .app-icon-stage{background:linear-gradient(150deg,rgba(14,29,44,.38),rgba(5,12,20,.12))}
+  .app-icon-stage::before{background:radial-gradient(ellipse 54% 48% at 58% 52%,rgba(107,189,233,.22),rgba(45,120,187,.09) 48%,transparent 74%)}
+  .app-icon-stage::after{display:none}
+  .apps-section button,.apps-section a{border-color:rgba(120,207,255,.2);color:#b9e2fb;background:#101a27}
+  .apps-section button:hover,.apps-section a:hover{border-color:rgba(120,207,255,.42);background:#15283a}
+  .trial-site a{border-color:rgba(120,207,255,.2);color:#b9e2fb!important;background:#101a27}
+  .trial-site a:hover{border-color:rgba(120,207,255,.42);color:#d8f2ff!important;background:#15283a}
+
+  .bypass-section{position:relative;isolation:isolate;width:min(calc(100% - 48px),1180px);min-height:760px;display:grid;grid-template-columns:minmax(0,1fr) minmax(340px,.72fr);align-items:center;gap:82px;overflow:visible;margin:0 auto;padding:92px 52px 76px;border:0;text-align:left;background:transparent}
+  .bypass-section::before{content:'';display:block;position:absolute;z-index:-1;top:14%;right:-13%;width:58%;height:72%;border-radius:50%;background:radial-gradient(ellipse,rgba(72,158,213,.18),rgba(34,91,132,.07) 45%,transparent 74%);filter:blur(38px);pointer-events:none}
+  .bypass-section::after{display:none}
+  .bypass-copy{position:relative;z-index:1;align-items:flex-start;max-width:650px}.bypass-section h2{max-width:650px;margin:0}.bypass-section p{max-width:590px;margin-right:0;margin-left:0;font-size:13px;line-height:1.62}.bypass-section small{max-width:560px;font-size:10.5px;line-height:1.55}
+  .bypass-phone{position:relative;justify-self:center;width:min(100%,490px);filter:drop-shadow(0 42px 58px rgba(0,0,0,.46));transform:rotate(1deg)}
+  .bypass-phone>img{display:block;width:100%;height:auto}
+
+  @media(max-width:900px){.bypass-section{width:min(calc(100% - 32px),720px);grid-template-columns:minmax(0,1fr) 310px;gap:28px;padding:72px 24px}.bypass-phone{width:330px}}
+  @media(max-width:620px){.bypass-section{width:calc(100% - 24px);grid-template-columns:1fr;gap:34px;padding:64px 22px 28px;text-align:center}.bypass-copy{align-items:center}.bypass-section p{margin-right:auto;margin-left:auto;font-size:12px}.bypass-section small{font-size:10px}.bypass-phone{width:min(94vw,390px);transform:none}}
+
+  .tariff-grid article.recommended,.tariff-grid article.recommended:hover{height:100%;border-color:rgba(120,207,255,.22);transform:none}
+  .tariff-grid article.recommended:hover::before{top:32%;right:-18%;bottom:-22%;left:-18%;filter:blur(22px)}
 </style>
