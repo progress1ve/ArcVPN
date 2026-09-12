@@ -73,3 +73,22 @@ spacing, table-first information density and clear status accents.
 - Unauthorized 390 px view contains no sidebar, focuses the password input via
   keyboard navigation and has no horizontal overflow.
 - Existing unused-selector warnings outside this stage remain non-blocking.
+
+## Release evidence
+
+- Runtime/static commit `ade4ee2` pushed to `origin/main` and pulled
+  fast-forward on production `pl-control`.
+- Public `/admin` loads entry `index--bT-BGDE.js`, application
+  `App-BM8eLNKl.js` and redesigned `App-uWxs8Pnp.css` with HTTP 200.
+- Public unauthenticated browser confirms the compact production login, no
+  sidebar leakage and no horizontal overflow.
+- `arcvpn-subscription.service` and `nginx.service` remain active. No restart was
+  performed because this release changes committed frontend assets only.
+- Rollback remains a revert of `ade4ee2` followed by a production fast-forward
+  pull; no database or public identifier migration occurred.
+
+## Residual risk and next step
+
+- The remaining admin pages still contain older page-local styling beneath the
+  new shell. Bring Payments and Support onto the same table/toolbar primitives
+  in the next bounded visual stage.
