@@ -207,12 +207,10 @@
     <section class="bypass-section">
       <div class="bypass-copy">
         <h2>Обход глушилок — отдельный запас</h2>
-        <p>Основной трафик ArcVPN остаётся безлимитным. Дополнительные гигабайты расходуются только при выборе специальных профилей обхода — для сетей, где обычное подключение не справляется.</p>
-        <p>Если запас закончится, Автовыбор и обычные локации продолжат работать. Объём обхода можно выбрать в тарифе или докупить позже в личном кабинете.</p>
-        <small>Доступность зависит от сети, устройства и характера ограничений.</small>
+        <p>Интернет без ограничений, даже когда другие решения не работают. Ваш личный запас стабильной и защищённой связи.</p>
       </div>
       <div class="bypass-phone" aria-label="Профиль обхода ArcVPN в приложении INCY">
-        <img src={`${base}assets/landing/incy-bypass-phone-3d-v2.png`} alt="Профиль Лучший обход и подписка ArcVPN в приложении INCY на телефоне" width="1024" height="1536" loading="lazy" decoding="async" />
+        <img src={`${base}assets/landing/incy-bypass-phone-photo-v3.png`} alt="Профиль Лучший обход и подписка ArcVPN в приложении INCY на телефоне" width="1024" height="1536" loading="lazy" decoding="async" />
       </div>
     </section>
 
@@ -1021,4 +1019,20 @@
 
   .tariff-grid article.recommended,.tariff-grid article.recommended:hover{height:100%;border-color:rgba(120,207,255,.22);transform:none}
   .tariff-grid article.recommended:hover::before{top:32%;right:-18%;bottom:-22%;left:-18%;filter:blur(22px)}
+
+  .landing-nav.compact{background:#09131bad}
+  .apps-proof{background:#07111c}
+  .app-copy{background:linear-gradient(145deg,rgba(16,33,50,.98),rgba(10,22,35,.98))}
+  .app-icon-stage{border-left:1px solid var(--cabinet-hairline);background:radial-gradient(ellipse at 72% 58%,rgba(79,169,220,.18),transparent 60%),linear-gradient(180deg,#0a1927 0%,#07121d 30%,#050c14 100%)}
+
+  @media(max-width:900px){.app-icon-stage{border-top:1px solid var(--cabinet-hairline);border-left:0}}
+  @media(max-width:620px){
+    .bypass-section{box-sizing:border-box;overflow:hidden}.bypass-phone{width:min(100%,360px)}
+    .periods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible}.periods button{min-width:0;width:100%}
+    .final-section{width:100%;min-height:440px}
+    .tariff-grid article,.tariff-grid article.recommended{border-radius:23px}
+    .tariff-top,.tariff-grid article.recommended .tariff-top{min-height:190px;padding:24px 22px 20px}
+    .plan-price b{font-size:52px;font-weight:600}.plan-price span{font-size:12px}
+    .tariff-grid ul{gap:13px;padding:20px 22px 18px}.tariff-grid article>button,.tariff-grid article.recommended>button{min-height:48px;margin:0 14px 14px}
+  }
 </style>

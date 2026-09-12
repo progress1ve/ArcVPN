@@ -69,3 +69,10 @@ INCY screenshot inside a code-native phone frame.
 - Bypass support copy is reduced to 13 px with a 10.5 px secondary note
   (12/10 px on mobile). Standard hover is pinned to identical height, border,
   transform and glow geometry so it cannot jump or expose a seam.
+- Follow-up replaces the explanatory paragraphs with the owner-supplied short
+  copy and swaps the phone for a less stylized studio-photography treatment at
+  `assets/landing/incy-bypass-phone-photo-v3.png`.
+- Application copy and phone halves now use deliberately distinct navy surfaces;
+  the scrolled navigation uses `#09131bad`.
+- Mobile final CTA is full-width, and tariff price typography is increased to
+  52 px while card top padding/min-height is reduced for better proportion.
