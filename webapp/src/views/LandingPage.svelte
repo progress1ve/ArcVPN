@@ -992,4 +992,8 @@
   @media(max-width:620px){
     .apps-proof{margin-top:34px}.footer{padding:0}.footer-shell{width:calc(100% - 32px);padding:32px 0 20px;border-radius:0}.footer-top{gap:32px}.footer-lead p{margin-top:18px;font-size:13px}.footer .footer-nav{grid-template-columns:1fr 1fr;gap:28px 18px}.footer .footer-nav div:last-child{grid-column:1 / -1}.footer .footer-nav a{font-size:12px}.footer-bottom{align-items:flex-start;flex-direction:column;gap:10px;margin-top:34px;padding-top:18px}.footer-bottom nav{display:block}
   }
+
+  .connection-section .intro{display:flex;align-items:center;flex-direction:column;margin-right:auto;margin-left:auto;text-align:center}
+  .connection-section .intro>p{margin-right:auto;margin-left:auto;text-align:center}
+  .final-section{margin:0;border:0;border-radius:0}
 </style>
