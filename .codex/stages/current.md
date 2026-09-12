@@ -69,3 +69,9 @@ behavior and API contracts remain unchanged.
   sidebar and without horizontal overflow.
 - Existing Svelte unused-selector warnings remain non-blocking; the new login
   autofocus warning was removed.
+- Released as `cbcd98c` to `origin/main` and pulled fast-forward on the Poland
+  control plane. No service restart was required because only committed static
+  assets and frontend source changed.
+- Public `https://arccnet.space/admin` loads the new production bundle and shows
+  the standalone login without workspace navigation. Subscription API and nginx
+  remained active after release.
