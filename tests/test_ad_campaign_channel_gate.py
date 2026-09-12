@@ -5,7 +5,7 @@ from aiogram.types import Chat, Message, User
 from bot.handlers.user import start
 from bot.middlewares.subscription_check import (
     SubscriptionCheckMiddleware,
-    advertising_start_payload,
+    gated_start_payload,
 )
 from database import db_campaigns
 
@@ -31,11 +31,13 @@ def message(text: str) -> Message:
     )
 
 
-def test_advertising_start_payload_accepts_bot_deep_link_only():
-    assert advertising_start_payload(message("/start ad_campaign_one")) == "ad_campaign_one"
-    assert advertising_start_payload(message("/start@arcvpnbot ad_campaign_two")) == "ad_campaign_two"
-    assert advertising_start_payload(message("/start ref_friend")) is None
-    assert advertising_start_payload(message("hello")) is None
+def test_gated_start_payload_accepts_attribution_deep_links_only():
+    assert gated_start_payload(message("/start ad_campaign_one")) == "ad_campaign_one"
+    assert gated_start_payload(message("/start@arcvpnbot ad_campaign_two")) == "ad_campaign_two"
+    assert gated_start_payload(message("/start ref_friend")) == "ref_friend"
+    assert gated_start_payload(message("/start buy_12")) is None
+    assert gated_start_payload(message("/start ref_bad value")) is None
+    assert gated_start_payload(message("hello")) is None
 
 
 def test_legal_gate_preserves_advertising_payload(monkeypatch):
@@ -58,6 +60,22 @@ def test_legal_gate_preserves_advertising_payload(monkeypatch):
     assert state.data["pending_start_args"] == "ad_campaign_one"
 
 
+def test_legal_gate_preserves_referral_payload(monkeypatch):
+    middleware = SubscriptionCheckMiddleware()
+    state = FakeState()
+
+    async def handler(_event, _data):
+        raise AssertionError("legal gate must stop the original /start")
+
+    monkeypatch.setattr(middleware, "send_subscription_required", lambda _message: asyncio.sleep(0))
+    monkeypatch.setattr("database.db_legal_consent.get_legal_consent", lambda _user_id: None)
+    monkeypatch.setattr("database.requests.get_setting", lambda _key, default: default)
+
+    asyncio.run(middleware(handler, message("/start ref_friend"), {"state": state}))
+
+    assert state.data["pending_start_args"] == "ref_friend"
+
+
 def test_legal_callback_attributes_new_user_and_consumes_payload(monkeypatch):
     state_context = FakeState({"pending_start_args": "ad_campaign_one"})
     calls = []
@@ -68,10 +86,39 @@ def test_legal_callback_attributes_new_user_and_consumes_payload(monkeypatch):
 
     monkeypatch.setattr(db_campaigns, "attribute_user_to_campaign", attribute)
 
-    assert asyncio.run(start._attribute_pending_advertising_start(
+    assert asyncio.run(start._restore_pending_start_attribution(
         {"id": 42}, True, state_context,
-    )) is True
+    )) == {"advertising": True, "referral": False}
     assert calls == [(42, "campaign_one", True)]
+    assert state_context.data["pending_start_args"] is None
+
+
+def test_legal_callback_restores_new_user_referrer_once(monkeypatch):
+    state_context = FakeState({"pending_start_args": "ref_friend"})
+    links = []
+
+    monkeypatch.setattr(start, "get_user_by_referral_code", lambda code: {"id": 7} if code == "friend" else None)
+    monkeypatch.setattr(start, "set_user_referrer", lambda user_id, referrer_id: links.append((user_id, referrer_id)) or True)
+
+    result = asyncio.run(start._restore_pending_start_attribution(
+        {"id": 42}, True, state_context,
+    ))
+
+    assert result == {"advertising": False, "referral": True}
+    assert links == [(42, 7)]
+    assert state_context.data["pending_start_args"] is None
+
+
+def test_legal_callback_does_not_rebind_existing_user(monkeypatch):
+    state_context = FakeState({"pending_start_args": "ref_friend"})
+    monkeypatch.setattr(start, "get_user_by_referral_code", lambda _code: {"id": 7})
+    monkeypatch.setattr(start, "set_user_referrer", lambda *_args: (_ for _ in ()).throw(AssertionError("must not bind")))
+
+    result = asyncio.run(start._restore_pending_start_attribution(
+        {"id": 42}, False, state_context,
+    ))
+
+    assert result == {"advertising": False, "referral": False}
     assert state_context.data["pending_start_args"] is None
 
 

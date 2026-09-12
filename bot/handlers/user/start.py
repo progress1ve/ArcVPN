@@ -21,18 +21,26 @@ logger = logging.getLogger(__name__)
 router = Router()
 
 
-async def _attribute_pending_advertising_start(user: Dict[str, Any], created: bool, state: FSMContext):
-    """Restore an ad payload consumed by the mandatory channel middleware."""
+async def _restore_pending_start_attribution(user: Dict[str, Any], created: bool, state: FSMContext):
+    """Apply an attribution payload consumed by the agreement gate exactly once."""
     state_data = await state.get_data()
     payload = str(state_data.get("pending_start_args") or "")
-    if not payload.startswith("ad_") or len(payload) <= 3:
-        return False
+    if not payload:
+        return {"advertising": False, "referral": False}
     await state.update_data(pending_start_args=None)
-    from database.db_campaigns import attribute_user_to_campaign
-    attributed, _campaign = attribute_user_to_campaign(
-        user["id"], payload[3:], is_new_user=created,
-    )
-    return attributed
+
+    result = {"advertising": False, "referral": False}
+    if payload.startswith("ad_") and len(payload) > 3:
+        from database.db_campaigns import attribute_user_to_campaign
+        attributed, _campaign = attribute_user_to_campaign(
+            user["id"], payload[3:], is_new_user=created,
+        )
+        result["advertising"] = attributed
+    elif created and payload.startswith("ref_") and len(payload) > 4:
+        referrer = get_user_by_referral_code(payload[4:])
+        if referrer and referrer["id"] != user["id"]:
+            result["referral"] = set_user_referrer(user["id"], referrer["id"])
+    return result
 
 
 def _format_bytes(value: int) -> str:
@@ -832,7 +840,7 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
             telegram_id=user_id,
             username=callback.from_user.username
         )
-        attributed = await _attribute_pending_advertising_start(user, created, state)
+        attribution = await _restore_pending_start_attribution(user, created, state)
 
         from database.db_legal_consent import record_legal_consent
         from database.requests import get_setting
@@ -855,7 +863,7 @@ async def check_subscribe_handler(callback: CallbackQuery, state: FSMContext):
                     logger.warning("Авто-триал после принятия соглашения не создан для %s", user_id)
             except Exception:
                 logger.exception("Ошибка авто-триала после принятия соглашения для %s", user_id)
-        if attributed:
+        if attribution["advertising"]:
             try:
                 from bot.services.billing import process_campaign_bonus
                 await process_campaign_bonus(user['id'], 'entry')
