@@ -290,3 +290,48 @@ by bot restart; static WebApp files do not require subscription-service restart.
   rounding, copy centre is 48 px below viewport centre and overflow is zero.
 - Nginx, bot and subscription services remain active. Static release required
   no restart. Rollback is a normal revert of `8792cda`.
+
+## 2026-09-12 landing-wide cabinet system pass
+
+### Audit and contract
+
+- Preserve the approved Hero composition and copy. Change its CTA to a
+  transparent cabinet-style bordered action and make the existing edge auroras
+  modestly more visible without returning to a bright cyan floor.
+- Establish shared landing tokens from the cabinet: `#03070e` canvas,
+  translucent `#070d17` surfaces, `#101a27` raised surfaces, cold low-contrast
+  borders, muted blue-grey copy and one cyan action family.
+- Trial: keep the two factual offers but render them as cabinet surfaces.
+- Capabilities/apps: retain the asymmetric hierarchy and real phone evidence;
+  replace neutral-black cards/frame with cabinet surfaces and local aurora.
+- Bypass: remove the oversized empty vertical presentation. Use a readable
+  two-column proof with copy beside the four-row cabinet ledger.
+- Pricing: preserve approved card structure and live data; only harmonize its
+  surrounding canvas and neutral surfaces.
+- Steps, FAQ, final CTA and links: convert isolated black decorations into the
+  same surface/group language used by cabinet metrics and settings.
+
+### Acceptance
+
+- All sections read as one product with Hero/cabinet tokens; no abrupt pure-black
+  banding or unrelated accent colors remain.
+- Mobile, tablet, desktop and wide layouts retain hierarchy and zero horizontal
+  overflow. Bypass becomes one column below 900 px.
+- Links, tariff selectors, FAQ expansion, focus, hover and reduced motion remain
+  functional; live pricing and all copy contracts are unchanged.
+- Vite build, Impeccable detector, local visual QA, staged diff, deployment and
+  public browser verification pass.
+
+### Local result
+
+- Hero CTA is transparent with cabinet border `rgb(60,111,143)`; edge auroras
+  are modestly stronger while the centre remains dark.
+- Trial and capability sections no longer render isolated pure-black rectangles;
+  their backgrounds are transparent over the shared `#03070e` canvas.
+- Bypass is a 574/470 px two-column proof at 1280 px with the ledger visible
+  beside copy, replacing the former 820-940 px empty stage.
+- FAQ renders as one translucent cabinet settings group; its first row expands
+  correctly. Changing the pricing period to 6 months leaves exactly one pressed
+  selector. Horizontal overflow is zero.
+- 500x844, 768x1024 and 1280x720 captures/checks passed. Vite build and
+  Impeccable detector exit 0; unrelated pre-existing Svelte warnings remain.

@@ -866,4 +866,37 @@
   .tariff-grid article.recommended>*{position:relative;z-index:1}
   @media(max-width:900px){.hero{min-height:100svh;padding:104px 24px 64px}.hero-copy{transform:translateY(3svh)}.hero h1{font-size:clamp(56px,9vw,78px)}.landing .hero-text{max-width:590px}}
   @media(max-width:560px){.hero{min-height:100svh;padding:96px 18px 52px}.hero-copy{transform:translateY(2svh)}.hero h1{max-width:100%;font-size:clamp(38px,10.5vw,46px);line-height:.98}.hero h1 span{white-space:normal}.landing .hero-text{max-width:360px;margin-top:24px;font-size:11.5px;line-height:1.65}.hero-actions{margin-top:28px}}
+
+  /* Cabinet design system across the public landing. */
+  .landing{--cabinet-bg:#03070e;--cabinet-surface:rgba(7,13,23,.78);--cabinet-raised:#101a27;--cabinet-hairline:rgba(174,211,241,.1);--cabinet-muted:#9cafc0;background:var(--cabinet-bg)}
+  .landing main,.footer{background:var(--cabinet-bg)}
+  .hero{background:radial-gradient(ellipse 48% 72% at -7% 42%,rgba(45,120,187,.33),transparent 72%),radial-gradient(ellipse 50% 74% at 107% 48%,rgba(107,189,233,.27),transparent 72%),radial-gradient(ellipse 44% 36% at 50% 62%,rgba(107,189,233,.14),transparent 72%),radial-gradient(ellipse 72% 42% at 50% 108%,rgba(36,93,150,.21),transparent 74%),var(--cabinet-bg)}
+  .hero .primary{border:1px solid #3c6f8f;color:#b9e2fb!important;background:rgba(7,13,23,.34);box-shadow:inset 0 1px rgba(255,255,255,.04)}
+  .hero .primary:hover{border-color:#8bd3fa;color:#d8f2ff!important;background:rgba(112,199,244,.07)}
+  .trial-section,.apps-section,.bypass-section,.pricing-section,.connection-section,.faq-section,.links-section{position:relative;isolation:isolate;background:transparent}
+  .trial-section::before,.apps-section::before,.pricing-section::before,.connection-section::before,.faq-section::before,.links-section::before{content:'';display:block;position:absolute;z-index:-1;inset:-10% auto;left:50%;width:100vw;background:radial-gradient(circle at 0 34%,rgba(45,120,187,.1),transparent 30%),radial-gradient(circle at 100% 68%,rgba(107,189,233,.075),transparent 28%);filter:blur(34px);transform:translateX(-50%);pointer-events:none}
+  .trial-panel article{border-color:var(--cabinet-hairline);background:var(--cabinet-surface);box-shadow:inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(18px)}
+  .trial-panel article+article{border-left-color:var(--cabinet-hairline)}
+  .trial-panel span,.trial-panel p,.apps-intro p,.apps-section .feature-ledger p,.app-copy>p,.bypass-section p,.pricing-intro p,.connection-section li p,.faq-list p,.final-section p,.links-section nav span{color:var(--cabinet-muted)}
+  .apps-section .feature-ledger article,.apps-section .feature-ledger article:nth-child(n){border:1px solid var(--cabinet-hairline)!important;background:var(--cabinet-surface);box-shadow:inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(18px)}
+  .apps-section .feature-ledger article.feature-primary{background:radial-gradient(circle at 68% 28%,rgba(107,189,233,.16),transparent 38%),var(--cabinet-surface)}
+  .apps-proof{border-color:var(--cabinet-hairline);background:var(--cabinet-surface);box-shadow:inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(18px)}
+  .app-copy{border-color:var(--cabinet-hairline)}
+  .app-icon-stage::before{background:radial-gradient(ellipse,rgba(107,189,233,.16),transparent 70%)}
+  .bypass-section{width:min(calc(100% - 48px),1120px);min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(420px,.82fr);align-items:center;gap:76px;padding:150px 0;text-align:left}
+  .bypass-copy{max-width:610px}.bypass-section h2{max-width:650px}.bypass-section p{margin-right:0;margin-left:0}.bypass-section .primary{border:1px solid #3c6f8f;color:#b9e2fb!important;background:transparent}.bypass-section .primary:hover{border-color:#8bd3fa;background:rgba(112,199,244,.06)}
+  .bypass-well{width:100%;min-height:430px;place-items:center;margin:0;padding:0;border:1px solid var(--cabinet-hairline);border-radius:32px;background:var(--cabinet-surface);backdrop-filter:blur(18px)}
+  .bypass-well::before{inset:8%;width:84%;height:84%;background:radial-gradient(ellipse at 76% 36%,rgba(107,189,233,.24),rgba(45,120,187,.09) 46%,transparent 72%);filter:blur(34px);transform:none}
+  .bypass-well::after{display:none}.bypass-section dl{width:calc(100% - 56px);margin:0;padding:22px 28px;border:1px solid var(--cabinet-hairline);background:rgba(10,17,27,.84);box-shadow:0 28px 80px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.04);backdrop-filter:blur(18px)}
+  .tariff-grid article,.tariff-grid article.recommended,.custom-builder{background-color:var(--cabinet-surface)}
+  .connection-section li,.connection-section li+li{border-color:var(--cabinet-hairline);background:var(--cabinet-surface);box-shadow:inset 0 1px rgba(255,255,255,.035);backdrop-filter:blur(18px)}
+  .connection-section li>span{color:#07131d;background:linear-gradient(125deg,#b6e7ff,#6bc0ef)}
+  .faq-list{padding:0 24px;border:1px solid var(--cabinet-hairline);border-radius:26px;background:var(--cabinet-surface);backdrop-filter:blur(18px)}
+  .faq-list article:last-child{border-bottom:0}.faq-list button i{color:#b9e2fb;background:var(--cabinet-raised)}
+  .final-section{border:1px solid var(--cabinet-hairline);border-radius:34px;background:radial-gradient(ellipse 42% 60% at 4% 58%,rgba(45,120,187,.18),transparent 72%),radial-gradient(ellipse 42% 60% at 96% 50%,rgba(107,189,233,.14),transparent 72%),var(--cabinet-bg)}
+  .final-section::after{background:radial-gradient(ellipse at center,rgba(3,7,14,.08),rgba(3,7,14,.7) 78%)}
+  .links-section nav{padding:0 22px;border:1px solid var(--cabinet-hairline);border-radius:26px;background:var(--cabinet-surface);backdrop-filter:blur(18px)}
+  .links-section nav a:last-child{border-bottom:0}.footer{border-top-color:var(--cabinet-hairline)}
+  @media(max-width:900px){.bypass-section{width:min(calc(100% - 32px),720px);grid-template-columns:1fr;gap:48px;padding:112px 0;text-align:center}.bypass-copy{max-width:650px;margin:auto}.bypass-section p{margin-right:auto;margin-left:auto}.bypass-well{min-height:390px}.faq-list{padding:0 20px}}
+  @media(max-width:620px){.bypass-section{padding:96px 0}.bypass-well{min-height:350px;border-radius:24px}.bypass-section dl{width:calc(100% - 32px);padding:16px 20px}.faq-list,.links-section nav{padding:0 16px;border-radius:22px}.final-section{width:calc(100% - 24px);border-radius:26px}}
 </style>
