@@ -1,6 +1,9 @@
 <script>
   import { onDestroy, onMount } from 'svelte'
   import ArcIcon from '../components/ArcIcon.svelte'
+  import AdminLogin from '../components/admin/AdminLogin.svelte'
+  import AdminNavigation from '../components/admin/AdminNavigation.svelte'
+  import AdminPageHeader from '../components/admin/AdminPageHeader.svelte'
   import AdminHealth from './admin/AdminHealth.svelte'
   import AdminNodes from './admin/AdminNodes.svelte'
   import AdminSecurity from './admin/AdminSecurity.svelte'
@@ -36,23 +39,39 @@
   let pendingThreadId = null
   let threadRequest = 0
   let refreshTimer = null
+  let routeListener = null
   let lastUpdated = null
   let diagnosticNode = ''
   let diagnostics = {}
   let overviewPeriod = 'day'
-  const nav = [
-    ['overview', 'home', 'Главная', 'overview.read'], ['health', 'pulse', 'Здоровье', 'overview.read'],
-    ['nodes', 'devices', 'Ноды', 'overview.read'],
-    ['catalog', 'route', 'Каталог подписки', 'overview.read'], ['users', 'users', 'Пользователи', 'overview.read'], ['growth', 'signal', 'Growth', 'overview.read'], ['payments', 'wallet', 'Финансы', 'overview.read'],
-    ['support', 'headset', 'Поддержка', 'support.read'], ['security', 'shield', 'Безопасность', 'audit.read'],
-    ['backups', 'file', 'Резервные копии', 'backups.read'], ['settings', 'settings', 'Настройки', 'overview.read'],
+  const navGroups = [
+    { label: 'Операции', items: [
+      { id: 'overview', icon: 'home', label: 'Главная', permission: 'overview.read' },
+      { id: 'health', icon: 'pulse', label: 'Здоровье', permission: 'overview.read' },
+      { id: 'support', icon: 'headset', label: 'Поддержка', permission: 'support.read' },
+    ]},
+    { label: 'Клиенты', items: [{ id: 'users', icon: 'users', label: 'Пользователи', permission: 'overview.read' }]},
+    { label: 'Финансы', items: [{ id: 'payments', icon: 'wallet', label: 'Платежи', permission: 'overview.read' }]},
+    { label: 'Инфраструктура', items: [
+      { id: 'nodes', icon: 'devices', label: 'Ноды', permission: 'overview.read' },
+      { id: 'catalog', icon: 'route', label: 'Каталог подписки', permission: 'overview.read' },
+    ]},
+    { label: 'Рост', items: [{ id: 'growth', icon: 'signal', label: 'Growth', permission: 'overview.read' }]},
+    { label: 'Система', items: [
+      { id: 'security', icon: 'shield', label: 'Безопасность', permission: 'audit.read' },
+      { id: 'backups', icon: 'file', label: 'Резервные копии', permission: 'backups.read' },
+      { id: 'settings', icon: 'settings', label: 'Настройки', permission: 'overview.read' },
+    ]},
   ]
+  const nav = navGroups.flatMap((group) => group.items)
   const exposedPermissions = ['overview.read', 'nodes.diagnose', 'catalog.manage', 'subscriptions.manage', 'campaigns.manage', 'promocodes.manage', 'expenses.manage', 'support.read', 'support.reply', 'audit.read', 'backups.read', 'backups.create', 'roles.manage']
   const roleLabels = { owner: ['Владелец', 'Полный доступ'], operator: ['Оператор', 'Операционный доступ'], support: ['Поддержка', 'Обращения пользователей'], finance: ['Финансы', 'Финансовый доступ'], viewer: ['Наблюдатель', 'Только чтение'] }
   const allows = (permission, source = access) => Boolean(source && (source.permissions?.includes('*') || source.permissions?.includes(permission)))
-  $: visibleNav = nav.filter((item) => allows(item[3], access))
+  $: visibleNav = nav.filter((item) => allows(item.permission, access))
+  $: visibleGroups = navGroups.map((group) => ({ ...group, items: group.items.filter((item) => allows(item.permission, access)) })).filter((group) => group.items.length)
   $: effectiveAccess = Object.fromEntries(exposedPermissions.map((permission) => [permission, allows(permission, access)]))
   $: roleLabel = roleLabels[access?.role] || ['Администратор', 'Ограниченный доступ']
+  $: activeLabel = visibleNav.find((item) => item.id === active)?.label || 'ArcVPN'
   const rub = (v) => `${new Intl.NumberFormat('ru-RU').format(Number(v || 0))} ₽`
   const num = (v) => new Intl.NumberFormat('ru-RU').format(Number(v || 0))
   const bytes = (value) => {
@@ -67,6 +86,25 @@
   const productLabel = (item) => ({ economy: 'Эконом', standard: 'Стандарт', family: 'Семейный' })[item?.product_code] || item?.product_name || 'Другой тариф'
   const supportName = (thread) => thread?.first_name || (thread?.username ? `@${thread.username}` : `ID ${thread?.telegram_id || thread?.id || '—'}`)
   $: filteredSupportThreads = supportThreads.filter((thread) => `${supportName(thread)} ${thread.last_message || ''}`.toLocaleLowerCase('ru-RU').includes(supportQuery.trim().toLocaleLowerCase('ru-RU')))
+
+  const sectionFromLocation = () => {
+    const section = window.location.pathname.replace(/^\/admin\/?/, '').split('/')[0]
+    return section || 'overview'
+  }
+  const sectionPath = (section) => section === 'overview' ? '/admin' : '/admin/' + section
+  function syncRoute(replace = false) {
+    const requested = sectionFromLocation()
+    const permitted = nav.filter((item) => allows(item.permission, access))
+    const fallback = permitted[0]?.id
+    const next = permitted.some((item) => item.id === requested) ? requested : fallback
+    if (!next) return
+    active = next
+    if (window.location.pathname !== sectionPath(next)) {
+      const nextUrl = sectionPath(next) + window.location.search + window.location.hash
+      window.history[replace ? 'replaceState' : 'pushState']({}, '', nextUrl)
+    }
+    if (next === 'support') openSupport(false)
+  }
 
   async function load(silent = false) {
     if (!allows('overview.read')) return
@@ -88,16 +126,14 @@
     try {
       access = await fetchAdminAccess()
       if (allows('overview.read', access)) {
-        active = 'overview'
         await load()
       } else if (allows('support.read', access)) {
-        active = 'support'
         loading = false
-        await openSupport()
       } else {
         loading = false
         error = 'forbidden'
       }
+      if (!error) syncRoute(true)
     } catch (e) {
       access = null
       loading = false
@@ -105,9 +141,11 @@
     }
   }
   function openSection(section) {
-    if (!visibleNav.some((item) => item[0] === section)) return
-    if (section === 'support') openSupport()
-    else active = section
+    if (!visibleNav.some((item) => item.id === section)) return
+    const nextUrl = sectionPath(section) + window.location.search + window.location.hash
+    window.history.pushState({}, '', nextUrl)
+    active = section
+    if (section === 'support') openSupport(false)
   }
   async function signIn() {
     if (!password || signingIn) return
@@ -116,9 +154,9 @@
       const session = await loginAdmin(password)
       password = ''
       access = { ok: true, role: session.role || 'owner', permissions: session.permissions || ['*'] }
-      active = 'overview'
       loading = true
       await load()
+      syncRoute(true)
     }
     catch (e) { error = e.code === 429 ? 'Слишком много попыток. Подождите 15 минут.' : 'Неверный пароль' }
     finally { signingIn = false }
@@ -130,9 +168,12 @@
     catch (e) { diagnostics = { ...diagnostics, [node.uuid]: { ok: false, error: e.reason || 'Ошибка диагностики' } } }
     finally { diagnosticNode = '' }
   }
-  async function openSupport() {
+  async function openSupport(updateRoute = true) {
     if (!allows('support.read')) return
     active = 'support'
+    if (updateRoute && window.location.pathname !== sectionPath('support')) {
+      window.history.pushState({}, '', sectionPath('support') + window.location.search + window.location.hash)
+    }
     supportView = 'list'
     supportLoading = true
     supportError = ''
@@ -205,38 +246,35 @@
   }
   onMount(() => {
     document.body.classList.add('admin-console-open')
+    routeListener = () => { if (access) syncRoute(true) }
+    window.addEventListener('popstate', routeListener)
     bootstrap()
     refreshTimer = setInterval(() => { if (allows('overview.read')) load(true) }, 30000)
   })
   onDestroy(() => {
     document.body.classList.remove('admin-console-open')
+    if (routeListener) window.removeEventListener('popstate', routeListener)
     if (refreshTimer) clearInterval(refreshTimer)
   })
 </script>
 
 <svelte:head><title>ArcVPN Admin</title></svelte:head>
 
+{#if !access || error === 'forbidden'}
+  {#if loading}
+    <main class="auth-loading"><i class="loader"></i><p>Проверяем доступ…</p></main>
+  {:else}
+    <AdminLogin bind:password {error} {signingIn} onSubmit={signIn} />
+  {/if}
+{:else}
 <div class="console">
-  <aside>
-    <a class="brand" href="/admin"><img src="/app/arc-logo-new.webp" alt="" /><span>ArcVPN</span></a>
-    <nav aria-label="Разделы админ-панели">{#each visibleNav as item}<button class:active={active === item[0]} aria-current={active === item[0] ? 'page' : undefined} aria-label={item[2]} on:click={() => openSection(item[0])} title={item[2]}><ArcIcon name={item[1]} size={20} weight="duotone" /><span>{item[2]}</span></button>{/each}</nav>
-    {#if access}<div class="owner"><i>{roleLabel[0][0]}</i><span>{roleLabel[0]}<small>{roleLabel[1]}</small></span></div>{/if}
-  </aside>
-
+  <AdminNavigation groups={visibleGroups} {active} {roleLabel} onNavigate={openSection} />
   <main class={`section-${active}`}>
-    <header><div><h1>{active === 'overview' ? 'Главная' : visibleNav.find(item => item[0] === active)?.[2] || 'ArcVPN'}</h1></div><div class="live-tools"><span class="telemetry-fresh" class:stale={refreshError} aria-live="polite"><i></i>{refreshError || (lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}` : allows('overview.read', access) ? 'Подключаем данные' : 'Доступ к сводке ограничен')}</span><button class="refresh" disabled={active === 'support' ? supportLoading : !allows('overview.read', access)} aria-label={active === 'support' ? 'Обновить обращения' : 'Проверить данные'} on:click={() => active === 'support' ? openSupport() : load(true)}><ArcIcon name="pulse" size={18} />{active === 'support' ? 'Обновить' : 'Проверить'}</button></div></header>
+    <AdminPageHeader title={activeLabel} context={refreshError || (lastUpdated ? `Обновлено ${lastUpdated.toLocaleTimeString('ru-RU', {hour:'2-digit', minute:'2-digit'})}` : allows('overview.read', access) ? 'Подключаем данные' : 'Доступ к сводке ограничен')} stale={Boolean(refreshError)} disabled={active === 'support' ? supportLoading : !allows('overview.read', access)} refreshLabel={active === 'support' ? 'Обновить' : 'Проверить'} onRefresh={() => active === 'support' ? openSupport(false) : load(true)} />
     {#if loading}
       <section class="state"><i class="loader"></i><p>Собираем показатели ArcVPN…</p></section>
     {:else if error}
-      <section class="state login-card">
-        <img src="/app/arc-logo-new.webp" alt="" />
-        <h2>Вход в ArcVPN Admin</h2>
-        <p>{error === 'auth' ? 'Введите пароль владельца или откройте панель из Telegram.' : error === 'forbidden' ? 'Для вашей роли пока нет доступных разделов.' : error}</p>
-        <form on:submit|preventDefault={signIn}>
-          <input bind:value={password} type="password" autocomplete="current-password" placeholder="Пароль" aria-label="Пароль" />
-          <button disabled={signingIn || !password}>{signingIn ? 'Проверяем…' : 'Войти'}</button>
-        </form>
-      </section>
+      <section class="state"><h2>Раздел недоступен</h2><p>{error}</p></section>
     {:else if active === 'users'}
       <AdminUsers users={data?.recent_users || []} canManage={allows('subscriptions.manage', access)} onRefresh={() => load(true)} />
     {:else if active === 'payments'}
@@ -306,7 +344,7 @@
         </section>
       </section>
     {:else if active !== 'overview'}
-      <section class="state"><ArcIcon name="gift" size={30} /><h2>{nav.find(i => i[0] === active)?.[2]}</h2><p>Раздел готовится к следующему обновлению.</p></section>
+      <section class="state"><ArcIcon name="gift" size={30} /><h2>{nav.find(i => i.id === active)?.label}</h2><p>Раздел готовится к следующему обновлению.</p></section>
     {:else}
       <section class:alert={!data.remnawave?.healthy || data.remnawave?.nodes?.some(node=>!node.connected && !node.disabled)} class="health"><i></i><div><b>{data.remnawave?.healthy ? 'Сеть ArcVPN работает штатно' : 'Требуется внимание к сети'}</b><span>{data.remnawave?.nodes?.filter(node=>node.connected).length || 0} из {data.remnawave?.nodes?.filter(node=>!node.disabled).length || 0} RemnaNode подключены · данные {lastUpdated ? lastUpdated.toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : 'загружаются'}</span></div><strong>{data.remnawave?.healthy ? 'Remnawave online' : data.remnawave?.detail || 'Нет подтверждения'}</strong></section>
       <nav class="periods" aria-label="Период показателей">{#each [['day','24 часа'],['week','7 дней'],['month','30 дней']] as period}<button class:active={overviewPeriod===period[0]} aria-pressed={overviewPeriod===period[0]} on:click={()=>overviewPeriod=period[0]}>{period[1]}</button>{/each}</nav>
@@ -350,8 +388,10 @@
     {/if}
   </main>
 </div>
+{/if}
 
 <style>
+  .auth-loading{box-sizing:border-box;min-height:100dvh;display:grid;place-content:center;justify-items:center;margin:0;background:radial-gradient(720px 480px at 50% 20%,rgba(69,146,202,.14),transparent 65%),#070a10;color:#8499ad;font-family:Inter,system-ui,sans-serif}
   :global(html:has(body.admin-console-open)),:global(body.admin-console-open){height:100%;overflow:hidden}:global(body.admin-console-open){margin:0;background:#050a12;color:#f4f8fc}.console{--card:#0c1522;--line:rgba(162,207,244,.1);height:100vh;overflow:hidden;display:grid;grid-template-columns:250px 1fr;font-family:Inter,system-ui,sans-serif;background:radial-gradient(900px 600px at 95% -10%,rgba(65,146,214,.16),transparent 65%),#050a12}
   aside{position:sticky;top:0;height:100vh;box-sizing:border-box;display:flex;flex-direction:column;padding:28px 20px;border-right:1px solid var(--line);background:rgba(5,10,18,.76);backdrop-filter:blur(20px)}.brand{display:flex;align-items:center;gap:12px;padding:0 10px 28px;color:#fff;text-decoration:none;font-weight:800}.brand img{width:34px}.brand span,.owner span{display:flex;flex-direction:column}.brand small,.owner small{margin-top:2px;color:#70859a;font-size:10px;text-transform:uppercase;letter-spacing:.08em}
   nav{display:grid;gap:8px}nav button{display:flex;align-items:center;gap:13px;min-height:48px;padding:0 15px;border:0;border-radius:16px;color:#8499ad;background:transparent;font-weight:700;cursor:pointer;transition:.2s}nav button:hover{color:#dceeff;background:rgba(126,194,241,.06);transform:translateX(2px)}nav button.active{color:#08111d;background:#9bd9ff;box-shadow:0 10px 30px rgba(89,174,230,.18)}.owner{margin-top:auto;display:flex;align-items:center;gap:11px;padding:13px;border-radius:18px;background:#0b1420}.owner>i{display:grid;place-items:center;width:38px;height:38px;border-radius:50%;background:#17314a;color:#9bd9ff;font-style:normal;font-weight:800}
