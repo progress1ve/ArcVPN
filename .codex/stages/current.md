@@ -1,94 +1,40 @@
-# Current stage — BEDOLAGA-inspired admin visual reset
+# Admin readability and layout correction — 2026-09-14
 
-## Goal
+## Goal and evidence
+Owner rejected the deployed design: 8–11 px text, low-contrast captions,
+unlabelled traffic values and excessive horizontal separation on 2560 px screens.
+The two owner screenshots are the before evidence.
 
-Replace the rejected ArcVPN admin visual layer with an original Svelte
-implementation that follows the approved BEDOLAGA-like operational language:
-flat near-black canvas, restrained dark surfaces, compact type, consistent
-spacing, table-first information density and clear status accents.
-
-## Non-goals
-
-- No React/Tailwind migration and no BEDOLAGA source or component copying.
-- No API, database, permission, payment or subscription behavior changes.
-- No changes to public subscription URLs, UUIDs or customer access.
+## Contract
+- Body and table values 14 px; secondary text at least 12 px.
+- Foreground #eaf0f8, secondary #a6b4c8 on #131c2b surfaces.
+- System UI font with normal 400/500/600 weights and tabular numeric values.
+- Overview presents KPIs, network and operator queue before growth detail.
+- Nodes are full-width rows with explicit status and online labels.
+- Users have labelled main/LTE values and real readable filters.
+- Primary content remains at most 1480 px wide, aligned inside a 248 px shell.
+- Existing APIs, business operations and permission behavior are preserved.
 
 ## Components
-
-- `webapp/src/views/AdminConsole.svelte`: dashboard hierarchy and shared tokens.
-- `webapp/src/components/admin/AdminNavigation.svelte`: restrained sidebar.
-- `webapp/src/components/admin/AdminPageHeader.svelte`: compact page heading.
-- `webapp/src/components/admin/AdminLogin.svelte`: matching auth surface.
-- `webapp/src/views/admin/AdminUsers.svelte`: table-first users and Client 360.
-- generated `webapp_dist` assets.
-
-## Accepted visual contract
-
-- Near-black flat background; no large decorative aurora in the workspace.
-- Sidebar is quiet and compact; active item uses a subtle blue surface, not a
-  bright filled pill or edge stripe.
-- Page titles are 24–28 px; controls use 8/12/16/24 px rhythm.
-- KPI cards are compact, use a small semantic icon tile and avoid nested cards.
-- Nodes, operational queue and users read as dense lists/tables.
-- Borders are thin, radii are mostly 10–16 px, shadows are minimal.
-- Blue is reserved for selection/actions; green, amber and red mean status.
-- Mobile keeps essential actions and uses a compact bottom navigation.
+AdminConsole, AdminUsers, AdminNavigation and AdminPageHeader.
+Replace conflicting local style layers where mapped; no unrelated owner files.
 
 ## Acceptance
+Build passes; screenshots and DOM checked at 390, 768, 1280, 1600 and 2560.
+Check internal container overflow as well as document overflow.
+Verify user detail and navigation; preview uses synthetic data, production login
+is checked separately. Typography and contrast must be measured, not inferred.
 
-- Shell, Overview and Users/Client 360 visibly share the new system.
-- No old bright sidebar selection, giant headings, excessive glow, or oversized
-  rounded dashboard cards remain in those surfaces.
-- Existing loading, empty, error, stale, forbidden and permission states work.
-- Routes and browser back/forward from the previous stage still work.
-- No horizontal overflow at 390, 768, 1280 and 1600 px.
-- Production build and browser review pass before deployment.
+## Verification evidence
+- `npm run build`: passed; 183 modules transformed.
+- Users and overview: no document or internal-container overflow at 390, 768,
+  1280, 1600 and 2560 px.
+- Users: table values 14 px, names 15 px and secondary text 12 px.
+- Secondary text contrast measured at 8.13:1 on the table surface.
+- Client 360, navigation, empty state and recoverable error state verified in browser.
+- Owner requested production release while explicitly noting that the broader
+  visual direction still needs another design iteration; this release therefore
+  closes the readability correction, not final aesthetic approval.
 
-## Risks and rollback
-
-- Dense tables can become unreadable below tablet width; mobile rows must
-  deliberately collapse instead of shrinking every column.
-- Legacy component-local CSS may override new tokens; verify computed output.
-- Rollback by reverting the visual-reset commit and pulling it on production;
-  static-only release requires no service restart.
-
-## Verification matrix
-
-- Local Svelte build and staged diff check.
-- Browser: Overview and Users at 390/768/1280/1600.
-- Browser: navigation, user drawer, keyboard focus and unauthorized login.
-- Production: bundle asset requests, public login, service health.
-
-## Local evidence
-
-- Vite production build passed: 183 modules transformed.
-- Desktop 1600 px: four compact KPI blocks, nodes and work queue above growth
-  panels, flat sidebar state and no horizontal overflow.
-- Users 1600 px: visible Client/Payments/Subscription/Traffic/Status columns;
-  opening a row renders six facts, subscriptions, payments, timeline and actions.
-- Users with the Client 360 drawer open passed 390, 768, 1280 and 1600 px
-  overflow checks.
-- Mobile 390x844 collapses table-only columns, keeps the identity/status row and
-  exposes Client 360 as a readable two-column detail flow.
-- Unauthorized 390 px view contains no sidebar, focuses the password input via
-  keyboard navigation and has no horizontal overflow.
-- Existing unused-selector warnings outside this stage remain non-blocking.
-
-## Release evidence
-
-- Runtime/static commit `ade4ee2` pushed to `origin/main` and pulled
-  fast-forward on production `pl-control`.
-- Public `/admin` loads entry `index--bT-BGDE.js`, application
-  `App-BM8eLNKl.js` and redesigned `App-uWxs8Pnp.css` with HTTP 200.
-- Public unauthenticated browser confirms the compact production login, no
-  sidebar leakage and no horizontal overflow.
-- `arcvpn-subscription.service` and `nginx.service` remain active. No restart was
-  performed because this release changes committed frontend assets only.
-- Rollback remains a revert of `ade4ee2` followed by a production fast-forward
-  pull; no database or public identifier migration occurred.
-
-## Residual risk and next step
-
-- The remaining admin pages still contain older page-local styling beneath the
-  new shell. Bring Payments and Support onto the same table/toolbar primitives
-  in the next bounded visual stage.
+## Rollback
+Revert this stage commit; frontend-only assets do not require service restart.
