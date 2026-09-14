@@ -38,3 +38,11 @@ is checked separately. Typography and contrast must be measured, not inferred.
 
 ## Rollback
 Revert this stage commit; frontend-only assets do not require service restart.
+
+## Production release
+- Runtime commit: `09fe368` (`Improve admin readability`).
+- GitHub `main` and `/root/ArcVPN` on `pl-control` advanced by fast-forward.
+- Public `/admin` serves `index-CwnZAZO_.js` and `App-D_wwb1S4.css`.
+- Unauthenticated production browser check shows only the dedicated Admin login.
+- `arcvpn-subscription.service` and `nginx.service` remain active; no restart was
+  performed because the release changes only prebuilt static frontend assets.
