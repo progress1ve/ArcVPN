@@ -19,7 +19,9 @@ sys.path.insert(0, str(ROOT))
 from database.connection import DB_PATH
 
 
-DOMAIN = "de.arccnet.space"
+DOMAIN = os.environ.get("ARCVPN_CANARY_DOMAIN", "de.arccnet.space")
+CONNECT_HOST = os.environ.get("ARCVPN_CANARY_CONNECT_HOST", "")
+CONNECT_PORT = int(os.environ.get("ARCVPN_CANARY_CONNECT_PORT", "0") or 0)
 XRAY = Path(os.environ.get("ARCVPN_CANARY_XRAY", "/tmp/arcvpn-canary-xray"))
 
 
@@ -47,7 +49,7 @@ def subscription_lines() -> list[str]:
     return last_lines
 
 
-def germany_link() -> str:
+def reality_link() -> str:
     available = []
     for line in subscription_lines():
         parsed = urllib.parse.urlsplit(line)
@@ -60,7 +62,7 @@ def germany_link() -> str:
         if parsed.hostname == DOMAIN and query.get("security") == ["reality"]:
             return line
     raise RuntimeError(
-        "Replacement Germany REALITY link is absent from subscription output; "
+        f"REALITY link for {DOMAIN} is absent from subscription output; "
         + json.dumps(available, ensure_ascii=False)
     )
 
@@ -68,11 +70,11 @@ def germany_link() -> str:
 def main() -> None:
     if not XRAY.is_file():
         raise RuntimeError("Canary Xray binary is missing")
-    parsed = urllib.parse.urlsplit(germany_link())
+    parsed = urllib.parse.urlsplit(reality_link())
     query = urllib.parse.parse_qs(parsed.query)
     user = urllib.parse.unquote(parsed.username or "")
     if not user or not query.get("pbk") or not query.get("sid"):
-        raise RuntimeError("Germany link is incomplete")
+        raise RuntimeError(f"REALITY link for {DOMAIN} is incomplete")
     config = {
         "log": {"loglevel": "warning"},
         "inbounds": [{
@@ -82,7 +84,7 @@ def main() -> None:
         "outbounds": [{
             "tag": "proxy", "protocol": "vless",
             "settings": {"vnext": [{
-                "address": parsed.hostname, "port": parsed.port or 443,
+                "address": CONNECT_HOST or parsed.hostname, "port": CONNECT_PORT or parsed.port or 443,
                 "users": [{
                     "id": user, "encryption": "none",
                     **({"flow": query["flow"][0]} if query.get("flow") else {}),
@@ -115,7 +117,7 @@ def main() -> None:
                 "https://www.google.com/generate_204",
             ], capture_output=True, text=True, timeout=20)
             if result.returncode or result.stdout.strip() != "204":
-                raise RuntimeError("Germany REALITY tunnel canary failed")
+                raise RuntimeError(f"REALITY tunnel canary failed for {DOMAIN}")
             print(json.dumps({"tunnel": "passed", "http": 204, "hostname": DOMAIN}))
         finally:
             process.terminate()
