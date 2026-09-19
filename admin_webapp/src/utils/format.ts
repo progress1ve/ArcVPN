@@ -1,0 +1,95 @@
+export const USER_TIMEZONE = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+
+export function formatUptime(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  const hours = Math.floor((seconds % 86400) / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${minutes}m`;
+}
+
+import i18next from 'i18next';
+import { currencyApi, type ExchangeRates } from '../api/currency';
+import { uiLocale } from './uiLocale';
+
+const LANG_CURRENCY_MAP: Record<
+  string,
+  { currency: string; locale: string; symbol: string; key?: keyof ExchangeRates }
+> = {
+  ru: { currency: 'RUB', locale: 'ru-RU', symbol: '₽' },
+  en: { currency: 'USD', locale: 'en-US', symbol: '$', key: 'USD' },
+  zh: { currency: 'CNY', locale: 'zh-CN', symbol: '¥', key: 'CNY' },
+  fa: { currency: 'IRR', locale: 'fa-IR', symbol: '﷼', key: 'IRR' },
+};
+
+const DEFAULT_CURRENCY = { currency: 'RUB', locale: 'ru-RU', symbol: '₽' };
+
+// Глобальный кэш курсов. Заполняется один раз из useCurrency (см. setExchangeRates ниже)
+// и используется здесь синхронно. Без него formatPrice падал в "просто замена символа",
+// что давало пользователю на лендинге `¥220` вместо реально конвертированной суммы.
+let cachedExchangeRates: ExchangeRates | null = null;
+
+export function setExchangeRates(rates: ExchangeRates | null): void {
+  cachedExchangeRates = rates;
+}
+
+export function formatPrice(kopeks: number, lang?: string): string {
+  const resolvedLang = lang || i18next.language || 'ru';
+  const config = LANG_CURRENCY_MAP[resolvedLang] || DEFAULT_CURRENCY;
+  let amount = kopeks / 100;
+
+  // Конвертация по курсу для не-рублёвых локалей. Без rates fallback на сырую сумму
+  // (поведение до фикса), чтобы первый рендер до загрузки курсов не отдавал NaN.
+  if (config.key && cachedExchangeRates) {
+    amount = currencyApi.convertFromRub(amount, config.key, cachedExchangeRates);
+  }
+
+  // Для IRR суммы большие — без дробной части.
+  const maximumFractionDigits = config.currency === 'IRR' ? 0 : 2;
+
+  try {
+    return new Intl.NumberFormat(config.locale, {
+      style: 'currency',
+      currency: config.currency,
+      maximumFractionDigits,
+    }).format(amount);
+  } catch {
+    const rounded =
+      maximumFractionDigits === 0 ? Math.round(amount) : Math.round(amount * 100) / 100;
+    return `${rounded} ${config.symbol}`;
+  }
+}
+
+/** A date-only string (YYYY-MM-DD) is a calendar day, not UTC midnight: parsed as a local
+ * date so the day label never slips back a day for viewers west of UTC. Full timestamps
+ * stay instants. */
+export function parseCalendarDate(value: string): Date {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return new Date(value);
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+/** A machine date rendered for the locale; a string the browser cannot parse is shown as is.
+ * Bot 4.8.0 sent a human-formatted date in WebSocket events and the success modal printed
+ * "Invalid Date" — the raw text is always better than that. */
+export function formatDateOrRaw(
+  value: string | null | undefined,
+  locale: string,
+  options: Intl.DateTimeFormatOptions,
+): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleDateString(locale, options);
+}
+
+/** Date-only (dd.mm.yyyy) in the active UI locale; '-' for a null date. */
+export function formatShortDate(date: string | null): string {
+  if (!date) return '-';
+  return new Date(date).toLocaleDateString(uiLocale(), {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}

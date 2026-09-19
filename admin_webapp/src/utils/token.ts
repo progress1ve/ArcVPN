@@ -1,0 +1,341 @@
+import axios from 'axios';
+import {
+  getCloudStorageItem,
+  setCloudStorageItem,
+  deleteCloudStorageItem,
+} from '@telegram-apps/sdk-react';
+import { isInTelegramWebApp } from '../hooks/useTelegramSDK';
+import { API } from '../config/constants';
+import { reportPossibleBackendDown } from '../api/health';
+import { safeLocal, safeSession } from './safeStorage';
+
+const TOKEN_KEYS = {
+  ACCESS: 'access_token',
+  REFRESH: 'refresh_token',
+  USER: 'user',
+  TELEGRAM_INIT: 'telegram_init_data',
+} as const;
+
+// --- Telegram CloudStorage backup for the refresh token ---
+// The Telegram WebView can wipe localStorage between sessions. Mirroring the refresh
+// token to per-user CloudStorage lets initialize() recover the session instead of
+// dropping the user to the login screen. Best-effort: failures fall back to localStorage.
+const CLOUD_REFRESH_KEY = TOKEN_KEYS.REFRESH;
+
+function mirrorRefreshTokenToCloud(refreshToken: string): void {
+  if (!isInTelegramWebApp()) return;
+  try {
+    void setCloudStorageItem(CLOUD_REFRESH_KEY, refreshToken).catch(() => {});
+  } catch {}
+}
+
+function removeRefreshTokenFromCloud(): void {
+  if (!isInTelegramWebApp()) return;
+  try {
+    void deleteCloudStorageItem(CLOUD_REFRESH_KEY).catch(() => {});
+  } catch {}
+}
+
+export async function restoreRefreshTokenFromCloud(): Promise<string | null> {
+  if (!isInTelegramWebApp()) return null;
+  try {
+    const value = await getCloudStorageItem(CLOUD_REFRESH_KEY);
+    const token = value || null;
+    if (token) {
+      try {
+        localStorage.setItem(TOKEN_KEYS.REFRESH, token);
+      } catch {}
+    }
+    return token;
+  } catch {
+    return null;
+  }
+}
+
+interface JWTPayload {
+  exp?: number;
+  iat?: number;
+  sub?: string;
+  [key: string]: unknown;
+}
+
+export function decodeJWT(token: string): JWTPayload | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+
+    const payload = parts[1];
+    const decoded = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
+    return JSON.parse(decoded);
+  } catch {
+    return null;
+  }
+}
+
+export function isTokenExpired(token: string | null, bufferSeconds = 30): boolean {
+  if (!token) return true;
+
+  const payload = decodeJWT(token);
+  if (!payload?.exp) return true;
+
+  const now = Math.floor(Date.now() / 1000);
+  return payload.exp <= now + bufferSeconds;
+}
+
+export function isTokenValid(token: string | null): boolean {
+  if (!token) return false;
+  return !isTokenExpired(token);
+}
+
+export const tokenStorage = {
+  getAccessToken(): string | null {
+    try {
+      return sessionStorage.getItem(TOKEN_KEYS.ACCESS);
+    } catch {
+      return null;
+    }
+  },
+
+  getRefreshToken(): string | null {
+    try {
+      return localStorage.getItem(TOKEN_KEYS.REFRESH) || sessionStorage.getItem(TOKEN_KEYS.REFRESH);
+    } catch {
+      return null;
+    }
+  },
+
+  setTokens(accessToken: string, refreshToken: string): void {
+    try {
+      sessionStorage.setItem(TOKEN_KEYS.ACCESS, accessToken);
+      localStorage.setItem(TOKEN_KEYS.REFRESH, refreshToken);
+      sessionStorage.removeItem(TOKEN_KEYS.REFRESH);
+      mirrorRefreshTokenToCloud(refreshToken);
+    } catch {}
+  },
+
+  setAccessToken(accessToken: string): void {
+    try {
+      sessionStorage.setItem(TOKEN_KEYS.ACCESS, accessToken);
+    } catch {
+      console.error('Failed to save access token to sessionStorage');
+    }
+  },
+
+  clearTokens(): void {
+    try {
+      sessionStorage.removeItem(TOKEN_KEYS.ACCESS);
+      sessionStorage.removeItem(TOKEN_KEYS.REFRESH);
+      sessionStorage.removeItem(TOKEN_KEYS.USER);
+      localStorage.removeItem(TOKEN_KEYS.ACCESS);
+      localStorage.removeItem(TOKEN_KEYS.REFRESH);
+      localStorage.removeItem(TOKEN_KEYS.USER);
+      removeRefreshTokenFromCloud();
+    } catch {}
+  },
+
+  migrateFromLocalStorage(): void {
+    try {
+      const accessToken = localStorage.getItem(TOKEN_KEYS.ACCESS);
+      if (accessToken && !sessionStorage.getItem(TOKEN_KEYS.ACCESS)) {
+        sessionStorage.setItem(TOKEN_KEYS.ACCESS, accessToken);
+      }
+      localStorage.removeItem(TOKEN_KEYS.ACCESS);
+
+      const refreshInSession = sessionStorage.getItem(TOKEN_KEYS.REFRESH);
+      if (refreshInSession && !localStorage.getItem(TOKEN_KEYS.REFRESH)) {
+        localStorage.setItem(TOKEN_KEYS.REFRESH, refreshInSession);
+      }
+      sessionStorage.removeItem(TOKEN_KEYS.REFRESH);
+    } catch {}
+  },
+
+  getTelegramInitData(): string | null {
+    try {
+      return sessionStorage.getItem(TOKEN_KEYS.TELEGRAM_INIT);
+    } catch {
+      return null;
+    }
+  },
+
+  setTelegramInitData(data: string): void {
+    try {
+      sessionStorage.setItem(TOKEN_KEYS.TELEGRAM_INIT, data);
+    } catch {}
+  },
+};
+
+function extractTelegramUserId(initData: string): string | null {
+  try {
+    const params = new URLSearchParams(initData);
+    const userJson = params.get('user');
+    if (!userJson) return null;
+    const user = JSON.parse(userJson);
+    return user.id != null ? String(user.id) : null;
+  } catch {
+    return null;
+  }
+}
+
+const TG_USER_ID_KEY = 'tg_user_id';
+
+export function clearStaleSessionIfNeeded(freshInitData: string | null): void {
+  if (!freshInitData) return;
+
+  try {
+    const currentTgUserId = extractTelegramUserId(freshInitData);
+    const storedTgUserId = localStorage.getItem(TG_USER_ID_KEY);
+
+    if (storedTgUserId && currentTgUserId && storedTgUserId !== currentTgUserId) {
+      sessionStorage.removeItem(TOKEN_KEYS.ACCESS);
+      sessionStorage.removeItem(TOKEN_KEYS.REFRESH);
+      sessionStorage.removeItem(TOKEN_KEYS.USER);
+      localStorage.removeItem(TOKEN_KEYS.REFRESH);
+      safeLocal.removeItem('cabinet-auth');
+    }
+
+    if (currentTgUserId) {
+      localStorage.setItem(TG_USER_ID_KEY, currentTgUserId);
+    }
+
+    sessionStorage.setItem(TOKEN_KEYS.TELEGRAM_INIT, freshInitData);
+    localStorage.removeItem(TOKEN_KEYS.TELEGRAM_INIT);
+  } catch {}
+}
+
+class TokenRefreshManager {
+  private isRefreshing = false;
+  private refreshPromise: Promise<string | null> | null = null;
+  private subscribers: ((token: string | null) => void)[] = [];
+  private refreshEndpoint = '/api/cabinet/auth/refresh';
+
+  /**
+   * True when the most recent refresh failed at the TRANSPORT level (backend
+   * unreachable / timeout) rather than because the refresh token was rejected.
+   * Callers read this right after a null `refreshAccessToken()` to decide whether
+   * to destroy the session (rejected token) or KEEP it so the recoverable
+   * ServiceUnavailableScreen can resume once the backend returns. Synchronously
+   * accurate: it is set inside doRefresh before the shared promise resolves, so
+   * every awaiter (including deduped concurrent callers) reads a consistent value.
+   */
+  lastFailureWasTransport = false;
+
+  setRefreshEndpoint(endpoint: string): void {
+    this.refreshEndpoint = endpoint;
+  }
+
+  async refreshAccessToken(): Promise<string | null> {
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    this.lastFailureWasTransport = false;
+
+    const refreshToken = tokenStorage.getRefreshToken();
+    if (!refreshToken) {
+      return null;
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = this.doRefresh(refreshToken);
+
+    try {
+      const result = await this.refreshPromise;
+      this.notifySubscribers(result);
+      return result;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
+  // Uses plain axios (not apiClient) to avoid circular dependency
+  private async doRefresh(refreshToken: string): Promise<string | null> {
+    try {
+      const response = await axios.post<{ access_token?: string }>(
+        this.refreshEndpoint,
+        { refresh_token: refreshToken },
+        // Without an explicit timeout this inherits axios's default of 0 (no
+        // timeout): on the persisted-token bootstrap path an unreachable backend
+        // would hang the refresh indefinitely, pinning the app on a blank loader.
+        { headers: { 'Content-Type': 'application/json' }, timeout: API.TIMEOUT_MS },
+      );
+
+      const newAccessToken = response.data.access_token;
+
+      if (newAccessToken) {
+        tokenStorage.setAccessToken(newAccessToken);
+        return newAccessToken;
+      }
+
+      return null;
+    } catch (err) {
+      // This bare-axios call bypasses the apiClient interceptor, so a dead
+      // backend on the refresh-only bootstrap path would otherwise be swallowed
+      // here and silently fall through to a login redirect. Distinguish a
+      // transport-level failure (no response) from an invalid/expired token (a
+      // 4xx response) and surface the service-unavailable screen for the former.
+      if (axios.isAxiosError(err) && !err.response) {
+        this.lastFailureWasTransport = true;
+        void reportPossibleBackendDown();
+      }
+      return null;
+    }
+  }
+
+  subscribe(callback: (token: string | null) => void): () => void {
+    this.subscribers.push(callback);
+    return () => {
+      this.subscribers = this.subscribers.filter((cb) => cb !== callback);
+    };
+  }
+
+  private notifySubscribers(token: string | null): void {
+    this.subscribers.forEach((cb) => cb(token));
+    this.subscribers = [];
+  }
+
+  get isRefreshInProgress(): boolean {
+    return this.isRefreshing;
+  }
+
+  async waitForRefresh(): Promise<string | null> {
+    if (this.refreshPromise) {
+      return this.refreshPromise;
+    }
+    return tokenStorage.getAccessToken();
+  }
+}
+
+export const tokenRefreshManager = new TokenRefreshManager();
+
+const RETURN_URL_KEY = 'auth_return_url';
+
+// Called from the render body of ProtectedRoute/AdminRoute right before the
+// redirect, so a throwing sessionStorage here would keep the user from ever
+// reaching the login screen — the `typeof window` check only guards SSR.
+export function saveReturnUrl(): void {
+  if (typeof window !== 'undefined') {
+    const currentPath = window.location.pathname + window.location.search;
+    if (currentPath && currentPath !== '/login') {
+      safeSession.setItem(RETURN_URL_KEY, currentPath);
+    }
+  }
+}
+
+export function getAndClearReturnUrl(): string | null {
+  if (typeof window !== 'undefined') {
+    const url = safeSession.getItem(RETURN_URL_KEY);
+    safeSession.removeItem(RETURN_URL_KEY);
+    return url;
+  }
+  return null;
+}
+
+export function safeRedirectToLogin(): void {
+  if (typeof window !== 'undefined') {
+    // Guard: don't redirect if already on /login to prevent infinite reload loops
+    if (window.location.pathname === '/login') return;
+    saveReturnUrl();
+    window.location.href = '/login';
+  }
+}
