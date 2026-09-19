@@ -227,15 +227,19 @@ REMNAWAVE_PUBLIC_NODES = (
         "hy2_number": 2,
     },
     {
-        "enabled": bool(getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)),
+        "enabled": bool(
+            getattr(config, "REMNAWAVE_GERMANY_ENABLED", False)
+            and str(getattr(config, "REMNAWAVE_GERMANY_PUBLIC_KEY", "")).strip()
+            and str(getattr(config, "REMNAWAVE_GERMANY_SHORT_ID", "")).strip()
+        ),
         "country": "DE",
         "flag": "🇩🇪",
         "label": "Германия",
         "host": "de.arccnet.space",
-        "reality_sni": "google.com",
+        "reality_sni": "de.arccnet.space",
         "tcp_port": 443,
-        "public_key": "4eeWXVSvnq4N9CAL0_-ZHWS-iz7mImVPwbHRZqMQakw",
-        "short_id": "7f3a91c4b6e2085d",
+        "public_key": str(getattr(config, "REMNAWAVE_GERMANY_PUBLIC_KEY", "")).strip(),
+        "short_id": str(getattr(config, "REMNAWAVE_GERMANY_SHORT_ID", "")).strip(),
         "tcp_number": 1,
     },
     {
@@ -549,13 +553,10 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # from the code, while the behaviour itself stays enabled by default.
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
-    "2.26.84.210": {"provider": "Play2Go", "location": "Германия", "monthly_cost_rub": 340, "capacity_mbps": 1000},
-    "159.200.230.224": {"provider": "Dataforest reseller trial", "location": "Германия", "monthly_cost_rub": 0, "capacity_mbps": 1000},
-    # The advertised 10 Gbit/s uplink is shared; use a conservative planning
-    # capacity until sustained production telemetry proves otherwise.
-    "193.233.198.184": {"provider": "dhost", "location": "Германия", "monthly_cost_rub": 300, "capacity_mbps": 1000},
+    "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
     "95.85.249.187": {"provider": "1chost", "location": "Эстония"},
+    "85.198.101.79": {"provider": "Beget", "location": "Москва"},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12

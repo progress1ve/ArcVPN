@@ -1,0 +1,11 @@
+services:
+  remnanode:
+    image: remnawave/node:3.4.1
+    container_name: remnanode
+    hostname: remnanode
+    restart: always
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - /var/log/remnanode:/var/log/remnanode

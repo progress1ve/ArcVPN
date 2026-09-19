@@ -11,13 +11,22 @@ credential_alias = "pl-control"
 status = "active"
 
 [[servers]]
-alias = "de-dhost"
+alias = "de-1chost"
 role = "vpn-node"
 location = "Germany"
-host = "193.233.198.184"
+host = "87.121.47.203"
 ssh_user = "root"
-credential_alias = "de-dhost"
-status = "active"
+credential_alias = "de-1chost"
+status = "provisioning"
+
+[[servers]]
+alias = "msk-beget"
+role = "bridge-node"
+location = "Russia/Moscow"
+host = "85.198.101.79"
+ssh_user = "root"
+credential_alias = "msk-beget"
+status = "provisioning"
 
 [[servers]]
 alias = "nl-dhost"
