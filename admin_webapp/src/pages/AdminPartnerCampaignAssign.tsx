@@ -1,0 +1,146 @@
+import { useLocation, useParams, useNavigate } from 'react-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { partnerApi } from '../api/partners';
+import { campaignsApi } from '../api/campaigns';
+import { AdminBackButton, backTo } from '../components/admin';
+import { Skeleton, SkeletonGroup } from '../components/ui/skeleton';
+
+export default function AdminPartnerCampaignAssign() {
+  const { t } = useTranslation();
+  const { userId } = useParams<{ userId: string }>();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const queryClient = useQueryClient();
+
+  // Fetch partner detail to know already assigned campaign IDs
+  const { data: partner } = useQuery({
+    queryKey: ['admin-partner-detail', userId],
+    queryFn: () => partnerApi.getPartnerDetail(Number(userId)),
+    enabled: !!userId,
+  });
+
+  // Fetch all campaigns
+  const { data: campaignsData, isLoading } = useQuery({
+    queryKey: ['admin-campaigns-all'],
+    queryFn: () => campaignsApi.getCampaigns(true, 0, 100),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: (campaignId: number) => partnerApi.assignCampaign(Number(userId), campaignId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-partner-detail', userId] });
+      navigate(`/admin/partners/${userId}`);
+    },
+  });
+
+  const assignedIds = new Set(partner?.campaigns.map((c) => c.id) ?? []);
+  const available =
+    campaignsData?.campaigns.filter((c) => !assignedIds.has(c.id) && c.partner_user_id === null) ??
+    [];
+  const takenByOthers =
+    campaignsData?.campaigns.filter((c) => !assignedIds.has(c.id) && c.partner_user_id !== null) ??
+    [];
+
+  const partnerName = partner
+    ? partner.first_name || partner.username || `#${partner.user_id}`
+    : '';
+
+  return (
+    <div className="animate-fade-in">
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-3">
+        <AdminBackButton to={`/admin/partners/${userId}`} />
+        <div>
+          <h1 className="text-xl font-semibold text-dark-100">
+            {t('admin.partnerDetail.campaigns.assignTitle')}
+          </h1>
+          {partnerName && <p className="text-sm text-dark-400">{partnerName}</p>}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <SkeletonGroup className="space-y-3">
+          <Skeleton variant="card" count={3} className="h-16" />
+        </SkeletonGroup>
+      ) : available.length === 0 ? (
+        <div className="rounded-xl border border-dark-700 bg-dark-800 p-6">
+          <div className="py-4 text-center text-sm text-dark-500">
+            {t('admin.partnerDetail.campaigns.noAvailable')}
+          </div>
+          <button
+            onClick={() =>
+              navigate(`/admin/campaigns/create?partnerId=${userId}`, backTo(location))
+            }
+            className="mt-2 w-full rounded-lg bg-accent-500 px-4 py-3 font-medium text-on-accent transition-colors hover:bg-accent-600"
+          >
+            {t('admin.partnerDetail.campaigns.createNew')}
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {available.map((campaign) => (
+            <div key={campaign.id} className="rounded-xl border border-dark-700 bg-dark-800 p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-dark-100">{campaign.name}</span>
+                    {!campaign.is_active && (
+                      <span className="rounded bg-dark-600 px-1.5 py-0.5 text-xs text-dark-400">
+                        {t('admin.campaigns.table.inactive')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex min-w-0 items-center gap-3 text-xs text-dark-500">
+                    <span className="min-w-0 truncate font-mono">
+                      ?start={campaign.start_parameter}
+                    </span>
+                    <span className="shrink-0">
+                      {campaign.registrations_count}{' '}
+                      {t('admin.campaigns.overview.registrations').toLowerCase()}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => assignMutation.mutate(campaign.id)}
+                  disabled={assignMutation.isPending}
+                  className="shrink-0 rounded-lg bg-accent-500/20 px-4 py-2 text-sm font-medium text-accent-400 transition-colors hover:bg-accent-500/30 disabled:opacity-50"
+                >
+                  {t('admin.partnerDetail.campaigns.assign')}
+                </button>
+              </div>
+            </div>
+          ))}
+
+          {/* Show campaigns assigned to other partners as greyed out */}
+          {takenByOthers.map((campaign) => (
+            <div
+              key={campaign.id}
+              className="rounded-xl border border-dark-700/50 bg-dark-800 p-4 opacity-50"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-dark-300">{campaign.name}</span>
+                    <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-xs text-purple-400">
+                      {campaign.partner_name}
+                    </span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-3 text-xs text-dark-500">
+                    <span className="font-mono">?start={campaign.start_parameter}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {assignMutation.isError && (
+        <div className="mt-4 rounded-lg bg-error-500/10 p-3 text-sm text-error-400">
+          {t('common.error')}
+        </div>
+      )}
+    </div>
+  );
+}

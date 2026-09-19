@@ -1,0 +1,548 @@
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import {
+  promoOffersApi,
+  type PromoOfferBroadcastRequest,
+  TARGET_SEGMENTS,
+  type TargetSegment,
+  OFFER_TYPE_CONFIG,
+  type OfferType,
+} from '../api/promoOffers';
+import { adminBroadcastsApi } from '../api/adminBroadcasts';
+import { adminUsersApi, type UserListItem } from '../api/adminUsers';
+import { AdminBackButton } from '../components/admin';
+import {
+  BroadcastDeliveryStats,
+  BroadcastStatusBadge,
+} from '../components/broadcasts/BroadcastDeliveryStats';
+import { broadcastPollInterval } from '../utils/broadcastStatus';
+import { getApiErrorMessage } from '../utils/api-error';
+import { PageSkeleton, Skeleton } from '@/components/ui/skeleton';
+import {
+  SendIcon,
+  CheckIcon,
+  UsersIcon,
+  UserIcon,
+  SearchIcon,
+  CloseIcon,
+  XIcon,
+} from '@/components/icons';
+
+const getOfferTypeIcon = (offerType: string): string => {
+  return OFFER_TYPE_CONFIG[offerType as OfferType]?.icon || '🎁';
+};
+
+export default function AdminPromoOfferSend() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  const [sendMode, setSendMode] = useState<'segment' | 'user'>('segment');
+  const [selectedTarget, setSelectedTarget] = useState<TargetSegment>('active');
+  const [userId, setUserId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedUser, setSelectedUser] = useState<UserListItem | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const [result, setResult] = useState<{
+    title: string;
+    message: string;
+    isSuccess: boolean;
+    broadcastId?: number | null;
+  } | null>(null);
+
+  // Query templates
+  const { data: templatesData, isLoading } = useQuery({
+    queryKey: ['admin-promo-templates'],
+    queryFn: promoOffersApi.getTemplates,
+  });
+
+  // Recipient counts per segment — админ видит охват до отправки
+  const { data: segmentsData } = useQuery({
+    queryKey: ['admin-promo-segments'],
+    queryFn: promoOffersApi.getSegments,
+    staleTime: 60000,
+  });
+
+  const segmentCounts = new Map(
+    (segmentsData?.segments || []).map((segment) => [segment.key, segment.count]),
+  );
+  const selectedSegmentCount = segmentCounts.get(selectedTarget);
+
+  // Delivery progress of the offer we have just sent
+  const broadcastId = result?.broadcastId ?? null;
+  const { data: delivery } = useQuery({
+    queryKey: ['admin', 'broadcasts', 'detail', broadcastId],
+    queryFn: async () => adminBroadcastsApi.get(broadcastId as number),
+    enabled: broadcastId !== null,
+    refetchInterval: (query) => broadcastPollInterval(query.state.data?.status),
+  });
+
+  const templates = templatesData?.items || [];
+  const activeTemplates = templates.filter((t) => t.is_active);
+  const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
+
+  // Set default template when loaded
+  if (!selectedTemplateId && activeTemplates.length > 0) {
+    setSelectedTemplateId(activeTemplates[0].id);
+  }
+
+  // User search query with debounce
+  const { data: searchResults, isFetching: isSearching } = useQuery({
+    queryKey: ['admin-users-search', searchQuery],
+    queryFn: () => adminUsersApi.getUsers({ search: searchQuery, limit: 10 }),
+    enabled: searchQuery.length >= 2 && sendMode === 'user',
+    staleTime: 30000,
+  });
+
+  // Filter users with telegram_id only
+  const filteredUsers = (searchResults?.users || []).filter((u) => u.telegram_id);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle user selection
+  const handleSelectUser = (user: UserListItem) => {
+    setSelectedUser(user);
+    setUserId(user.telegram_id.toString());
+    setSearchQuery('');
+    setShowDropdown(false);
+  };
+
+  // Clear selected user
+  const handleClearUser = () => {
+    setSelectedUser(null);
+    setUserId('');
+    setSearchQuery('');
+  };
+
+  // Broadcast mutation
+  const broadcastMutation = useMutation({
+    mutationFn: promoOffersApi.broadcastOffer,
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['admin-promo-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['admin', 'broadcasts'] });
+
+      let message = t('admin.promoOffers.result.offersCreated', { count: data.created_offers });
+      if (data.notifications_sent > 0 || data.notifications_failed > 0) {
+        message +=
+          '\n' +
+          t('admin.promoOffers.result.notificationsSent', { count: data.notifications_sent });
+        if (data.notifications_failed > 0) {
+          message +=
+            ' ' +
+            t('admin.promoOffers.result.notificationsFailed', {
+              count: data.notifications_failed,
+            });
+        }
+      }
+
+      setResult({
+        title: t('admin.promoOffers.result.sentTitle'),
+        message,
+        isSuccess: true,
+        broadcastId: data.broadcast_id,
+      });
+    },
+    onError: (error: unknown) => {
+      setResult({
+        title: t('common.error'),
+        message: getApiErrorMessage(error, t('admin.promoOffers.result.sendError')),
+        isSuccess: false,
+      });
+    },
+  });
+
+  const handleSubmit = () => {
+    if (!selectedTemplateId || !selectedTemplate) return;
+
+    const data: PromoOfferBroadcastRequest = {
+      notification_type: selectedTemplate.offer_type,
+      valid_hours: selectedTemplate.valid_hours,
+      discount_percent: selectedTemplate.discount_percent,
+      effect_type:
+        selectedTemplate.offer_type === 'test_access' ? 'test_access' : 'percent_discount',
+      extra_data: {
+        template_id: selectedTemplate.id,
+        active_discount_hours: selectedTemplate.active_discount_hours,
+        test_duration_hours: selectedTemplate.test_duration_hours,
+        test_squad_uuids: selectedTemplate.test_squad_uuids,
+      },
+      send_notification: true,
+      message_text: selectedTemplate.message_text,
+      button_text: selectedTemplate.button_text,
+    };
+
+    if (sendMode === 'user') {
+      const id = parseInt(userId);
+      if (!id) return;
+      data.telegram_id = id;
+    } else {
+      data.target = selectedTarget;
+    }
+
+    broadcastMutation.mutate(data);
+  };
+
+  const isValid = () => {
+    if (!selectedTemplateId) return false;
+    if (sendMode === 'user' && !userId.trim()) return false;
+    return true;
+  };
+
+  if (isLoading) {
+    return (
+      <PageSkeleton
+        variant="admin"
+        leading={2}
+        titleWidth="w-56"
+        className="mx-auto max-w-2xl space-y-6"
+      >
+        <Skeleton variant="card" className="h-96" />
+      </PageSkeleton>
+    );
+  }
+
+  // Result screen
+  if (result) {
+    return (
+      <div className="animate-fade-in">
+        <div className="mx-auto max-w-2xl py-12 text-center">
+          <div
+            className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${
+              result.isSuccess ? 'bg-success-500/20' : 'bg-error-500/20'
+            }`}
+          >
+            {result.isSuccess ? (
+              <CheckIcon className="h-8 w-8 text-success-400" />
+            ) : (
+              <XIcon className="h-8 w-8 text-error-400" />
+            )}
+          </div>
+          <h3 className="mb-2 text-lg font-semibold text-dark-100">{result.title}</h3>
+          <p className="mb-6 whitespace-pre-wrap text-dark-400">{result.message}</p>
+
+          {/* Прогресс доставки в Telegram: сколько дошло, кто заблокировал бота */}
+          {delivery && (
+            <div className="mb-6 space-y-4 text-left">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-dark-300">
+                  {t('admin.promoOffers.result.deliveryTitle')}
+                </span>
+                <BroadcastStatusBadge status={delivery.status} />
+              </div>
+              <BroadcastDeliveryStats
+                status={delivery.status}
+                progressPercent={delivery.progress_percent}
+                totalCount={delivery.total_count}
+                sentCount={delivery.sent_count}
+                blockedCount={delivery.blocked_count}
+                failedCount={delivery.failed_count}
+              />
+              <button
+                onClick={() => navigate(`/admin/broadcasts/${delivery.id}`)}
+                className="text-sm text-accent-400 transition-colors hover:text-accent-300"
+              >
+                {t('admin.promoOffers.result.openAsBroadcast')}
+              </button>
+            </div>
+          )}
+
+          <div className="flex justify-center gap-3">
+            <button
+              onClick={() => navigate('/admin/promo-offers')}
+              className="rounded-lg bg-accent-500 px-6 py-2 text-on-accent transition-colors hover:bg-accent-600"
+            >
+              {t('admin.promoOffers.backToList')}
+            </button>
+            {result.isSuccess && (
+              <button
+                onClick={() => setResult(null)}
+                className="rounded-lg border border-dark-600 px-6 py-2 text-dark-300 transition-colors hover:text-dark-100"
+              >
+                {t('admin.promoOffers.sendAnother')}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="animate-fade-in">
+      {/* Header */}
+      <div className="mb-6 flex items-center gap-3">
+        <AdminBackButton to="/admin/promo-offers" />
+        <div className="flex items-center gap-3">
+          <div className="rounded-lg bg-accent-500/20 p-2">
+            <SendIcon />
+          </div>
+          <h1 className="text-xl font-semibold text-dark-100">
+            {t('admin.promoOffers.send.title')}
+          </h1>
+        </div>
+      </div>
+
+      {activeTemplates.length === 0 ? (
+        <div className="py-12 text-center">
+          <p className="text-dark-400">{t('admin.promoOffers.noActiveTemplates')}</p>
+        </div>
+      ) : (
+        <div className="mx-auto max-w-2xl space-y-6">
+          {/* Template Selection */}
+          <div className="rounded-xl border border-dark-700 bg-dark-800 p-6">
+            <label id="po-template-label" className="mb-2 block text-sm font-medium text-dark-300">
+              {t('admin.promoOffers.send.offerTemplate')}
+              <span className="text-error-400">*</span>
+            </label>
+            <div className="space-y-2" role="radiogroup" aria-labelledby="po-template-label">
+              {activeTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={selectedTemplateId === template.id}
+                  onClick={() => setSelectedTemplateId(template.id)}
+                  className={`w-full rounded-lg border p-4 text-left transition-colors ${
+                    selectedTemplateId === template.id
+                      ? 'border-accent-500 bg-accent-500/10'
+                      : 'border-dark-600 bg-dark-700 hover:border-dark-500'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{getOfferTypeIcon(template.offer_type)}</span>
+                    <div className="flex-1">
+                      <div className="font-medium text-dark-100">{template.name}</div>
+                      <div className="text-sm text-dark-400">
+                        {template.discount_percent > 0 &&
+                          t('admin.promoOffers.send.discountLabel', {
+                            percent: template.discount_percent,
+                          })}
+                        {template.offer_type === 'test_access' &&
+                          t('admin.promoOffers.offerType.testAccess')}
+                        <span className="mx-1">•</span>
+                        {t('admin.promoOffers.send.hoursToActivate', {
+                          hours: template.valid_hours,
+                        })}
+                      </div>
+                    </div>
+                    {selectedTemplateId === template.id && (
+                      <div className="text-accent-400">
+                        <CheckIcon />
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Send Mode */}
+          <div className="rounded-xl border border-dark-700 bg-dark-800 p-6">
+            <label id="po-sendmode-label" className="mb-2 block text-sm font-medium text-dark-300">
+              {t('admin.promoOffers.send.sendTo')}
+              <span className="text-error-400">*</span>
+            </label>
+            <div className="mb-4 flex gap-2" role="radiogroup" aria-labelledby="po-sendmode-label">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={sendMode === 'segment'}
+                onClick={() => setSendMode('segment')}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors ${
+                  sendMode === 'segment'
+                    ? 'border-accent-500 bg-accent-500/10 text-accent-400'
+                    : 'border-dark-600 text-dark-400 hover:text-dark-200'
+                }`}
+              >
+                <UsersIcon />
+                <span>{t('admin.promoOffers.send.segment')}</span>
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={sendMode === 'user'}
+                onClick={() => setSendMode('user')}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-lg border py-2.5 text-sm font-medium transition-colors ${
+                  sendMode === 'user'
+                    ? 'border-accent-500 bg-accent-500/10 text-accent-400'
+                    : 'border-dark-600 text-dark-400 hover:text-dark-200'
+                }`}
+              >
+                <UserIcon />
+                <span>{t('admin.promoOffers.send.user')}</span>
+              </button>
+            </div>
+
+            {sendMode === 'segment' ? (
+              <>
+                <select
+                  value={selectedTarget}
+                  onChange={(e) => setSelectedTarget(e.target.value as TargetSegment)}
+                  className="input"
+                >
+                  {Object.entries(TARGET_SEGMENTS).map(([key, labelKey]) => {
+                    const count = segmentCounts.get(key);
+                    return (
+                      <option key={key} value={key}>
+                        {count === undefined
+                          ? t(labelKey)
+                          : `${t(labelKey)} — ${count} ${t('admin.broadcasts.recipients')}`}
+                      </option>
+                    );
+                  })}
+                </select>
+                {selectedSegmentCount !== undefined && (
+                  <div className="mt-2 text-sm text-dark-400">
+                    {t('admin.broadcasts.willBeSent')}:{' '}
+                    <strong className="text-accent-400">{selectedSegmentCount}</strong>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div ref={searchRef} className="relative">
+                {selectedUser ? (
+                  // Selected user display
+                  <div className="flex items-center justify-between gap-2 rounded-lg border border-accent-500 bg-accent-500/10 px-3 py-2.5">
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-dark-600">
+                        <UserIcon />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium text-dark-100">
+                          {selectedUser.full_name ||
+                            selectedUser.username ||
+                            `ID: ${selectedUser.telegram_id}`}
+                        </div>
+                        <div className="truncate text-xs text-dark-400">
+                          {selectedUser.username && `@${selectedUser.username} · `}
+                          Telegram: {selectedUser.telegram_id}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleClearUser}
+                      className="shrink-0 rounded-lg p-1.5 text-dark-400 transition-colors hover:bg-dark-600 hover:text-dark-100"
+                    >
+                      <CloseIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  // Search input
+                  <>
+                    <div className="relative">
+                      <div className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-dark-400">
+                        <SearchIcon className="h-4 w-4" />
+                      </div>
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowDropdown(true);
+                        }}
+                        onFocus={() => setShowDropdown(true)}
+                        placeholder={t('admin.promoOffers.send.searchUserPlaceholder')}
+                        className="input pl-10"
+                      />
+                      {isSearching && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-accent-500 border-t-transparent" />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Dropdown results */}
+                    {showDropdown && searchQuery.length >= 2 && (
+                      <div className="absolute left-0 right-0 top-full z-50 mt-1 max-h-64 overflow-y-auto rounded-lg border border-dark-600 bg-dark-800 shadow-xl">
+                        {filteredUsers.length > 0 ? (
+                          filteredUsers.map((user) => (
+                            <button
+                              key={user.id}
+                              onClick={() => handleSelectUser(user)}
+                              className="flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-dark-700"
+                            >
+                              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-dark-600">
+                                <UserIcon />
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate text-sm font-medium text-dark-100">
+                                  {user.full_name || user.username || `User #${user.id}`}
+                                </div>
+                                <div className="truncate text-xs text-dark-400">
+                                  {user.username && `@${user.username} · `}
+                                  Telegram: {user.telegram_id}
+                                </div>
+                              </div>
+                              {user.has_subscription && (
+                                <span className="flex-shrink-0 rounded bg-success-500/20 px-1.5 py-0.5 text-xs text-success-400">
+                                  {t('admin.promoOffers.send.hasSubscription')}
+                                </span>
+                              )}
+                            </button>
+                          ))
+                        ) : !isSearching ? (
+                          <div className="px-3 py-4 text-center text-sm text-dark-400">
+                            {t('admin.promoOffers.send.noUsersFound')}
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Preview */}
+          {selectedTemplate && (
+            <div className="rounded-xl border border-dark-700 bg-dark-800 p-6">
+              <h4 className="mb-2 text-sm font-medium text-dark-300">
+                {t('admin.promoOffers.send.preview')}
+              </h4>
+              <div className="rounded-lg bg-dark-700/50 p-4">
+                <div className="whitespace-pre-wrap text-sm text-dark-200">
+                  {selectedTemplate.message_text}
+                </div>
+                <div className="mt-4">
+                  <span className="inline-block rounded-lg bg-accent-500 px-4 py-2 text-sm text-on-accent">
+                    {selectedTemplate.button_text}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3">
+            <button onClick={() => navigate('/admin/promo-offers')} className="btn-secondary">
+              {t('common.cancel')}
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={!isValid() || broadcastMutation.isPending}
+              className="btn-primary flex items-center gap-2"
+            >
+              <SendIcon />
+              {broadcastMutation.isPending
+                ? t('admin.promoOffers.send.sending')
+                : t('admin.promoOffers.send.sendButton')}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
