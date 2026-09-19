@@ -1,48 +1,66 @@
-# Admin readability and layout correction — 2026-09-14
+# BEDOLAGA admin operational modules — 2026-09-19
 
-## Goal and evidence
-Owner rejected the deployed design: 8–11 px text, low-contrast captions,
-unlabelled traffic values and excessive horizontal separation on 2560 px screens.
-The two owner screenshots are the before evidence.
+## Goal
+Complete and deploy the direct BEDOLAGA admin migration for squads, payments,
+sales statistics, traffic usage, tickets, and Remnawave. Every visible page
+must use ArcVPN data and must not be a fake or "coming soon" surface.
 
-## Contract
-- Body and table values 14 px; secondary text at least 12 px.
-- Foreground #eaf0f8, secondary #a6b4c8 on #131c2b surfaces.
-- System UI font with normal 400/500/600 weights and tabular numeric values.
-- Overview presents KPIs, network and operator queue before growth detail.
-- Nodes are full-width rows with explicit status and online labels.
-- Users have labelled main/LTE values and real readable filters.
-- Primary content remains at most 1480 px wide, aligned inside a 248 px shell.
-- Existing APIs, business operations and permission behavior are preserved.
+## Routes and data contracts
+| Route | Source of truth | Required behavior |
+| --- | --- | --- |
+| `/admin/payments` | ArcVPN `payments` + `users` | server search, status/method/period filters, paging, totals |
+| `/admin/sales-stats` | ArcVPN payments/subscriptions | summary and trial/sale/renewal/add-on/deposit/payment-health tabs |
+| `/admin/traffic` | ArcVPN main + LTE counters | search, status, sort, paging and both traffic classes |
+| `/admin/tickets`, `/:id` | support threads/messages | queue, detail, reply, status change |
+| `/admin/remnawave` | live Remnawave overview | connection, fleet, online, traffic, node health |
+| `/admin/remnawave/squads/:uuid` | live internal squads | squad membership/inbounds/read-only detail |
 
 ## Components
-AdminConsole, AdminUsers, AdminNavigation and AdminPageHeader.
-Replace conflicting local style layers where mapped; no unrelated owner files.
+- `subscription_api.py`: bounded read APIs and audited ticket status mutation.
+- `admin_webapp/src/arcvpn/api.ts`: ArcVPN transport and normalized adapters.
+- BEDOLAGA API modules for payments, sales, traffic, tickets and Remnawave.
+- `ArcAdminRoot.tsx`: route wiring.
+- Existing BEDOLAGA pages/components remain the presentation layer.
+
+## Exclusions
+- No destructive node/squad mutations, bulk migration, refund or payment replay.
+- No fake campaign, provider, device or historical telemetry values.
+- Preserve existing UUIDs, subscription URLs and active access.
+- No customer Svelte cabinet or landing changes.
 
 ## Acceptance
-Build passes; screenshots and DOM checked at 390, 768, 1280, 1600 and 2560.
-Check internal container overflow as well as document overflow.
-Verify user detail and navigation; preview uses synthetic data, production login
-is checked separately. Typography and contrast must be measured, not inferred.
+- All six entry routes render live or explicit empty/error states; no adapter 404s.
+- Payments filters and paging work; traffic displays main and LTE counters.
+- Ticket replies and status changes use existing permission checks and audit.
+- Remnawave connection, nodes and squads come from the authority response.
+- Browser QA at 390/768/1280/1600: zero document overflow, reachable controls,
+  readable tables/cards, no admin burger or redundant header label.
+- Frontend build/tests and focused backend tests pass.
+- Staged diff contains only the migration and documented support files.
+- Commit/push, Poland production `pull --ff-only`, affected service restart, and
+  authenticated/public verification complete.
 
-## Verification evidence
-- `npm run build`: passed; 183 modules transformed.
-- Users and overview: no document or internal-container overflow at 390, 768,
-  1280, 1600 and 2560 px.
-- Users: table values 14 px, names 15 px and secondary text 12 px.
-- Secondary text contrast measured at 8.13:1 on the table surface.
-- Client 360, navigation, empty state and recoverable error state verified in browser.
-- Owner requested production release while explicitly noting that the broader
-  visual direction still needs another design iteration; this release therefore
-  closes the readability correction, not final aesthetic approval.
+## Risks and rollback
+- Remnawave may be temporarily unavailable: pages show degraded/error state and
+  never replace live data with demo data in production.
+- Large tables are bounded and paginated; no unbounded DB or panel fetches.
+- Roll back by reverting the deployment commit, rebuilding static assets and
+  restarting only `arcvpn-subscription.service` if Python routing changed.
 
-## Rollback
-Revert this stage commit; frontend-only assets do not require service restart.
+## Verification matrix
+| Surface | Functional check | Viewports |
+| --- | --- | --- |
+| Payments | filters, totals, paging, user link | 390/768/1280/1600 |
+| Sales | period + six tabs | 390/768/1280/1600 |
+| Traffic | main/LTE sort and search | 390/768/1280/1600 |
+| Tickets | list/detail/reply/status states | 390/768/1280/1600 |
+| Remnawave | connection/nodes/telemetry | 390/768/1280/1600 |
+| Squads | list/detail/empty | 390/768/1280/1600 |
 
-## Production release
-- Runtime commit: `09fe368` (`Improve admin readability`).
-- GitHub `main` and `/root/ArcVPN` on `pl-control` advanced by fast-forward.
-- Public `/admin` serves `index-CwnZAZO_.js` and `App-D_wwb1S4.css`.
-- Unauthenticated production browser check shows only the dedicated Admin login.
-- `arcvpn-subscription.service` and `nginx.service` remain active; no restart was
-  performed because the release changes only prebuilt static frontend assets.
+## Evidence
+- React production build: 2516 modules, completed successfully.
+- Focused frontend tests: 10 passed; focused backend API tests: 3 passed.
+- Browser routes verified: payments, sales statistics, traffic, tickets,
+  Remnawave and squads. Desktop and 390 px checks report zero document overflow;
+  browser console has no warnings or errors.
+- Deployment and public verification remain pending.

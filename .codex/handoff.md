@@ -1,4 +1,54 @@
-# ArcVPN handoff — referral deep-link recovery
+# ArcVPN handoff — direct BEDOLAGA admin migration
+
+## 2026-09-19 operational modules release candidate
+
+- Payments, sales statistics, traffic usage with CSV export, ticket status,
+  live Remnawave overview/nodes and internal squads are connected to bounded
+  ArcVPN APIs. Destructive Remnawave controls stay hidden without write access.
+- `/admin` now serves the dedicated checked-in `admin_webapp_dist` bundle;
+  history routes fall back to its index without touching customer `/app`.
+- Production build passed (2516 modules), focused frontend tests 10 passed,
+  focused backend tests 3 passed. All six requested routes render with zero
+  overflow on desktop and 390 px; browser console is clean.
+
+## 2026-09-14 local acceptance candidate
+
+- Clean isolated worktree:
+  `C:\Users\babay\AppData\Local\Temp\arcvpn-admin-dd99010e7ecc4551a6c2afda0febca01`,
+  branch `codex/bedolaga-admin-migration`; the owner's dirty checkout is untouched.
+- `admin_webapp/` is a direct AGPL-3.0 frontend source transfer from
+  `BEDOLAGA-DEV/bedolaga-cabinet` commit `001531d` (v1.75.0), not a visual
+  reimplementation. 832 of 844 upstream `src/` files remain byte-identical.
+- ArcVPN adapters connect the BEDOLAGA admin root, statistics, users, Client
+  360, referrals, purchase history, activity and support-thread reads to the
+  existing `/api/admin/*` contracts. Unavailable write actions are permission
+  gated and hidden.
+- Client 360 shows purchases separately and exposes invited count, paid invited
+  users, earned referral days and the friend list above the activity tab.
+- Users registry now restores the old operational controls: authoritative
+  `Сейчас онлайн`, main-traffic and LTE-traffic sorting, and visible online/main/LTE
+  values in each row. The redundant admin header label and admin mobile burger
+  are removed.
+- `/admin/referral-network` is connected to a bounded read-only ArcVPN endpoint
+  backed by deduplicated `referred_by` and level-1 `referral_stats` edges. The
+  graph opens in full-network mode and does not return subscription secrets.
+- The upstream license, NOTICE, local migration README and visible
+  `Исходный код · AGPL-3.0` link are present. Compatible Tiptap packages were
+  updated; production-dependency audit reports zero vulnerabilities.
+- Verification: production build passed (1483 modules), focused frontend tests
+  18 passed, backend admin tests 9 passed before the referral follow-up, browser console clean, and all seven
+  Client 360 tabs had zero horizontal overflow at 390/768/1280/1600 px.
+- Follow-up users QA at 390/768/1280/1600 also has zero overflow; online
+  filtering and LTE ordering were exercised. A focused referral endpoint test
+  is present, but this isolated checkout cannot collect Python tests without
+  the intentionally ignored runtime `config` module.
+- The direct UI candidate is open locally at `http://127.0.0.1:5173/admin/`.
+  Production routing is intentionally unchanged until the owner visually
+  accepts this literal-source candidate. Next step after acceptance: commit the
+  isolated branch, add Flask static routing/build deployment, then perform the
+  standard guarded production rollout.
+
+# Previous handoff — referral deep-link recovery
 
 ## 2026-09-12 production repair
 

@@ -580,6 +580,7 @@ PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arc
 # Собранный Svelte+Vite фронтенд лежит в webapp_dist/ (коммитится в репо, чтобы
 # деплой на сервер был обычным git pull — Node на сервере не нужен).
 WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp_dist")
+ADMIN_WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin_webapp_dist")
 BOT_TOKEN = getattr(config, "BOT_TOKEN", "")
 ADMIN_CONSOLE_PASSWORD = os.getenv("ADMIN_CONSOLE_PASSWORD", "")
 ADMIN_CONSOLE_COOKIE = "arcvpn_admin"
@@ -5059,6 +5060,32 @@ def api_admin_user_detail(telegram_id: int):
         devices = [dict(row) for row in conn.execute("""SELECT id,display_name,platform,model,
             COALESCE(is_active,1) AS active,imported_at,last_seen_at,revoked_at
             FROM user_devices WHERE user_id=? ORDER BY COALESCE(last_seen_at,imported_at) DESC LIMIT 50""", (user_id,)).fetchall()]
+        referral_friends = [dict(row) for row in conn.execute("""
+            WITH referral_edges AS (
+              SELECT id AS referral_id FROM users WHERE referred_by=?
+              UNION
+              SELECT referral_id FROM referral_stats WHERE referrer_id=? AND level=1
+            )
+            SELECT invited.telegram_id,invited.username,invited.first_name,invited.created_at,
+              EXISTS(
+                SELECT 1 FROM payments p
+                WHERE p.user_id=invited.id AND p.status IN ('paid','succeeded')
+                  AND COALESCE(p.payment_type,'')!='trial'
+              ) AS has_paid,
+              COALESCE((
+                SELECT SUM(rs.total_reward_days) FROM referral_stats rs
+                WHERE rs.referrer_id=? AND rs.referral_id=invited.id AND rs.level=1
+              ),0) AS reward_days
+            FROM referral_edges edge JOIN users invited ON invited.id=edge.referral_id
+            ORDER BY invited.created_at DESC,invited.id DESC
+            LIMIT 200
+        """, (user_id, user_id, user_id)).fetchall()]
+        referral_summary = {
+            "invited_count": len(referral_friends),
+            "paid_count": sum(1 for item in referral_friends if item.get("has_paid")),
+            "earned_days": sum(int(item.get("reward_days") or 0) for item in referral_friends),
+            "friends": referral_friends,
+        }
         timeline = []
         for item in subscriptions:
             timeline.append({"kind": "subscription", "at": item.get("created_at"), "title": "Подписка создана", "detail": item.get("tariff_name") or item.get("custom_name") or f"Подписка #{item['id']}"})
@@ -5086,7 +5113,8 @@ def api_admin_user_detail(telegram_id: int):
         timeline = sorted((item for item in timeline if item.get("at")), key=lambda item: str(item["at"]), reverse=True)[:200]
     return _api_no_store(jsonify({
         "ok": True, "user": dict(user), "subscriptions": subscriptions,
-        "payments": payments, "devices": devices, "timeline": timeline,
+        "payments": payments, "devices": devices, "referrals": referral_summary,
+        "timeline": timeline,
     }))
 
 
@@ -5262,6 +5290,218 @@ def api_admin_users():
     }))
 
 
+@app.route('/api/admin/referral-network', methods=['GET'])
+def api_admin_referral_network():
+    """Return real referral edges without subscription URLs or UUIDs."""
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    rub_amount_sql = """CASE
+      WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN COALESCE(p.amount_cents,0)/100.0
+      WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance') THEN COALESCE(p.amount_cents,0)
+      ELSE 0 END"""
+    with get_db() as conn:
+        edges = [dict(row) for row in conn.execute("""
+            WITH referral_edges AS (
+              SELECT referred_by AS referrer_id,id AS referral_id FROM users WHERE referred_by IS NOT NULL
+              UNION SELECT referrer_id,referral_id FROM referral_stats WHERE level=1
+            ) SELECT referrer_id,referral_id FROM referral_edges
+            ORDER BY referrer_id,referral_id LIMIT 5000
+        """).fetchall()]
+        involved_ids = sorted({int(edge[key]) for edge in edges for key in ("referrer_id", "referral_id")})
+        users = []
+        if involved_ids:
+            placeholders = ",".join("?" for _ in involved_ids)
+            users = [dict(row) for row in conn.execute(f"""
+                SELECT u.id,u.telegram_id,u.username,u.first_name,u.created_at,
+                  (SELECT COUNT(*) FROM (
+                    SELECT x.id FROM users x WHERE x.referred_by=u.id
+                    UNION SELECT rs.referral_id FROM referral_stats rs WHERE rs.referrer_id=u.id
+                  )) AS direct_referrals,
+                  COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p
+                    WHERE p.user_id=u.id AND p.status IN ('paid','succeeded')
+                      AND COALESCE(p.payment_type,'')!='trial'),0) AS personal_spent_rub,
+                  (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS subscription_end
+                FROM users u WHERE u.id IN ({placeholders})
+            """, involved_ids).fetchall()]
+    user_by_id = {int(user["id"]): user for user in users}
+    parent_by_child = {int(edge["referral_id"]): int(edge["referrer_id"]) for edge in edges}
+    now_sql = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+    graph_users = []
+    for user in users:
+        subscription_end = user.get("subscription_end")
+        graph_users.append({
+            "id": int(user["id"]), "tg_id": int(user["telegram_id"]),
+            "username": user.get("username"), "email": None,
+            "display_name": user.get("first_name") or user.get("username") or f"ID {user['telegram_id']}",
+            "is_partner": False, "referrer_id": parent_by_child.get(int(user["id"])),
+            "campaign_id": None, "direct_referrals": int(user.get("direct_referrals") or 0),
+            "total_branch_users": int(user.get("direct_referrals") or 0),
+            "branch_revenue_kopeks": 0, "personal_revenue_kopeks": 0,
+            "personal_spent_kopeks": round(float(user.get("personal_spent_rub") or 0) * 100),
+            "subscription_name": "ArcVPN" if subscription_end else None,
+            "subscription_end": subscription_end,
+            "subscription_status": ("paid_active" if str(subscription_end) > now_sql else "paid_expired") if subscription_end else None,
+            "registered_at": user.get("created_at"),
+        })
+    children_by_id = {}
+    for edge in edges:
+        children_by_id.setdefault(int(edge["referrer_id"]), set()).add(int(edge["referral_id"]))
+    spent_by_id = {int(user["id"]): round(float(user.get("personal_spent_rub") or 0) * 100)
+                   for user in users}
+    for node in graph_users:
+        descendants, pending = set(), list(children_by_id.get(node["id"], ()))
+        while pending:
+            child_id = pending.pop()
+            if child_id == node["id"] or child_id in descendants:
+                continue
+            descendants.add(child_id)
+            pending.extend(children_by_id.get(child_id, ()))
+        node["total_branch_users"] = len(descendants)
+        node["branch_revenue_kopeks"] = sum(spent_by_id.get(child_id, 0) for child_id in descendants)
+    graph_edges = [{"source": f"user_{edge['referrer_id']}",
+                    "target": f"user_{edge['referral_id']}", "type": "referral"}
+                   for edge in edges if int(edge["referrer_id"]) in user_by_id and int(edge["referral_id"]) in user_by_id]
+    return _api_no_store(jsonify({
+        "ok": True, "users": graph_users, "campaigns": [], "edges": graph_edges,
+        "total_users": len(graph_users),
+        "total_referrers": sum(1 for user in graph_users if user["direct_referrals"] > 0),
+        "total_campaigns": 0, "total_earnings_kopeks": 0,
+        "total_subscription_revenue_kopeks": sum(user["personal_spent_kopeks"] for user in graph_users),
+    }))
+
+
+def _admin_payment_rub_sql(alias: str = "p") -> str:
+    return f"""CASE
+      WHEN {alias}.yookassa_payment_id IS NOT NULL AND {alias}.yookassa_payment_id!=''
+        THEN COALESCE({alias}.amount_cents,0)/100.0
+      WHEN COALESCE({alias}.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
+        THEN COALESCE({alias}.amount_cents,0)
+      ELSE 0 END"""
+
+
+@app.route('/api/admin/payments', methods=['GET'])
+def api_admin_payments_registry():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    try:
+        page = max(1, int(request.args.get("page") or 1))
+        per_page = min(100, max(10, int(request.args.get("per_page") or 20)))
+    except (TypeError, ValueError):
+        return _api_error("invalid_pagination", 400)
+    search = _clean_text(request.args.get("search"), 100).lower()
+    status = _clean_text(request.args.get("status"), 30).lower()
+    method = _clean_text(request.args.get("method"), 40).lower()
+    period = _clean_text(request.args.get("period"), 20).lower()
+    date_from = _clean_text(request.args.get("date_from"), 32)
+    date_to = _clean_text(request.args.get("date_to"), 32)
+    where = ["COALESCE(p.payment_type,'')!='trial'"]
+    params = []
+    if search:
+        where.append("(lower(COALESCE(p.order_id,'')) LIKE ? OR lower(COALESCE(u.username,'')) LIKE ? OR CAST(u.telegram_id AS TEXT) LIKE ?)")
+        params.extend([f"%{search}%"] * 3)
+    if status and status != "all":
+        where.append("lower(COALESCE(p.status,''))=?")
+        params.append(status)
+    if method:
+        where.append("lower(COALESCE(p.payment_type,''))=?")
+        params.append(method)
+    modifiers = {"24h": "-1 day", "7d": "-7 days", "30d": "-30 days"}
+    if period in modifiers:
+        where.append("COALESCE(p.paid_at,p.created_at)>=datetime('now',?)")
+        params.append(modifiers[period])
+    if date_from:
+        where.append("COALESCE(p.paid_at,p.created_at)>=?")
+        params.append(date_from)
+    if date_to:
+        where.append("COALESCE(p.paid_at,p.created_at)<=datetime(?,'+1 day')")
+        params.append(date_to)
+    where_sql = " AND ".join(where)
+    amount_sql = _admin_payment_rub_sql()
+    with get_db() as conn:
+        total = int(conn.execute(f"SELECT COUNT(*) FROM payments p JOIN users u ON u.id=p.user_id WHERE {where_sql}", params).fetchone()[0])
+        rows = [dict(row) for row in conn.execute(f"""
+            SELECT p.id,p.order_id,p.payment_type,p.status,p.created_at,p.paid_at,
+                   p.amount_cents,p.amount_stars,{amount_sql} AS amount_rub,
+                   u.id AS user_id,u.telegram_id,u.username,u.first_name
+            FROM payments p JOIN users u ON u.id=p.user_id
+            WHERE {where_sql}
+            ORDER BY COALESCE(p.paid_at,p.created_at) DESC,p.id DESC LIMIT ? OFFSET ?
+        """, [*params, per_page, (page - 1) * per_page]).fetchall()]
+        stats_rows = [dict(row) for row in conn.execute(f"""
+            SELECT lower(COALESCE(p.status,'unknown')) status,
+                   lower(COALESCE(p.payment_type,'unknown')) method,COUNT(*) count
+            FROM payments p JOIN users u ON u.id=p.user_id WHERE {where_sql}
+            GROUP BY status,method
+        """, params).fetchall()]
+    return _api_no_store(jsonify({"ok": True, "items": rows, "total": total,
+        "page": page, "per_page": per_page, "pages": (total + per_page - 1) // per_page,
+        "stats": stats_rows}))
+
+
+@app.route('/api/admin/sales-stats', methods=['GET'])
+def api_admin_sales_stats():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    start = _clean_text(request.args.get("start_date"), 32)
+    end = _clean_text(request.args.get("end_date"), 32)
+    try:
+        days = min(3660, max(0, int(request.args.get("days") or 0)))
+    except (TypeError, ValueError):
+        return _api_error("invalid_period", 400)
+    where, params = ["1=1"], []
+    if start:
+        where.append("COALESCE(p.paid_at,p.created_at)>=?"); params.append(start)
+    elif days:
+        where.append("COALESCE(p.paid_at,p.created_at)>=datetime('now',?)"); params.append(f"-{days} days")
+    if end:
+        where.append("COALESCE(p.paid_at,p.created_at)<=?"); params.append(end)
+    amount_sql = _admin_payment_rub_sql()
+    with get_db() as conn:
+        payments = [dict(row) for row in conn.execute(f"""
+            SELECT p.id,p.user_id,p.payment_type,p.operation_type,p.status,p.period_days,p.created_at,p.paid_at,
+                   p.tariff_id,COALESCE(t.name,'Без тарифа') tariff_name,{amount_sql} amount_rub
+            FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
+            WHERE {' AND '.join(where)} ORDER BY COALESCE(p.paid_at,p.created_at),p.id LIMIT 10000
+        """, params).fetchall()]
+        active_subscriptions = int(conn.execute("SELECT COUNT(*) FROM vpn_keys WHERE expires_at>datetime('now')").fetchone()[0])
+    return _api_no_store(jsonify({"ok": True, "payments": payments,
+                                  "active_subscriptions": active_subscriptions}))
+
+
+@app.route('/api/admin/traffic', methods=['GET'])
+def api_admin_traffic_registry():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    try:
+        limit = min(100, max(10, int(request.args.get("limit") or 50)))
+        offset = max(0, int(request.args.get("offset") or 0))
+    except (TypeError, ValueError):
+        return _api_error("invalid_pagination", 400)
+    search = _clean_text(request.args.get("search"), 100).lower()
+    sort_by = str(request.args.get("sort_by") or "total_bytes")
+    descending = str(request.args.get("sort_desc") or "true").lower() != "false"
+    where, params = [], []
+    if search:
+        where.append("(lower(COALESCE(u.username,'')) LIKE ? OR lower(COALESCE(u.first_name,'')) LIKE ? OR CAST(u.telegram_id AS TEXT) LIKE ?)")
+        params.extend([f"%{search}%"] * 3)
+    where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+    order_expr = {"total_bytes": "total_bytes", "username": "username", "telegram_id": "telegram_id",
+                  "traffic_limit_gb": "traffic_limit_gb", "device_limit": "device_limit"}.get(sort_by, "total_bytes")
+    with get_db() as conn:
+        base = f"""SELECT u.id user_id,u.telegram_id,u.username,u.first_name,
+          COALESCE((SELECT SUM(COALESCE(vk.traffic_used,0)) FROM vpn_keys vk WHERE vk.user_id=u.id),0) main_bytes,
+          COALESCE(u.lte_used_bytes,0) lte_bytes,
+          COALESCE((SELECT SUM(COALESCE(vk.traffic_limit,0)) FROM vpn_keys vk WHERE vk.user_id=u.id),0) traffic_limit_bytes,
+          COALESCE(u.device_limit,2) device_limit,
+          (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) subscription_end,
+          COALESCE((SELECT SUM(COALESCE(vk.traffic_used,0)) FROM vpn_keys vk WHERE vk.user_id=u.id),0)+COALESCE(u.lte_used_bytes,0) total_bytes
+          FROM users u {where_sql}"""
+        total = int(conn.execute(f"SELECT COUNT(*) FROM ({base})", params).fetchone()[0])
+        rows = [dict(row) for row in conn.execute(f"SELECT * FROM ({base}) ORDER BY {order_expr} {'DESC' if descending else 'ASC'},user_id DESC LIMIT ? OFFSET ?", [*params, limit, offset]).fetchall()]
+    return _api_no_store(jsonify({"ok": True,"items": rows,"total": total,
+                                  "offset": offset,"limit": limit}))
+
+
 @app.route('/api/admin/overview', methods=['GET'])
 def api_admin_overview():
     """Read-only first slice of ArcVPN Business Console."""
@@ -5431,6 +5671,26 @@ def api_admin_overview():
                   AND COALESCE(p.payment_type,'') != 'trial'
                   AND p.paid_at >= datetime('now',?)
             """, (modifier,)).fetchone())
+        revenue_series = [dict(row) for row in conn.execute(f"""
+            WITH RECURSIVE days(day) AS (
+              SELECT date('now','-13 days')
+              UNION ALL
+              SELECT date(day,'+1 day') FROM days WHERE day<date('now')
+            ), daily AS (
+              SELECT date(p.paid_at) AS day,
+                     COUNT(*) AS orders,
+                     COALESCE(SUM({rub_amount_sql}),0) AS revenue_rub
+              FROM payments p
+              WHERE p.status IN ('paid','succeeded')
+                AND COALESCE(p.payment_type,'')!='trial'
+                AND p.paid_at>=datetime('now','-13 days','start of day')
+              GROUP BY date(p.paid_at)
+            )
+            SELECT days.day,COALESCE(daily.orders,0) AS orders,
+                   COALESCE(daily.revenue_rub,0) AS revenue_rub
+            FROM days LEFT JOIN daily ON daily.day=days.day
+            ORDER BY days.day
+        """).fetchall()]
         popular_products = [dict(row) for row in conn.execute(f"""
             SELECT COALESCE(t.product_code,'other') AS product_code,
                    COALESCE(t.name,'Без тарифа') AS product_name,
@@ -5738,11 +5998,14 @@ def api_admin_overview():
             try:
                 nodes = await client._request("GET", "/api/nodes")
                 users = await client._request("GET", "/api/users", params={"start": 0, "size": 500})
-                return nodes, users
+                squads = await client._request("GET", "/api/internal-squads")
+                return nodes, users, squads
             finally:
                 await client.close()
 
-        remna_nodes, remna_users = ASYNC_EXECUTOR.run(_remnawave_telemetry(), timeout=12)
+        remna_nodes, remna_users, remna_squads_payload = ASYNC_EXECUTOR.run(_remnawave_telemetry(), timeout=12)
+        remna_squads = (remna_squads_payload.get("internalSquads", [])
+                         if isinstance(remna_squads_payload, dict) else remna_squads_payload or [])
         node_names = {
             str(node.get("uuid")): node.get("name") or node.get("address") or "RemnaNode"
             for node in (remna_nodes or [])
@@ -5813,6 +6076,13 @@ def api_admin_overview():
                     "port": inbound.get("port"),
                 } for inbound in ((node.get("configProfile") or {}).get("activeInbounds") or [])],
             } for node in (remna_nodes or [])],
+            "squads": [{
+                "uuid": squad.get("uuid"),
+                "name": squad.get("name") or "Internal squad",
+                "members_count": int(squad.get("membersCount") or squad.get("usersCount") or 0),
+                "inbounds": squad.get("inbounds") or squad.get("activeInbounds") or [],
+                "inbounds_count": len(squad.get("inbounds") or squad.get("activeInbounds") or []),
+            } for squad in remna_squads],
         }
         # Finland and Germany LTE are retired from delivery. EE/NL XHTTP are
         # logical CDN edges hosted by the corresponding RemnaNodes, so
@@ -5924,6 +6194,7 @@ def api_admin_overview():
         "users": get_new_users_stats(),
         "business": {
             "payments": payment_periods,
+            "revenue_series": revenue_series,
             "popular_products": popular_products,
             "traffic": {**traffic_totals, "window": "current_active_cycles"},
             "acquisition": acquisition,
@@ -6029,6 +6300,24 @@ def api_admin_support_thread(thread_id: int):
         rows = conn.execute("SELECT id,sender,body,created_at,read_at FROM support_messages WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
         conn.execute("UPDATE support_messages SET read_at=CURRENT_TIMESTAMP WHERE thread_id=? AND sender='user' AND read_at IS NULL", (thread_id,))
     return _api_no_store(jsonify({"ok": True, "thread": thread, "messages": [dict(row) for row in rows]}))
+
+
+@app.route('/api/admin/support/threads/<int:thread_id>/status', methods=['PATCH'])
+def api_admin_support_thread_status(thread_id: int):
+    if not _admin_authorized("support.reply"):
+        return _api_error("admin_unauthorized", 403)
+    status = str((request.get_json(silent=True) or {}).get("status") or "").strip().lower()
+    if status not in {"open", "pending", "answered", "closed"}:
+        return _api_error("invalid_status", 400)
+    with get_db() as conn:
+        exists = conn.execute("SELECT 1 FROM support_threads WHERE id=?", (thread_id,)).fetchone()
+        if not exists:
+            return _api_error("thread_not_found", 404)
+        conn.execute("UPDATE support_threads SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (status, thread_id))
+    append_admin_audit("support.status", "success",
+        actor_id=str(_admin_telegram_id() or "password-session"),
+        target_type="support_thread", target_id=str(thread_id), metadata={"status": status})
+    return _api_no_store(jsonify({"ok": True, "status": status}))
 
 
 @app.route('/legal/user-agreement')
@@ -6150,8 +6439,19 @@ def webapp(path: str = ""):
 @app.route('/admin/')
 @app.route('/admin/<path:path>')
 def admin_webapp(path: str = ""):
-    """Serve the signed SPA bundle; the client selects the admin console."""
-    response = webapp(path)
+    """Serve the dedicated ArcVPN admin SPA with history fallback."""
+    if path:
+        candidate = os.path.join(ADMIN_WEBAPP_DIST_DIR, path)
+        response = send_from_directory(
+            ADMIN_WEBAPP_DIST_DIR,
+            path if os.path.isfile(candidate) else "index.html",
+        )
+    else:
+        index_path = os.path.join(ADMIN_WEBAPP_DIST_DIR, "index.html")
+        if not os.path.isfile(index_path):
+            return Response("Admin SPA не собран (admin_webapp_dist отсутствует)", status=404,
+                            mimetype="text/plain")
+        response = send_from_directory(ADMIN_WEBAPP_DIST_DIR, "index.html")
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
 

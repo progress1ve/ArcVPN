@@ -1,0 +1,136 @@
+import sqlite3
+from contextlib import contextmanager
+
+import pytest
+
+import subscription_api as api
+
+
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setitem(api.app.config, "TESTING", True)
+    monkeypatch.setattr(
+        api, "_admin_access_context", lambda: {"actor_id": "qa", "role": "owner"}
+    )
+    return api.app.test_client()
+
+
+@pytest.fixture
+def detail_db(monkeypatch):
+    connection = sqlite3.connect(":memory:")
+    connection.row_factory = sqlite3.Row
+    connection.executescript(
+        """
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY, telegram_id INTEGER NOT NULL, username TEXT,
+          first_name TEXT, created_at TEXT, device_limit INTEGER,
+          lte_quota_gb REAL, lte_cycle_bonus_gb REAL, lte_used_bytes INTEGER,
+          enforce_device_tokens INTEGER, personal_balance INTEGER, referred_by INTEGER
+        );
+        CREATE TABLE tariffs (id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE vpn_keys (
+          id INTEGER PRIMARY KEY, user_id INTEGER, custom_name TEXT, expires_at TEXT,
+          created_at TEXT, traffic_used INTEGER, traffic_limit INTEGER,
+          online_devices INTEGER, last_online_at TEXT, panel_disabled_at TEXT,
+          tariff_id INTEGER
+        );
+        CREATE TABLE payments (
+          id INTEGER PRIMARY KEY, user_id INTEGER, order_id TEXT, payment_type TEXT,
+          operation_type TEXT, status TEXT, period_days INTEGER, created_at TEXT, paid_at TEXT, tariff_id INTEGER,
+          yookassa_payment_id TEXT, amount_cents INTEGER, amount_stars INTEGER
+        );
+        CREATE TABLE user_devices (
+          id INTEGER PRIMARY KEY, user_id INTEGER, display_name TEXT, platform TEXT,
+          model TEXT, is_active INTEGER, imported_at TEXT, last_seen_at TEXT, revoked_at TEXT
+        );
+        CREATE TABLE referral_stats (
+          id INTEGER PRIMARY KEY, referrer_id INTEGER, referral_id INTEGER, level INTEGER,
+          total_reward_days INTEGER
+        );
+        CREATE TABLE admin_audit_events (
+          id INTEGER PRIMARY KEY, action TEXT, outcome TEXT, metadata_json TEXT,
+          created_at TEXT, target_type TEXT, target_id TEXT
+        );
+
+        INSERT INTO users VALUES
+          (1,700001,'owner','Owner','2026-08-01',2,5,0,0,1,0,NULL),
+          (2,700002,'friend_one','Friend One','2026-08-02',2,5,0,0,0,0,1),
+          (3,700003,'friend_two','Friend Two','2026-08-03',2,5,0,0,0,0,NULL);
+        INSERT INTO referral_stats VALUES
+          (1,1,2,1,10),
+          (2,1,3,1,7),
+          (3,1,3,2,99);
+        INSERT INTO tariffs VALUES (1,'Стандарт');
+        INSERT INTO payments VALUES
+          (1,1,'owner-order','yookassa','new','paid',30,'2026-08-05','2026-08-05',1,'provider-1',29900,0),
+          (2,2,'friend-order','yookassa','renew','succeeded',30,'2026-08-06','2026-08-06',1,'provider-2',29900,0);
+        INSERT INTO vpn_keys VALUES
+          (10,1,'Primary',datetime('now','+10 days'),'2026-08-01',1024,2048,1,'2026-08-10',NULL,1);
+        INSERT INTO user_devices VALUES
+          (20,1,'iPhone','ios','iPhone',1,'2026-08-02','2026-08-10',NULL);
+        """
+    )
+
+    @contextmanager
+    def fake_get_db():
+        try:
+            yield connection
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
+
+    monkeypatch.setattr(api, "get_db", fake_get_db)
+    yield connection
+    connection.close()
+
+
+def test_user_detail_exposes_purchases_and_deduplicated_direct_referrals(
+    client, detail_db
+):
+    response = client.get("/api/admin/users/700001")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["payments"][0]["order_id"] == "owner-order"
+    assert payload["payments"][0]["amount_rub"] == 299
+    assert payload["referrals"]["invited_count"] == 2
+    assert payload["referrals"]["paid_count"] == 1
+    assert payload["referrals"]["earned_days"] == 17
+    assert [item["telegram_id"] for item in payload["referrals"]["friends"]] == [
+        700003,
+        700002,
+    ]
+    assert payload["referrals"]["friends"][0]["reward_days"] == 7
+
+
+def test_referral_network_returns_real_deduplicated_edges(client, detail_db):
+    response = client.get("/api/admin/referral-network")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["total_users"] == 3
+    assert payload["total_referrers"] == 1
+    assert {(edge["source"], edge["target"]) for edge in payload["edges"]} == {
+        ("user_1", "user_2"),
+        ("user_1", "user_3"),
+    }
+    owner = next(user for user in payload["users"] if user["tg_id"] == 700001)
+    assert owner["direct_referrals"] == 2
+    assert owner["personal_spent_kopeks"] == 29900
+    assert "subscription_url" not in owner
+
+
+def test_admin_operational_registries_use_live_database(client, detail_db):
+    payments = client.get("/api/admin/payments?status=paid").get_json()
+    assert payments["total"] == 1
+    assert payments["items"][0]["order_id"] == "owner-order"
+
+    sales = client.get("/api/admin/sales-stats").get_json()
+    assert sales["active_subscriptions"] == 1
+    assert {item["operation_type"] for item in sales["payments"]} == {"new", "renew"}
+
+    traffic = client.get("/api/admin/traffic?sort_by=total_bytes&sort_desc=true").get_json()
+    assert traffic["total"] == 3
+    assert traffic["items"][0]["telegram_id"] == 700001
+    assert traffic["items"][0]["total_bytes"] == 1024
