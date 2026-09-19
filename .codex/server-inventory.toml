@@ -17,7 +17,7 @@ location = "Germany"
 host = "87.121.47.203"
 ssh_user = "root"
 credential_alias = "de-1chost"
-status = "provisioning"
+status = "active"
 
 [[servers]]
 alias = "msk-beget"

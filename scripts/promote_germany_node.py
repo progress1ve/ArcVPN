@@ -15,7 +15,7 @@ from bot.services.remnawave_stats import remnawave_authority_config
 from provision_germany_node import NODE_NAME, PROFILE_NAME, STATE_PATH, TCP_TAG, items
 
 
-MAIN_SQUAD = "ArcVPN Staging"
+TARGET_SQUADS = {"ArcVPN Staging", "ArcVPN LTE"}
 
 
 async def main() -> None:
@@ -27,9 +27,9 @@ async def main() -> None:
         hosts = items(await client._request("GET", "/api/hosts"), "hosts")
         profile = next((item for item in profiles if item.get("name") == PROFILE_NAME), None)
         node = next((item for item in nodes if item.get("name") == NODE_NAME), None)
-        squad = next((item for item in squads if item.get("name") == MAIN_SQUAD), None)
-        if not profile or not node or not squad:
-            raise RuntimeError("Germany profile, node, or main squad is missing")
+        target_squads = [item for item in squads if item.get("name") in TARGET_SQUADS]
+        if not profile or not node or {item.get("name") for item in target_squads} != TARGET_SQUADS:
+            raise RuntimeError("Germany profile, node, or target squads are missing")
         if not node.get("isConnected"):
             raise RuntimeError("Replacement Germany RemnaNode is not connected")
         inbound_id = next(item["uuid"] for item in profile["inbounds"] if item["tag"] == TCP_TAG)
@@ -37,11 +37,12 @@ async def main() -> None:
         host = next((item for item in hosts if item.get("uuid") == state["tcp_host_uuid"]), None)
         if not host:
             raise RuntimeError("Replacement Germany Host is missing")
-        current = [item["uuid"] for item in squad.get("inbounds", [])]
-        if inbound_id not in current:
-            await client._request("PATCH", "/api/internal-squads", json={
-                "uuid": squad["uuid"], "inbounds": [*current, inbound_id],
-            })
+        for squad in target_squads:
+            current = [item["uuid"] for item in squad.get("inbounds", [])]
+            if inbound_id not in current:
+                await client._request("PATCH", "/api/internal-squads", json={
+                    "uuid": squad["uuid"], "inbounds": [*current, inbound_id],
+                })
         if host.get("isDisabled"):
             await client._request("PATCH", "/api/hosts", json={
                 "uuid": host["uuid"], "isDisabled": False,

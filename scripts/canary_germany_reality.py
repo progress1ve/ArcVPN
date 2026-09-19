@@ -25,20 +25,26 @@ XRAY = Path(os.environ.get("ARCVPN_CANARY_XRAY", "/tmp/arcvpn-canary-xray"))
 
 def subscription_lines() -> list[str]:
     with sqlite3.connect(str(DB_PATH)) as db:
-        row = db.execute(
+        rows = db.execute(
             "SELECT sub_id FROM vpn_keys WHERE expires_at > datetime('now') "
-            "AND sub_id IS NOT NULL AND length(sub_id) > 10 LIMIT 1"
-        ).fetchone()
-    if not row:
+            "AND sub_id IS NOT NULL AND length(sub_id) > 10 "
+            "ORDER BY last_online_at DESC LIMIT 100"
+        ).fetchall()
+    if not rows:
         raise RuntimeError("No active canary subscription is available")
-    request = urllib.request.Request(
-        f"http://127.0.0.1:8080/sub/{row[0]}?format=plain",
-        headers={"User-Agent": "Happ/1.0"},
-    )
-    body = urllib.request.urlopen(request, timeout=15).read().decode().strip()
-    if "vless://" not in body:
-        body = base64.b64decode(body + "=" * (-len(body) % 4)).decode()
-    return [line.strip() for line in body.splitlines() if line.startswith("vless://")]
+    last_lines = []
+    for row in rows:
+        request = urllib.request.Request(
+            f"http://127.0.0.1:8080/sub/{row[0]}?format=plain",
+            headers={"User-Agent": "Happ/1.0"},
+        )
+        body = urllib.request.urlopen(request, timeout=15).read().decode().strip()
+        if "vless://" not in body:
+            body = base64.b64decode(body + "=" * (-len(body) % 4)).decode()
+        last_lines = [line.strip() for line in body.splitlines() if line.startswith("vless://")]
+        if any(urllib.parse.urlsplit(line).hostname == DOMAIN for line in last_lines):
+            return last_lines
+    return last_lines
 
 
 def germany_link() -> str:
