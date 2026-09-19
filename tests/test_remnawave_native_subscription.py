@@ -27,7 +27,7 @@ def test_estonia_profiles_sort_before_netherlands_germany_lte_and_accept_flags()
 
     assert estonia_tcp < estonia_hy2 < tcp < hy2 < germany < lte
     assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
-    assert api.NODE_INVENTORY["95.85.249.187"]["provider"] == "1chost"
+    assert api.NODE_INVENTORY["87.251.19.197"]["provider"] == "1chost"
     assert api.NODE_INVENTORY["87.121.47.203"]["provider"] == "1chost"
     assert api.NODE_INVENTORY["85.198.101.79"]["location"] == "Москва"
     assert "193.233.198.184" not in api.NODE_INVENTORY
@@ -42,7 +42,7 @@ def test_germany_reality_fallback_uses_public_domain():
     assert germany["host"] == "de.arccnet.space"
 
 
-def test_customer_catalog_order_places_albania_after_netherlands():
+def test_customer_catalog_removes_retired_albania():
     links = [
         "vless://id@host#Обход%20глушилок%20(LTE)",
         "vless://id@host#Германия%20%231",
@@ -55,14 +55,13 @@ def test_customer_catalog_order_places_albania_after_netherlands():
         "vless://id@host#Германия%20%232",
     ]
 
-    names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in sorted(links, key=api._subscription_link_order)]
+    names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in api._apply_subscription_catalog(links)]
 
     assert names == [
-        "Эстония #1", "Эстония #2",
-        "Нидерланды #1", "Нидерланды #2",
-        "Албания #1", "Албания #2",
-        "Германия #1", "Германия #2",
-        "Обход глушилок (LTE)",
+        "Эстония", "Эстония #2",
+        "Нидерланды", "Нидерланды #2",
+        "Германия", "Германия #2",
+        "🇪🇺 Обход глушилок #1",
     ]
 
 

@@ -421,7 +421,9 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         # Explicitly retired regions must not leak back from stale Remnawave
         # Hosts. Unknown hosts remain deliverable for forward-compatible node
         # additions and appear after the managed product-policy rows.
-        if any(marker in raw_name for marker in ("Канада", "Canada", "Франция", "France")):
+        if any(marker in raw_name for marker in (
+            "Канада", "Canada", "Франция", "France", "Албания", "Albania",
+        )):
             continue
         override = overrides.get(source_name)
         if override and not bool(override["enabled"]):
@@ -555,7 +557,7 @@ NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
-    "95.85.249.187": {"provider": "1chost", "location": "Эстония"},
+    "87.251.19.197": {"provider": "1chost", "location": "Эстония"},
     "85.198.101.79": {"provider": "Beget", "location": "Москва"},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
