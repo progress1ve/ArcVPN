@@ -1,0 +1,405 @@
+import apiClient from './client';
+import { isEndpointMissingError } from '../utils/api-error';
+import type { AnimationConfig } from '@/components/ui/backgrounds/types';
+import { DEFAULT_ANIMATION_CONFIG } from '@/components/ui/backgrounds/types';
+import { safeSession } from '../utils/safeStorage';
+
+export type { AnimationConfig };
+
+export interface BrandingInfo {
+  name: string;
+  logo_url: string | null;
+  logo_letter: string;
+  has_custom_logo: boolean;
+}
+
+export interface AnimationEnabled {
+  enabled: boolean;
+}
+
+export interface FullscreenEnabled {
+  enabled: boolean;
+}
+
+export interface EmailAuthEnabled {
+  enabled: boolean;
+  verification_enabled?: boolean;
+}
+
+export interface GiftEnabled {
+  enabled: boolean;
+}
+
+export interface TelegramWidgetConfig {
+  bot_username: string;
+  size: 'large' | 'medium' | 'small';
+  radius: number;
+  userpic: boolean;
+  request_access: boolean;
+  oidc_enabled: boolean;
+  oidc_client_id: string;
+  /** The bot answered 404 on the config route — build older than v3.24.0. */
+  endpoint_missing?: boolean;
+}
+
+export interface OfflineConvGoal {
+  name: string;
+  event_id: string;
+  dedup: string;
+}
+
+export interface AnalyticsCounters {
+  yandex_metrika_id: string;
+  google_ads_id: string;
+  google_ads_label: string;
+  offline_conv_enabled?: boolean;
+  offline_conv_counter_id?: string;
+  offline_conv_measurement_secret_masked?: string;
+  offline_conv_goals?: OfflineConvGoal[];
+}
+
+const BRANDING_CACHE_KEY = 'cabinet_branding';
+const LOGO_PRELOADED_KEY = 'cabinet_logo_preloaded';
+
+// In-memory blob URL cache to avoid exposing backend URL
+let _logoBlobUrl: string | null = null;
+// Идущая сейчас загрузка: параллельные вызовы preloadLogo делят её.
+let _logoInFlight: Promise<void> | null = null;
+
+// Check if logo was already preloaded in this session
+export const isLogoPreloaded = (): boolean => {
+  try {
+    if (_logoBlobUrl) return true;
+    const cached = getCachedBranding();
+    if (!cached?.has_custom_logo || !cached?.logo_url) {
+      return false;
+    }
+    const preloaded = safeSession.getItem(LOGO_PRELOADED_KEY);
+    return preloaded === cached.logo_url;
+  } catch {
+    return false;
+  }
+};
+
+// Get cached branding from sessionStorage
+export const getCachedBranding = (): BrandingInfo | null => {
+  try {
+    const cached = sessionStorage.getItem(BRANDING_CACHE_KEY);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+    // One-time migration: move stale localStorage value to sessionStorage
+    const legacy = localStorage.getItem(BRANDING_CACHE_KEY);
+    if (legacy) {
+      localStorage.removeItem(BRANDING_CACHE_KEY);
+      sessionStorage.setItem(BRANDING_CACHE_KEY, legacy);
+      return JSON.parse(legacy);
+    }
+  } catch {
+    // storage not available or invalid JSON
+  }
+  return null;
+};
+
+// Update branding cache in sessionStorage
+export const setCachedBranding = (branding: BrandingInfo) => {
+  try {
+    sessionStorage.setItem(BRANDING_CACHE_KEY, JSON.stringify(branding));
+  } catch {}
+};
+
+/**
+ * Логотип с API, с самолечением кеша браузера.
+ *
+ * Тот же URL браузер мог уже запросить без заголовка Origin — как фавикон или
+ * <img> (старые сборки кабинета так и делали). Ответ без CORS-заголовков ложится
+ * в кеш, и обычный fetch() получает из кеша копию без Access-Control-Allow-Origin:
+ * это выглядит как CORS-ошибка, хотя сервер отвечает правильно. Повтор в режиме
+ * reload идёт мимо кеша и перезаписывает отравленную запись.
+ */
+async function fetchLogo(url: string): Promise<Response> {
+  try {
+    return await fetch(url);
+  } catch {
+    return fetch(url, { cache: 'reload' });
+  }
+}
+
+/**
+ * Логотип одним blob-адресом на страницу.
+ *
+ * Его просят одновременно запрос брендинга и сборка иконок вкладки. Раньше
+ * каждый вызов делал свой fetch, а закончивший вторым отзывал blob-адрес
+ * первого — под <img> шапки или под canvas фавикона: картинка не грузилась,
+ * вкладка получала монограмму вместо логотипа, и она же уходила в подсказку
+ * следующего визита. Теперь параллельные вызовы делят одну загрузку, а готовый
+ * blob-адрес никто не отзывает, пока логотип не сменили в админке.
+ */
+export const preloadLogo = async (branding: BrandingInfo): Promise<void> => {
+  if (!branding.has_custom_logo || !branding.logo_url) {
+    return;
+  }
+  if (_logoBlobUrl) {
+    return;
+  }
+  if (!_logoInFlight) {
+    _logoInFlight = loadLogoBlob(branding.logo_url).finally(() => {
+      _logoInFlight = null;
+    });
+  }
+  return _logoInFlight;
+};
+
+async function loadLogoBlob(logoPath: string): Promise<void> {
+  try {
+    const logoUrl = `${import.meta.env.VITE_API_URL || ''}${logoPath}`;
+    const response = await fetchLogo(logoUrl);
+    if (!response.ok) return;
+
+    const blob = await response.blob();
+    _logoBlobUrl = URL.createObjectURL(blob);
+    safeSession.setItem(LOGO_PRELOADED_KEY, logoPath);
+  } catch {
+    // Fetch failed, logo will use letter fallback
+  }
+}
+
+// Get the blob URL for the logo (safe, doesn't expose backend)
+export const getLogoBlobUrl = (): string | null => _logoBlobUrl;
+
+// Initialize logo preload from cache on page load
+export const initLogoPreload = () => {
+  const cached = getCachedBranding();
+  if (cached) {
+    preloadLogo(cached);
+  }
+};
+
+export interface BotStartVideoInfo {
+  has_video: boolean;
+  file_id?: string | null;
+}
+
+export const brandingApi = {
+  // Get current branding (public, no auth required)
+  getBranding: async (): Promise<BrandingInfo> => {
+    const response = await apiClient.get<BrandingInfo>('/cabinet/branding');
+    return response.data;
+  },
+
+  // Update project name (admin only)
+  updateName: async (name: string): Promise<BrandingInfo> => {
+    const response = await apiClient.put<BrandingInfo>('/cabinet/branding/name', { name });
+    return response.data;
+  },
+
+  // Upload custom logo (admin only)
+  uploadLogo: async (file: File): Promise<BrandingInfo> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<BrandingInfo>('/cabinet/branding/logo', formData);
+    // Invalidate cached blob so it gets re-fetched
+    if (_logoBlobUrl) {
+      URL.revokeObjectURL(_logoBlobUrl);
+      _logoBlobUrl = null;
+    }
+    safeSession.removeItem(LOGO_PRELOADED_KEY);
+    return response.data;
+  },
+
+  // ── Видео стартового меню бота ────────────────────────────────────────
+  // Хранится как Telegram file_id: файл на нашей стороне не сохраняется.
+
+  getBotStartVideo: async (): Promise<BotStartVideoInfo> => {
+    const response = await apiClient.get<BotStartVideoInfo>('/cabinet/branding/bot-start-video');
+    return response.data;
+  },
+
+  uploadBotStartVideo: async (file: File): Promise<BotStartVideoInfo> => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await apiClient.post<BotStartVideoInfo>(
+      '/cabinet/branding/bot-start-video',
+      formData,
+    );
+    return response.data;
+  },
+
+  deleteBotStartVideo: async (): Promise<BotStartVideoInfo> => {
+    const response = await apiClient.delete<BotStartVideoInfo>('/cabinet/branding/bot-start-video');
+    return response.data;
+  },
+
+  // Delete custom logo (admin only)
+  deleteLogo: async (): Promise<BrandingInfo> => {
+    const response = await apiClient.delete<BrandingInfo>('/cabinet/branding/logo');
+    if (_logoBlobUrl) {
+      URL.revokeObjectURL(_logoBlobUrl);
+      _logoBlobUrl = null;
+    }
+    safeSession.removeItem(LOGO_PRELOADED_KEY);
+    return response.data;
+  },
+
+  // Get logo URL as blob (hides backend URL from DOM)
+  getLogoUrl: (_branding: BrandingInfo): string | null => {
+    return _logoBlobUrl;
+  },
+
+  // Get animation enabled (public, no auth required)
+  getAnimationEnabled: async (): Promise<AnimationEnabled> => {
+    const response = await apiClient.get<AnimationEnabled>('/cabinet/branding/animation');
+    return response.data;
+  },
+
+  // Update animation enabled (admin only)
+  updateAnimationEnabled: async (enabled: boolean): Promise<AnimationEnabled> => {
+    const response = await apiClient.patch<AnimationEnabled>('/cabinet/branding/animation', {
+      enabled,
+    });
+    return response.data;
+  },
+
+  // Get animation config (public, no auth required)
+  getAnimationConfig: async (): Promise<AnimationConfig> => {
+    try {
+      const response = await apiClient.get<AnimationConfig>('/cabinet/branding/animation-config');
+      return response.data;
+    } catch {
+      return DEFAULT_ANIMATION_CONFIG;
+    }
+  },
+
+  // Update animation config (admin only, partial update)
+  updateAnimationConfig: async (config: Partial<AnimationConfig>): Promise<AnimationConfig> => {
+    const response = await apiClient.patch<AnimationConfig>(
+      '/cabinet/branding/animation-config',
+      config,
+    );
+    return response.data;
+  },
+
+  // Get fullscreen enabled (public, no auth required)
+  getFullscreenEnabled: async (): Promise<FullscreenEnabled> => {
+    try {
+      const response = await apiClient.get<FullscreenEnabled>('/cabinet/branding/fullscreen');
+      return response.data;
+    } catch {
+      // If endpoint doesn't exist, default to disabled
+      return { enabled: false };
+    }
+  },
+
+  // Update fullscreen enabled (admin only)
+  updateFullscreenEnabled: async (enabled: boolean): Promise<FullscreenEnabled> => {
+    const response = await apiClient.patch<FullscreenEnabled>('/cabinet/branding/fullscreen', {
+      enabled,
+    });
+    return response.data;
+  },
+
+  // Legal footer enabled (public read for the login page, admin-only update)
+  getFooterEnabled: async (): Promise<boolean> => {
+    try {
+      const response = await apiClient.get<{ enabled: boolean }>(
+        '/cabinet/branding/footer-enabled',
+      );
+      return response.data.enabled;
+    } catch {
+      return false;
+    }
+  },
+  updateFooterEnabled: async (enabled: boolean): Promise<boolean> => {
+    const response = await apiClient.patch<{ enabled: boolean }>(
+      '/cabinet/branding/footer-enabled',
+      { enabled },
+    );
+    return response.data.enabled;
+  },
+
+  // Get email auth enabled (public, no auth required)
+  getEmailAuthEnabled: async (): Promise<EmailAuthEnabled> => {
+    try {
+      const response = await apiClient.get<EmailAuthEnabled>('/cabinet/branding/email-auth');
+      return response.data;
+    } catch {
+      // If endpoint doesn't exist, default to enabled
+      return { enabled: true };
+    }
+  },
+
+  // Update email auth enabled (admin only)
+  updateEmailAuthEnabled: async (enabled: boolean): Promise<EmailAuthEnabled> => {
+    const response = await apiClient.patch<EmailAuthEnabled>('/cabinet/branding/email-auth', {
+      enabled,
+    });
+    return response.data;
+  },
+
+  // Get gift enabled (public, no auth required)
+  getGiftEnabled: async (): Promise<GiftEnabled> => {
+    try {
+      const response = await apiClient.get<GiftEnabled>('/cabinet/branding/gift-enabled');
+      return response.data;
+    } catch {
+      return { enabled: false };
+    }
+  },
+
+  // Update gift enabled (admin only)
+  updateGiftEnabled: async (enabled: boolean): Promise<GiftEnabled> => {
+    const response = await apiClient.patch<GiftEnabled>('/cabinet/branding/gift-enabled', {
+      enabled,
+    });
+    return response.data;
+  },
+
+  // Get analytics counters (public, no auth required)
+  getAnalyticsCounters: async (): Promise<AnalyticsCounters> => {
+    try {
+      const response = await apiClient.get<AnalyticsCounters>('/cabinet/branding/analytics');
+      return response.data;
+    } catch {
+      return {
+        yandex_metrika_id: '',
+        google_ads_id: '',
+        google_ads_label: '',
+        offline_conv_enabled: false,
+        offline_conv_counter_id: '',
+        offline_conv_goals: [],
+      };
+    }
+  },
+
+  // Get Telegram widget config (public, no auth required)
+  getTelegramWidgetConfig: async (): Promise<TelegramWidgetConfig> => {
+    try {
+      const response = await apiClient.get<TelegramWidgetConfig>(
+        '/cabinet/branding/telegram-widget',
+      );
+      return response.data;
+    } catch (err) {
+      return {
+        bot_username: import.meta.env.VITE_TELEGRAM_BOT_USERNAME || '',
+        size: 'large',
+        radius: 8,
+        userpic: true,
+        request_access: true,
+        oidc_enabled: false,
+        oidc_client_id: '',
+        endpoint_missing: isEndpointMissingError(err),
+      };
+    }
+  },
+
+  // Update analytics counters (admin only)
+  updateAnalyticsCounters: async (data: Partial<AnalyticsCounters>): Promise<AnalyticsCounters> => {
+    const response = await apiClient.patch<AnalyticsCounters>('/cabinet/branding/analytics', data);
+    return response.data;
+  },
+
+  // Store Yandex Metrika ClientID for the authenticated cabinet user
+  storeYandexCid: async (cid: string): Promise<void> => {
+    await apiClient.post('/cabinet/branding/analytics/yandex-cid', { cid });
+  },
+};

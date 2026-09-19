@@ -1,0 +1,602 @@
+import { apiClient } from './client';
+import { getOverview } from '@/arcvpn/api';
+
+const remnaNodes = async (): Promise<NodeInfo[]> => {
+  const data = await getOverview();
+  return (data.remnawave?.nodes || []).map((n: Record<string, unknown>) => ({
+    uuid: String(n.uuid || n.address), name: String(n.name || n.address), address: String(n.address || ''),
+    country_code: n.country_code ? String(n.country_code) : undefined,
+    is_connected: Boolean(n.connected), is_disabled: Boolean(n.disabled), is_node_online: Boolean(n.connected),
+    is_xray_running: Boolean(n.connected), users_online: Number(n.users_online || 0),
+    traffic_used_bytes: Number(n.traffic_used_gb || 0) * 1024 ** 3, traffic_limit_bytes: 0,
+    xray_uptime: Number(n.xray_uptime_seconds || 0), is_traffic_tracking_active: true, consumption_multiplier: 1,
+    system: { info: { arch: '', cpus: 0, cpuModel: '', memoryTotal: 100, hostname: String(n.address || ''), platform: 'linux', release: '', type: '', version: '', networkInterfaces: [] }, stats: { memoryFree: Math.max(0, 100 - Number(n.memory_used_pct || 0)), memoryUsed: Number(n.memory_used_pct || 0), uptime: Number(n.xray_uptime_seconds || 0), loadAvg: [Number(n.load_1m || 0)], interface: { interface: '', rxBytesPerSec: Number(n.rx_bps || 0), txBytesPerSec: Number(n.tx_bps || 0), rxTotal: 0, txTotal: 0 } } },
+  }));
+};
+
+// Status & Connection
+export interface ConnectionStatus {
+  status: string;
+  message: string;
+  api_url?: string;
+  status_code?: number;
+  system_info?: Record<string, unknown>;
+}
+
+export interface RemnaWaveStatusResponse {
+  is_configured: boolean;
+  configuration_error?: string;
+  connection?: ConnectionStatus;
+}
+
+// System Statistics
+export interface SystemSummary {
+  users_online: number;
+  total_users: number;
+  active_connections: number;
+  nodes_online: number;
+  total_nodes: number;
+  users_last_day: number;
+  users_last_week: number;
+  users_never_online: number;
+  total_user_traffic: number;
+}
+
+// Panel recap / devices / top consumers
+export interface RecapResponse {
+  version: string | null;
+  init_date: string | null;
+  total: {
+    users: number;
+    nodes: number;
+    traffic_bytes: number;
+    nodes_ram_bytes: number;
+    nodes_cpu_cores: number;
+    distinct_countries: number;
+  };
+  this_month: { users: number; traffic_bytes: number };
+}
+
+export interface DevicesStatsResponse {
+  by_platform: { platform: string; count: number }[];
+  by_app: { app: string; count: number }[];
+  top_users: { username: string; devices_count: number }[];
+  total_unique_devices: number;
+  total_hwid_devices: number;
+  average_devices_per_user: number;
+}
+
+export interface TopConsumersResponse {
+  period_days: number;
+  users: { username: string; total_bytes: number }[];
+}
+
+export interface HealthResponse {
+  instances: number;
+  rss_bytes: number;
+  heap_used_bytes: number;
+  heap_total_bytes: number;
+  event_loop_delay_ms: number;
+  event_loop_p99_ms: number;
+  uptime_seconds: number;
+  instance_id: string | null;
+}
+
+export interface SubscriptionRequestStatsResponse {
+  by_app: { app: string; count: number }[];
+}
+
+export interface ServerInfo {
+  cpu_cores: number;
+  memory_total: number;
+  memory_used: number;
+  memory_free: number;
+  uptime_seconds: number;
+}
+
+export interface Bandwidth {
+  realtime_download: number;
+  realtime_upload: number;
+  realtime_total: number;
+}
+
+export interface TrafficPeriod {
+  current: number;
+  previous: number;
+  difference?: string;
+}
+
+export interface TrafficPeriods {
+  last_2_days: TrafficPeriod;
+  last_7_days: TrafficPeriod;
+  last_30_days: TrafficPeriod;
+  current_month: TrafficPeriod;
+  current_year: TrafficPeriod;
+}
+
+export interface SystemStatsResponse {
+  system: SystemSummary;
+  users_by_status: Record<string, number>;
+  server_info: ServerInfo;
+  bandwidth: Bandwidth;
+  traffic_periods: TrafficPeriods;
+  nodes_realtime: Record<string, unknown>[];
+  nodes_weekly: Record<string, unknown>[];
+  last_updated?: string;
+}
+
+// Nodes
+export type NodeIpStatus =
+  | 'INBOUND'
+  | 'OUTBOUND'
+  | 'MANAGEMENT'
+  | 'TRANSIT'
+  | 'MONITORING'
+  | 'RESERVE'
+  | 'BLOCKED'
+  | 'FLAGGED'
+  | 'DEPRECATED'
+  | 'UNKNOWN';
+
+export interface NodeIpAddress {
+  ip: string;
+  status: NodeIpStatus;
+}
+
+export interface NodeInfo {
+  uuid: string;
+  name: string;
+  address: string;
+  country_code?: string;
+  is_connected: boolean;
+  is_disabled: boolean;
+  is_node_online: boolean;
+  is_xray_running: boolean;
+  users_online: number;
+  traffic_used_bytes?: number;
+  traffic_limit_bytes?: number;
+  last_status_change?: string;
+  last_status_message?: string;
+  xray_uptime: number;
+  is_traffic_tracking_active: boolean;
+  traffic_reset_day?: number;
+  notify_percent?: number;
+  consumption_multiplier: number;
+  created_at?: string;
+  updated_at?: string;
+  provider_uuid?: string;
+  provider_name?: string | null;
+  provider_favicon?: string | null;
+  versions?: { xray: string; node: string } | null;
+  system?: {
+    info: {
+      arch: string;
+      cpus: number;
+      cpuModel: string;
+      memoryTotal: number;
+      hostname: string;
+      platform: string;
+      release: string;
+      type: string;
+      version: string;
+      networkInterfaces: string[];
+    };
+    stats: {
+      memoryFree: number;
+      memoryUsed: number;
+      uptime: number;
+      loadAvg: number[];
+      interface?: {
+        interface: string;
+        rxBytesPerSec: number;
+        txBytesPerSec: number;
+        rxTotal: number;
+        txTotal: number;
+      } | null;
+    };
+  } | null;
+  active_plugin_uuid?: string;
+  /** Адреса узла из панели — варианты исходного адреса для GeoCheck. */
+  ips?: NodeIpAddress[];
+  config_profile?: {
+    active_config_profile_uuid: string | null;
+    active_inbounds: Array<{
+      uuid: string;
+      profile_uuid: string;
+      tag: string;
+      type: string;
+      network: string | null;
+      security: string | null;
+      port: number | null;
+    }>;
+  };
+}
+
+export interface NodesListResponse {
+  items: NodeInfo[];
+  total: number;
+}
+
+export interface NodesOverview {
+  total: number;
+  online: number;
+  offline: number;
+  disabled: number;
+  total_users_online: number;
+  nodes: NodeInfo[];
+}
+
+export interface NodeStatisticsResponse {
+  node: NodeInfo;
+  realtime?: Record<string, unknown>;
+  usage_history: Record<string, unknown>[];
+  last_updated?: string;
+}
+
+export interface NodeActionResponse {
+  success: boolean;
+  message?: string;
+  is_disabled?: boolean;
+}
+
+// GeoCheck (Remnawave 3.3.0)
+/** С какого маршрута гнать проверку: пусто — маршрут узла по умолчанию. */
+export interface GeoCheckRequest {
+  ip?: string;
+  interface?: string;
+}
+
+export interface GeoCheckStartResponse {
+  job_id: string;
+}
+
+/** SVG-отчёт в base64, готовый для data: URL. */
+export interface GeoCheckImage {
+  format: string;
+  media_type: string;
+  encoding: string;
+  data: string;
+}
+
+export interface GeoCheckResult {
+  success: boolean;
+  node_uuid?: string | null;
+  image?: GeoCheckImage | null;
+  raw_report?: Record<string, unknown> | null;
+  message?: string | null;
+}
+
+export interface GeoCheckJobResponse {
+  job_id: string;
+  is_completed: boolean;
+  is_failed: boolean;
+  result?: GeoCheckResult | null;
+}
+
+// Realtime Traffic
+export interface InboundTraffic {
+  tag: string;
+  downloadBytes: number;
+  uploadBytes: number;
+  totalBytes: number;
+}
+
+export interface NodeRealtimeStats {
+  nodeUuid: string;
+  nodeName: string;
+  countryEmoji?: string;
+  providerName?: string;
+  downloadBytes: number;
+  uploadBytes: number;
+  totalBytes: number;
+  usersOnline: number;
+  inbounds?: InboundTraffic[];
+  outbounds?: InboundTraffic[];
+}
+
+// Squads
+export interface SquadWithLocalInfo {
+  uuid: string;
+  name: string;
+  members_count: number;
+  inbounds_count: number;
+  inbounds: Record<string, unknown>[];
+  local_id?: number;
+  display_name?: string;
+  country_code?: string;
+  is_available?: boolean;
+  is_trial_eligible?: boolean;
+  price_kopeks?: number;
+  max_users?: number;
+  current_users?: number;
+  is_synced: boolean;
+}
+
+export interface SquadsListResponse {
+  items: SquadWithLocalInfo[];
+  total: number;
+}
+
+export interface SquadDetailResponse extends SquadWithLocalInfo {
+  description?: string;
+  sort_order?: number;
+  active_subscriptions: number;
+}
+
+export interface SquadOperationResponse {
+  success: boolean;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+// Migration
+export interface MigrationPreviewResponse {
+  squad_uuid: string;
+  squad_name: string;
+  current_users: number;
+  max_users?: number;
+  users_to_migrate: number;
+}
+
+export interface MigrationStats {
+  source_uuid: string;
+  target_uuid: string;
+  total: number;
+  updated: number;
+  panel_updated: number;
+  panel_failed: number;
+  source_removed: number;
+  target_added: number;
+}
+
+export interface MigrationResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+  data?: MigrationStats;
+}
+
+// Inbounds
+export interface InboundsListResponse {
+  items: Record<string, unknown>[];
+  total: number;
+}
+
+// Auto Sync
+export interface AutoSyncStatus {
+  enabled: boolean;
+  times: string[];
+  next_run?: string;
+  is_running: boolean;
+  last_run_started_at?: string;
+  last_run_finished_at?: string;
+  last_run_success?: boolean;
+  last_run_reason?: string;
+  last_run_error?: string;
+  last_user_stats?: Record<string, unknown>;
+  last_server_stats?: Record<string, unknown>;
+}
+
+export interface AutoSyncRunResponse {
+  started: boolean;
+  success?: boolean;
+  error?: string;
+  user_stats?: Record<string, unknown>;
+  server_stats?: Record<string, unknown>;
+  reason?: string;
+}
+
+// Sync
+export interface SyncResponse {
+  success: boolean;
+  message?: string;
+  data?: Record<string, unknown>;
+}
+
+export const adminRemnawaveApi = {
+  // Status & Connection
+  getStatus: async (): Promise<RemnaWaveStatusResponse> => {
+    const data = await getOverview();
+    return { is_configured: Boolean(data.remnawave), connection: { status: data.remnawave?.healthy ? 'connected' : 'degraded', message: String(data.remnawave?.detail || '') } };
+  },
+
+  // System Statistics
+  getSystemStats: async (): Promise<SystemStatsResponse> => {
+    const data = await getOverview(); const nodes = await remnaNodes(); const online = Number(data.remnawave?.online_users?.length || 0); const traffic = nodes.reduce((s,n)=>s+Number(n.traffic_used_bytes||0),0);
+    return { system:{users_online:online,total_users:Number(data.remnawave?.users||0),active_connections:online,nodes_online:nodes.filter(n=>n.is_connected).length,total_nodes:nodes.length,users_last_day:0,users_last_week:0,users_never_online:0,total_user_traffic:traffic}, users_by_status:{ACTIVE:Number(data.subscriptions?.active||0),EXPIRED:Number(data.subscriptions?.expired||0)}, server_info:{cpu_cores:0,memory_total:0,memory_used:0,memory_free:0,uptime_seconds:Number(data.system?.uptime_seconds||0)}, bandwidth:{realtime_download:nodes.reduce((s,n)=>s+Number(n.system?.stats.interface?.rxBytesPerSec||0),0),realtime_upload:nodes.reduce((s,n)=>s+Number(n.system?.stats.interface?.txBytesPerSec||0),0),realtime_total:0}, traffic_periods:{last_2_days:{current:0,previous:0},last_7_days:{current:0,previous:0},last_30_days:{current:traffic,previous:0},current_month:{current:traffic,previous:0},current_year:{current:traffic,previous:0}},nodes_realtime:[],nodes_weekly:[],last_updated:data.generated_at };
+  },
+
+  // Panel recap / devices / top consumers
+  getRecap: async (): Promise<RecapResponse> => {
+    const data=await getOverview(); const nodes=await remnaNodes(); return {version:null,init_date:null,total:{users:Number(data.remnawave?.users||0),nodes:nodes.length,traffic_bytes:nodes.reduce((s,n)=>s+Number(n.traffic_used_bytes||0),0),nodes_ram_bytes:0,nodes_cpu_cores:0,distinct_countries:new Set(nodes.map(n=>n.country_code)).size},this_month:{users:Number(data.users?.month||0),traffic_bytes:0}};
+  },
+
+  getDevicesStats: async (): Promise<DevicesStatsResponse> => {
+    return {by_platform:[],by_app:[],top_users:[],total_unique_devices:0,total_hwid_devices:0,average_devices_per_user:0};
+  },
+
+  getTopConsumers: async (days = 7, limit = 10): Promise<TopConsumersResponse> => {
+    const data=await getOverview(); return {period_days:days,users:(data.recent_users||[]).sort((a:Record<string,unknown>,b:Record<string,unknown>)=>Number(b.main_used_bytes||0)-Number(a.main_used_bytes||0)).slice(0,limit).map((u:Record<string,unknown>)=>({username:String(u.username||u.telegram_id),total_bytes:Number(u.main_used_bytes||0)+Number(u.lte_used_bytes||0)}))};
+  },
+
+  getHealth: async (): Promise<HealthResponse> => {
+    const data=await getOverview(); return {instances:data.remnawave?.healthy?1:0,rss_bytes:0,heap_used_bytes:0,heap_total_bytes:0,event_loop_delay_ms:0,event_loop_p99_ms:0,uptime_seconds:Number(data.system?.uptime_seconds||0),instance_id:null};
+  },
+
+  getSubscriptionRequests: async (): Promise<SubscriptionRequestStatsResponse> => {
+    return {by_app:[]};
+  },
+
+  // Nodes
+  getNodes: async (): Promise<NodesListResponse> => {
+    const items=await remnaNodes(); return {items,total:items.length};
+  },
+
+  getNodesOverview: async (): Promise<NodesOverview> => {
+    const nodes=await remnaNodes(); return {total:nodes.length,online:nodes.filter(n=>n.is_connected&&!n.is_disabled).length,offline:nodes.filter(n=>!n.is_connected&&!n.is_disabled).length,disabled:nodes.filter(n=>n.is_disabled).length,total_users_online:nodes.reduce((s,n)=>s+n.users_online,0),nodes};
+  },
+
+  getNodesRealtime: async (): Promise<NodeRealtimeStats[]> => {
+    const nodes=await remnaNodes(); return nodes.map(n=>({nodeUuid:n.uuid,nodeName:n.name,downloadBytes:Number(n.system?.stats.interface?.rxBytesPerSec||0),uploadBytes:Number(n.system?.stats.interface?.txBytesPerSec||0),totalBytes:Number(n.traffic_used_bytes||0),usersOnline:n.users_online,inbounds:[],outbounds:[]}));
+  },
+
+  getNode: async (uuid: string): Promise<NodeInfo> => {
+    const response = await apiClient.get(`/cabinet/admin/remnawave/nodes/${uuid}`);
+    return response.data;
+  },
+
+  getNodeStatistics: async (uuid: string): Promise<NodeStatisticsResponse> => {
+    const response = await apiClient.get(`/cabinet/admin/remnawave/nodes/${uuid}/statistics`);
+    return response.data;
+  },
+
+  nodeAction: async (
+    uuid: string,
+    action: 'enable' | 'disable' | 'restart',
+  ): Promise<NodeActionResponse> => {
+    const response = await apiClient.post(`/cabinet/admin/remnawave/nodes/${uuid}/action`, {
+      action,
+    });
+    return response.data;
+  },
+
+  /** Ставит GeoCheck ноды в очередь; результат забирается по job_id. */
+  startNodeGeoCheck: async (
+    uuid: string,
+    body: GeoCheckRequest = {},
+  ): Promise<GeoCheckStartResponse> => {
+    const response = await apiClient.post(`/cabinet/admin/remnawave/nodes/${uuid}/geocheck`, body);
+    return response.data;
+  },
+
+  /** Статус задачи GeoCheck — нода отвечает до минуты. */
+  getGeoCheckJob: async (jobId: string): Promise<GeoCheckJobResponse> => {
+    const response = await apiClient.get(`/cabinet/admin/remnawave/geocheck/${jobId}`);
+    return response.data;
+  },
+
+  restartAllNodes: async (): Promise<NodeActionResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/nodes/restart-all');
+    return response.data;
+  },
+
+  // Squads
+  getSquads: async (): Promise<SquadsListResponse> => {
+    const data=await getOverview(); const items=(data.remnawave?.squads||[]).map((s:Record<string,unknown>)=>({uuid:String(s.uuid),name:String(s.name),members_count:Number(s.members_count||0),inbounds_count:Number(s.inbounds_count||0),inbounds:(s.inbounds||[]) as Record<string,unknown>[],display_name:String(s.name),is_available:true,is_trial_eligible:false,current_users:Number(s.members_count||0),is_synced:true})); return {items,total:items.length};
+  },
+
+  getSquad: async (uuid: string): Promise<SquadDetailResponse> => {
+    const response = await apiClient.get(`/cabinet/admin/remnawave/squads/${uuid}`);
+    return response.data;
+  },
+
+  createSquad: async (data: {
+    name: string;
+    inbound_uuids?: string[];
+  }): Promise<SquadOperationResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/squads', data);
+    return response.data;
+  },
+
+  updateSquad: async (
+    uuid: string,
+    data: { name?: string; inbound_uuids?: string[] },
+  ): Promise<SquadOperationResponse> => {
+    const response = await apiClient.patch(`/cabinet/admin/remnawave/squads/${uuid}`, data);
+    return response.data;
+  },
+
+  deleteSquad: async (uuid: string): Promise<SquadOperationResponse> => {
+    const response = await apiClient.delete(`/cabinet/admin/remnawave/squads/${uuid}`);
+    return response.data;
+  },
+
+  squadAction: async (
+    uuid: string,
+    data: {
+      action: 'add_all_users' | 'remove_all_users' | 'delete' | 'rename' | 'update_inbounds';
+      name?: string;
+      inbound_uuids?: string[];
+    },
+  ): Promise<SquadOperationResponse> => {
+    const response = await apiClient.post(`/cabinet/admin/remnawave/squads/${uuid}/action`, data);
+    return response.data;
+  },
+
+  // Migration
+  getMigrationPreview: async (uuid: string): Promise<MigrationPreviewResponse> => {
+    const response = await apiClient.get(
+      `/cabinet/admin/remnawave/squads/${uuid}/migration-preview`,
+    );
+    return response.data;
+  },
+
+  migrateSquad: async (sourceUuid: string, targetUuid: string): Promise<MigrationResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/squads/migrate', {
+      source_uuid: sourceUuid,
+      target_uuid: targetUuid,
+    });
+    return response.data;
+  },
+
+  // Inbounds
+  getInbounds: async (): Promise<InboundsListResponse> => {
+    const response = await apiClient.get('/cabinet/admin/remnawave/inbounds');
+    return response.data;
+  },
+
+  // Auto Sync
+  getAutoSyncStatus: async (): Promise<AutoSyncStatus> => {
+    return {enabled:false,times:[],is_running:false};
+  },
+
+  toggleAutoSync: async (enabled: boolean): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/auto/toggle', { enabled });
+    return response.data;
+  },
+
+  runAutoSync: async (): Promise<AutoSyncRunResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/auto/run');
+    return response.data;
+  },
+
+  // Manual Sync
+  syncFromPanel: async (
+    mode: 'all' | 'new_only' | 'update_only' = 'all',
+  ): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/from-panel', { mode });
+    return response.data;
+  },
+
+  syncToPanel: async (): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/to-panel');
+    return response.data;
+  },
+
+  syncServers: async (): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/servers');
+    return response.data;
+  },
+
+  validateSubscriptions: async (): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/subscriptions/validate');
+    return response.data;
+  },
+
+  cleanupSubscriptions: async (): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/subscriptions/cleanup');
+    return response.data;
+  },
+
+  syncSubscriptionStatuses: async (): Promise<SyncResponse> => {
+    const response = await apiClient.post('/cabinet/admin/remnawave/sync/subscriptions/statuses');
+    return response.data;
+  },
+
+  getSyncRecommendations: async (): Promise<SyncResponse> => {
+    const response = await apiClient.get('/cabinet/admin/remnawave/sync/recommendations');
+    return response.data;
+  },
+};
+
+export default adminRemnawaveApi;

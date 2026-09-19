@@ -1,0 +1,24 @@
+# Сторонние материалы
+
+## BEDOLAGA Cabinet
+
+Этот frontend является модифицированной версией BEDOLAGA Cabinet:
+https://github.com/BEDOLAGA-DEV/bedolaga-cabinet/
+
+Upstream snapshot: `001531d04dda5c42f0b23b699e8408c6ca83ede9`.
+Copyright (C) 2025 BEDOLAGA DEV. Лицензия: GNU AGPL-3.0.
+Изменения ArcVPN: отдельная административная точка входа, брендинг ArcVPN и
+адаптер существующих `/api/admin/*` контрактов. Исходный код модифицированной
+версии публикуется вместе с ArcVPN.
+
+## Карта регионов России (`src/components/admin/reachability/assets/russia-regions.svg`)
+
+Источник: «ISO codes of subjects of Russia.svg», Wikimedia Commons
+(https://commons.wikimedia.org/wiki/File:ISO_codes_of_subjects_of_Russia.svg), автор Gajmar
+(ru.wikipedia), собственная работа. Лицензия: Creative Commons CC0 1.0 Universal Public Domain
+Dedication (https://creativecommons.org/publicdomain/zero/1.0/).
+
+Изменения (2026-09-11): оптимизация svgo; сняты инлайновые заливки регионов, стран и контуров
+(цвета задаёт кабинет по вердиктам); регионы помечены `data-region` с кодом ISO 3166-2 без
+префикса `RU-`; безымянному контуру Камчатского края дан `id="KAM"`; удалены подписи кодов регионов (глифы
+контурами поверх регионов), пустой блок стилей и метаданные Inkscape.
