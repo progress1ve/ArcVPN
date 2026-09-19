@@ -1,0 +1,297 @@
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
+import { useTranslation } from 'react-i18next';
+import { useFocusTrap } from '../hooks/useFocusTrap';
+import { safeLocal } from '../utils/safeStorage';
+
+interface OnboardingStep {
+  target: string; // data-onboarding attribute value
+  title: string;
+  description: string;
+  placement: 'top' | 'bottom' | 'left' | 'right';
+}
+
+interface OnboardingProps {
+  steps: OnboardingStep[];
+  onComplete: () => void;
+  onSkip: () => void;
+}
+
+const STORAGE_KEY = 'onboarding_completed';
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useOnboarding() {
+  const [isCompleted, setIsCompleted] = useState(() => {
+    return safeLocal.getItem(STORAGE_KEY) === 'true';
+  });
+
+  const complete = useCallback(() => {
+    safeLocal.setItem(STORAGE_KEY, 'true');
+    setIsCompleted(true);
+  }, []);
+
+  const reset = useCallback(() => {
+    safeLocal.removeItem(STORAGE_KEY);
+    setIsCompleted(false);
+  }, []);
+
+  return { isCompleted, complete, reset };
+}
+
+export default function Onboarding({ steps, onComplete, onSkip }: OnboardingProps) {
+  const { t } = useTranslation();
+  const [currentStep, setCurrentStep] = useState(0);
+  const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const tooltipRef = useRef<HTMLDivElement>(null);
+
+  const onCompleteRef = useRef(onComplete);
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
+
+  const step = steps[currentStep];
+
+  useEffect(() => {
+    let cancelled = false;
+    let attempts = 0;
+    const maxAttempts = 6;
+    const isLastStep = currentStep === steps.length - 1;
+
+    setIsVisible(false);
+    setTargetRect(null);
+
+    const tryFind = () => {
+      if (cancelled) return;
+      const target = document.querySelector(`[data-onboarding="${step.target}"]`);
+      if (target) {
+        const rect = target.getBoundingClientRect();
+        setTargetRect(rect);
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        window.setTimeout(() => {
+          if (!cancelled) setIsVisible(true);
+        }, 100);
+        return;
+      }
+      attempts += 1;
+      if (attempts < maxAttempts) {
+        window.setTimeout(tryFind, 200);
+        return;
+      }
+      if (isLastStep) {
+        onCompleteRef.current();
+      } else {
+        setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
+      }
+    };
+
+    const timer = window.setTimeout(tryFind, 300);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step.target]);
+
+  // Recalculate position on resize/scroll
+  useEffect(() => {
+    const updatePosition = () => {
+      const target = document.querySelector(`[data-onboarding="${step.target}"]`);
+      if (target) {
+        setTargetRect(target.getBoundingClientRect());
+      }
+    };
+
+    window.addEventListener('resize', updatePosition);
+    window.addEventListener('scroll', updatePosition, true);
+    return () => {
+      window.removeEventListener('resize', updatePosition);
+      window.removeEventListener('scroll', updatePosition, true);
+    };
+  }, [step.target]);
+
+  const handleNext = () => {
+    if (currentStep < steps.length - 1) {
+      setCurrentStep(currentStep + 1);
+    } else {
+      onComplete();
+    }
+  };
+
+  const handlePrev = () => {
+    if (currentStep > 0) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSkip = () => {
+    onSkip();
+  };
+
+  // Trap focus inside the tooltip while the tour runs; Esc skips it.
+  // lockScroll stays off so scrollIntoView can bring each target into view.
+  const trapRef = useFocusTrap<HTMLDivElement>(true, { onEscape: handleSkip, lockScroll: false });
+  const setTooltipNode = useCallback(
+    (node: HTMLDivElement | null) => {
+      tooltipRef.current = node;
+      trapRef.current = node;
+    },
+    [trapRef],
+  );
+
+  // Calculate tooltip position
+  const getTooltipStyle = (): React.CSSProperties => {
+    if (!targetRect) return { opacity: 0 };
+
+    const padding = 16;
+    const tooltipWidth = 320;
+    const tooltipHeight = tooltipRef.current?.offsetHeight || 150;
+
+    let top = 0;
+    let left = 0;
+
+    switch (step.placement) {
+      case 'bottom':
+        top = targetRect.bottom + padding;
+        left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2;
+        break;
+      case 'top':
+        top = targetRect.top - tooltipHeight - padding;
+        left = targetRect.left + targetRect.width / 2 - tooltipWidth / 2;
+        break;
+      case 'left':
+        top = targetRect.top + targetRect.height / 2 - tooltipHeight / 2;
+        left = targetRect.left - tooltipWidth - padding;
+        break;
+      case 'right':
+        top = targetRect.top + targetRect.height / 2 - tooltipHeight / 2;
+        left = targetRect.right + padding;
+        break;
+    }
+
+    // Keep within viewport
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    if (left < padding) left = padding;
+    if (left + tooltipWidth > viewportWidth - padding) {
+      left = viewportWidth - tooltipWidth - padding;
+    }
+    if (top < padding) top = padding;
+    if (top + tooltipHeight > viewportHeight - padding) {
+      top = viewportHeight - tooltipHeight - padding;
+    }
+
+    return {
+      top,
+      left,
+      width: tooltipWidth,
+      opacity: isVisible ? 1 : 0,
+      transform: isVisible ? 'scale(1)' : 'scale(0.95)',
+    };
+  };
+
+  // Spotlight style
+  const getSpotlightStyle = (): React.CSSProperties => {
+    if (!targetRect) return { opacity: 0 };
+
+    const padding = 8;
+    return {
+      top: targetRect.top - padding,
+      left: targetRect.left - padding,
+      width: targetRect.width + padding * 2,
+      height: targetRect.height + padding * 2,
+      opacity: isVisible ? 1 : 0,
+    };
+  };
+
+  return createPortal(
+    <div className="onboarding-overlay" style={{ opacity: isVisible ? 1 : 0 }}>
+      {/* Spotlight */}
+      <div
+        className="onboarding-spotlight"
+        style={{
+          ...getSpotlightStyle(),
+          pointerEvents: isVisible ? 'auto' : 'none',
+        }}
+      />
+
+      {/* Tooltip */}
+      <div
+        ref={setTooltipNode}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="onboarding-title"
+        aria-describedby="onboarding-desc"
+        className={`onboarding-tooltip tooltip-${step.placement}`}
+        style={{
+          ...getTooltipStyle(),
+          pointerEvents: isVisible ? 'auto' : 'none',
+        }}
+      >
+        {/* Progress indicator */}
+        <div className="mb-4 flex items-center gap-1.5">
+          {steps.map((s, index) => (
+            <div
+              key={s.target}
+              className={`h-1 rounded-full transition-all duration-300 ${
+                index === currentStep
+                  ? 'w-6 bg-accent-500'
+                  : index < currentStep
+                    ? 'w-2 bg-accent-500/50'
+                    : 'w-2 bg-dark-700'
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Content */}
+        <h3 id="onboarding-title" className="mb-2 text-lg font-semibold text-dark-50">
+          {step.title}
+        </h3>
+        <p id="onboarding-desc" className="mb-5 text-sm text-dark-400">
+          {step.description}
+        </p>
+
+        {/* Actions */}
+        <div className="flex items-center justify-between">
+          <button
+            onClick={handleSkip}
+            className="text-sm text-dark-500 transition-colors hover:text-dark-300"
+          >
+            {t('onboarding.skip', 'Skip')}
+          </button>
+
+          <div className="flex gap-2">
+            {currentStep > 0 && (
+              <button onClick={handlePrev} className="btn-ghost px-3 py-1.5 text-sm">
+                {t('common.back', 'Back')}
+              </button>
+            )}
+            <button onClick={handleNext} className="btn-primary px-4 py-1.5 text-sm">
+              {currentStep === steps.length - 1
+                ? t('onboarding.finish', 'Finish')
+                : t('common.next', 'Next')}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Click handler to advance on target click — only when overlay is fully visible */}
+      {targetRect && isVisible && (
+        <div
+          aria-hidden="true"
+          className="absolute cursor-pointer"
+          style={{
+            top: targetRect.top,
+            left: targetRect.left,
+            width: targetRect.width,
+            height: targetRect.height,
+          }}
+          onClick={handleNext}
+        />
+      )}
+    </div>,
+    document.body,
+  );
+}
