@@ -10,6 +10,10 @@
 - Production build passed (2516 modules), focused frontend tests 10 passed,
   focused backend tests 3 passed. All six requested routes render with zero
   overflow on desktop and 390 px; browser console is clean.
+- Release chain `6f36817..9d207d5` is deployed on Poland. Subscription API and
+  nginx are active; public admin root and a history deep-link return 200. The
+  public browser loaded `index-PV5Q8qDk.js` and showed the separate login screen
+  with zero overflow and no console errors.
 
 ## 2026-09-14 local acceptance candidate
 

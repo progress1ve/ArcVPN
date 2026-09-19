@@ -63,4 +63,9 @@ must use ArcVPN data and must not be a fake or "coming soon" surface.
 - Browser routes verified: payments, sales statistics, traffic, tickets,
   Remnawave and squads. Desktop and 390 px checks report zero document overflow;
   browser console has no warnings or errors.
-- Deployment and public verification remain pending.
+- Release chain `6f36817..9d207d5` is pushed to `origin/main` and fast-forwarded
+  on Poland production. `arcvpn-subscription.service` was restarted and both it
+  and nginx are active.
+- Public `/admin/` and `/admin/payments` return 200. The browser loaded
+  `index-PV5Q8qDk.js`, displayed the isolated login surface with zero overflow,
+  and reported no console warnings or errors.
