@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 import tempfile
@@ -47,13 +48,22 @@ def canary_outbound() -> dict:
 def main() -> None:
     if not XRAY.is_file():
         raise RuntimeError("Canary Xray binary is missing")
+    outbound = canary_outbound()
+    connect_host = os.environ.get("ARCVPN_CANARY_CONNECT_HOST", "").strip()
+    if connect_host:
+        target = outbound["settings"]["vnext"][0]
+        target["address"] = connect_host
+        target["port"] = int(os.environ.get("ARCVPN_CANARY_CONNECT_PORT", "80"))
+        if os.environ.get("ARCVPN_CANARY_CONNECT_SECURITY", "none") == "none":
+            outbound["streamSettings"]["security"] = "none"
+            outbound["streamSettings"].pop("tlsSettings", None)
     config = {
         "log": {"loglevel": "warning"},
         "inbounds": [{
             "listen": "127.0.0.1", "port": 18082, "protocol": "socks",
             "settings": {"auth": "noauth", "udp": False},
         }],
-        "outbounds": [canary_outbound()],
+        "outbounds": [outbound],
     }
     with tempfile.TemporaryDirectory(prefix="arcvpn-cdn-canary-") as temp:
         path = Path(temp) / "config.json"
@@ -70,7 +80,8 @@ def main() -> None:
                 if result.returncode or result.stdout.strip() != "204":
                     log.flush()
                     tail = " | ".join(log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-8:])
-                    raise RuntimeError(f"single-CDN XHTTP canary failed curl={result.returncode}; {tail}")
+                    error = result.stderr.strip().replace("\n", " ")[:240]
+                    raise RuntimeError(f"single-CDN XHTTP canary failed curl={result.returncode} error={error}; {tail}")
                 print(json.dumps({"tunnel": "passed", "http": 204, "hostname": PUBLIC_HOST}))
             finally:
                 process.terminate()
