@@ -156,30 +156,32 @@ def collect_events(db_path: str | None = None, external_probe: Callable[[str, in
         ru_nodes = []
     path = db_path or os.getenv("ARCVPN_DB_PATH", str(ROOT / "database" / "vpn_bot.db"))
     events = []
-    checked = 0
-    with sqlite3.connect(path) as conn:
+    observations = []
+    for node in nodes:
+        host = str(node.get("address") or "").strip()
+        ports = tcp_ports(node)
+        if not host:
+            continue
+        direct = direct_probe(host, ports) if ports else {
+            "ok": bool(node.get("isConnected")), "ports": [], "note": "panel-only UDP node"
+        }
+        external = None
+        if ports:
+            try:
+                external = external_probe(host, ports[0], ru_nodes)
+            except Exception:
+                external = None
+        observations.append((node, classify(bool(node.get("isConnected")), direct, external)))
+
+    with sqlite3.connect(path, timeout=10) as conn:
         conn.row_factory = sqlite3.Row
-        for node in nodes:
+        for node, observation in observations:
             host = str(node.get("address") or "").strip()
-            ports = tcp_ports(node)
-            if not host:
-                continue
-            direct = direct_probe(host, ports) if ports else {
-                "ok": bool(node.get("isConnected")), "ports": [], "note": "panel-only UDP node"
-            }
-            external = None
-            if ports:
-                try:
-                    external = external_probe(host, ports[0], ru_nodes)
-                except Exception:
-                    external = None
-            observation = classify(bool(node.get("isConnected")), direct, external)
             event = None if dry_run else update_state(
                 conn, str(node.get("uuid") or host), str(node.get("name") or host), observation
             )
             if event:
                 events.append(event)
-            checked += 1
         if not dry_run:
             conn.commit()
-    return {"checked": checked, "events": events, "external_nodes": len(ru_nodes)}
+    return {"checked": len(observations), "events": events, "external_nodes": len(ru_nodes)}
