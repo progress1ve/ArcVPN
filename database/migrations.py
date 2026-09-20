@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 62
+LATEST_VERSION = 63
 
 
 def get_current_version() -> int:
@@ -2407,6 +2407,22 @@ def migration_62(conn: sqlite3.Connection) -> None:
     logger.info("Migration v62 applied")
 
 
+def migration_63(conn: sqlite3.Connection) -> None:
+    """Persistent, deduplicated node outage and recovery alert state."""
+    conn.execute("""CREATE TABLE IF NOT EXISTS fleet_alert_state (
+        node_key TEXT PRIMARY KEY,
+        node_name TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'healthy',
+        consecutive_failures INTEGER NOT NULL DEFAULT 0,
+        consecutive_successes INTEGER NOT NULL DEFAULT 0,
+        incident_started_at DATETIME,
+        alert_sent INTEGER NOT NULL DEFAULT 0,
+        last_details_json TEXT NOT NULL DEFAULT '{}',
+        last_checked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    logger.info("Migration v63 applied")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2470,6 +2486,7 @@ MIGRATIONS = {
     60: migration_60,
     61: migration_61,
     62: migration_62,
+    63: migration_63,
 }
 
 

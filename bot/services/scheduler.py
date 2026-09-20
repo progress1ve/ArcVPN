@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import shutil
+import html
 from datetime import datetime, time as dt_time, timedelta
 from typing import Optional
 
@@ -48,6 +49,55 @@ BACKUP_DIR = os.path.join(PROJECT_ROOT, 'backup')
 
 # Сколько дней хранить локальные бэкапы
 BACKUP_RETENTION_DAYS = 7
+
+
+def _fleet_event_message(event: dict) -> str:
+    name = html.escape(str(event.get("node_name") or "Неизвестная нода"))
+    details = event.get("details") or {}
+    if event.get("type") == "recovery":
+        return (
+            f"✅ <b>Сервер восстановлен</b>\n\n"
+            f"Нода: <b>{name}</b>\n"
+            f"Предыдущая проблема: <code>{html.escape(str(event.get('previous_status') or 'unknown'))}</code>\n"
+            f"Стабильность подтверждена двумя последовательными проверками."
+        )
+    status = str(event.get("status") or "server_down")
+    external = details.get("external") or {}
+    failed_ports = ", ".join(str(port) for port in details.get("failed_ports") or []) or "нет данных"
+    if status == "possible_ip_block":
+        title = "🚨 <b>Возможна блокировка IP сервера</b>"
+        reason = "Из Польши сервер доступен, но российские внешние пробы не подключаются."
+    else:
+        title = "🚨 <b>Сервер недоступен</b>"
+        reason = "Remnawave потерял соединение или публичный TCP-порт не отвечает."
+    return (
+        f"{title}\n\nНода: <b>{name}</b>\n{reason}\n"
+        f"Не отвечают порты: <code>{html.escape(failed_ports)}</code>\n"
+        f"Внешние пробы: {int(external.get('success', 0))}/{int(external.get('completed', 0))} успешны\n"
+        f"Первое обнаружение: <code>{html.escape(str(event.get('incident_started_at') or '—'))} UTC</code>\n\n"
+        "Авария подтверждена тремя последовательными проверками."
+    )
+
+
+async def run_fleet_alert_scheduler(bot: Bot) -> None:
+    """Monitor RemnaNodes and notify admins once per outage/recovery transition."""
+    from monitoring.fleet_alerts import collect_events
+
+    logger.info("Fleet alert scheduler started (every 5 minutes)")
+    await asyncio.sleep(30)
+    while True:
+        try:
+            result = await asyncio.to_thread(collect_events)
+            for event in result["events"]:
+                await notify_admins(bot, _fleet_event_message(event))
+            logger.info("Fleet alert check completed: nodes=%s events=%s external_nodes=%s",
+                        result["checked"], len(result["events"]), result["external_nodes"])
+        except asyncio.CancelledError:
+            logger.info("Fleet alert scheduler stopped")
+            raise
+        except Exception:
+            logger.exception("Fleet alert scheduler iteration failed")
+        await asyncio.sleep(300)
 
 
 async def _send_lifecycle_batch(bot: Bot) -> None:

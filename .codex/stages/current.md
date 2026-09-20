@@ -1,71 +1,52 @@
-# BEDOLAGA admin operational modules — 2026-09-19
+# Fleet outage and IP-block alerts — 2026-09-20
 
 ## Goal
-Complete and deploy the direct BEDOLAGA admin migration for squads, payments,
-sales statistics, traffic usage, tickets, and Remnawave. Every visible page
-must use ArcVPN data and must not be a fake or "coming soon" surface.
+Notify every configured ArcVPN administrator in Telegram when a production
+RemnaNode is unavailable or appears unreachable from Russian networks, and send
+one recovery notice when service returns.
 
-## Routes and data contracts
-| Route | Source of truth | Required behavior |
-| --- | --- | --- |
-| `/admin/payments` | ArcVPN `payments` + `users` | server search, status/method/period filters, paging, totals |
-| `/admin/sales-stats` | ArcVPN payments/subscriptions | summary and trial/sale/renewal/add-on/deposit/payment-health tabs |
-| `/admin/traffic` | ArcVPN main + LTE counters | search, status, sort, paging and both traffic classes |
-| `/admin/tickets`, `/:id` | support threads/messages | queue, detail, reply, status change |
-| `/admin/remnawave` | live Remnawave overview | connection, fleet, online, traffic, node health |
-| `/admin/remnawave/squads/:uuid` | live internal squads | squad membership/inbounds/read-only detail |
+## Contract
+- The authoritative bot on Poland runs the check every 5 minutes.
+- Each enabled registered RemnaNode is checked through Remnawave connectivity,
+  a direct TCP probe from Poland, and TCP probes from up to three Russian
+  Check-Host nodes.
+- `server_down`: Remnawave is disconnected or the direct public TCP probe fails.
+- `possible_ip_block`: the direct probe and Remnawave are healthy, at least two
+  Russian probes completed, and no Russian probe can connect.
+- External-probe failure or incomplete results are `unknown`, never an outage.
+- Alert after three consecutive failures; recover after two consecutive healthy
+  checks. Send once per transition, not every scheduler iteration.
+- Messages contain node name, failure class, failed public ports, probe counts,
+  first detection time, and a compact recovery duration. No secrets, UUIDs,
+  subscription URLs, tokens, or private addresses are included.
 
 ## Components
-- `subscription_api.py`: bounded read APIs and audited ticket status mutation.
-- `admin_webapp/src/arcvpn/api.ts`: ArcVPN transport and normalized adapters.
-- BEDOLAGA API modules for payments, sales, traffic, tickets and Remnawave.
-- `ArcAdminRoot.tsx`: route wiring.
-- Existing BEDOLAGA pages/components remain the presentation layer.
+- `monitoring/fleet_alerts.py`: bounded probes, state machine, SQLite persistence.
+- `bot/services/scheduler.py`, `main.py`: periodic execution and Telegram delivery.
+- `database/migrations.py`: persistent deduplication/recovery state.
+- `tests/test_fleet_alerts.py`: classification, debounce and recovery coverage.
 
-## Exclusions
-- No destructive node/squad mutations, bulk migration, refund or payment replay.
-- No fake campaign, provider, device or historical telemetry values.
-- Preserve existing UUIDs, subscription URLs and active access.
-- No customer Svelte cabinet or landing changes.
-
-## Acceptance
-- All six entry routes render live or explicit empty/error states; no adapter 404s.
-- Payments filters and paging work; traffic displays main and LTE counters.
-- Ticket replies and status changes use existing permission checks and audit.
-- Remnawave connection, nodes and squads come from the authority response.
-- Browser QA at 390/768/1280/1600: zero document overflow, reachable controls,
-  readable tables/cards, no admin burger or redundant header label.
-- Frontend build/tests and focused backend tests pass.
-- Staged diff contains only the migration and documented support files.
-- Commit/push, Poland production `pull --ff-only`, affected service restart, and
-  authenticated/public verification complete.
+## Non-goals
+- No automatic node restart, DNS change, failover, firewall or Remnawave mutation.
+- No change to subscription URLs, UUIDs, inbounds or client routing.
+- Hysteria/UDP is not judged by a TCP probe.
 
 ## Risks and rollback
-- Remnawave may be temporarily unavailable: pages show degraded/error state and
-  never replace live data with demo data in production.
-- Large tables are bounded and paginated; no unbounded DB or panel fetches.
-- Roll back by reverting the deployment commit, rebuilding static assets and
-  restarting only `arcvpn-subscription.service` if Python routing changed.
+- Check-Host is a third-party observation source; its outage must degrade to
+  `unknown`. Public node host/port values are sent to that service.
+- Three-failure/two-recovery hysteresis bounds false positives and alert spam.
+- Rollback: revert the release commit and restart only `arcvpn-bot.service`.
+  The added state table is inert and safe to retain.
 
-## Verification matrix
-| Surface | Functional check | Viewports |
-| --- | --- | --- |
-| Payments | filters, totals, paging, user link | 390/768/1280/1600 |
-| Sales | period + six tabs | 390/768/1280/1600 |
-| Traffic | main/LTE sort and search | 390/768/1280/1600 |
-| Tickets | list/detail/reply/status states | 390/768/1280/1600 |
-| Remnawave | connection/nodes/telemetry | 390/768/1280/1600 |
-| Squads | list/detail/empty | 390/768/1280/1600 |
+## Acceptance
+- Unit tests cover down, possible block, external unknown, debounce, dedupe and recovery.
+- Existing fleet monitor tests remain green; Python compilation passes.
+- A dry-run on production discovers enabled nodes without sending Telegram.
+- Production deployment is fast-forward only; only the bot is restarted.
+- Bot remains active and logs a successful fleet check without leaking secrets.
 
 ## Evidence
-- React production build: 2516 modules, completed successfully.
-- Focused frontend tests: 10 passed; focused backend API tests: 3 passed.
-- Browser routes verified: payments, sales statistics, traffic, tickets,
-  Remnawave and squads. Desktop and 390 px checks report zero document overflow;
-  browser console has no warnings or errors.
-- Release chain `6f36817..9d207d5` is pushed to `origin/main` and fast-forwarded
-  on Poland production. `arcvpn-subscription.service` was restarted and both it
-  and nginx are active.
-- Public `/admin/` and `/admin/payments` return 200. The browser loaded
-  `index-PV5Q8qDk.js`, displayed the isolated login surface with zero overflow,
-  and reported no console warnings or errors.
+- `tests/test_fleet_alerts.py` plus existing fleet test: 7 passed.
+- `py_compile` passed for monitor, scheduler, main and migrations.
+- Check-Host node discovery currently returns three Russian probe nodes.
+- Deployment dry-run, service restart and production evidence remain pending.

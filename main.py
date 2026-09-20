@@ -24,6 +24,7 @@ from bot.services.scheduler import (
     run_yookassa_reconciliation_scheduler,
     run_recurring_payment_scheduler,
     run_lifecycle_scheduler,
+    run_fleet_alert_scheduler,
 )
 
 # Импорт роутеров
@@ -175,6 +176,7 @@ async def main():
     recurring_payment_tasks = asyncio.create_task(run_recurring_payment_scheduler(bot))
     lifecycle_tasks = asyncio.create_task(run_lifecycle_scheduler(bot))
     broadcast_tasks = asyncio.create_task(run_broadcast_worker(bot))
+    fleet_alert_tasks = asyncio.create_task(run_fleet_alert_scheduler(bot))
     
     try:
         await dp.start_polling(bot)
@@ -186,6 +188,7 @@ async def main():
         recurring_payment_tasks.cancel()
         lifecycle_tasks.cancel()
         broadcast_tasks.cancel()
+        fleet_alert_tasks.cancel()
         await bot.session.close()
 
 
