@@ -1380,7 +1380,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   up to three Russian Check-Host TCP probes. Three consecutive failures create
   one admin Telegram alert (`server_down` or `possible_ip_block`); two healthy
   checks create one recovery notice. Missing external results are `unknown`,
-  not an outage. State/deduplication lives in `fleet_alert_state` (schema v63).
+  not an outage. A successful external probe overrides a failed Poland probe
+  when Remnawave remains connected. Retired Finland, Finland LTE, Albania and
+  the non-client-facing Moscow Bridge are excluded. Alert timestamps render in
+  Moscow time. State/deduplication lives in `fleet_alert_state` (schema v63).
   Both fleet monitors perform remote probes before opening SQLite.
 - Happ JSON subscriptions use LTE as a costly fallback only: normal outbounds
   participate in `leastLoad`/`burstObservatory`, while `lte_backup` is excluded

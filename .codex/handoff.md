@@ -374,3 +374,14 @@ no service restart is needed for this static-only rollback.
 - Production is verified on `31678ea`: 7 nodes checked, 3 Russian probes,
   0 current events, bot active, and no new SQLite lock after the final restart.
   Focused tests: 7 passed; Python compilation and diff checks passed.
+
+### False-positive correction
+
+- Runtime `b140213` excludes retired Finland, Finland LTE and Albania plus the
+  non-client-facing Moscow Bridge. A Poland-only TCP failure no longer defeats
+  healthy Remnawave state plus successful Russian probes.
+- Incomplete evidence is `unknown`, not an outage; displayed incident time is
+  UTC+3 and labelled `МСК`. False incident state was cleared to prevent recovery
+  spam.
+- First corrected production cycle: 3 current client-facing nodes checked,
+  3 external probes available, 0 events. Bot active; focused tests 11 passed.

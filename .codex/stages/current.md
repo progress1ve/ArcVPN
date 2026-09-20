@@ -35,3 +35,11 @@ and display incident time in Moscow time.
 ## Rollback
 Revert the correction commit and restart only `arcvpn-bot.service`. The cleared
 alert state will rebuild safely from subsequent checks.
+
+## Evidence
+- Focused fleet tests: 11 passed; Python compilation and diff checks passed.
+- Runtime commit `b140213` was pushed and production pulled it fast-forward.
+- Only `fleet_alert_state` was cleared; `arcvpn-bot.service` alone was restarted.
+- First production cycle completed with `nodes=3 events=0 external_nodes=3`.
+  Estonia and Netherlands were healthy; incomplete evidence for Germany did not
+  create an alert. Bot is active and no new SQLite-lock error appeared.
