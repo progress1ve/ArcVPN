@@ -173,7 +173,7 @@ def collect_events(db_path: str | None = None, external_probe: Callable[[str, in
                 external = None
         observations.append((node, classify(bool(node.get("isConnected")), direct, external)))
 
-    with sqlite3.connect(path, timeout=10) as conn:
+    with sqlite3.connect(path, timeout=30) as conn:
         conn.row_factory = sqlite3.Row
         for node, observation in observations:
             host = str(node.get("address") or "").strip()

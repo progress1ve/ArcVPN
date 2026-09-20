@@ -53,23 +53,28 @@ def main() -> int:
     db_path = Path(os.getenv("ARCVPN_DB_PATH", str(ROOT / "database" / "vpn_bot.db")))
     failures = 0
     checked = 0
-    with sqlite3.connect(db_path) as conn:
-        for node in nodes:
-            if node.get("isDisabled"):
-                continue
-            host = str(node.get("address") or "").strip()
-            if not host:
-                continue
-            ports = tcp_ports(node)
-            diagnostic = run(host, ports) if ports else {
-                "ok": bool(node.get("isConnected")), "host": host, "addresses": [], "ports": [],
-                "note": "UDP-only node: panel connectivity is authoritative",
-            }
-            diagnostic.update({"node_uuid": node.get("uuid"), "node_name": node.get("name") or host,
-                               "panel_connected": bool(node.get("isConnected"))})
-            diagnostic["ok"] = bool(diagnostic["ok"] and diagnostic["panel_connected"])
-            checked += 1
-            failures += int(not diagnostic["ok"])
+    diagnostics = []
+    for node in nodes:
+        if node.get("isDisabled"):
+            continue
+        host = str(node.get("address") or "").strip()
+        if not host:
+            continue
+        ports = tcp_ports(node)
+        diagnostic = run(host, ports) if ports else {
+            "ok": bool(node.get("isConnected")), "host": host, "addresses": [], "ports": [],
+            "note": "UDP-only node: panel connectivity is authoritative",
+        }
+        diagnostic.update({"node_uuid": node.get("uuid"), "node_name": node.get("name") or host,
+                           "panel_connected": bool(node.get("isConnected"))})
+        diagnostic["ok"] = bool(diagnostic["ok"] and diagnostic["panel_connected"])
+        checked += 1
+        failures += int(not diagnostic["ok"])
+        diagnostics.append((host, diagnostic))
+
+    # Never hold the shared SQLite write lock while network probes run.
+    with sqlite3.connect(db_path, timeout=30) as conn:
+        for host, diagnostic in diagnostics:
             conn.execute("INSERT INTO node_diagnostic_runs(host,result_json,ok) VALUES(?,?,?)",
                          (host, json.dumps(diagnostic, ensure_ascii=False), int(diagnostic["ok"])))
         conn.execute("DELETE FROM node_diagnostic_runs WHERE created_at < datetime('now', '-30 days')")
