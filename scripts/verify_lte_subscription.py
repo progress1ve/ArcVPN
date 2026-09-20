@@ -68,9 +68,8 @@ def main() -> int:
             auto_hosts.append(settings.get("address"))
     expected_names = [
         "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы",
-        "🇪🇪 Эстония #1", "🇪🇪 Эстония #2",
-        "🇳🇱 Нидерланды #1", "🇳🇱 Нидерланды #2",
-        "🇩🇪 Германия #1", "🇩🇪 Германия #2", "🇪🇺 Лучший обход",
+        "🇪🇪 Эстония", "🇳🇱 Нидерланды", "🇩🇪 Германия",
+        "🇪🇺 Лучший обход",
         "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
         "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
     ]
@@ -89,9 +88,8 @@ def main() -> int:
               and f"total={int(row['lte_quota_gb']) * 1024**3}" in userinfo
               and expected_announce in announce
               and profile_names == expected_names
-              and auto_hosts.count("cdn-nd.arccnet.space") == 1
               and auto_hosts.count("cdn-de.arccnet.space") == 1
-              and auto_hosts.count("ee.arccnet.space") == 2
+              and auto_hosts.count("cdn-nd.arccnet.space") == 0
               and tiktok_routing_ok,
         "main_links": len(main_links), "lte_links": len(lte_links),
         "main_identity_ok": credentials_match(main_links, row["client_uuid"]),
@@ -106,9 +104,8 @@ def main() -> int:
         "announce_ok": expected_announce in announce,
         "profile_order_ok": profile_names == expected_names,
         "profile_count": len(profile_names),
-        "netherlands_cdn_fallbacks": auto_hosts.count("cdn-nd.arccnet.space"),
-        "estonia_cdn_fallbacks": auto_hosts.count("cdn-de.arccnet.space"),
-        "estonia_auto_outbounds": auto_hosts.count("ee.arccnet.space"),
+        "retired_cdn_fallbacks": auto_hosts.count("cdn-nd.arccnet.space"),
+        "single_cdn_fallbacks": auto_hosts.count("cdn-de.arccnet.space"),
         "tiktok_routing_ok": tiktok_routing_ok,
     }
     print(json.dumps(result, ensure_ascii=False))
