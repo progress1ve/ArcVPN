@@ -1698,8 +1698,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             profile["remarks"] = (
                 BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
             )
-            profile["burstObservatory"]["subjectSelector"] = ["proxy-back"]
-            profile["routing"]["balancers"][0]["selector"] = ["proxy-back"]
             fallback_lte_profiles.append(profile)
     return json.dumps(
         [auto_profile, *visible_main, *fallback_lte_profiles],

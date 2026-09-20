@@ -115,8 +115,9 @@ class HappFallbackBalancerTests(unittest.TestCase):
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
             self.assertNotIn("LOOPBACK_TO_BACK", bypass_outbounds)
             self.assertEqual(bypass["routing"]["balancers"][0]["tag"], "balancer_main")
-            self.assertEqual(bypass["routing"]["balancers"][0]["selector"], ["proxy-back"])
-            self.assertEqual(bypass["burstObservatory"]["subjectSelector"], ["proxy-back"])
+            self.assertEqual(bypass["routing"]["balancers"][0]["selector"], ["proxy-main"])
+            self.assertEqual(bypass["routing"]["balancers"][0]["fallbackTag"], "proxy-back-1")
+            self.assertEqual(bypass["burstObservatory"]["subjectSelector"], ["proxy-main"])
 
     def test_direct_cdn_links_become_hidden_fallback_outbounds_only(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
