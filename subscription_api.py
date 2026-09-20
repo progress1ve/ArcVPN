@@ -260,11 +260,11 @@ REMNAWAVE_PUBLIC_NODES = (
 )
 REMNAWAVE_LTE_ENABLED = bool(getattr(config, "REMNAWAVE_LTE_ENABLED", False))
 REMNAWAVE_LTE_GERMANY_HOST = "cdn.arccnet.space"
-REMNAWAVE_LTE_DHOST_HOSTS = {"cdn-de.arccnet.space", "cdn-nd.arccnet.space"}
+REMNAWAVE_LTE_DHOST_HOSTS = {"cdn-de.arccnet.space"}
 LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a"
 BEST_BYPASS_NAME = "Лучший обход"
 BEST_BYPASS_DISPLAY_NAME = f"🇪🇺 {BEST_BYPASS_NAME}"
-BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space", "cdn-nd.arccnet.space")
+BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space",)
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -6087,8 +6087,8 @@ def api_admin_overview():
                 "inbounds_count": len(squad.get("inbounds") or squad.get("activeInbounds") or []),
             } for squad in remna_squads],
         }
-        # Finland and Germany LTE are retired from delivery. EE/NL XHTTP are
-        # logical CDN edges hosted by the corresponding RemnaNodes, so
+        # Germany and Estonia XHTTP are the active/backup origins behind one
+        # paid CDN edge, so
         # expose them explicitly instead of pretending they are extra VPSes.
         remnawave["nodes"] = [
             node for node in remnawave["nodes"]
@@ -6097,9 +6097,9 @@ def api_admin_overview():
         ]
         lte_specs = (
             {
-                "id": "lte-nl", "name": "Нидерланды LTE", "country_code": "NL",
-                "node_marker": "Netherlands DHost", "inbound_tag": "NL_DHOST_LTE_XHTTP",
-                "public_host": "cdn-nd.arccnet.space", "profile_name": "🇳🇱 Обход глушилок #4",
+                "id": "lte-de", "name": "Германия LTE", "country_code": "DE",
+                "node_marker": "Germany 1chost", "inbound_tag": "DE_1CHOST_LTE_XHTTP",
+                "public_host": "cdn-de.arccnet.space", "profile_name": BEST_BYPASS_DISPLAY_NAME,
             },
             {
                 "id": "lte-ee", "name": "Эстония LTE", "country_code": "EE",
@@ -6151,7 +6151,7 @@ def api_admin_overview():
             "probe_interval_seconds": 10,
             "probe_samples": 6,
             "probe_url": "http://www.gstatic.com/generate_204",
-            "failover": "Whitenode leastLoad → скрытые EE/NL CDN outbounds",
+            "failover": "Whitenode leastLoad → единый CDN с DE/EE origin failover",
             "selection_observable": False,
             "online_distribution": node_distribution,
             "members": [

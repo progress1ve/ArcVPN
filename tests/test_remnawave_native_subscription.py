@@ -305,8 +305,8 @@ def test_native_dhost_lte_link_gets_happ_fingerprint_and_padding():
     assert extra["xPaddingObfsMode"] is True
 
 
-@pytest.mark.parametrize("host", ["cdn-de.arccnet.space", "cdn-nd.arccnet.space"])
-def test_dhost_lte_links_use_options_transport(host):
+def test_single_dhost_lte_link_uses_options_transport():
+    host = "cdn-de.arccnet.space"
     link = (
         f"vless://11111111-1111-4111-8111-111111111111@{host}:443"
         f"?encryption=none&type=xhttp&path=%2Fapi-test&host={host}"

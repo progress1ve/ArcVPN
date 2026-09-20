@@ -99,10 +99,10 @@ class HappFallbackBalancerTests(unittest.TestCase):
             },
             "subjectSelector": ["proxy-main", "proxy-back"],
         })
-        self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 2)
+        self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 1)
         self.assertEqual(
-            [outbounds[f"proxy-back-{index}"]["settings"]["vnext"][0]["address"] for index in (1, 2)],
-            ["cdn-de.arccnet.space", "cdn-nd.arccnet.space"],
+            [outbounds["proxy-back-1"]["settings"]["vnext"][0]["address"]],
+            ["cdn-de.arccnet.space"],
         )
         profiles = json.loads(built)
         self.assertEqual(len(profiles), 7)
@@ -133,8 +133,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             outbounds = {item["tag"]: item for item in profile["outbounds"]}
             self.assertNotIn("proxy", outbounds)
             self.assertIn("proxy-back-1", outbounds)
-            self.assertIn("proxy-back-2", outbounds)
             self.assertEqual(outbounds["proxy-back-1"]["settings"]["vnext"][0]["address"], "cdn-de.arccnet.space")
-            self.assertEqual(outbounds["proxy-back-2"]["settings"]["vnext"][0]["address"], "cdn-nd.arccnet.space")
+            self.assertNotIn("proxy-back-2", outbounds)
             self.assertNotIn("LOOPBACK_TO_BACK", outbounds)
             self.assertEqual(profile["routing"]["balancers"][0]["fallbackTag"], "proxy-back-1")
