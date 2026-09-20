@@ -87,7 +87,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
 
         self.assertNotIn("LOOPBACK_TO_BACK", outbounds)
         self.assertEqual(balancers["balancer_main"]["fallbackTag"], "proxy-back-1")
-        self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main", "proxy-back"])
+        self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main"])
         self.assertEqual(balancers["balancer_main"]["strategy"], {
             "type": "leastLoad",
             "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
@@ -97,7 +97,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
                 "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
                 "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
             },
-            "subjectSelector": ["proxy-main", "proxy-back"],
+            "subjectSelector": ["proxy-main"],
         })
         self.assertEqual(len([tag for tag in outbounds if tag.startswith("proxy-back-")]), 1)
         self.assertEqual(
@@ -115,7 +115,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
             self.assertNotIn("LOOPBACK_TO_BACK", bypass_outbounds)
             self.assertEqual(bypass["routing"]["balancers"][0]["tag"], "balancer_main")
-            self.assertEqual(bypass["routing"]["balancers"][0]["selector"], ["proxy-main", "proxy-back"])
+            self.assertEqual(bypass["routing"]["balancers"][0]["selector"], ["proxy-back"])
+            self.assertEqual(bypass["burstObservatory"]["subjectSelector"], ["proxy-back"])
 
     def test_direct_cdn_links_become_hidden_fallback_outbounds_only(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)

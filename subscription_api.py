@@ -1585,7 +1585,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
                 "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
             },
-            "subjectSelector": ["proxy-main", "proxy-back"],
+            # Observe only normal nodes. CDN is an emergency fallback, not a
+            # low-latency competitor in routine AutoSelect decisions.
+            "subjectSelector": ["proxy-main"],
         },
         "dns": _client_dns_config(key),
         "inbounds": _json_local_inbounds(key),
@@ -1601,7 +1603,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "routing": {
             "balancers": [{
                 "fallbackTag": "proxy-back-1" if lte_outbounds else "direct",
-                "selector": ["proxy-main", *(["proxy-back"] if lte_outbounds else [])],
+                "selector": ["proxy-main"],
                 "strategy": {
                     "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
                     "type": "leastLoad",
@@ -1696,6 +1698,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             profile["remarks"] = (
                 BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
             )
+            profile["burstObservatory"]["subjectSelector"] = ["proxy-back"]
+            profile["routing"]["balancers"][0]["selector"] = ["proxy-back"]
             fallback_lte_profiles.append(profile)
     return json.dumps(
         [auto_profile, *visible_main, *fallback_lte_profiles],
