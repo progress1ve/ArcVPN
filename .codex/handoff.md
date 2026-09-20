@@ -359,3 +359,18 @@ no service restart is needed for this static-only rollback.
   720–900 px cards remain equal and do not change height on hover.
 - Public mobile/tablet checks, tariff selection, FAQ expansion and overflow
   checks pass. Nginx, bot and subscription services are active; no restart.
+
+## 2026-09-20 fleet outage and regional-block alerts
+
+- Production bot checks every enabled RemnaNode every five minutes using
+  Remnawave state, direct Poland TCP reachability and up to three Russian
+  Check-Host TCP probes. It notifies all configured admins after three
+  consecutive `server_down` or `possible_ip_block` results and sends one
+  recovery after two healthy checks.
+- External-provider gaps degrade to `unknown`; Hysteria/UDP is not inferred
+  from TCP. No restart, failover, DNS or firewall action is automatic.
+- Schema v63 adds `fleet_alert_state`. Network work is completed before either
+  fleet monitor opens SQLite, avoiding long write locks.
+- Production is verified on `31678ea`: 7 nodes checked, 3 Russian probes,
+  0 current events, bot active, and no new SQLite lock after the final restart.
+  Focused tests: 7 passed; Python compilation and diff checks passed.

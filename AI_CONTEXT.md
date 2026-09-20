@@ -1375,6 +1375,13 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   the latest result in Business Console. Hysteria2 is UDP/QUIC and must never
   be declared down by a TCP-connect probe. The console also provides a bounded
   manual deep test for a selected registered node.
+- The authoritative Poland bot also runs a stateful fleet-alert check every
+  five minutes. It combines Remnawave state and a direct Poland TCP probe with
+  up to three Russian Check-Host TCP probes. Three consecutive failures create
+  one admin Telegram alert (`server_down` or `possible_ip_block`); two healthy
+  checks create one recovery notice. Missing external results are `unknown`,
+  not an outage. State/deduplication lives in `fleet_alert_state` (schema v63).
+  Both fleet monitors perform remote probes before opening SQLite.
 - Happ JSON subscriptions use LTE as a costly fallback only: normal outbounds
   participate in `leastLoad`/`burstObservatory`, while `lte_backup` is excluded
   from latency selection and referenced only by `fallbackTag`. The separate

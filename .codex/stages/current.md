@@ -49,4 +49,13 @@ one recovery notice when service returns.
 - `tests/test_fleet_alerts.py` plus existing fleet test: 7 passed.
 - `py_compile` passed for monitor, scheduler, main and migrations.
 - Check-Host node discovery currently returns three Russian probe nodes.
-- Deployment dry-run, service restart and production evidence remain pending.
+- Production dry-run discovered 7 enabled nodes and 3 Russian probe nodes with
+  no Telegram event generated.
+- Runtime release commits are `210c560`, `da31e6d` and final contention fix
+  `31678ea`; production was fast-forwarded and only `arcvpn-bot.service` was
+  restarted.
+- Production schema is v63. A full live cycle completed with
+  `nodes=7 events=0 external_nodes=3`; the bot remained active and no new
+  `database is locked` entry appeared after the final restart.
+- Both fleet monitors now finish network probes before opening SQLite, so they
+  do not hold the shared write lock during remote requests.
