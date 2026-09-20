@@ -17,6 +17,7 @@ from bot.services.remnawave_stats import remnawave_authority_config
 NODE_NAME = "ArcVPN Germany 1chost"
 INBOUND_TAG = "DE_1CHOST_LTE_XHTTP"
 PUBLIC_HOST = "cdn-de.arccnet.space"
+RETIRED_HOST = "cdn-nd.arccnet.space"
 REMARK = "Лучший обход"
 STATE = ROOT / ".secrets" / "single-cdn-host.json"
 
@@ -43,16 +44,22 @@ async def run(apply: bool) -> dict:
         if not profile or not inbound:
             raise RuntimeError("Germany XHTTP inbound is missing")
         matching = [value for value in hosts if (value.get("address") or "").lower() == PUBLIC_HOST]
+        retired = [value for value in hosts if (value.get("address") or "").lower() == RETIRED_HOST]
         preview = {
             "apply": apply,
             "connected": True,
             "matching_hosts": len(matching),
+            "retired_hosts": len(retired),
+            "retired_hosts_enabled": sum(not bool(value.get("isDisabled")) for value in retired),
             "create_needed": not matching,
             "inbound_tag": INBOUND_TAG,
             "public_host": PUBLIC_HOST,
         }
         if not apply:
             return preview
+        for old in retired:
+            if not old.get("isDisabled"):
+                await client._request("PATCH", "/api/hosts", json={"uuid": old["uuid"], "isDisabled": True})
         payload = {
             "remark": REMARK,
             "address": PUBLIC_HOST,
