@@ -1,7 +1,7 @@
 import sqlite3
 
 from database.migrations import migration_63
-from monitoring.fleet_alerts import Observation, classify, update_state
+from monitoring.fleet_alerts import Observation, classify, format_moscow_time, should_monitor, update_state
 
 
 def state_db():
@@ -11,11 +11,33 @@ def state_db():
     return conn
 
 
-def test_local_failure_is_server_down_even_when_external_probe_works():
+def test_panel_disconnect_is_server_down_even_when_external_probe_works():
     result = classify(False, {"ok": False, "ports": [{"port": 443, "ok": False}]},
                       {"completed": 3, "success": 3})
     assert result.status == "server_down"
     assert result.details["failed_ports"] == [443]
+
+
+def test_external_success_overrides_control_plane_tcp_failure():
+    result = classify(True, {"ok": False, "ports": [{"port": 2443, "ok": False}]},
+                      {"completed": 3, "success": 3})
+    assert result.status == "healthy"
+
+
+def test_failed_direct_probe_with_incomplete_external_evidence_is_unknown():
+    result = classify(True, {"ok": False, "ports": [{"port": 2443, "ok": False}]},
+                      {"completed": 1, "success": 0})
+    assert result.status == "unknown"
+
+
+def test_retired_and_bridge_nodes_are_not_monitored():
+    for name in ("ArcVPN Finland", "ArcVPN Finland LTE", "ArcVPN Albania WCloud", "ArcVPN Moscow Bridge"):
+        assert not should_monitor({"name": name, "isDisabled": False})
+    assert should_monitor({"name": "ArcVPN Germany 1chost", "isDisabled": False})
+
+
+def test_incident_time_is_rendered_in_moscow_timezone():
+    assert format_moscow_time("2026-09-20 16:11:10") == "20.09.2026 19:11 МСК"
 
 
 def test_healthy_locally_but_unreachable_from_russia_is_possible_block():

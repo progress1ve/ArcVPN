@@ -8,7 +8,7 @@ import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -19,6 +19,13 @@ ROOT = Path(__file__).resolve().parents[1]
 CHECK_HOST_BASE = "https://check-host.net"
 FAILURE_THRESHOLD = 3
 RECOVERY_THRESHOLD = 2
+MOSCOW_TZ = timezone(timedelta(hours=3), name="MSK")
+EXCLUDED_NODE_NAMES = {
+    "arcvpn finland",
+    "arcvpn finland lte",
+    "arcvpn albania wcloud",
+    "arcvpn moscow bridge",
+}
 
 
 @dataclass(frozen=True)
@@ -29,17 +36,44 @@ class Observation:
 
 def classify(panel_connected: bool, direct: dict, external: dict | None) -> Observation:
     failed_ports = [item.get("port") for item in direct.get("ports", []) if not item.get("ok")]
-    if not panel_connected or not direct.get("ok"):
+    if not panel_connected:
         return Observation("server_down", {
             "panel_connected": panel_connected,
             "failed_ports": failed_ports,
             "external": external or {},
         })
-    if not external or int(external.get("completed", 0)) < 2:
+    completed = int((external or {}).get("completed", 0))
+    successes = int((external or {}).get("success", 0))
+    if completed < 2:
         return Observation("unknown", {"reason": "external_probe_incomplete", "external": external or {}})
-    if int(external.get("success", 0)) == 0:
+    if not direct.get("ok"):
+        if successes > 0:
+            return Observation("healthy", {
+                "panel_connected": True, "failed_ports": failed_ports, "external": external or {}
+            })
+        return Observation("server_down", {
+            "panel_connected": True, "failed_ports": failed_ports, "external": external or {}
+        })
+    if successes == 0:
         return Observation("possible_ip_block", {"panel_connected": True, "failed_ports": [], "external": external})
     return Observation("healthy", {"panel_connected": True, "failed_ports": [], "external": external})
+
+
+def should_monitor(node: dict) -> bool:
+    name = str(node.get("name") or "").strip().casefold()
+    return not node.get("isDisabled") and name not in EXCLUDED_NODE_NAMES
+
+
+def format_moscow_time(value: str | None) -> str:
+    if not value:
+        return "—"
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(MOSCOW_TZ).strftime("%d.%m.%Y %H:%M МСК")
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _json_get(url: str, timeout: int = 12) -> dict:
@@ -149,7 +183,7 @@ def update_state(conn: sqlite3.Connection, node_key: str, node_name: str, observ
 
 def collect_events(db_path: str | None = None, external_probe: Callable[[str, int, list[str]], dict] = check_host_tcp,
                    dry_run: bool = False) -> dict:
-    nodes = [node for node in fetch_remnawave_nodes() if not node.get("isDisabled")]
+    nodes = [node for node in fetch_remnawave_nodes() if should_monitor(node)]
     try:
         ru_nodes = russian_probe_nodes()
     except Exception:

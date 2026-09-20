@@ -52,6 +52,8 @@ BACKUP_RETENTION_DAYS = 7
 
 
 def _fleet_event_message(event: dict) -> str:
+    from monitoring.fleet_alerts import format_moscow_time
+
     name = html.escape(str(event.get("node_name") or "Неизвестная нода"))
     details = event.get("details") or {}
     if event.get("type") == "recovery":
@@ -74,7 +76,7 @@ def _fleet_event_message(event: dict) -> str:
         f"{title}\n\nНода: <b>{name}</b>\n{reason}\n"
         f"Не отвечают порты: <code>{html.escape(failed_ports)}</code>\n"
         f"Внешние пробы: {int(external.get('success', 0))}/{int(external.get('completed', 0))} успешны\n"
-        f"Первое обнаружение: <code>{html.escape(str(event.get('incident_started_at') or '—'))} UTC</code>\n\n"
+        f"Первое обнаружение: <code>{html.escape(format_moscow_time(event.get('incident_started_at')))}</code>\n\n"
         "Авария подтверждена тремя последовательными проверками."
     )
 
