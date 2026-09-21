@@ -67,6 +67,11 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
     monkeypatch.setattr(vpn_api, "get_client_from_server_data", lambda _: client)
     monkeypatch.setattr("bot.services.lte_identity.provision_lte_identity", lambda *_, **__: _noop())
     monkeypatch.setattr("bot.services.billing.process_referral_trial_reward", lambda *_: _noop())
+    cycle_starts = []
+    monkeypatch.setattr(
+        "database.db_traffic_cycles.start_or_preserve_traffic_cycle",
+        lambda user_id, **kwargs: cycle_starts.append((user_id, kwargs)),
+    )
 
     result = asyncio.run(provision_trial_for_user({"id": 41, "telegram_id": 1001}))
 
@@ -75,6 +80,7 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
     assert result["created_keys"] == [{"key_id": 1, "server_name": "ArcVPN"}]
     assert client.add_calls == 1
     assert client.closed is True
+    assert cycle_starts == [(41, {"preserve_existing": False})]
     assert conn.execute("SELECT panel_email FROM vpn_keys").fetchone()[0] == "arc_user_41"
 
 

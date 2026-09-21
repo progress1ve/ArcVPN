@@ -10,7 +10,7 @@ from database.db_traffic_cycles import (
     get_due_traffic_cycles,
     start_or_preserve_traffic_cycle,
 )
-from database.migrations import migration_57
+from database.migrations import migration_57, migration_64
 
 
 UTC = timezone.utc
@@ -165,3 +165,41 @@ def test_due_query_requires_an_active_provisioned_key(cycle_db):
         1, activated_at="2026-07-02 00:00:00", preserve_existing=False
     )
     assert get_due_traffic_cycles(now="2026-08-02 00:00:00") == []
+
+
+def test_migration_64_repairs_missing_and_duplicated_anchors_without_zeroing(tmp_path):
+    path = tmp_path / "repair.db"
+    conn = sqlite3.connect(path)
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE users (
+            id INTEGER PRIMARY KEY, lte_quota_gb INTEGER,
+            lte_used_bytes INTEGER, traffic_cycle_anchor_at DATETIME,
+            traffic_cycle_started_at DATETIME, traffic_cycle_reset_at DATETIME,
+            lte_cycle_started_at DATETIME, lte_cycle_reset_at DATETIME
+        );
+        CREATE TABLE vpn_keys (
+            id INTEGER PRIMARY KEY, user_id INTEGER, created_at DATETIME
+        );
+        INSERT INTO users VALUES
+            (1,45,123,'2026-08-25 10:33:41','2026-08-25 10:33:41','2026-09-25 10:33:41','2026-08-25 10:33:41','2026-09-25 10:33:41'),
+            (2,45,456,'2026-08-25 10:33:41','2026-08-25 10:33:41','2026-09-25 10:33:41','2026-08-25 10:33:41','2026-09-25 10:33:41'),
+            (3,45,789,NULL,NULL,NULL,NULL,NULL),
+            (4,45,999,'2026-09-07 09:00:00','2026-09-07 09:00:00','2026-10-07 09:00:00','2026-09-07 09:00:00','2026-10-07 09:00:00');
+        INSERT INTO vpn_keys VALUES
+            (11,1,'2026-05-05 12:00:00'),
+            (12,2,'2026-08-21 14:00:00'),
+            (13,3,'2026-09-11 16:00:00'),
+            (14,4,'2026-09-07 09:00:00');
+    """)
+
+    migration_64(conn)
+
+    rows = {row["id"]: row for row in conn.execute("SELECT * FROM users")}
+    assert rows[1]["traffic_cycle_anchor_at"] == "2026-05-05 12:00:00"
+    assert rows[1]["traffic_cycle_reset_at"] == "2026-06-05 12:00:00"
+    assert rows[2]["traffic_cycle_reset_at"] == "2026-09-21 14:00:00"
+    assert rows[3]["traffic_cycle_reset_at"] == "2026-10-11 16:00:00"
+    assert rows[4]["traffic_cycle_anchor_at"] == "2026-09-07 09:00:00"
+    assert [rows[index]["lte_used_bytes"] for index in range(1, 5)] == [123, 456, 789, 999]
+    conn.close()

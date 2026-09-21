@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 63
+LATEST_VERSION = 64
 
 
 def get_current_version() -> int:
@@ -2423,6 +2423,64 @@ def migration_63(conn: sqlite3.Connection) -> None:
     logger.info("Migration v63 applied")
 
 
+def migration_64(conn: sqlite3.Connection) -> None:
+    """Repair missing or batch-synthetic per-user traffic-cycle anchors."""
+    from calendar import monthrange
+    from datetime import datetime, timezone
+
+    def parse(value):
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.replace(tzinfo=parsed.tzinfo or timezone.utc)
+
+    def add_month(anchor):
+        absolute = anchor.year * 12 + anchor.month
+        year, month0 = divmod(absolute, 12)
+        month = month0 + 1
+        return anchor.replace(
+            year=year, month=month,
+            day=min(anchor.day, monthrange(year, month)[1]),
+        )
+
+    # Migration v57 inherited older batch-initialized cycle timestamps. A
+    # duplicated anchor is therefore synthetic; a genuine activation anchor is
+    # per user and practically unique. Missing anchors affect users created
+    # after that migration. Preserve every unique existing anchor.
+    duplicated = {
+        str(row["traffic_cycle_anchor_at"])
+        for row in conn.execute(
+            """SELECT traffic_cycle_anchor_at,COUNT(*) amount FROM users
+               WHERE traffic_cycle_anchor_at IS NOT NULL
+               GROUP BY traffic_cycle_anchor_at HAVING COUNT(*)>1"""
+        ).fetchall()
+    }
+    rows = conn.execute(
+        """SELECT u.id,u.traffic_cycle_anchor_at,MIN(vk.created_at) first_key_at
+           FROM users u JOIN vpn_keys vk ON vk.user_id=u.id
+           WHERE COALESCE(u.lte_quota_gb,0)>0
+           GROUP BY u.id"""
+    ).fetchall()
+    repaired = 0
+    for row in rows:
+        current = row["traffic_cycle_anchor_at"]
+        if current is not None and str(current) not in duplicated:
+            continue
+        if not row["first_key_at"]:
+            continue
+        anchor = parse(row["first_key_at"])
+        boundary = add_month(anchor)
+        anchor_sql = anchor.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        boundary_sql = boundary.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        conn.execute(
+            """UPDATE users SET traffic_cycle_anchor_at=?,
+                      traffic_cycle_started_at=?,traffic_cycle_reset_at=?,
+                      lte_cycle_started_at=?,lte_cycle_reset_at=?
+               WHERE id=?""",
+            (anchor_sql, anchor_sql, boundary_sql, anchor_sql, boundary_sql, row["id"]),
+        )
+        repaired += 1
+    logger.info("Migration v64 applied; repaired %s traffic cycles", repaired)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2487,6 +2545,7 @@ MIGRATIONS = {
     61: migration_61,
     62: migration_62,
     63: migration_63,
+    64: migration_64,
 }
 
 

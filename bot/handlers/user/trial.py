@@ -166,6 +166,10 @@ async def provision_trial_for_user(user: dict, *, trial_days_override: int | Non
     if not activate_trial_entitlement(internal_user_id, first_key_id):
         logger.error('Триал создан, но entitlement не активирован для user_id=%s', internal_user_id)
         return None
+    from database.db_traffic_cycles import start_or_preserve_traffic_cycle
+    start_or_preserve_traffic_cycle(
+        internal_user_id, preserve_existing=False
+    )
 
     # Реферальный бонус рефереру за запуск приглашённого друга (+N дн., раз на друга).
     if grant_referral_reward:
