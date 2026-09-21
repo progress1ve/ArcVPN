@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 64
+LATEST_VERSION = 65
 
 
 def get_current_version() -> int:
@@ -2481,6 +2481,49 @@ def migration_64(conn: sqlite3.Connection) -> None:
     logger.info("Migration v64 applied; repaired %s traffic cycles", repaired)
 
 
+def migration_65(conn: sqlite3.Connection) -> None:
+    """Complete trials converted by successfully fulfilled subscriptions."""
+    conn.executescript("""
+        CREATE TABLE trial_entitlements_new (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            tariff_id INTEGER NOT NULL REFERENCES tariffs(id),
+            status TEXT NOT NULL DEFAULT 'provisioning'
+                CHECK(status IN ('provisioning','active','completed','failed')),
+            vpn_key_id INTEGER REFERENCES vpn_keys(id) ON DELETE SET NULL,
+            attempt_count INTEGER NOT NULL DEFAULT 1,
+            last_error TEXT,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            activated_at DATETIME
+        );
+        INSERT INTO trial_entitlements_new (
+            user_id,tariff_id,status,vpn_key_id,attempt_count,last_error,
+            created_at,updated_at,activated_at
+        )
+        SELECT user_id,tariff_id,status,vpn_key_id,attempt_count,last_error,
+               created_at,updated_at,activated_at
+        FROM trial_entitlements;
+        DROP TABLE trial_entitlements;
+        ALTER TABLE trial_entitlements_new RENAME TO trial_entitlements;
+        CREATE INDEX idx_trial_entitlements_status
+            ON trial_entitlements(status, updated_at);
+    """)
+    cursor = conn.execute("""
+        UPDATE trial_entitlements AS te
+        SET status='completed', updated_at=CURRENT_TIMESTAMP, last_error=NULL
+        WHERE te.status='active' AND EXISTS (
+            SELECT 1 FROM payments p
+            WHERE p.user_id=te.user_id
+              AND p.status IN ('paid','succeeded')
+              AND p.addons_applied_at IS NOT NULL
+              AND p.operation_type IN ('new','renew','upgrade')
+              AND COALESCE(p.payment_type,'')!='trial'
+              AND COALESCE(p.offer_code,'')!='email_paid_trial'
+        )
+    """)
+    logger.info("Migration v65 applied; completed %s converted trials", cursor.rowcount)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2546,6 +2589,7 @@ MIGRATIONS = {
     62: migration_62,
     63: migration_63,
     64: migration_64,
+    65: migration_65,
 }
 
 

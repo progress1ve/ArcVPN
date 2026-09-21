@@ -34,6 +34,7 @@ from database.requests import (
     apply_payment_addon,
     start_or_preserve_traffic_cycle,
     validate_email_paid_trial_claim, update_email_paid_trial_claim,
+    complete_trial_entitlement,
 )
 from bot.services.exchange_rate import get_usd_rub_rate
 
@@ -620,6 +621,9 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
             "✅ Оплата принята!\n\n"
             "⚠️ Лимиты заказа требуют проверки поддержки."
         ), _reload_order(order_id)
+
+    if operation_type in {'new', 'renew', 'upgrade'}:
+        complete_trial_entitlement(int(order['user_id']))
 
     update_order_fulfillment(order_id, 'pending', None, increment_attempt_count=True)
 

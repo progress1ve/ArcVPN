@@ -10,6 +10,7 @@ from .db_settings import get_trial_tariff_id
 __all__ = [
     "acquire_trial_entitlement",
     "activate_trial_entitlement",
+    "complete_trial_entitlement",
     "fail_trial_entitlement",
     "get_trial_entitlement",
     "get_standard_trial_tariff",
@@ -99,6 +100,21 @@ def activate_trial_entitlement(user_id: int, vpn_key_id: int) -> bool:
         )
         if cursor.rowcount:
             conn.execute("UPDATE users SET used_trial = 1 WHERE id = ?", (user_id,))
+        return cursor.rowcount == 1
+
+
+def complete_trial_entitlement(user_id: int) -> bool:
+    """Mark an active trial as converted after commercial fulfillment."""
+    with get_db() as conn:
+        cursor = conn.execute(
+            """
+            UPDATE trial_entitlements
+            SET status = 'completed', last_error = NULL,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND status = 'active'
+            """,
+            (user_id,),
+        )
         return cursor.rowcount == 1
 
 

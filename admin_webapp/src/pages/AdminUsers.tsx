@@ -101,8 +101,11 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
             Основной {(user.main_used_gb ?? user.traffic_used_gb).toFixed(1)} ГБ · LTE {(user.lte_used_gb ?? 0).toFixed(1)} / {user.lte_quota_gb ?? 0} ГБ
           </span>
           {Number(user.online_devices || 0) > 0 && (
-            <span className="flex items-center gap-1 text-xs font-medium text-success-400 sm:hidden">
-              <span className="h-1.5 w-1.5 rounded-full bg-success-400" /> Онлайн
+            <span className="flex min-w-0 items-center gap-1 text-xs font-medium text-success-400 sm:hidden">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-success-400" />
+              <span className="truncate">
+                Онлайн · {user.online_node || `${user.online_devices} устр.`}
+              </span>
             </span>
           )}
         </div>
