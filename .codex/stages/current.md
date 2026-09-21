@@ -48,3 +48,15 @@ new trial users always enter the authoritative reset scheduler.
 - Before deployment, create a SQLite backup. Rollback code by reverting the
   release; restore only affected cycle columns from that backup if the migration
   selects an unexpected cohort.
+
+## Result and evidence
+
+- Focused cycle/trial suite: 10 passed; compilation and diff checks passed.
+- A production database backup was created before deployment.
+- Runtime `441ebc8` was pulled fast-forward on Poland; only
+  `arcvpn-bot.service` was restarted and it remains active.
+- Schema v64 repaired 53 historical cycle rows. All 16 active LTE users now
+  have anchors and boundaries; 9 overdue cycles were applied successfully.
+- No active due cycle, missing cycle, or failed reset remained at verification.
+- One 45 GB cycle reaches its exact anniversary later on 2026-09-21; one 5 GB
+  trial is legitimately exhausted until 2026-10-11. Neither was reset early.

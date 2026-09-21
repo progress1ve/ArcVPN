@@ -1,5 +1,15 @@
 # ArcVPN handoff — direct BEDOLAGA admin migration
 
+## 2026-09-21 LTE monthly-cycle repair
+
+- Runtime `441ebc8` repairs missing and synthetic shared LTE cycle anchors and
+  starts a personal cycle for every newly activated trial.
+- Remnawave stays authoritative: panel counters reset before local counters
+  advance; failures remain due and retryable.
+- Production schema is v64. All 16 active LTE accounts have cycle boundaries;
+  9 overdue cycles were applied, with no failed or due reset at verification.
+- A pre-deployment SQLite backup remains on the Poland control plane.
+
 ## 2026-09-19 operational modules release candidate
 
 - Payments, sales statistics, traffic usage with CSV export, ticket status,

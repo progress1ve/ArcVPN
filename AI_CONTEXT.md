@@ -1,5 +1,14 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## LTE traffic-cycle repair (2026-09-21)
+
+- LTE allowance resets on each user's calendar anniversary, not globally on
+  the first day of the month. Reset Remnawave main/LTE counters first, then
+  advance local counters atomically.
+- Migration v64 repairs missing anchors and duplicated batch-synthetic anchors
+  from the earliest key timestamp while preserving unique anchors. New trial
+  activation starts its own traffic cycle immediately.
+
 ## Referral gate repair (2026-09-12)
 
 - The legal-consent middleware must preserve both `ad_…` and `ref_…` Telegram
