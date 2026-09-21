@@ -37,3 +37,16 @@ from the visible node list without breaking active subscriptions.
   and protected by a fresh SQLite backup.
 - Node filtering is presentation-only. No customer UUID, subscription URL or
   connection route changes.
+
+## Evidence
+- Runtime commit `95062cb` was pushed to `main` and pulled fast-forward on the
+  Poland production control plane.
+- Python compilation, diff validation and 14 focused admin/payment tests passed.
+- A fresh SQLite backup was created. All 28 linked succeeded YooKassa payments
+  were checked against the provider; exactly two mismatched rows were corrected.
+- Production payment registry and 7-day sales endpoints return HTTP 200. The
+  verified seven-day revenue is 644 RUB (499 + 145), not 3590.96 RUB.
+- Admin overview exposes Estonia, Germany and Moscow Bridge; Albania and
+  Netherlands are absent. Subscription URLs and topology were not changed.
+- `arcvpn-subscription.service` and `arcvpn-bot.service` are active after the
+  restart; current logs show normal startup and no payment API exception.

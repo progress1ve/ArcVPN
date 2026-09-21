@@ -385,3 +385,19 @@ no service restart is needed for this static-only rollback.
   spam.
 - First corrected production cycle: 3 current client-facing nodes checked,
   3 external probes available, 0 events. Bot active; focused tests 11 passed.
+
+## 2026-09-21 admin payment reporting repair
+
+- Production runtime is `95062cb`. `/api/admin/payments` and
+  `/api/admin/sales-stats` now use the real `payments.paid_at` column and return
+  HTTP 200 on the production schema.
+- YooKassa orders persist `price_rub` in kopecks rather than the crypto
+  `price_cents`; succeeded webhook/status checks overwrite the stored amount
+  with the provider-confirmed RUB amount before fulfillment.
+- A fresh SQLite backup was made and all 28 linked succeeded provider payments
+  were reconciled. Exactly two incorrect historical values were corrected; the
+  verified seven-day revenue is now 644 RUB (499 + 145).
+- Albania and Netherlands are hidden from the admin node overview only. No
+  Remnawave, subscription catalog, UUID or subscription URL mutation was made.
+- Compilation, diff checks and 14 focused tests passed. Subscription and bot
+  services are active after restart.
