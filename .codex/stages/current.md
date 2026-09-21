@@ -39,6 +39,17 @@ mobile admin user row.
   and indexes. Rollback is a Git revert; completed rows remain harmless because
   old readers select only `active`.
 - The backfill requires a successful subscription operation with applied
-  entitlement evidence and
-  excludes trial offers and non-subscription operations.
+  entitlement evidence and excludes trial offers and non-subscription
+  operations.
 - No UUID, subscription URL, payment amount or traffic counter is changed.
+
+## Closeout
+
+| Acceptance | Status | Evidence |
+| --- | --- | --- |
+| Trial conversion lifecycle | Passed | Migration v65 and runtime transition use confirmed commercial operations plus durable entitlement evidence; exclusion/idempotency tests pass. |
+| Legacy repair | Passed | Production migrated 64 → 65, converted 3 rows and reports 0 remaining eligible active trials. |
+| Reported account | Passed | Source-of-truth aggregate confirms the 75 GB entitlement and existing 4–6 GB usage were preserved while its trial state became completed. |
+| Mobile VPS visibility | Passed | 390 px browser render displays `Онлайн · Germany DHost` in the compact row. |
+| Regression | Passed | 208 pytest tests, admin TypeScript check and production build passed; one existing UTC deprecation warning remains. |
+| Production | Passed | Commit `257c0de` deployed; bot and subscription services are active; public admin page and hashed JS bundle return 200. |

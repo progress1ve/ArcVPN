@@ -1,5 +1,16 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## Paid subscription trial conversion (2026-09-21)
+
+- Migration v65 adds the terminal `completed` status to `trial_entitlements`.
+  A confirmed `new`/`renew`/`upgrade` order completes an active trial only after
+  `apply_payment_entitlements` records `addons_applied_at`; paid trial offers,
+  top-ups and add-ons are excluded. The production backfill converted three
+  legacy rows and left no eligible commercial purchase classified as trial.
+- Admin Users mobile rows show `Онлайн · <node>` when live presence supplies a
+  node name, with device count as fallback. `LTE 5 / 75 GB` is used/quota and
+  must not be interpreted as a 5 GB cap or reset during classification repair.
+
 ## LTE traffic-cycle repair (2026-09-21)
 
 - LTE allowance resets on each user's calendar anniversary, not globally on
