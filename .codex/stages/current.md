@@ -71,3 +71,19 @@ covers with one coherent ArcVPN visual system.
 | Frontend/backend regression | Python tests, TypeScript checks, both Vite builds |
 | Production | Git SHA, active services, bounded journals |
 | Public web | external HTTP status, titles and referenced asset status on primary and RU URLs |
+
+## Closeout
+
+| Acceptance | Status | Evidence |
+| --- | --- | --- |
+| Reward only after device connection | Passed | Trial provisioning test records no reward call; first-connection helper test proves `reward → notify → durable marker` ordering. |
+| Idempotent purchase/referral behavior | Passed | Focused referral suite and full suite passed. |
+| Five requested covers | Passed | Five 1672×941 PNG assets inspected and wired to cabinet, payment, referral, settings and subscription handlers. |
+| Frontend/backend regression | Passed | 204 pytest tests; admin TypeScript/build; WebApp Vite build. One existing UTC deprecation warning and existing Svelte unused-selector warnings remain. |
+| Production release | Passed | Runtime commit `f28662f`; `pl-control` fast-forwarded and only bot/subscription services restarted. Both are active. |
+| RU gateway | Passed | nginx syntax test and reload succeeded on `msk-beget`; external `/`, `/app`, `/admin` and sampled assets return 200. |
+| Browser evidence | Passed | RU landing visibly rendered the complete ArcVPN hero and content; RU admin visibly rendered the ArcVPN login surface after loading. |
+
+The existing primary domains and all subscription identifiers were preserved.
+The Russia gateway rollback copy is stored on `msk-beget` at
+`/opt/arcvpn/staging/ru-arccnet.conf.before-web-gateway`.
