@@ -1,62 +1,34 @@
-# LTE monthly traffic-cycle repair — 2026-09-21
+# Temporary public location aliases — 2026-09-21
 
 ## Goal
 
-Restore per-user monthly reset dates for censorship-bypass traffic and ensure
-new trial users always enter the authoritative reset scheduler.
+Show four temporary location rows to every subscriber to evaluate the visual
+catalog before purchasing physical VPS capacity. These are display aliases, not
+claims of independent physical exits.
 
-## Confirmed production cause
+## Accepted public contract
 
-- 16 active users currently have LTE entitlement.
-- 6 have no traffic-cycle anchor or reset boundary, so the scheduler never
-  selects them.
-- The other 10 share one synthetic migration anchor and one reset date instead
-  of their individual activation anniversaries.
-- No reset attempts exist because the affected rows are not yet considered due.
+| Visible profile | Client hostname | CDN resource | Origin group | Active / backup | Host and SNI | Inbound and path | Multiplier | Public URL impact | Failure behavior | Rollback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 🇵🇱 Польша | existing Germany endpoint | none | none | Germany only | unchanged Germany Reality SNI | existing Germany VLESS TCP | 1 | stable URL/UUID; one added row | fails with Germany | remove alias mapping |
+| 🇳🇱 Нидерланды | existing Germany endpoint | none | none | Germany only | unchanged Germany Reality SNI | existing Germany VLESS TCP | 1 | stable URL/UUID; one added row | fails with Germany | remove alias mapping |
+| 🇫🇮 Финляндия | existing Estonia endpoint | none | none | Estonia only | unchanged Estonia Reality SNI | existing Estonia VLESS TCP | 1 | stable URL/UUID; one added row | fails with Estonia | remove alias mapping |
+| 🇸🇪 Швеция | existing Estonia endpoint | none | none | Estonia only | unchanged Estonia Reality SNI | existing Estonia VLESS TCP | 1 | stable URL/UUID; one added row | fails with Estonia | remove alias mapping |
 
-## Components
+## Scope and acceptance
 
-- `database/migrations.py`: one-time repair for missing and duplicated synthetic
-  anchors, based on the earliest key creation timestamp.
-- `bot/handlers/user/trial.py`: start the cycle immediately after successful
-  trial activation.
-- `database/db_traffic_cycles.py` and `bot/services/scheduler.py`: unchanged
-  authoritative reset path (Remnawave first, local counters second).
+- Owner explicitly accepted aliases for all users.
+- Rows appear after Germany in the exact order Poland, Netherlands, Finland,
+  Sweden, with matching flags.
+- Aliases are manual profiles only. They are excluded from AutoSelect, YouTube
+  balancing and CDN fallback candidate sets.
+- No Remnawave Host/inbound, port, firewall, DNS, certificate, node, quota,
+  credential or subscription identifier changes.
+- Plain/base64 and Happ JSON delivery both contain the four rows; real generated
+  output contains the expected endpoints and ordering.
 
-## Non-goals
+## Risk and rollback
 
-- No changes to quotas, prices, subscriptions, nodes, CDN, DNS or user UUIDs.
-- Do not blindly zero local counters. A due cycle is cleared only after the
-  corresponding Remnawave main/LTE resets succeed.
-- Do not change users whose existing anchor is unique and therefore may reflect
-  a legitimate lapsed-subscription reactivation.
-
-## Acceptance
-
-- Every active LTE user has an anchor and reset boundary.
-- Duplicated migration anchors are replaced by each user's earliest key date.
-- A boundary that has already passed remains due so the scheduler performs an
-  authoritative reset; successful users show 0 used from the new allowance.
-- New trial activation initializes its own cycle.
-- Focused cycle and migration tests pass; production backup, migration, bot
-  restart and aggregate post-checks pass without exposing user identifiers.
-
-## Risks and rollback
-
-- Risk: a panel reset fails for one identity. The existing retry table keeps
-  that user due and does not zero local data.
-- Before deployment, create a SQLite backup. Rollback code by reverting the
-  release; restore only affected cycle columns from that backup if the migration
-  selects an unexpected cohort.
-
-## Result and evidence
-
-- Focused cycle/trial suite: 10 passed; compilation and diff checks passed.
-- A production database backup was created before deployment.
-- Runtime `441ebc8` was pulled fast-forward on Poland; only
-  `arcvpn-bot.service` was restarted and it remains active.
-- Schema v64 repaired 53 historical cycle rows. All 16 active LTE users now
-  have anchors and boundaries; 9 overdue cycles were applied successfully.
-- No active due cycle, missing cycle, or failed reset remained at verification.
-- One 45 GB cycle reaches its exact anniversary later on 2026-09-21; one 5 GB
-  trial is legitimately exhausted until 2026-10-11. Neither was reset early.
+- Users choosing an alias receive the underlying Germany or Estonia exit IP.
+- Rollback is a subscription-code revert and subscription service restart; no
+  server-side network cleanup is required.

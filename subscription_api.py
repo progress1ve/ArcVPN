@@ -267,6 +267,13 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 BEST_BYPASS_NAME = "Лучший обход"
 BEST_BYPASS_DISPLAY_NAME = f"🇪🇺 {BEST_BYPASS_NAME}"
 BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space",)
+TEMPORARY_LOCATION_ALIASES = (
+    ("🇵🇱 Польша", "Германия"),
+    ("🇳🇱 Нидерланды", "Германия"),
+    ("🇫🇮 Финляндия", "Эстония"),
+    ("🇸🇪 Швеция", "Эстония"),
+)
+TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -460,6 +467,30 @@ def _expand_lte_profile_links(links: list[str]) -> list[str]:
     return [*main, *expanded]
 
 
+def _with_temporary_location_aliases(links: list[str]) -> list[str]:
+    """Add manual display aliases without changing credentials or endpoints."""
+    base = [
+        link for link in links
+        if urllib.parse.unquote(link.rsplit("#", 1)[-1]) not in TEMPORARY_LOCATION_ALIAS_NAMES
+    ]
+    sources: dict[str, str] = {}
+    for link in base:
+        if urllib.parse.urlsplit(link).scheme.lower() != "vless":
+            continue
+        name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else ""
+        if _is_lte_subscription_link(link) or "Ютуб без рекламы" in name:
+            continue
+        for country in ("Германия", "Эстония"):
+            if country in name and country not in sources:
+                sources[country] = link.rsplit("#", 1)[0]
+    aliases = [
+        sources[source] + "#" + urllib.parse.quote(label, safe="")
+        for label, source in TEMPORARY_LOCATION_ALIASES
+        if source in sources
+    ]
+    return [*base, *aliases]
+
+
 def _subscription_link_order(link: str) -> tuple[int, int, str]:
     """Stable customer-facing order shared by native and fallback catalogs."""
     name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
@@ -471,12 +502,20 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
         country_order = 5
     elif "Эстония" in name:
         country_order = 10
-    elif "Нидерланды" in name:
-        country_order = 15
     elif "Албания" in name:
         country_order = 17
     elif "Германия" in name:
         country_order = 20
+    elif name == "🇵🇱 Польша":
+        country_order = 21
+    elif name == "🇳🇱 Нидерланды":
+        country_order = 22
+    elif name == "🇫🇮 Финляндия":
+        country_order = 23
+    elif name == "🇸🇪 Швеция":
+        country_order = 24
+    elif "Нидерланды" in name:
+        country_order = 15
     elif "Канада" in name or "Франция" in name:
         country_order = 40
     elif "Польша" in name:
@@ -1500,11 +1539,11 @@ def _happ_tiktok_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: st
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
     links = sorted(
-        _expand_lte_profile_links(_apply_subscription_catalog([
+        _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
             if item.strip()
             and urllib.parse.urlsplit(item.strip()).scheme.lower() not in {"hysteria", "hysteria2", "hy2"}
-        ])),
+        ]))),
         key=_subscription_link_order,
     )
     regular: list[Dict[str, Any]] = []
@@ -1519,7 +1558,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         source_name = _subscription_source_name(name)
         override = _catalog_overrides().get(source_name)
         visible_individually = not override or bool(override["enabled"])
-        include_in_auto = not override or bool(override.get("include_in_auto", 1))
+        temporary_alias = name in TEMPORARY_LOCATION_ALIAS_NAMES
+        include_in_auto = (not override or bool(override.get("include_in_auto", 1))) and not temporary_alias
         display_name = (
             _safe_profile_display_name(str(override["display_name"]), source_name)
             if override else _subscription_display_name(name)
@@ -1632,6 +1672,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
 
     def visible_country(country: str) -> list[Dict[str, Any]]:
         aliases = {
+            "Польша": ("Польша", "Poland"),
+            "Нидерланды": ("Нидерланды", "Netherlands"),
+            "Финляндия": ("Финляндия", "Finland"),
+            "Швеция": ("Швеция", "Sweden"),
             "Эстония": ("Эстония", "Estonia"),
             "Германия": ("Германия", "Germany"),
         }[country]
@@ -1690,6 +1734,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *youtube_profiles,
         *visible_country("Эстония"),
         *visible_country("Германия"),
+        *visible_country("Польша"),
+        *visible_country("Нидерланды"),
+        *visible_country("Финляндия"),
+        *visible_country("Швеция"),
     ]
     fallback_lte_profiles = []
     if lte_outbounds:
@@ -1715,9 +1763,12 @@ def _prepare_subscription(
     routing_link = routing_link_override if routing_link_override is not None else ROUTING_LINK
     userinfo_header = _build_subscription_userinfo(key)
     announce_base64 = _subscription_announce_base64(key)
-    visible_links = _expand_lte_profile_links(_apply_subscription_catalog(
-        item for item in link.splitlines() if item.strip()
-    ))
+    visible_links = sorted(
+        _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog(
+            item for item in link.splitlines() if item.strip()
+        ))),
+        key=_subscription_link_order,
+    )
     try:
         entitlements = get_user_entitlements(key.telegram_id)
     except sqlite3.OperationalError:

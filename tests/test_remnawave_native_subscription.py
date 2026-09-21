@@ -119,8 +119,27 @@ def test_happ_json_never_keeps_retired_finland_as_hidden_outbound(monkeypatch):
     prepared = api._prepare_subscription(_key(), links, "json")
 
     assert "fin.arccnet.space" not in prepared.body.lower()
-    assert "финлянд" not in prepared.body.lower()
     assert "de.arccnet.space" in prepared.body.lower()
+
+
+def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
+    links = [
+        "vless://id@ee.arccnet.space:443?security=reality#%F0%9F%87%AA%F0%9F%87%AA%20%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F",
+        "vless://id@de.arccnet.space:443?security=reality#%F0%9F%87%A9%F0%9F%87%AA%20%D0%93%D0%B5%D1%80%D0%BC%D0%B0%D0%BD%D0%B8%D1%8F",
+    ]
+
+    result = sorted(api._with_temporary_location_aliases(links), key=api._subscription_link_order)
+    names = [urllib.parse.unquote(link.rsplit("#", 1)[-1]) for link in result]
+    hosts = [urllib.parse.urlsplit(link).hostname for link in result]
+
+    assert names == [
+        "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды",
+        "🇫🇮 Финляндия", "🇸🇪 Швеция",
+    ]
+    assert hosts == [
+        "ee.arccnet.space", "de.arccnet.space", "de.arccnet.space",
+        "de.arccnet.space", "ee.arccnet.space", "ee.arccnet.space",
+    ]
 
 
 def test_retired_canada_france_and_netherlands_are_not_in_published_catalog():

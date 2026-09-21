@@ -59,7 +59,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония",
-            "Германия", "🇪🇺 Лучший обход",
+            "Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды", "🇫🇮 Финляндия", "🇸🇪 Швеция",
+            "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
@@ -70,6 +71,12 @@ class HappFallbackBalancerTests(unittest.TestCase):
             [item["tag"] for item in youtube["outbounds"] if item["tag"].startswith("proxy-youtube-")],
             ["proxy-youtube-1", "proxy-youtube-2"],
         )
+        auto_hosts = [
+            item["settings"]["vnext"][0]["address"]
+            for item in profiles[0]["outbounds"]
+            if item.get("tag", "").startswith("proxy-main-")
+        ]
+        self.assertEqual(auto_hosts, ["ee.example", "de.example"])
 
     def test_every_bypass_uses_whitenode_least_load_contract(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
