@@ -31,6 +31,7 @@ import urllib.request
 from collections import OrderedDict, defaultdict, deque
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from email.message import EmailMessage
 from fractions import Fraction
 from typing import Any, Coroutine, Deque, Dict, Iterable, Optional
@@ -112,6 +113,7 @@ from database.requests import (
     find_order_by_order_id,
     find_order_by_yookassa_id,
     save_yookassa_payment_id,
+    record_yookassa_amount,
 )
 from database.db_support import get_support_thread, add_admin_support_message
 from database.db_recurring import disable_recurring_methods, get_active_recurring_method, get_recurring_summary, save_recurring_method
@@ -3809,6 +3811,16 @@ def api_yookassa_webhook():
                 verified_status,
             )
             return _api_error("payment_not_confirmed", 409)
+        try:
+            provider_amount_cents = int(
+                (Decimal(str((payment_details.get("amount") or {}).get("value"))) * 100)
+                .quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+            )
+        except (InvalidOperation, TypeError, ValueError):
+            return _api_error("invalid_provider_amount", 409)
+        if not record_yookassa_amount(order["order_id"], provider_amount_cents):
+            return _api_error("payment_amount_not_recorded", 409)
+        order = find_order_by_order_id(order["order_id"]) or order
         if order.get("offer_code") == "email_paid_trial":
             update_email_paid_trial_claim(order["order_id"], "paid")
         payment_method = payment_details.get("payment_method") or {}
@@ -3874,6 +3886,16 @@ def api_sbp_payment_status(order_id: str):
         if status == "canceled" and order.get("offer_code") == "email_paid_trial":
             update_email_paid_trial_claim(order_id, "canceled")
         if status == "succeeded":
+            try:
+                provider_amount_cents = int(
+                    (Decimal(str((payment_details.get("amount") or {}).get("value"))) * 100)
+                    .quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+                )
+            except (InvalidOperation, TypeError, ValueError):
+                return _api_error("invalid_provider_amount", 409)
+            if not record_yookassa_amount(order_id, provider_amount_cents):
+                return _api_error("payment_amount_not_recorded", 409)
+            order = find_order_by_order_id(order_id) or order
             if order.get("offer_code") == "email_paid_trial":
                 update_email_paid_trial_claim(order_id, "paid")
             payment_method = payment_details.get("payment_method") or {}
@@ -5410,25 +5432,25 @@ def api_admin_payments_registry():
         params.append(method)
     modifiers = {"24h": "-1 day", "7d": "-7 days", "30d": "-30 days"}
     if period in modifiers:
-        where.append("COALESCE(p.paid_at,p.created_at)>=datetime('now',?)")
+        where.append("p.paid_at>=datetime('now',?)")
         params.append(modifiers[period])
     if date_from:
-        where.append("COALESCE(p.paid_at,p.created_at)>=?")
+        where.append("p.paid_at>=?")
         params.append(date_from)
     if date_to:
-        where.append("COALESCE(p.paid_at,p.created_at)<=datetime(?,'+1 day')")
+        where.append("p.paid_at<=datetime(?,'+1 day')")
         params.append(date_to)
     where_sql = " AND ".join(where)
     amount_sql = _admin_payment_rub_sql()
     with get_db() as conn:
         total = int(conn.execute(f"SELECT COUNT(*) FROM payments p JOIN users u ON u.id=p.user_id WHERE {where_sql}", params).fetchone()[0])
         rows = [dict(row) for row in conn.execute(f"""
-            SELECT p.id,p.order_id,p.payment_type,p.status,p.created_at,p.paid_at,
+            SELECT p.id,p.order_id,p.payment_type,p.status,p.paid_at AS created_at,p.paid_at,
                    p.amount_cents,p.amount_stars,{amount_sql} AS amount_rub,
                    u.id AS user_id,u.telegram_id,u.username,u.first_name
             FROM payments p JOIN users u ON u.id=p.user_id
             WHERE {where_sql}
-            ORDER BY COALESCE(p.paid_at,p.created_at) DESC,p.id DESC LIMIT ? OFFSET ?
+            ORDER BY p.paid_at DESC,p.id DESC LIMIT ? OFFSET ?
         """, [*params, per_page, (page - 1) * per_page]).fetchall()]
         stats_rows = [dict(row) for row in conn.execute(f"""
             SELECT lower(COALESCE(p.status,'unknown')) status,
@@ -5453,18 +5475,18 @@ def api_admin_sales_stats():
         return _api_error("invalid_period", 400)
     where, params = ["1=1"], []
     if start:
-        where.append("COALESCE(p.paid_at,p.created_at)>=?"); params.append(start)
+        where.append("p.paid_at>=?"); params.append(start)
     elif days:
-        where.append("COALESCE(p.paid_at,p.created_at)>=datetime('now',?)"); params.append(f"-{days} days")
+        where.append("p.paid_at>=datetime('now',?)"); params.append(f"-{days} days")
     if end:
-        where.append("COALESCE(p.paid_at,p.created_at)<=?"); params.append(end)
+        where.append("p.paid_at<=?"); params.append(end)
     amount_sql = _admin_payment_rub_sql()
     with get_db() as conn:
         payments = [dict(row) for row in conn.execute(f"""
-            SELECT p.id,p.user_id,p.payment_type,p.operation_type,p.status,p.period_days,p.created_at,p.paid_at,
+            SELECT p.id,p.user_id,p.payment_type,p.operation_type,p.status,p.period_days,p.paid_at AS created_at,p.paid_at,
                    p.tariff_id,COALESCE(t.name,'Без тарифа') tariff_name,{amount_sql} amount_rub
             FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
-            WHERE {' AND '.join(where)} ORDER BY COALESCE(p.paid_at,p.created_at),p.id LIMIT 10000
+            WHERE {' AND '.join(where)} ORDER BY p.paid_at,p.id LIMIT 10000
         """, params).fetchall()]
         active_subscriptions = int(conn.execute("SELECT COUNT(*) FROM vpn_keys WHERE expires_at>datetime('now')").fetchone()[0])
     return _api_no_store(jsonify({"ok": True, "payments": payments,
@@ -6093,7 +6115,8 @@ def api_admin_overview():
         remnawave["nodes"] = [
             node for node in remnawave["nodes"]
             if not node.get("disabled")
-            and "finland" not in str(node.get("name") or "").lower()
+            and not any(marker in str(node.get("name") or "").lower()
+                        for marker in ("finland", "albania", "netherlands"))
         ]
         lte_specs = (
             {

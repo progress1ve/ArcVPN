@@ -36,7 +36,7 @@ def detail_db(monkeypatch):
         );
         CREATE TABLE payments (
           id INTEGER PRIMARY KEY, user_id INTEGER, order_id TEXT, payment_type TEXT,
-          operation_type TEXT, status TEXT, period_days INTEGER, created_at TEXT, paid_at TEXT, tariff_id INTEGER,
+          operation_type TEXT, status TEXT, period_days INTEGER, paid_at TEXT, tariff_id INTEGER,
           yookassa_payment_id TEXT, amount_cents INTEGER, amount_stars INTEGER
         );
         CREATE TABLE user_devices (
@@ -62,8 +62,8 @@ def detail_db(monkeypatch):
           (3,1,3,2,99);
         INSERT INTO tariffs VALUES (1,'Стандарт');
         INSERT INTO payments VALUES
-          (1,1,'owner-order','yookassa','new','paid',30,'2026-08-05','2026-08-05',1,'provider-1',29900,0),
-          (2,2,'friend-order','yookassa','renew','succeeded',30,'2026-08-06','2026-08-06',1,'provider-2',29900,0);
+          (1,1,'owner-order','yookassa','new','paid',30,'2026-08-05',1,'provider-1',29900,0),
+          (2,2,'friend-order','yookassa','renew','succeeded',30,'2026-08-06',1,'provider-2',29900,0);
         INSERT INTO vpn_keys VALUES
           (10,1,'Primary',datetime('now','+10 days'),'2026-08-01',1024,2048,1,'2026-08-10',NULL,1);
         INSERT INTO user_devices VALUES
@@ -125,6 +125,7 @@ def test_admin_operational_registries_use_live_database(client, detail_db):
     payments = client.get("/api/admin/payments?status=paid").get_json()
     assert payments["total"] == 1
     assert payments["items"][0]["order_id"] == "owner-order"
+    assert payments["items"][0]["created_at"] == "2026-08-05"
 
     sales = client.get("/api/admin/sales-stats").get_json()
     assert sales["active_subscriptions"] == 1

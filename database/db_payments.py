@@ -15,6 +15,7 @@ from .db_settings import get_setting, set_setting
 
 __all__ = [
     'save_yookassa_payment_id',
+    'record_yookassa_amount',
     'find_order_by_yookassa_id',
     'get_reconcilable_yookassa_orders',
     'get_user_payments_stats',
@@ -49,6 +50,18 @@ __all__ = [
     'get_payment_token',
     'infer_order_operation_type',
 ]
+
+_RUB_TARIFF_PAYMENT_TYPES = {'yookassa', 'yookassa_qr', 'yookassa_card', 'cards'}
+
+
+def _order_amount_cents(tariff: Optional[Dict[str, Any]], payment_type: Optional[str],
+                        amount_cents: Optional[int], discount_rub: int = 0) -> int:
+    """Persist RUB tariff prices in kopecks; price_cents is the crypto price."""
+    if amount_cents is not None:
+        return max(0, int(amount_cents))
+    if tariff and payment_type in _RUB_TARIFF_PAYMENT_TYPES:
+        return max(0, int(round(float(tariff.get('price_rub') or 0) * 100)) - max(0, int(discount_rub)) * 100)
+    return int(tariff.get('price_cents') or 0) if tariff else 0
 
 
 def infer_order_operation_type(
@@ -97,6 +110,18 @@ def save_yookassa_payment_id(order_id: str, yookassa_payment_id: str) -> bool:
         if success:
             logger.info(f"Сохранён yookassa_payment_id={yookassa_payment_id} для order_id={order_id}")
         return success
+
+
+def record_yookassa_amount(order_id: str, amount_cents: int) -> bool:
+    """Persist only an amount verified by YooKassa's API."""
+    if amount_cents <= 0:
+        return False
+    with get_db() as conn:
+        cursor = conn.execute(
+            "UPDATE payments SET amount_cents=? WHERE order_id=? AND yookassa_payment_id IS NOT NULL AND yookassa_payment_id!=''",
+            (int(amount_cents), order_id),
+        )
+        return cursor.rowcount > 0
 
 def find_order_by_yookassa_id(yookassa_payment_id: str) -> Optional[Dict[str, Any]]:
     """
@@ -349,7 +374,7 @@ def create_pending_order(
     # Явно рассчитанная платёжным каналом сумма имеет приоритет. Это важно для
     # рублёвых каналов: историческое price_cents некоторых тарифов хранит
     # расчётную валютную цену, тогда как YooKassa получает price_rub * 100.
-    final_amount_cents = amount_cents if amount_cents is not None else (tariff['price_cents'] if tariff else 0)
+    final_amount_cents = _order_amount_cents(tariff, payment_type, amount_cents, discount_rub)
     final_amount_stars = tariff['price_stars'] if tariff else (amount_stars or 0)
     final_period_days = tariff['duration_days'] if tariff else None
     final_operation_type = infer_order_operation_type(
@@ -669,7 +694,11 @@ def prepare_payment_order(
     existing_order = find_order_by_order_id(order_id) if order_id else None
     if existing_order:
         tariff = get_tariff_by_id(tariff_id) if tariff_id else None
-        final_amount_cents = amount_cents if amount_cents is not None else (tariff['price_cents'] if tariff else None)
+        effective_discount = discount_rub or int(existing_order.get('discount_rub') or 0)
+        effective_payment_type = payment_type or existing_order.get('payment_type')
+        final_amount_cents = _order_amount_cents(
+            tariff, effective_payment_type, amount_cents, effective_discount
+        )
         final_amount_stars = tariff['price_stars'] if tariff else amount_stars
         final_period_days = tariff['duration_days'] if tariff else None
         with get_db() as conn:
@@ -699,8 +728,8 @@ def prepare_payment_order(
                 vpn_key_id,
                 final_operation_type,
                 promocode_id,
-                discount_rub,
-                discount_rub,
+                effective_discount,
+                effective_discount,
                 order_id,
             ))
             if cursor.rowcount <= 0:
