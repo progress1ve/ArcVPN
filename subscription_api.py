@@ -272,8 +272,6 @@ BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space",)
 SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Эстония #1",
     "Эстония #2",
-    "Нидерланды #1",
-    "Нидерланды #2",
     "Албания #1",
     "Албания #2",
     "Германия #1",
@@ -286,6 +284,7 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
     "Обход глушилок #5",
 ])
 _CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
+RETIRED_NETHERLANDS_ENDPOINTS = frozenset({"193.233.82.42", "nd.arccnet.space"})
 
 
 def _subscription_source_name(name: str) -> str:
@@ -410,6 +409,7 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         raw_name = urllib.parse.unquote(link.rsplit("#", 1)[-1])
         source_name = _subscription_source_name(raw_name)
         normalized_link = urllib.parse.unquote(link).lower()
+        endpoint = (urllib.parse.urlsplit(link).hostname or "").lower()
         if (
             "финляндия" in source_name.lower()
             or "finland" in source_name.lower()
@@ -423,7 +423,8 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         # additions and appear after the managed product-policy rows.
         if any(marker in raw_name for marker in (
             "Канада", "Canada", "Франция", "France", "Албания", "Albania",
-        )):
+            "Нидерланды", "Netherlands",
+        )) or endpoint in RETIRED_NETHERLANDS_ENDPOINTS:
             continue
         override = overrides.get(source_name)
         if override and not bool(override["enabled"]):
@@ -515,13 +516,13 @@ def _normalize_customer_profile_label(link: str) -> str:
 
 
 def _with_youtube_without_ads_alias(links: list[str]) -> list[str]:
-    """Expose NL Reality as a manual friendly alias without weighting AutoSelect twice."""
+    """Expose the Germany-to-Moscow YouTube route without weighting it twice."""
     if any("Ютуб без рекламы" in urllib.parse.unquote(item.rsplit("#", 1)[-1]) for item in links):
         return links
     source = next((
         item for item in links
         if urllib.parse.urlsplit(item).scheme.lower() == "vless"
-        and "Нидерланды" in urllib.parse.unquote(item.rsplit("#", 1)[-1])
+        and "Германия" in urllib.parse.unquote(item.rsplit("#", 1)[-1])
     ), None)
     if not source:
         return links
@@ -1497,11 +1498,11 @@ def _happ_tiktok_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: st
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with a real least-load profile and regular rows."""
     links = sorted(
-        _expand_lte_profile_links([
+        _expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
             if item.strip()
             and urllib.parse.urlsplit(item.strip()).scheme.lower() not in {"hysteria", "hysteria2", "hy2"}
-        ]),
+        ])),
         key=_subscription_link_order,
     )
     regular: list[Dict[str, Any]] = []
@@ -1564,10 +1565,12 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
                 if candidate is not None:
                     auto_outbounds.append(candidate)
-            if include_in_auto and "Ютуб без рекламы" not in name and any(country in name for country in ("Нидерланды", "Албания")):
-                youtube_candidate = _json_outbound_from_share_link(link, f"proxy-youtube-{len(youtube_outbounds) + 1}")
-                if youtube_candidate is not None:
-                    youtube_outbounds.append(youtube_candidate)
+    # The YouTube profile has the same ordinary main candidates as AutoSelect.
+    # Unlike AutoSelect, it intentionally has no CDN fallback: selecting it must
+    # never spend bypass/CDN traffic or silently move to a different path.
+    youtube_outbounds = [copy.deepcopy(item) for item in auto_outbounds]
+    for index, item in enumerate(youtube_outbounds, start=1):
+        item["tag"] = f"proxy-youtube-{index}"
 
     host_priority = {host: index for index, host in enumerate(BYPASS_CDN_HOST_PRIORITY)}
     lte_outbounds.sort(key=lambda item: host_priority.get(
@@ -1627,10 +1630,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
 
     def visible_country(country: str) -> list[Dict[str, Any]]:
         aliases = {
-            "Нидерланды": ("Нидерланды", "Netherlands"),
             "Эстония": ("Эстония", "Estonia"),
             "Германия": ("Германия", "Germany"),
-            "Албания": ("Албания", "Albania"),
         }[country]
         candidates = [
             profile for profile in normal_profiles
@@ -1667,7 +1668,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "remarks": "\U0001f1f7\U0001f1fa Ютуб без рекламы",
             "routing": {
                 "balancers": [{
-                    "fallbackTag": youtube_outbounds[0]["tag"],
                     "selector": ["proxy-youtube"],
                     "strategy": {
                         "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
@@ -1687,8 +1687,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     visible_main = [
         *youtube_profiles,
         *visible_country("Эстония"),
-        *visible_country("Нидерланды"),
-        *visible_country("Албания"),
         *visible_country("Германия"),
     ]
     fallback_lte_profiles = []

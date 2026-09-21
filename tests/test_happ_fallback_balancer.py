@@ -59,13 +59,13 @@ class HappFallbackBalancerTests(unittest.TestCase):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония",
-            "Нидерланды", "Албания", "Германия", "🇪🇺 Лучший обход",
+            "Германия", "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
         ])
         youtube = profiles[1]
         self.assertEqual(youtube["routing"]["balancers"][0]["tag"], "balancer_youtube")
-        self.assertEqual(youtube["routing"]["balancers"][0]["fallbackTag"], "proxy-youtube-1")
+        self.assertNotIn("fallbackTag", youtube["routing"]["balancers"][0])
         self.assertEqual(
             [item["tag"] for item in youtube["outbounds"] if item["tag"].startswith("proxy-youtube-")],
             ["proxy-youtube-1", "proxy-youtube-2"],
@@ -105,7 +105,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             ["cdn-de.arccnet.space"],
         )
         profiles = json.loads(built)
-        self.assertEqual(len(profiles), 7)
+        self.assertEqual(len(profiles), 8)
         self.assertEqual([item["remarks"] for item in profiles[-5:]], [
             "🇪🇺 Лучший обход", "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",

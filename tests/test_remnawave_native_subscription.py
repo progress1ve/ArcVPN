@@ -17,16 +17,13 @@ else:
 pytestmark = pytest.mark.skipif(api is None, reason=f"subscription_api unavailable: {IMPORT_ERROR}")
 
 
-def test_estonia_profiles_sort_before_netherlands_germany_lte_and_accept_flags():
-    tcp = api._subscription_inbound_order("🇳🇱 Нидерланды #1")
-    hy2 = api._subscription_inbound_order("Нидерланды #2 ⚡")
+def test_estonia_profiles_sort_before_germany_and_lte():
     estonia_tcp = api._subscription_inbound_order("🇪🇪 Эстония #1")
     estonia_hy2 = api._subscription_inbound_order("Эстония #2")
     germany = api._subscription_inbound_order("Германия #1")
     lte = api._subscription_inbound_order("Обход глушилок (LTE, трафик ×10) #1")
 
-    assert estonia_tcp < estonia_hy2 < tcp < hy2 < germany < lte
-    assert api.NODE_INVENTORY["193.233.82.42"]["location"] == "Нидерланды"
+    assert estonia_tcp < estonia_hy2 < germany < lte
     assert api.NODE_INVENTORY["87.251.19.197"]["provider"] == "1chost"
     assert api.NODE_INVENTORY["87.121.47.203"]["provider"] == "1chost"
     assert api.NODE_INVENTORY["85.198.101.79"]["location"] == "Москва"
@@ -42,7 +39,7 @@ def test_germany_reality_fallback_uses_public_domain():
     assert germany["host"] == "de.arccnet.space"
 
 
-def test_customer_catalog_removes_retired_albania():
+def test_customer_catalog_removes_retired_albania_and_netherlands():
     links = [
         "vless://id@host#Обход%20глушилок%20(LTE)",
         "vless://id@host#Германия%20%231",
@@ -59,7 +56,6 @@ def test_customer_catalog_removes_retired_albania():
 
     assert names == [
         "Эстония", "Эстония #2",
-        "Нидерланды", "Нидерланды #2",
         "Германия", "Германия #2",
         "🇪🇺 Обход глушилок #1",
     ]
@@ -79,8 +75,6 @@ def test_customer_catalog_removes_all_hysteria_links():
 
 def test_country_labels_and_manual_youtube_alias_are_normalized():
     links = [
-        "vless://id@nd.arccnet.space:443?security=reality#Нидерланды%20%231",
-        "hysteria2://id@nd.arccnet.space:443#Нидерланды%20%232",
         "vless://id@ee.arccnet.space:443?security=reality#Эстония",
         "hysteria2://id@ee.arccnet.space:443#Эстония%20%232",
         "vless://id@de.arccnet.space:443?security=reality#Германия",
@@ -94,8 +88,6 @@ def test_country_labels_and_manual_youtube_alias_are_normalized():
         "🇷🇺 Ютуб без рекламы",
         "🇪🇪 Эстония",
         "🇪🇪 Эстония #2",
-        "🇳🇱 Нидерланды",
-        "🇳🇱 Нидерланды #2",
         "🇩🇪 Германия",
         "🇩🇪 Германия #2",
     ]
@@ -131,15 +123,14 @@ def test_happ_json_never_keeps_retired_finland_as_hidden_outbound(monkeypatch):
     assert "de.arccnet.space" in prepared.body.lower()
 
 
-def test_retired_canada_and_france_are_not_in_published_catalog():
+def test_retired_canada_france_and_netherlands_are_not_in_published_catalog():
     links = [
         "vless://id@example.com:443?security=reality#%F0%9F%87%A8%F0%9F%87%A6%20%D0%9A%D0%B0%D0%BD%D0%B0%D0%B4%D0%B0%20%231",
         "vless://id@example.com:443?security=reality#%F0%9F%87%B3%F0%9F%87%B1%20%D0%9D%D0%B8%D0%B4%D0%B5%D1%80%D0%BB%D0%B0%D0%BD%D0%B4%D1%8B%20%231",
     ]
     with patch("subscription_api._catalog_overrides", return_value={}):
         published = api._apply_subscription_catalog(links)
-    assert len(published) == 1
-    assert "Нидерланды" in urllib.parse.unquote(published[0])
+    assert published == []
 
 
 def test_all_lte_catalog_rows_use_the_eu_flag():

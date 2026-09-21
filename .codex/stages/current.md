@@ -43,3 +43,13 @@ alert state will rebuild safely from subsequent checks.
 - First production cycle completed with `nodes=3 events=0 external_nodes=3`.
   Estonia and Netherlands were healthy; incomplete evidence for Germany did not
   create an alert. Bot is active and no new SQLite-lock error appeared.
+
+## 2026-09-21 Netherlands delivery retirement
+
+| Visible profile | Client hostname | CDN resource | Origin group | Active / backup | Host and SNI | Inbound and path | Multiplier | Public URL impact | Failure behavior | Rollback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Netherlands normal profiles | removed from customer delivery and AutoSelect | none | none | none | no control-plane change | no node configuration change | 1 | stable subscription URLs and user UUIDs; NL rows disappear after refresh | no NL route is offered; AutoSelect uses remaining main nodes and CDN only as fallback | revert the catalog filter |
+| YouTube without ads | same ordinary main-node set as AutoSelect | none | none | ordinary direct nodes only | unchanged client hostname | unchanged normal profiles | 1 | same profile label; no subscription identifier changes | no CDN fallback is configured | revert the YouTube balancer generation |
+
+- Owner authorization: remove Netherlands from the subscription because the VPS is no longer needed.
+- Acceptance: no native or fallback subscription link resolves to Netherlands; Happ AutoSelect has no Netherlands outbound; the YouTube profile has the same ordinary main candidates as AutoSelect and no fallback; no UUID or subscription URL changes. No Remnawave, node, bridge, DNS or CDN mutation is in scope.
