@@ -58,8 +58,20 @@ const mockOverview: Json = {
       },
     ],
     squads: [
-      { uuid: 'main-squad', name: 'ArcVPN Main', members_count: 641, inbounds_count: 4, inbounds: [{ tag: 'VLESS Reality' }, { tag: 'AutoSelect' }] },
-      { uuid: 'lte-squad', name: 'ArcVPN LTE', members_count: 188, inbounds_count: 2, inbounds: [{ tag: 'LTE XHTTP NL' }, { tag: 'LTE XHTTP EE' }] },
+      {
+        uuid: 'main-squad',
+        name: 'ArcVPN Main',
+        members_count: 641,
+        inbounds_count: 4,
+        inbounds: [{ tag: 'VLESS Reality' }, { tag: 'AutoSelect' }],
+      },
+      {
+        uuid: 'lte-squad',
+        name: 'ArcVPN LTE',
+        members_count: 188,
+        inbounds_count: 2,
+        inbounds: [{ tag: 'LTE XHTTP NL' }, { tag: 'LTE XHTTP EE' }],
+      },
     ],
   },
   recent_payments: [
@@ -170,6 +182,8 @@ const mockDetail = (telegramId: number): Json => ({
     lte_quota_gb: 50,
     lte_used_bytes: 29 * GB,
     balance_rub: 125,
+    online_node: 'ArcVPN Estonia 1chost',
+    online_at: '2026-09-21T13:40:00Z',
   },
   subscriptions: [
     {
@@ -181,6 +195,9 @@ const mockDetail = (telegramId: number): Json => ({
       traffic_limit: 300 * GB,
       online_devices: 1,
       active: 1,
+      is_trial: telegramId === 700003 ? 1 : 0,
+      server_name: 'ArcVPN Estonia 1chost',
+      last_online_at: '2026-09-21T13:40:00Z',
     },
   ],
   payments: [
@@ -311,18 +328,22 @@ export async function getUsers(params: Record<string, unknown> = {}): Promise<Js
     const q = String(params.search || '').toLowerCase();
     const status = String(params.status || '');
     const sortBy = String(params.sort_by || 'created_at');
-    const users = mockUsers.filter(
-      (item) =>
-        (!q || `${item.first_name} ${item.username} ${item.telegram_id}`.toLowerCase().includes(q)) &&
-        (status !== 'online' || item.online_devices > 0) &&
-        (status !== 'active' || item.active) &&
-        (status !== 'inactive' || !item.active),
-    ).sort((a, b) => {
-      if (sortBy === 'lte_traffic') return b.lte_used_bytes - a.lte_used_bytes;
-      if (sortBy === 'main_traffic' || sortBy === 'traffic') return b.main_used_bytes - a.main_used_bytes;
-      if (sortBy === 'last_activity') return b.online_devices - a.online_devices;
-      return String(b.created_at).localeCompare(String(a.created_at));
-    });
+    const users = mockUsers
+      .filter(
+        (item) =>
+          (!q ||
+            `${item.first_name} ${item.username} ${item.telegram_id}`.toLowerCase().includes(q)) &&
+          (status !== 'online' || item.online_devices > 0) &&
+          (status !== 'active' || item.active) &&
+          (status !== 'inactive' || !item.active),
+      )
+      .sort((a, b) => {
+        if (sortBy === 'lte_traffic') return b.lte_used_bytes - a.lte_used_bytes;
+        if (sortBy === 'main_traffic' || sortBy === 'traffic')
+          return b.main_used_bytes - a.main_used_bytes;
+        if (sortBy === 'last_activity') return b.online_devices - a.online_devices;
+        return String(b.created_at).localeCompare(String(a.created_at));
+      });
     return {
       users,
       total: users.length,
@@ -367,24 +388,62 @@ export const getSupportThreads = (): Promise<Json> =>
 export function getReferralNetwork(): Promise<Json> {
   if (!referralNetworkCache) {
     const demoUsers = mockUsers.map((user, index) => ({
-      id: index + 1, tg_id: user.telegram_id, username: user.username, email: null,
-      display_name: user.first_name || user.username, is_partner: false,
-      referrer_id: index === 0 ? null : 1, campaign_id: null,
+      id: index + 1,
+      tg_id: user.telegram_id,
+      username: user.username,
+      email: null,
+      display_name: user.first_name || user.username,
+      is_partner: false,
+      referrer_id: index === 0 ? null : 1,
+      campaign_id: index === 1 ? 1 : null,
       direct_referrals: index === 0 ? mockUsers.length - 1 : 0,
       total_branch_users: index === 0 ? mockUsers.length - 1 : 0,
-      branch_revenue_kopeks: 0, personal_revenue_kopeks: 0,
-      personal_spent_kopeks: user.paid_rub * 100, subscription_name: 'ArcVPN',
+      branch_revenue_kopeks: 0,
+      personal_revenue_kopeks: 0,
+      personal_spent_kopeks: user.paid_rub * 100,
+      subscription_name: 'ArcVPN',
       subscription_end: user.expires_at,
-      subscription_status: user.active ? 'paid_active' : 'paid_expired',
+      subscription_status:
+        user.paid_rub > 0
+          ? user.active
+            ? 'paid_active'
+            : 'paid_expired'
+          : user.active
+            ? 'trial_active'
+            : 'trial_expired',
       registered_at: user.created_at,
     }));
     referralNetworkCache = import.meta.env.DEV
       ? Promise.resolve({
-          users: demoUsers, campaigns: [],
-          edges: demoUsers.slice(1).map((user) => ({ source: 'user_1', target: `user_${user.id}`, type: 'referral' })),
-          total_users: demoUsers.length, total_referrers: 1, total_campaigns: 0,
+          users: demoUsers,
+          campaigns: [
+            {
+              id: 1,
+              name: 'Telegram September',
+              start_parameter: 'ad_telegram_sep',
+              is_active: true,
+              direct_users: 1,
+              total_network_users: 1,
+              total_revenue_kopeks: 75000,
+              conversion_rate: 100,
+              avg_check_kopeks: 75000,
+              top_referrers: [],
+            },
+          ],
+          edges: [
+            ...demoUsers
+              .slice(1)
+              .map((user) => ({ source: 'user_1', target: `user_${user.id}`, type: 'referral' })),
+            { source: 'campaign_1', target: 'user_2', type: 'campaign' },
+          ],
+          total_users: demoUsers.length,
+          total_referrers: 1,
+          total_campaigns: 1,
           total_earnings_kopeks: 0,
-          total_subscription_revenue_kopeks: demoUsers.reduce((sum, user) => sum + user.personal_spent_kopeks, 0),
+          total_subscription_revenue_kopeks: demoUsers.reduce(
+            (sum, user) => sum + user.personal_spent_kopeks,
+            0,
+          ),
         })
       : getJson('/api/admin/referral-network');
   }
@@ -419,6 +478,7 @@ export const replySupportThread = (threadId: number, body: string): Promise<Json
 
 export function userListItem(row: Json): Json {
   const active = Boolean(row.active);
+  const isTrial = Boolean(row.active_trial);
   return {
     id: Number(row.telegram_id),
     telegram_id: Number(row.telegram_id),
@@ -432,8 +492,8 @@ export function userListItem(row: Json): Json {
     created_at: row.created_at,
     last_activity: row.last_online_at || null,
     has_subscription: Boolean(row.expires_at),
-    subscription_status: active ? 'active' : 'expired',
-    subscription_is_trial: false,
+    subscription_status: isTrial ? 'trial' : active ? 'active' : 'expired',
+    subscription_is_trial: isTrial,
     subscription_end_date: row.expires_at || null,
     tariff_id: null,
     tariff_name: null,
@@ -530,8 +590,8 @@ export async function userDetail(telegramId: number): Promise<Json> {
   const user = data.user || {};
   const subscriptions = (data.subscriptions || []).map((sub: Json) => ({
     id: Number(sub.id),
-    status: sub.active ? 'active' : 'expired',
-    is_trial: false,
+    status: sub.is_trial ? 'trial' : sub.active ? 'active' : 'expired',
+    is_trial: Boolean(sub.is_trial),
     start_date: sub.created_at || null,
     end_date: sub.expires_at || null,
     traffic_limit_gb: asGb(sub.traffic_limit),
@@ -550,6 +610,12 @@ export async function userDetail(telegramId: number): Promise<Json> {
     traffic_purchases: [],
   }));
   const payments = data.payments || [];
+  const commercialPayments = payments.filter(
+    (payment: Json) =>
+      payment.payment_type !== 'trial' &&
+      payment.operation_type !== 'trial_start' &&
+      payment.offer_code !== 'email_paid_trial',
+  );
   const referral = data.referrals || { invited_count: 0, friends: [] };
   return {
     id: telegramId,
@@ -582,11 +648,13 @@ export async function userDetail(telegramId: number): Promise<Json> {
       referred_by_username: null,
     },
     total_spent_kopeks: Math.round(
-      payments.reduce((sum: number, p: Json) => sum + Number(p.amount_rub || 0), 0) * 100,
+      commercialPayments.reduce((sum: number, p: Json) => sum + Number(p.amount_rub || 0), 0) * 100,
     ),
-    purchase_count: payments.length,
+    purchase_count: commercialPayments.length,
     used_promocodes: 0,
-    has_had_paid_subscription: payments.length > 0,
+    has_had_paid_subscription: commercialPayments.some((payment: Json) =>
+      ['paid', 'succeeded'].includes(String(payment.status || '').toLowerCase()),
+    ),
     lifetime_used_traffic_bytes: Number(
       data.subscriptions?.reduce(
         (sum: number, sub: Json) => sum + Number(sub.traffic_used || 0),
@@ -627,6 +695,56 @@ export async function referralUsers(telegramId: number): Promise<Json> {
   );
   return { users, total: users.length, offset: 0, limit: 100 };
 }
+
+export const getMarketing = async (): Promise<Json> => {
+  if (import.meta.env.DEV) {
+    return {
+      campaigns: [
+        {
+          id: 1,
+          name: 'Telegram September',
+          code: 'telegram_sep',
+          link: 'https://t.me/arcvpnnbot?start=ad_telegram_sep',
+          is_active: 1,
+          arrivals: 8,
+          paying_users: 2,
+          entry_bonus_days: 3,
+          payment_bonus_days: 5,
+        },
+      ],
+      promocodes: [
+        {
+          id: 1,
+          code: 'START20',
+          discount_type: 'percent',
+          discount_percent: 20,
+          discount_rub: 0,
+          max_uses: 100,
+          used_count: 12,
+          expires_at: '2026-10-21T00:00:00',
+          is_active: 1,
+        },
+      ],
+    };
+  }
+  const [campaigns, promocodes] = await Promise.all([
+    getJson('/api/admin/campaigns'),
+    getJson('/api/admin/promocodes'),
+  ]);
+  return { campaigns: campaigns.campaigns || [], promocodes: promocodes.promocodes || [] };
+};
+
+export const createMarketingCampaign = (payload: Json): Promise<Json> =>
+  getJson('/api/admin/campaigns', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateMarketingCampaign = (id: number, payload: Json): Promise<Json> =>
+  getJson(`/api/admin/campaigns/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+
+export const createMarketingPromocode = (payload: Json): Promise<Json> =>
+  getJson('/api/admin/promocodes', { method: 'POST', body: JSON.stringify(payload) });
+
+export const updateMarketingPromocode = (id: number, payload: Json): Promise<Json> =>
+  getJson(`/api/admin/promocodes/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
 export async function userDevices(telegramId: number): Promise<Json> {
   const data = await getUser(telegramId);
   return {

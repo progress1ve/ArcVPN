@@ -1,6 +1,7 @@
 import apiClient from './client';
 import {
   getUsers as getArcUsers,
+  getUser as getArcUser,
   referralUsers,
   syncStatus,
   userActivity,
@@ -758,8 +759,12 @@ export const adminUsersApi = {
 
   // Get panel info
   getPanelInfo: async (userId: number, subscriptionId?: number): Promise<UserPanelInfo> => {
-    void userId;
-    void subscriptionId;
+    const data = await getArcUser(userId);
+    const subscription = subscriptionId
+      ? (data.subscriptions || []).find(
+          (item: Record<string, unknown>) => Number(item.id) === subscriptionId,
+        )
+      : data.subscriptions?.[0];
     return {
       found: true,
       trojan_password: null,
@@ -767,13 +772,13 @@ export const adminUsersApi = {
       ss_password: null,
       subscription_url: null,
       happ_link: null,
-      used_traffic_bytes: 0,
-      lifetime_used_traffic_bytes: 0,
-      traffic_limit_bytes: 0,
-      first_connected_at: null,
-      online_at: null,
+      used_traffic_bytes: Number(subscription?.traffic_used || 0),
+      lifetime_used_traffic_bytes: Number(subscription?.traffic_used || 0),
+      traffic_limit_bytes: Number(subscription?.traffic_limit || 0),
+      first_connected_at: subscription?.last_online_at || null,
+      online_at: data.user?.online_at || subscription?.last_online_at || null,
       last_connected_node_uuid: null,
-      last_connected_node_name: null,
+      last_connected_node_name: data.user?.online_node || subscription?.server_name || null,
     };
   },
 

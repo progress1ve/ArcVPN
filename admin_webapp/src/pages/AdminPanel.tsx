@@ -188,7 +188,7 @@ const sections: AdminSection[] = [
       {
         name: 'admin.nav.promocodes',
         icon: 'gift',
-        to: '/admin/promocodes',
+        to: '/admin/marketing?tab=promocodes',
         permission: 'promocodes:read',
       },
       {
@@ -233,7 +233,7 @@ const sections: AdminSection[] = [
       {
         name: 'admin.nav.campaigns',
         icon: 'megaphone',
-        to: '/admin/campaigns',
+        to: '/admin/marketing?tab=links',
         permission: 'campaigns:read',
       },
       {

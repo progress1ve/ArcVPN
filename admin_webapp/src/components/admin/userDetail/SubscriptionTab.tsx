@@ -802,7 +802,7 @@ export function SubscriptionTab(props: SubscriptionTabProps) {
 
               {/* Connection info */}
               <div className="rounded-xl bg-dark-800/50 p-4">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <div className="text-xs text-dark-500">
                       {t('admin.users.detail.firstConnected')}
@@ -817,16 +817,12 @@ export function SubscriptionTab(props: SubscriptionTabProps) {
                     </div>
                     <div className="text-sm text-dark-100">{formatDate(panelInfo.online_at)}</div>
                   </div>
-                  {panelInfo.last_connected_node_name && (
-                    <div className="col-span-2">
-                      <div className="text-xs text-dark-500">
-                        {t('admin.users.detail.lastNode')}
-                      </div>
-                      <div className="text-sm text-dark-100">
-                        {panelInfo.last_connected_node_name}
-                      </div>
+                  <div className="sm:col-span-2">
+                    <div className="text-xs text-dark-500">Текущий сервер</div>
+                    <div className="break-words text-sm font-medium text-dark-100">
+                      {panelInfo.last_connected_node_name || 'Не подключён'}
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
 

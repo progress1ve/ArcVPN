@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import pytest
 
 import subscription_api as api
+from database import db_campaigns
 
 
 @pytest.fixture
@@ -12,6 +13,7 @@ def client(monkeypatch):
     monkeypatch.setattr(
         api, "_admin_access_context", lambda: {"actor_id": "qa", "role": "owner"}
     )
+    monkeypatch.setattr(api, "_admin_live_presence", lambda: (True, {}))
     return api.app.test_client()
 
 
@@ -28,15 +30,16 @@ def detail_db(monkeypatch):
           enforce_device_tokens INTEGER, personal_balance INTEGER, referred_by INTEGER
         );
         CREATE TABLE tariffs (id INTEGER PRIMARY KEY, name TEXT);
+        CREATE TABLE servers (id INTEGER PRIMARY KEY, name TEXT);
         CREATE TABLE vpn_keys (
           id INTEGER PRIMARY KEY, user_id INTEGER, custom_name TEXT, expires_at TEXT,
           created_at TEXT, traffic_used INTEGER, traffic_limit INTEGER,
           online_devices INTEGER, last_online_at TEXT, panel_disabled_at TEXT,
-          tariff_id INTEGER
+          tariff_id INTEGER, server_id INTEGER
         );
         CREATE TABLE payments (
           id INTEGER PRIMARY KEY, user_id INTEGER, order_id TEXT, payment_type TEXT,
-          operation_type TEXT, status TEXT, period_days INTEGER, paid_at TEXT, tariff_id INTEGER,
+          operation_type TEXT, offer_code TEXT, status TEXT, period_days INTEGER, paid_at TEXT, tariff_id INTEGER,
           yookassa_payment_id TEXT, amount_cents INTEGER, amount_stars INTEGER
         );
         CREATE TABLE user_devices (
@@ -51,6 +54,22 @@ def detail_db(monkeypatch):
           id INTEGER PRIMARY KEY, action TEXT, outcome TEXT, metadata_json TEXT,
           created_at TEXT, target_type TEXT, target_id TEXT
         );
+        CREATE TABLE trial_entitlements (
+          user_id INTEGER PRIMARY KEY, tariff_id INTEGER, status TEXT, vpn_key_id INTEGER
+        );
+        CREATE TABLE ad_campaigns (
+          id INTEGER PRIMARY KEY, name TEXT, code TEXT, entry_bonus_days INTEGER DEFAULT 0,
+          payment_bonus_days INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1,
+          created_at TEXT, updated_at TEXT
+        );
+        CREATE TABLE user_campaign_attribution (
+          user_id INTEGER PRIMARY KEY, campaign_id INTEGER, attributed_at TEXT
+        );
+        CREATE TABLE campaign_bonus_grants (
+          id INTEGER PRIMARY KEY, user_id INTEGER, campaign_id INTEGER, kind TEXT,
+          days INTEGER, status TEXT, attempt_count INTEGER, last_error TEXT,
+          created_at TEXT, updated_at TEXT, applied_at TEXT
+        );
 
         INSERT INTO users VALUES
           (1,700001,'owner','Owner','2026-08-01',2,5,0,0,1,0,NULL),
@@ -61,11 +80,16 @@ def detail_db(monkeypatch):
           (2,1,3,1,7),
           (3,1,3,2,99);
         INSERT INTO tariffs VALUES (1,'Стандарт');
+        INSERT INTO servers VALUES (1,'ArcVPN Estonia');
         INSERT INTO payments VALUES
-          (1,1,'owner-order','yookassa','new','paid',30,'2026-08-05',1,'provider-1',29900,0),
-          (2,2,'friend-order','yookassa','renew','succeeded',30,'2026-08-06',1,'provider-2',29900,0);
+          (1,1,'owner-order','yookassa','new',NULL,'paid',30,'2026-08-05',1,'provider-1',29900,0),
+          (2,2,'friend-order','yookassa','trial_start','email_paid_trial','succeeded',7,'2026-08-06',1,'provider-2',1000,0);
         INSERT INTO vpn_keys VALUES
-          (10,1,'Primary',datetime('now','+10 days'),'2026-08-01',1024,2048,1,'2026-08-10',NULL,1);
+          (10,1,'Primary',datetime('now','+10 days'),'2026-08-01',1024,2048,1,'2026-08-10',NULL,1,1),
+          (11,2,'Trial',datetime('now','+5 days'),'2026-08-02',0,2048,0,NULL,NULL,1,1);
+        INSERT INTO trial_entitlements VALUES (2,1,'active',11);
+        INSERT INTO ad_campaigns VALUES (1,'Telegram','telegram_sep',0,0,1,'2026-08-01',NULL);
+        INSERT INTO user_campaign_attribution VALUES (2,1,'2026-08-02');
         INSERT INTO user_devices VALUES
           (20,1,'iPhone','ios','iPhone',1,'2026-08-02','2026-08-10',NULL);
         """
@@ -81,6 +105,7 @@ def detail_db(monkeypatch):
             raise
 
     monkeypatch.setattr(api, "get_db", fake_get_db)
+    monkeypatch.setattr(db_campaigns, "get_db", fake_get_db)
     yield connection
     connection.close()
 
@@ -95,13 +120,19 @@ def test_user_detail_exposes_purchases_and_deduplicated_direct_referrals(
     assert payload["payments"][0]["order_id"] == "owner-order"
     assert payload["payments"][0]["amount_rub"] == 299
     assert payload["referrals"]["invited_count"] == 2
-    assert payload["referrals"]["paid_count"] == 1
+    assert payload["referrals"]["paid_count"] == 0
     assert payload["referrals"]["earned_days"] == 17
     assert [item["telegram_id"] for item in payload["referrals"]["friends"]] == [
         700003,
         700002,
     ]
     assert payload["referrals"]["friends"][0]["reward_days"] == 7
+
+    trial_response = client.get("/api/admin/users/700002")
+    assert trial_response.status_code == 200
+    trial_payload = trial_response.get_json()
+    assert trial_payload["subscriptions"][0]["is_trial"] == 1
+    assert trial_payload["user"]["online_node"] == "ArcVPN Estonia"
 
 
 def test_referral_network_returns_real_deduplicated_edges(client, detail_db):
@@ -111,7 +142,7 @@ def test_referral_network_returns_real_deduplicated_edges(client, detail_db):
     payload = response.get_json()
     assert payload["total_users"] == 3
     assert payload["total_referrers"] == 1
-    assert {(edge["source"], edge["target"]) for edge in payload["edges"]} == {
+    assert {(edge["source"], edge["target"]) for edge in payload["edges"] if edge["type"] == "referral"} == {
         ("user_1", "user_2"),
         ("user_1", "user_3"),
     }
@@ -119,6 +150,10 @@ def test_referral_network_returns_real_deduplicated_edges(client, detail_db):
     assert owner["direct_referrals"] == 2
     assert owner["personal_spent_kopeks"] == 29900
     assert "subscription_url" not in owner
+    friend = next(user for user in payload["users"] if user["tg_id"] == 700002)
+    assert friend["subscription_status"] == "trial_active"
+    assert payload["campaigns"][0]["name"] == "Telegram"
+    assert {"source": "campaign_1", "target": "user_2", "type": "campaign"} in payload["edges"]
 
 
 def test_admin_operational_registries_use_live_database(client, detail_db):
@@ -128,8 +163,8 @@ def test_admin_operational_registries_use_live_database(client, detail_db):
     assert payments["items"][0]["created_at"] == "2026-08-05"
 
     sales = client.get("/api/admin/sales-stats").get_json()
-    assert sales["active_subscriptions"] == 1
-    assert {item["operation_type"] for item in sales["payments"]} == {"new", "renew"}
+    assert sales["active_subscriptions"] == 2
+    assert {item["operation_type"] for item in sales["payments"]} == {"new", "trial_start"}
 
     traffic = client.get("/api/admin/traffic?sort_by=total_bytes&sort_desc=true").get_json()
     assert traffic["total"] == 3

@@ -5119,12 +5119,15 @@ def api_admin_user_detail(telegram_id: int):
         user_id = int(user["id"])
         subscriptions = [dict(row) for row in conn.execute("""SELECT vk.id,vk.custom_name,
             vk.expires_at,vk.created_at,vk.traffic_used,vk.traffic_limit,vk.online_devices,
-            vk.last_online_at,vk.panel_disabled_at,t.name AS tariff_name,
+            vk.last_online_at,vk.panel_disabled_at,t.name AS tariff_name,s.name AS server_name,
+            EXISTS(SELECT 1 FROM trial_entitlements te
+              WHERE te.vpn_key_id=vk.id AND te.status='active') AS is_trial,
             CASE WHEN vk.expires_at>datetime('now') THEN 1 ELSE 0 END AS active
             FROM vpn_keys vk LEFT JOIN tariffs t ON t.id=vk.tariff_id
+            LEFT JOIN servers s ON s.id=vk.server_id
             WHERE vk.user_id=? ORDER BY vk.expires_at DESC,vk.id DESC""", (user_id,)).fetchall()]
-        payments = [dict(row) for row in conn.execute("""SELECT p.order_id,p.payment_type,p.status,
-            p.period_days,p.paid_at,t.name AS tariff_name,
+        payments = [dict(row) for row in conn.execute("""SELECT p.order_id,p.payment_type,p.operation_type,
+            p.offer_code,p.status,p.period_days,p.paid_at,t.name AS tariff_name,
             CASE
               WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN p.amount_cents/100.0
               WHEN p.payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN p.amount_cents
@@ -5147,6 +5150,8 @@ def api_admin_user_detail(telegram_id: int):
                 SELECT 1 FROM payments p
                 WHERE p.user_id=invited.id AND p.status IN ('paid','succeeded')
                   AND COALESCE(p.payment_type,'')!='trial'
+                  AND COALESCE(p.operation_type,'')!='trial_start'
+                  AND COALESCE(p.offer_code,'')!='email_paid_trial'
               ) AS has_paid,
               COALESCE((
                 SELECT SUM(rs.total_reward_days) FROM referral_stats rs
@@ -5187,8 +5192,18 @@ def api_admin_user_detail(telegram_id: int):
                     metadata = {}
                 timeline.append({"kind": "admin", "at": row["created_at"], "title": "Действие администратора", "detail": f"{row['action']} · {metadata.get('action') or row['outcome']}"})
         timeline = sorted((item for item in timeline if item.get("at")), key=lambda item: str(item["at"]), reverse=True)[:200]
+    user_payload = dict(user)
+    presence_authoritative, live_presence = _admin_live_presence()
+    presence = live_presence.get(user_id) if presence_authoritative else None
+    if presence:
+        user_payload["online_node"] = presence.get("online_node")
+        user_payload["online_at"] = presence.get("online_at")
+    else:
+        latest = subscriptions[0] if subscriptions else {}
+        user_payload["online_node"] = latest.get("server_name")
+        user_payload["online_at"] = latest.get("last_online_at")
     return _api_no_store(jsonify({
-        "ok": True, "user": dict(user), "subscriptions": subscriptions,
+        "ok": True, "user": user_payload, "subscriptions": subscriptions,
         "payments": payments, "devices": devices, "referrals": referral_summary,
         "timeline": timeline,
     }))
@@ -5343,8 +5358,12 @@ def api_admin_users():
             COALESCE(u.lte_quota_gb,0)+COALESCE(u.lte_cycle_bonus_gb,0) AS lte_quota_gb,
             EXISTS(SELECT 1 FROM payments ep WHERE ep.user_id=u.id
               AND ep.offer_code='email_paid_trial' AND ep.status IN ('paid','succeeded')) AS email_paid_trial,
+            EXISTS(SELECT 1 FROM trial_entitlements te JOIN vpn_keys tvk ON tvk.id=te.vpn_key_id
+              WHERE tvk.user_id=u.id AND te.status='active' AND tvk.expires_at>datetime('now')) AS active_trial,
             COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p WHERE p.user_id=u.id
-              AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'),0) AS paid_rub
+              AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
+              AND COALESCE(p.operation_type,'')!='trial_start'
+              AND COALESCE(p.offer_code,'')!='email_paid_trial'),0) AS paid_rub
           FROM users u
         ) SELECT * FROM customer_rows {where_sql}"""
         total = int(conn.execute(f"SELECT COUNT(*) FROM ({base_sql})", params).fetchone()[0])
@@ -5383,7 +5402,14 @@ def api_admin_referral_network():
             ) SELECT referrer_id,referral_id FROM referral_edges
             ORDER BY referrer_id,referral_id LIMIT 5000
         """).fetchall()]
-        involved_ids = sorted({int(edge[key]) for edge in edges for key in ("referrer_id", "referral_id")})
+        campaign_edges = [dict(row) for row in conn.execute("""
+            SELECT campaign_id,user_id FROM user_campaign_attribution
+            ORDER BY campaign_id,user_id LIMIT 5000
+        """).fetchall()]
+        involved_ids = sorted(
+            {int(edge[key]) for edge in edges for key in ("referrer_id", "referral_id")}
+            | {int(edge["user_id"]) for edge in campaign_edges}
+        )
         users = []
         if involved_ids:
             placeholders = ",".join("?" for _ in involved_ids)
@@ -5395,8 +5421,14 @@ def api_admin_referral_network():
                   )) AS direct_referrals,
                   COALESCE((SELECT SUM({rub_amount_sql}) FROM payments p
                     WHERE p.user_id=u.id AND p.status IN ('paid','succeeded')
-                      AND COALESCE(p.payment_type,'')!='trial'),0) AS personal_spent_rub,
-                  (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS subscription_end
+                      AND COALESCE(p.payment_type,'')!='trial'
+                      AND COALESCE(p.operation_type,'')!='trial_start'
+                      AND COALESCE(p.offer_code,'')!='email_paid_trial'),0) AS personal_spent_rub,
+                  (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=u.id) AS subscription_end,
+                  EXISTS(SELECT 1 FROM trial_entitlements te JOIN vpn_keys tvk ON tvk.id=te.vpn_key_id
+                    WHERE tvk.user_id=u.id AND te.status='active'
+                      AND tvk.expires_at=(SELECT MAX(vk2.expires_at) FROM vpn_keys vk2 WHERE vk2.user_id=u.id)) AS subscription_is_trial,
+                  (SELECT a.campaign_id FROM user_campaign_attribution a WHERE a.user_id=u.id LIMIT 1) AS campaign_id
                 FROM users u WHERE u.id IN ({placeholders})
             """, involved_ids).fetchall()]
     user_by_id = {int(user["id"]): user for user in users}
@@ -5410,13 +5442,18 @@ def api_admin_referral_network():
             "username": user.get("username"), "email": None,
             "display_name": user.get("first_name") or user.get("username") or f"ID {user['telegram_id']}",
             "is_partner": False, "referrer_id": parent_by_child.get(int(user["id"])),
-            "campaign_id": None, "direct_referrals": int(user.get("direct_referrals") or 0),
+            "campaign_id": int(user["campaign_id"]) if user.get("campaign_id") is not None else None,
+            "direct_referrals": int(user.get("direct_referrals") or 0),
             "total_branch_users": int(user.get("direct_referrals") or 0),
             "branch_revenue_kopeks": 0, "personal_revenue_kopeks": 0,
             "personal_spent_kopeks": round(float(user.get("personal_spent_rub") or 0) * 100),
             "subscription_name": "ArcVPN" if subscription_end else None,
             "subscription_end": subscription_end,
-            "subscription_status": ("paid_active" if str(subscription_end) > now_sql else "paid_expired") if subscription_end else None,
+            "subscription_status": (
+                ("trial_active" if str(subscription_end) > now_sql else "trial_expired")
+                if bool(user.get("subscription_is_trial"))
+                else ("paid_active" if str(subscription_end) > now_sql else "paid_expired")
+            ) if subscription_end else None,
             "registered_at": user.get("created_at"),
         })
     children_by_id = {}
@@ -5437,11 +5474,33 @@ def api_admin_referral_network():
     graph_edges = [{"source": f"user_{edge['referrer_id']}",
                     "target": f"user_{edge['referral_id']}", "type": "referral"}
                    for edge in edges if int(edge["referrer_id"]) in user_by_id and int(edge["referral_id"]) in user_by_id]
+    from database.db_campaigns import list_campaign_stats
+    campaign_stats = list_campaign_stats()
+    campaign_by_id = {int(item["id"]): item for item in campaign_stats}
+    graph_campaigns = []
+    for campaign in campaign_stats:
+        campaign_id = int(campaign["id"])
+        direct_users = sum(1 for edge in campaign_edges if int(edge["campaign_id"]) == campaign_id)
+        graph_campaigns.append({
+            "id": campaign_id, "name": campaign.get("name") or campaign.get("code"),
+            "start_parameter": f"ad_{campaign.get('code')}",
+            "is_active": bool(campaign.get("is_active")), "direct_users": direct_users,
+            "total_network_users": direct_users,
+            "total_revenue_kopeks": int(campaign.get("revenue_cents") or 0),
+            "conversion_rate": float(campaign.get("conversion_percent") or 0),
+            "avg_check_kopeks": round(int(campaign.get("revenue_cents") or 0) / max(1, int(campaign.get("paid_orders") or 0))),
+            "top_referrers": [],
+        })
+    graph_edges.extend({
+        "source": f"campaign_{edge['campaign_id']}", "target": f"user_{edge['user_id']}",
+        "type": "campaign",
+    } for edge in campaign_edges
+      if int(edge["campaign_id"]) in campaign_by_id and int(edge["user_id"]) in user_by_id)
     return _api_no_store(jsonify({
-        "ok": True, "users": graph_users, "campaigns": [], "edges": graph_edges,
+        "ok": True, "users": graph_users, "campaigns": graph_campaigns, "edges": graph_edges,
         "total_users": len(graph_users),
         "total_referrers": sum(1 for user in graph_users if user["direct_referrals"] > 0),
-        "total_campaigns": 0, "total_earnings_kopeks": 0,
+        "total_campaigns": len(graph_campaigns), "total_earnings_kopeks": 0,
         "total_subscription_revenue_kopeks": sum(user["personal_spent_kopeks"] for user in graph_users),
     }))
 

@@ -21,6 +21,7 @@ import AdminTickets from '@/pages/AdminTickets';
 import AdminRemnawave from '@/pages/AdminRemnawave';
 import AdminRemnawaveSquadDetail from '@/pages/AdminRemnawaveSquadDetail';
 import AdminSquads from '@/pages/AdminSquads';
+import ArcMarketing from './ArcMarketing';
 import { useAuthStore } from '@/store/auth';
 import { usePermissionStore } from '@/store/permissions';
 import { access, login } from './api';
@@ -38,6 +39,10 @@ const permissions = [
   'servers:read',
   'remnawave:read',
   'audit:read',
+  'campaigns:read',
+  'campaigns:manage',
+  'promocodes:read',
+  'promocodes:manage',
 ];
 
 try {
@@ -152,6 +157,7 @@ function AdminRoutes() {
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/users/:id" element={<AdminUserDetail />} />
           <Route path="/admin/referral-network" element={<ReferralNetwork />} />
+          <Route path="/admin/marketing" element={<ArcMarketing />} />
           <Route path="/admin/payments" element={<AdminPayments />} />
           <Route path="/admin/sales-stats" element={<AdminSalesStats />} />
           <Route path="/admin/traffic" element={<AdminTrafficUsage />} />

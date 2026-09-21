@@ -92,13 +92,25 @@ def list_campaign_stats() -> List[Dict[str, Any]]:
         rows = conn.execute("""
             SELECT c.*,
                    COUNT(DISTINCT a.user_id) AS arrivals,
-                   COUNT(DISTINCT CASE WHEN p.status IN ('paid','succeeded') THEN a.user_id END) AS paying_users,
-                   COUNT(CASE WHEN p.status IN ('paid','succeeded') THEN p.id END) AS paid_orders,
+                   COUNT(DISTINCT CASE WHEN p.status IN ('paid','succeeded')
+                     AND COALESCE(p.payment_type,'')!='trial'
+                     AND COALESCE(p.operation_type,'')!='trial_start'
+                     AND COALESCE(p.offer_code,'')!='email_paid_trial' THEN a.user_id END) AS paying_users,
+                   COUNT(CASE WHEN p.status IN ('paid','succeeded')
+                     AND COALESCE(p.payment_type,'')!='trial'
+                     AND COALESCE(p.operation_type,'')!='trial_start'
+                     AND COALESCE(p.offer_code,'')!='email_paid_trial' THEN p.id END) AS paid_orders,
                    COALESCE(SUM(CASE
                      WHEN p.status IN ('paid','succeeded')
+                       AND COALESCE(p.payment_type,'')!='trial'
+                       AND COALESCE(p.operation_type,'')!='trial_start'
+                       AND COALESCE(p.offer_code,'')!='email_paid_trial'
                        AND p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!=''
                        THEN COALESCE(p.amount_cents,0)
                      WHEN p.status IN ('paid','succeeded')
+                       AND COALESCE(p.payment_type,'')!='trial'
+                       AND COALESCE(p.operation_type,'')!='trial_start'
+                       AND COALESCE(p.offer_code,'')!='email_paid_trial'
                        AND COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
                        THEN COALESCE(p.amount_cents,0) * 100
                      ELSE 0

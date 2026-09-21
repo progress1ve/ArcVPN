@@ -30,7 +30,8 @@ def campaign_db(monkeypatch):
         CREATE TABLE users(id INTEGER PRIMARY KEY, telegram_id INTEGER UNIQUE);
         CREATE TABLE payments(
             id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL, amount_cents INTEGER,
-            status TEXT, payment_type TEXT, yookassa_payment_id TEXT,
+            status TEXT, payment_type TEXT, operation_type TEXT, offer_code TEXT,
+            yookassa_payment_id TEXT,
             paid_at TEXT DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY(user_id) REFERENCES users(id)
         );
@@ -71,11 +72,11 @@ def test_campaign_attribution_is_first_touch_and_stats_compare_sources(campaign_
     assert db_campaigns.attribute_user_to_campaign(2, "creator_two", is_new_user=True)[0] is True
     campaign_db.executemany(
         """INSERT INTO payments
-        (id,user_id,amount_cents,status,payment_type,yookassa_payment_id,paid_at)
-        VALUES(?,?,?,?,?,?,datetime('now','+1 second'))""",
-        [(1, 1, 14500, "paid", "yookassa", "provider-1"),
-         (2, 1, 399, "succeeded", "yookassa", None),
-         (3, 2, 14500, "pending", "yookassa", "provider-3")],
+        (id,user_id,amount_cents,status,payment_type,operation_type,offer_code,yookassa_payment_id,paid_at)
+        VALUES(?,?,?,?,?,?,?,?,datetime('now','+1 second'))""",
+        [(1, 1, 14500, "paid", "yookassa", "new", None, "provider-1"),
+         (2, 1, 399, "succeeded", "yookassa", "renew", None, None),
+         (3, 2, 14500, "pending", "yookassa", "new", None, "provider-3")],
     )
 
     stats = {item["id"]: item for item in db_campaigns.list_campaign_stats()}
