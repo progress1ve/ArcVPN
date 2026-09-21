@@ -80,7 +80,7 @@ async def show_referral_system(callback: CallbackQuery):
 
     text = (
         "🎁 <b>Пригласить друга</b>\n\n"
-        f"✨ <b>+{trial_bonus} дней вам</b> — когда друг впервые зайдёт в бот.\n"
+        f"✨ <b>+{trial_bonus} дней вам</b> — когда друг подключит подписку на устройстве.\n"
         f"🚀 <b>+{purchase_bonus} дней каждому</b> — после первой покупки друга.\n\n"
         f"<blockquote>👥 Приглашено: <b>{escape_html(str(total_invited))}</b>\n"
         f"⭐ Получено: <b>{escape_html(str(earned_days))} дней</b></blockquote>\n\n"
@@ -107,7 +107,7 @@ async def show_referral_system(callback: CallbackQuery):
         InlineKeyboardButton(text="🏠 На главную", callback_data="start")
     )
     
-    cover = Path(__file__).resolve().parents[2] / "assets" / "arc-referral-v1.png"
+    cover = Path(__file__).resolve().parents[2] / "assets" / "arc-referral-v2.png"
     await safe_edit_or_send(callback.message,
         text,
         reply_markup=builder.as_markup(),

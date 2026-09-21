@@ -1,83 +1,73 @@
-# Marketing, referral graph and trial-state repair — 2026-09-21
+# Referral activation, RU web gateway and bot artwork — 2026-09-21
 
 ## Goal
 
-Restore the useful Growth workflows in the current admin: create and manage
-advertising referral links and promocodes, display referral-link attribution in
-the referral network, expose the user's current server on mobile, and stop
-classifying trial access as a paid subscription.
+Ship the pending admin marketing/referral fixes, prevent referral-entry rewards
+from being earned by accounts that never connect the issued subscription,
+publish a Russia-hosted web entry point, and replace the main bot section
+covers with one coherent ArcVPN visual system.
 
-## Non-goals
+## Visible and runtime contract
 
-- No changes to referral rewards, tariff prices, subscription URLs or UUIDs.
-- No deletion of campaigns, promocodes, payments, referrals or nodes.
-- No node topology or Remnawave mutation.
-- No new coupon, partner payout or broadcast subsystem.
+| Surface | Contract |
+| --- | --- |
+| Referral entry reward | The inviter receives the configured entry/trial days only after the invited user's key is observed online with at least one device. Opening the bot or issuing a trial alone gives no days. Existing purchase reward behavior remains unchanged. The operation stays once-per-friend. |
+| Referral copy | Bot and WebApp describe the entry reward as occurring after the friend connects ArcVPN on a device. |
+| RU web entry | `https://ru.arccnet.space/`, `/app` and `/admin` expose the current production landing, cabinet and admin through the Moscow VPS. Existing `arccnet.space`, `panel.arccnet.space`, subscription URLs and API contracts remain unchanged. |
+| Bot covers | Cabinet, payment, referral, settings and subscription screens use matching 16:9 dark navy/cold-blue ArcVPN covers, ArcVPN mark and exact Russian section title. No third-party mark or slogan. |
+| Pending admin release | Marketing links/promocodes, campaign graph edges, trial classification and mobile current-server field from commit `55c9052` reach production. |
 
 ## Components
 
-- Backend: `subscription_api.py` campaign/promocode/referral/user endpoints.
-- Admin adapters: `admin_webapp/src/arcvpn/api.ts` and referral network adapter.
-- Admin UI: new compact Marketing page, admin routing/navigation, referral
-  graph, user subscription detail and mobile layout.
-- Tests: API contracts for campaign edges and trial classification; frontend
-  model/component checks where practical.
+- Referral lifecycle: `bot/handlers/user/trial.py`, `bot/services/scheduler.py`,
+  `bot/services/billing.py`, user referral copy and focused tests.
+- Bot artwork and consumers: `bot/assets/`, start/settings, subscription,
+  payment and referral handlers.
+- Production control plane: `pl-control`, bot/subscription services and nginx.
+- Russia gateway: existing `msk-beget` nginx listener behind its current HAProxy
+  TLS route; no Remnawave, Reality or VPN transport change.
 
-## Visible contract
+## Non-goals
 
-| Surface | Required behavior |
-| --- | --- |
-| Marketing | One page with Referral links and Promocodes tabs; lists existing entries; creates a link with name, optional code and entry/payment bonus days; creates fixed-RUB or percent promocodes with usage and lifetime limits; copies generated links/codes; toggles active state. |
-| Referral network | Each advertising referral link is a campaign node. A `campaign → user` edge connects it to every directly attributed signup, alongside ordinary `user → referral` edges. Campaign counters and detail panel use real attribution data. |
-| User list/detail | Trial keys are labelled trial even when their tariff row is Standard. Successful `trial`/`trial_start` payments do not make the user paid. |
-| Mobile user detail | Subscription connection block always shows “Текущий сервер”; value comes from current Remnawave presence when online and falls back to the key/server record or “Не подключён”. No horizontal overflow at 390 px. |
+- Do not change reward amounts, purchase rewards, UUIDs or subscription URLs.
+- Do not move the database or bot runtime to Moscow.
+- Do not change the primary domain DNS or node/VPN topology.
+- Do not alter Telegram message text beyond referral-condition accuracy.
 
 ## Acceptance
 
-- Campaign and promocode create/list/toggle workflows work against ArcVPN API
-  with validation and visible loading/error/empty states.
-- Referral graph response contains real campaign nodes and campaign edges, and
-  preserves existing referral edges.
-- Active and expired trial keys map to `trial_active`/`trial_expired`; paid keys
-  map to `paid_active`/`paid_expired`.
-- User list, detail and referral network all agree on trial versus paid.
-- Current server is visible at 390, 768, 1280 and 1600 px.
-- Python/API tests, TypeScript checks/build and browser QA pass.
+- Trial issuance test proves no referral reward is invoked.
+- First observed device connection invokes entry reward once and marks the key;
+  later sync passes do not grant it again.
+- Purchase reward tests remain green.
+- Five final covers exist in the repository and each requested bot surface uses
+  the intended asset with text fallback if a file is unavailable.
+- Bot test suite and both frontend builds pass.
+- Production fast-forwards to the release commit; only affected services are
+  restarted and active afterward.
+- Public primary and RU gateway landing, cabinet and admin return 200 and load
+  their referenced JS/CSS assets.
 
 ## Risks and rollback
 
-- Incorrect trial inference could relabel historical access. Classification is
-  tied to durable `trial_entitlements.vpn_key_id`, with payment-type fallback
-  only for legacy trial records.
-- Campaign graph expansion can become dense; existing 5000-edge cap remains.
-- Rollback reverts this stage and rebuilds `admin_webapp_dist`; stored campaign
-  and promocode rows remain valid and auditable.
+- A panel polling outage delays the reward; it must not grant on uncertain
+  state. The next successful online observation retries naturally.
+- Marking the connection before reward completion could lose a reward. Reward
+  processing therefore runs before the durable `connect_notified` marker and
+  is independently idempotent in `referral_stats`.
+- The RU VPS has 1 GB RAM and already terminates VPN traffic through HAProxy.
+  The web gateway uses the existing local nginx listener and adds no app
+  runtime. Rollback restores the previous placeholder nginx site and reloads
+  nginx.
+- Code rollback is a Git revert followed by rebuilding static bundles and
+  restarting only bot/subscription services.
 
 ## Verification matrix
 
-| Check | Evidence |
+| Check | Evidence target |
 | --- | --- |
-| Backend classification and graph | focused pytest fixtures |
-| Marketing create/toggle | local browser + API fixture |
-| Mobile server visibility | browser at 390x844 and 768x1024 |
-| Desktop graph/marketing | browser at 1280x900 and 1600x900 |
-| Build/regression | admin Vite build and relevant Python tests |
-
-## Result and evidence
-
-- Marketing was added at `/admin/marketing`: both tabs, creation forms, copy,
-  active-state toggles and empty/loading/error states were exercised locally.
-- Referral-network browser evidence shows the campaign node connected to its
-  attributed user and the campaign counter populated from backend data.
-- User-detail browser evidence shows a trial badge and the current server in
-  the subscription connection block.
-- `python -m pytest ...`: 22 passed; one existing `datetime.utcnow()`
-  deprecation warning remains.
-- `npm run type-check`: passed.
-- `npm run build`: passed; Vite retains the existing large-chunk warning.
-- `biome check` reports no new errors; remaining notices are pre-existing
-  warnings in shared API and subscription-detail files.
-- The available browser driver did not expose viewport resizing, so exact
-  390/768 pixel acceptance remains for a later device pass; the responsive
-  one-column server block was verified in source and normal browser rendering.
-- Production was not changed in this stage.
+| Referral gate/idempotency | focused unit tests around trial provisioning and scheduler first-connect path |
+| Artwork | image inspection, dimensions and actual handler references |
+| Frontend/backend regression | Python tests, TypeScript checks, both Vite builds |
+| Production | Git SHA, active services, bounded journals |
+| Public web | external HTTP status, titles and referenced asset status on primary and RU URLs |

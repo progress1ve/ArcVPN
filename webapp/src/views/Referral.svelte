@@ -17,7 +17,7 @@
 
   $: STEPS = [
     { t: 'Поделитесь ссылкой', s: 'Отправьте другу свою реферальную ссылку' },
-    { t: `Друг открыл бота — +${entryBonus} ${daysWord(entryBonus)}`, s: `Начислим вам сразу после его первого входа` },
+    { t: `Друг подключил ArcVPN — +${entryBonus} ${daysWord(entryBonus)}`, s: `Начислим после первого подключения подписки на устройстве` },
     { t: `Друг купил подписку — +${purchaseBonus} ${daysWord(purchaseBonus)}`, s: `Вам и другу — по +${purchaseBonus} ${daysWord(purchaseBonus)} за его первую покупку` },
   ]
 
@@ -34,7 +34,7 @@
 <section class="view">
   <header class="head">
     <h1 class="display">Друзья</h1>
-    <p class="muted">Получите +{entryBonus} дней за вход друга и ещё по {purchaseBonus} дней после его первой покупки.</p>
+    <p class="muted">Получите +{entryBonus} дней после подключения друга и ещё по {purchaseBonus} дней после его первой покупки.</p>
   </header>
 
   {#if $referral.loading && !$referral.data}

@@ -18,7 +18,8 @@ async def provision_trial_for_user(user: dict, *, trial_days_override: int | Non
     Переиспользуется и кнопкой «Активировать», и АВТО-активацией при первом
     /start (обязательный триал). Не зависит от callback/UI.
 
-    Начисляет реферальный бонус рефереру (+N дней за запуск друга).
+    Реферальный бонус здесь не начисляется: его выдаёт планировщик только
+    после первого подтверждённого подключения устройства.
 
     Returns:
         dict с результатами {created_keys, failed_servers, first_key_id,
@@ -170,14 +171,6 @@ async def provision_trial_for_user(user: dict, *, trial_days_override: int | Non
     start_or_preserve_traffic_cycle(
         internal_user_id, preserve_existing=False
     )
-
-    # Реферальный бонус рефереру за запуск приглашённого друга (+N дн., раз на друга).
-    if grant_referral_reward:
-        try:
-            from bot.services.billing import process_referral_trial_reward
-            await process_referral_trial_reward(internal_user_id)
-        except Exception as e:
-            logger.error('Триал: ошибка начисления реф-бонуса: %s', e)
 
     return {
         'created_keys': [{'key_id': key_id, 'server_name': 'ArcVPN'}],

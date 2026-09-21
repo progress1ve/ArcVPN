@@ -146,7 +146,7 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
         photo_file_id = tariff_select_data.get('photo_file_id')
         text = build_tariff_catalog_text(tariffs)
 
-        default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v1.png"
+        default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v2.png"
         await safe_edit_or_send(
             message,
             text,
@@ -188,7 +188,7 @@ async def show_tariff_selection_screen(message, telegram_id: int, key_id: Option
         "Сначала выберите тариф:"
     )
 
-    default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v1.png"
+    default_cover = Path(__file__).resolve().parents[1] / "assets" / "arc-payment-v2.png"
     await safe_edit_or_send(
         message,
         text,

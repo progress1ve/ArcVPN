@@ -66,7 +66,11 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
     monkeypatch.setattr(requests, "create_vpn_key_admin", create_key)
     monkeypatch.setattr(vpn_api, "get_client_from_server_data", lambda _: client)
     monkeypatch.setattr("bot.services.lte_identity.provision_lte_identity", lambda *_, **__: _noop())
-    monkeypatch.setattr("bot.services.billing.process_referral_trial_reward", lambda *_: _noop())
+    referral_rewards = []
+    monkeypatch.setattr(
+        "bot.services.billing.process_referral_trial_reward",
+        lambda user_id: referral_rewards.append(user_id),
+    )
     cycle_starts = []
     monkeypatch.setattr(
         "database.db_traffic_cycles.start_or_preserve_traffic_cycle",
@@ -81,7 +85,40 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
     assert client.add_calls == 1
     assert client.closed is True
     assert cycle_starts == [(41, {"preserve_existing": False})]
+    assert referral_rewards == []
     assert conn.execute("SELECT panel_email FROM vpn_keys").fetchone()[0] == "arc_user_41"
+
+
+def test_first_device_connection_grants_referral_reward_before_marking(monkeypatch):
+    import bot.services.billing as billing
+    import bot.services.scheduler as scheduler
+    import database.requests as requests
+
+    events = []
+
+    async def reward(user_id):
+        events.append(("reward", user_id))
+
+    async def send(*_args, **_kwargs):
+        events.append(("notify", None))
+
+    monkeypatch.setattr(billing, "process_referral_trial_reward", reward)
+    monkeypatch.setattr(requests, "mark_key_connect_notified", lambda key_id: events.append(("mark", key_id)))
+    monkeypatch.setattr(scheduler, "notification_allowed", lambda *_: True)
+    monkeypatch.setattr(scheduler, "send_to_user", send)
+
+    key = {
+        "id": 8,
+        "user_id": 41,
+        "telegram_id": 1001,
+        "custom_name": "Телефон",
+        "connect_notified": 0,
+    }
+    result = asyncio.run(scheduler._process_first_device_connection(object(), key, 1, 2))
+
+    assert result is True
+    assert events == [("reward", 41), ("notify", None), ("mark", 8)]
+    assert key["connect_notified"] == 1
 
 
 async def _noop():

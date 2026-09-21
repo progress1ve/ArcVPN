@@ -2,8 +2,9 @@ import logging
 import uuid
 import asyncio
 from datetime import datetime
+from pathlib import Path
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, FSInputFile
 from aiogram.filters import Command, CommandObject, StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramForbiddenError
@@ -82,6 +83,7 @@ async def show_my_keys(
         await safe_edit_or_send(
             message,
             text,
+            photo=FSInputFile(Path(__file__).resolve().parents[2] / "assets" / "arc-subscription-v1.png"),
             reply_markup=builder.as_markup(),
             force_new=not is_callback,
         )
@@ -152,6 +154,7 @@ async def show_my_keys(
     await safe_edit_or_send(
         message,
         text,
+        photo=FSInputFile(Path(__file__).resolve().parents[2] / "assets" / "arc-subscription-v1.png"),
         reply_markup=builder.as_markup(),
         force_new=not is_callback,
     )

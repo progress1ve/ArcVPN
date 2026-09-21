@@ -356,7 +356,7 @@ def get_all_active_keys_with_server() -> List[Dict[str, Any]]:
                 vk.panel_inbound_id, vk.tariff_id, vk.expires_at,
                 vk.connect_notified, vk.online_devices,
                 s.id as server_id, s.name as server_name,
-                u.telegram_id
+                u.id AS user_id, u.telegram_id
             FROM vpn_keys vk
             JOIN servers s ON vk.server_id = s.id
             JOIN users u ON vk.user_id = u.id

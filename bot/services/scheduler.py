@@ -1122,6 +1122,28 @@ async def monthly_traffic_reset(bot: Bot) -> None:
         except Exception as e:
             logger.warning(f"Не удалось отправить отчёт админу {admin_id}: {e}")
 
+async def _process_first_device_connection(bot: Bot, key: dict, devices: int, device_limit: int) -> bool:
+    """Grant the entry referral reward and notify once after a real connection."""
+    from database.requests import mark_key_connect_notified
+    from bot.services.billing import process_referral_trial_reward
+
+    await process_referral_trial_reward(int(key['user_id']))
+    telegram_id = key.get('telegram_id')
+    keyname = key.get('custom_name') or "Подписка"
+    if telegram_id and notification_allowed(telegram_id, "connection"):
+        from bot.utils.text import escape_html
+        text = (
+            f"✅ <b>ArcVPN подключён</b>\n\n"
+            f"Подписка: <b>{escape_html(str(keyname))}</b>\n"
+            f"Устройств подключено: <b>{devices} из {device_limit}</b>\n\n"
+            f"Если это были не вы, откройте Настройки → Устройства и освободите слот."
+        )
+        await send_to_user(bot, telegram_id, text)
+    mark_key_connect_notified(key['id'])
+    key['connect_notified'] = 1
+    return True
+
+
 async def sync_traffic_stats(bot: Bot) -> None:
     """
     Опрашивает все серверы и обновляет кеш трафика для каждого ключа.
@@ -1262,20 +1284,13 @@ async def sync_traffic_stats(bot: Bot) -> None:
             update_key_online_devices(key['id'], devices)
         # Первое реальное подключение → одноразовое уведомление «подписка подключена».
         if devices >= 1 and not key.get('connect_notified'):
-            telegram_id = key.get('telegram_id')
-            keyname = key.get('custom_name') or "Подписка"
-            if telegram_id:
-                if notification_allowed(telegram_id, "connection"):
-                    from bot.utils.text import escape_html
-                    text = (
-                        f"✅ <b>ArcVPN подключён</b>\n\n"
-                        f"Подписка: <b>{escape_html(str(keyname))}</b>\n"
-                        f"Устройств подключено: <b>{devices} из {device_limit}</b>\n\n"
-                        f"Если это были не вы, откройте Настройки → Устройства и освободите слот."
-                    )
-                    await send_to_user(bot, telegram_id, text)
-            mark_key_connect_notified(key['id'])
-            key['connect_notified'] = 1
+            try:
+                await _process_first_device_connection(bot, key, devices, device_limit)
+            except Exception as e:
+                logger.error(
+                    "Не удалось обработать первое подключение key=%s: %s",
+                    key.get('id'), e,
+                )
 
     # Проверяем пороги уведомлений о трафике
     notification_text_template = get_setting(

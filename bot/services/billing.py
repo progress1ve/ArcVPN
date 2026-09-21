@@ -1194,7 +1194,7 @@ async def process_referral_reward(
 
 async def process_referral_trial_reward(referee_internal_id: int) -> None:
     """
-    Реф-бонус за ЗАПУСК приглашённого друга (его авто-триал): +N дней рефереру.
+    Реф-бонус за ПЕРВОЕ ПОДТВЕРЖДЁННОЕ ПОДКЛЮЧЕНИЕ устройства друга.
 
     Один раз на друга. Размер — настройка referral_trial_bonus_days (по умолч. 5).
     """

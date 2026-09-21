@@ -362,7 +362,7 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
             is_admin=is_admin, show_trial=show_trial, show_referral=show_referral,
             has_subscription=has_subscription, primary_key_id=primary_key_id,
         )
-        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v6.png"
+        cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v7.png"
         welcome_photo = FSInputFile(cabinet_banner) if cabinet_banner.exists() else None
 
     try:
@@ -473,7 +473,7 @@ async def callback_start(callback: CallbackQuery, state: FSMContext):
     from database.requests import get_user_primary_key
     primary_key = get_user_primary_key(user_id)
     text = build_fallback_home_text(user, primary_key)
-    cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v6.png"
+    cabinet_banner = Path(__file__).resolve().parents[2] / "assets" / "arc-cabinet-v7.png"
     welcome_photo = FSInputFile(cabinet_banner) if cabinet_banner.exists() else None
 
     show_referral = is_referral_enabled()
@@ -562,6 +562,7 @@ async def bot_settings_menu_handler(callback: CallbackQuery):
         "<b>ArcVPN</b>\n\n"
         "⚙️ <b>Настройки</b>\n\n"
         "Управляйте подключёнными устройствами, email и автопродлением подписки.",
+        photo=FSInputFile(Path(__file__).resolve().parents[2] / "assets" / "arc-settings-v1.png"),
         reply_markup=builder.as_markup(),
     )
     await callback.answer()
