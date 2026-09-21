@@ -16,7 +16,6 @@ import {
   ClipboardIcon,
   CreditCardIcon,
   FileTextIcon,
-  GiftIcon,
   HistoryIcon,
   LifebuoyIcon,
   LockIcon,
@@ -65,7 +64,6 @@ const icons = {
   ticket: <TicketIcon />,
   'shield-alert': <ShieldIcon />,
   tag: <TagIcon />,
-  gift: <GiftIcon />,
   percent: <PercentIcon />,
   sparkle: <SparklesIcon />,
   wallet: <WalletIcon />,
@@ -185,12 +183,6 @@ const sections: AdminSection[] = [
     gradient: 'linear-gradient(135deg, rgb(var(--color-warning-400)), rgb(var(--color-error-300)))',
     items: [
       { name: 'admin.nav.tariffs', icon: 'tag', to: '/admin/tariffs', permission: 'tariffs:read' },
-      {
-        name: 'admin.nav.promocodes',
-        icon: 'gift',
-        to: '/admin/marketing?tab=promocodes',
-        permission: 'promocodes:read',
-      },
       {
         name: 'admin.nav.coupons',
         icon: 'ticket',

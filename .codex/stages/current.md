@@ -53,3 +53,20 @@ mobile admin user row.
 | Mobile VPS visibility | Passed | 390 px browser render displays `Онлайн · Germany DHost` in the compact row. |
 | Regression | Passed | 208 pytest tests, admin TypeScript check and production build passed; one existing UTC deprecation warning remains. |
 | Production | Passed | Commit `257c0de` deployed; bot and subscription services are active; public admin page and hashed JS bundle return 200. |
+
+## Admin dashboard de-duplication — 2026-09-21
+
+- Outcome: remove the duplicate Promocodes shortcut from the Tariffs dashboard
+  card while preserving promocode management in Marketing/referral campaigns.
+- Breakpoints: the dashboard grid and shared card component remain unchanged on
+  mobile, tablet, desktop and wide layouts.
+- Exclusions: do not remove the shared `GlassCard`, the Tariffs section, RBAC,
+  routes or the Marketing promocodes tab.
+- Acceptance: TypeScript and production build pass; rendered dashboard contains
+  Tariffs and Campaigns but no duplicate Promocodes shortcut.
+- Rollback: revert the single navigation-item removal and rebuild the admin
+  bundle.
+
+Closeout: TypeScript and production build passed. Browser inspection of the
+mobile dashboard retained the functional section cards and referral links while
+the duplicate Promocodes shortcut was absent.
