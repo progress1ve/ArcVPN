@@ -65,5 +65,23 @@ large sample; an unavailable or failed-probe node must be excluded.
 | Existing live distribution | Observed | Remnawave session counters showed Estonia 9, Germany 7 during diagnosis; owner observed a more skewed 10–11 vs 1–2 window |
 | CDN origin errors | Observed | 108,651 successful Moscow XHTTP requests vs 35 non-2xx in rotated/current logs; clustered 5xx aligned with an origin interruption, not a steady two-minute nginx timeout |
 | AutoSelect config/tests | Passed | `leastLoad.expected=2`, `tolerance=0.2`; 30 focused tests passed with the production-compatible config module |
-| Production generated subscription | Pending | |
-| Timed CDN tunnel | Pending | |
+| Production generated subscription | Passed | HTTP 200; two `proxy-main-*` outbounds, `expected=2`, `tolerance=0.2`, `maxRTT=3s`, existing `proxy-back-1` fallback |
+| Git/deployment/service | Passed | `47536e1` pushed to `main`, production ff-only pull, subscription service active |
+| Timed CDN tunnel | Deferred | Client/platform and failure timestamp are required to correlate the reported fade; no speculative transport mutation made |
+
+## Result and residual risk
+
+- AutoSelect no longer narrows every client to a single lowest-deviation main
+  node. Both healthy main countries participate, while health filtering and the
+  existing CDN fallback remain intact.
+- An exact 50/50 user count is not guaranteed because selection happens per new
+  connection inside each client and the live user sample is small.
+- CDN/XHTTP remains operational but the reported fade is not closed. Current
+  evidence excludes ArcVPN nginx's two-minute timeout and points to the known
+  finite Yandex edge idle-response window for `packet-up`; a correlated real
+  client reproduction is the next acceptance gate.
+
+## Rollback
+
+- Revert `47536e1`, deploy with `git pull --ff-only`, and restart only
+  `arcvpn-subscription.service`. No node/CDN/DNS rollback is necessary.

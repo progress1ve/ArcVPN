@@ -1851,3 +1851,14 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Preset tariff selection and custom tariff creation enter plain `/app`; do not
   restore product, month or screen query parameters unless the owner asks.
 - FAQ rows use rotating code-native SVG arrows and keep `aria-expanded` in sync.
+
+## 2026-09-22: AutoSelect uses a two-node healthy candidate set
+
+- Happ AutoSelect remains `leastLoad` with burst health observations, but its
+  eligible set is the two best main outbounds (`expected=2`, `tolerance=0.2`,
+  `maxRTT=3s`). This distributes new connections across healthy Germany and
+  Estonia instead of selecting one lowest-deviation node for every client.
+- Display aliases and CDN/XHTTP rows remain outside the healthy main pool. The
+  existing single CDN route is still fallback-only while main nodes are usable.
+- Selection is client-side and per connection, so global user counts are
+  statistical rather than a centrally enforced 50/50 quota.
