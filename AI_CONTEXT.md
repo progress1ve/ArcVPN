@@ -1,5 +1,18 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## Admin reliability and monthly profit (2026-09-22)
+
+- `/admin` waits for `i18nReady` before mounting, is dark-only, and uses the
+  native `ArcVpnLogo` SVG in desktop/mobile/login surfaces.
+- Overview trial counts are distinct active `trial_entitlements` with an
+  unexpired linked key; paid/completed trial rows are excluded.
+- `/admin/profit` and `/api/admin/expenses?month=YYYY-MM` use accrual revenue:
+  a successful paid subscription is divided across its `period_days` months.
+  Trial payments are excluded. One-time and recurring `service_expenses` are
+  subtracted to produce monthly net profit and a 12-month series.
+- Profit/expense mutations keep the existing `expenses.manage` permission and
+  audit events. No new database migration is required.
+
 ## Paid subscription trial conversion (2026-09-21)
 
 - Migration v65 adds the terminal `completed` status to `trial_entitlements`.

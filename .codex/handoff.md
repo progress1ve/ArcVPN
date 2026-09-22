@@ -1,4 +1,27 @@
-# ArcVPN handoff — AutoSelect balance and CDN/XHTTP diagnosis
+# ArcVPN handoff — admin reliability and monthly profit
+
+## Current production state — 2026-09-22 18:47 МСК
+
+- Production runtime is `3ac044c`; `arcvpn-subscription.service` is active.
+- Admin waits for Russian i18n readiness before React mounts, so raw
+  `admin.*` keys no longer flash on a cold load.
+- `/admin` is dark-only and no longer exposes theme controls. Desktop, mobile,
+  login and unavailable states use the native white ArcVPN SVG mark.
+- Dashboard trial counts come from active `trial_entitlements` with an
+  unexpired linked VPN key. Production currently reports 3 trials and 14 paid
+  active subscriptions instead of the old hard-coded zero.
+- New `/admin/profit` recognizes paid subscription revenue across the covered
+  calendar months, excludes trials, and subtracts categorized one-time or
+  recurring expenses. Existing `service_expenses` rows are reused.
+- Production HTML and the referenced `index-5kb15Cfy.js` bundle return 200;
+  unauthenticated profit API access returns 403.
+
+## Next step
+
+- Enter/verify the real recurring hosting and CDN costs in «Прибыль», then
+  compare the selected month's recognized revenue with the finance source.
+
+## Prior infrastructure state
 
 ## Current production state — 2026-09-22
 

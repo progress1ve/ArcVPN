@@ -42,3 +42,14 @@ monthly profit report with accrual revenue and editable operating expenses.
 - Trial stats add one indexed aggregate to overview.
 - Theme forcing is scoped to `/admin`.
 - Rollback is a Git revert, admin rebuild and subscription-service restart.
+
+## Release evidence
+
+- Commit: `3ac044c`; pushed to `main` and pulled with `--ff-only` on `pl-control`.
+- Backend: 210 tests passed; focused profit/trial checks passed after final rebase.
+- Frontend: type-check, production build and 10 focused i18n/dashboard tests passed.
+- Browser: mobile admin and profit route verified locally; production login is
+  dark, Russian and shows the SVG logo.
+- Production: service active, overview reports trial 3 / paid 14, admin HTML and
+  new bundle return 200, unauthenticated expenses request returns 403.
+- Rollback: revert `3ac044c`, pull and restart only `arcvpn-subscription.service`.
