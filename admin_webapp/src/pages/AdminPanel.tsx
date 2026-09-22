@@ -147,6 +147,12 @@ const sections: AdminSection[] = [
         to: '/admin/sales-stats',
         permission: 'sales_stats:read',
       },
+      {
+        name: 'admin.nav.profit',
+        icon: 'wallet',
+        to: '/admin/profit',
+        permission: 'sales_stats:read',
+      },
     ],
   },
   {

@@ -60,6 +60,11 @@ describe('тема до первой отрисовки', () => {
     expect(htmlSource).toMatch(/cabinet-theme/);
   });
 
+  it('admin routes force dark mode before React mounts', () => {
+    expect(htmlSource).toMatch(/location\.pathname\.indexOf\('\/admin'\) === 0/);
+    expect(htmlSource).toMatch(/theme = 'dark'/);
+  });
+
   it('ключи хранилища в инлайн-скрипте совпадают с STORAGE_KEYS', async () => {
     const { STORAGE_KEYS } = await import('./config/constants');
 

@@ -87,7 +87,9 @@
           } catch (e) {}
 
           var theme;
-          if (stored === 'light' || stored === 'dark') {
+          if (location.pathname.indexOf('/admin') === 0) {
+            theme = 'dark';
+          } else if (stored === 'light' || stored === 'dark') {
             theme = enabled[stored] ? stored : enabled.dark ? 'dark' : 'light';
           } else if (window.matchMedia('(prefers-color-scheme: light)').matches && enabled.light) {
             theme = 'light';

@@ -147,6 +147,7 @@ const AdminEmailTemplates = lazyWithRetry(() => import('./pages/AdminEmailTempla
 const AdminTrafficUsage = lazyWithRetry(() => import('./pages/AdminTrafficUsage'));
 const AdminBulkActions = lazyWithRetry(() => import('./pages/AdminBulkActions'));
 const AdminSalesStats = lazyWithRetry(() => import('./pages/AdminSalesStats'));
+const AdminProfit = lazyWithRetry(() => import('./pages/AdminProfit'));
 const AdminUpdates = lazyWithRetry(() => import('./pages/AdminUpdates'));
 const AdminUserDetail = lazyWithRetry(() => import('./pages/AdminUserDetail'));
 const AdminBroadcastDetail = lazyWithRetry(() => import('./pages/AdminBroadcastDetail'));
@@ -1191,6 +1192,16 @@ function App() {
             <PermissionRoute permission="sales_stats:read">
               <LazyPage>
                 <AdminSalesStats />
+              </LazyPage>
+            </PermissionRoute>
+          }
+        />
+        <Route
+          path="/admin/profit"
+          element={
+            <PermissionRoute permission="sales_stats:read">
+              <LazyPage>
+                <AdminProfit />
               </LazyPage>
             </PermissionRoute>
           }

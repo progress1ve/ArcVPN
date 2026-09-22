@@ -137,6 +137,18 @@ def get_subscriptions_stats() -> Dict[str, Any]:
         # Истёкших
         expired_count = total_count - active_count
 
+        trial_count = 0
+        has_trial_table = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='trial_entitlements'"
+        ).fetchone()
+        if has_trial_table:
+            trial_count = int(conn.execute("""
+                SELECT COUNT(DISTINCT te.user_id)
+                FROM trial_entitlements te
+                JOIN vpn_keys vk ON vk.id=te.vpn_key_id
+                WHERE te.status='active' AND vk.expires_at>datetime('now')
+            """).fetchone()[0])
+
         return {
             'day': day_count,
             'week': week_count,
@@ -144,7 +156,9 @@ def get_subscriptions_stats() -> Dict[str, Any]:
             'year': year_count,
             'total': total_count,
             'active': active_count,
-            'expired': expired_count
+            'expired': expired_count,
+            'trial': trial_count,
+            'paid': max(0, active_count - trial_count),
         }
 
 

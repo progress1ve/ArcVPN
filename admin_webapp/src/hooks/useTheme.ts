@@ -42,10 +42,13 @@ export function updateEnabledThemesCache(themes: EnabledThemes) {
 }
 
 export function useTheme() {
+  const adminDarkOnly =
+    typeof window !== 'undefined' && window.location.pathname.startsWith('/admin');
   const [enabledThemes, setEnabledThemes] = useState<EnabledThemes>(getCachedEnabledThemes);
   const [isLoading, setIsLoading] = useState(true);
 
   const [theme, setThemeState] = useState<Theme>(() => {
+    if (adminDarkOnly) return 'dark';
     const enabled = getCachedEnabledThemes();
 
     // Check localStorage first
@@ -82,6 +85,11 @@ export function useTheme() {
 
   // Fetch enabled themes on mount
   useEffect(() => {
+    if (adminDarkOnly) {
+      setThemeState('dark');
+      setIsLoading(false);
+      return;
+    }
     fetchEnabledThemes().then((data) => {
       setEnabledThemes(data);
       setIsLoading(false);
@@ -91,11 +99,12 @@ export function useTheme() {
         setThemeState(newTheme);
       }
     });
-  }, []);
+  }, [adminDarkOnly]);
 
   // Listen for localStorage changes (when admin updates enabled themes from other tabs)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
+      if (adminDarkOnly) return;
       if (e.key === ENABLED_THEMES_KEY && e.newValue) {
         try {
           const data = JSON.parse(e.newValue) as EnabledThemes;
@@ -113,11 +122,12 @@ export function useTheme() {
 
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
-  }, [theme]);
+  }, [theme, adminDarkOnly]);
 
   // Listen for same-tab enabled themes changes (from admin settings)
   useEffect(() => {
     const handleEnabledThemesChange = (e: CustomEvent<EnabledThemes>) => {
+      if (adminDarkOnly) return;
       const data = e.detail;
       setEnabledThemes(data);
       // If current theme is now disabled, switch to enabled one
@@ -136,11 +146,17 @@ export function useTheme() {
         ENABLED_THEMES_CHANGED_EVENT,
         handleEnabledThemesChange as EventListener,
       );
-  }, [theme]);
+  }, [theme, adminDarkOnly]);
 
   // Apply theme to document - also check if theme is disabled and switch
   useEffect(() => {
     const root = document.documentElement;
+
+    if (adminDarkOnly) {
+      root.classList.remove('light');
+      root.classList.add('dark');
+      return;
+    }
 
     // If current theme is disabled, switch to the enabled one
     if (!enabledThemes[theme]) {
@@ -162,24 +178,26 @@ export function useTheme() {
     safeLocal.setItem(THEME_KEY, theme);
     // Notify other useTheme() instances in the same tab
     window.dispatchEvent(new CustomEvent(THEME_CHANGED_EVENT, { detail: theme }));
-  }, [theme, enabledThemes]);
+  }, [theme, enabledThemes, adminDarkOnly]);
 
   // Listen for same-tab theme changes (from other useTheme() instances)
   useEffect(() => {
     const handleThemeChange = (e: CustomEvent<Theme>) => {
+      if (adminDarkOnly) return;
       setThemeState(e.detail);
     };
 
     window.addEventListener(THEME_CHANGED_EVENT, handleThemeChange as EventListener);
     return () =>
       window.removeEventListener(THEME_CHANGED_EVENT, handleThemeChange as EventListener);
-  }, []);
+  }, [adminDarkOnly]);
 
   // Listen for system theme changes
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: light)');
 
     const handleChange = (e: MediaQueryListEvent) => {
+      if (adminDarkOnly) return;
       const stored = safeLocal.getItem(THEME_KEY);
       // Only auto-switch if user hasn't set a preference and theme is enabled
       if (!stored) {
@@ -192,19 +210,21 @@ export function useTheme() {
 
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [enabledThemes]);
+  }, [enabledThemes, adminDarkOnly]);
 
   const setTheme = useCallback(
     (newTheme: Theme) => {
+      if (adminDarkOnly) return;
       // Only allow setting if theme is enabled
       if (enabledThemes[newTheme]) {
         setThemeState(newTheme);
       }
     },
-    [enabledThemes],
+    [enabledThemes, adminDarkOnly],
   );
 
   const toggleTheme = useCallback(() => {
+    if (adminDarkOnly) return;
     setThemeState((prev) => {
       const newTheme = prev === 'dark' ? 'light' : 'dark';
       // Only toggle if the new theme is enabled
@@ -213,16 +233,17 @@ export function useTheme() {
       }
       return prev;
     });
-  }, [enabledThemes]);
+  }, [enabledThemes, adminDarkOnly]);
 
-  const isDark = theme === 'dark';
-  const isLight = theme === 'light';
+  const isDark = adminDarkOnly || theme === 'dark';
+  const isLight = !adminDarkOnly && theme === 'light';
 
   // Check if theme switching is available (both themes enabled and loaded)
-  const canToggle = !isLoading && enabledThemes.dark && enabledThemes.light;
+  const canToggle = !adminDarkOnly && !isLoading && enabledThemes.dark && enabledThemes.light;
 
   // Refresh enabled themes from API
   const refreshEnabledThemes = useCallback(() => {
+    if (adminDarkOnly) return;
     fetchEnabledThemes().then((data) => {
       setEnabledThemes(data);
       if (!data[theme]) {
@@ -230,7 +251,7 @@ export function useTheme() {
         setThemeState(newTheme);
       }
     });
-  }, [theme]);
+  }, [theme, adminDarkOnly]);
 
   return {
     theme,

@@ -16,6 +16,7 @@ import AdminUserDetail from '@/pages/AdminUserDetail';
 import ReferralNetwork from '@/pages/ReferralNetwork';
 import AdminPayments from '@/pages/AdminPayments';
 import AdminSalesStats from '@/pages/AdminSalesStats';
+import AdminProfit from '@/pages/AdminProfit';
 import AdminTrafficUsage from '@/pages/AdminTrafficUsage';
 import AdminTickets from '@/pages/AdminTickets';
 import AdminRemnawave from '@/pages/AdminRemnawave';
@@ -25,6 +26,7 @@ import ArcMarketing from './ArcMarketing';
 import { useAuthStore } from '@/store/auth';
 import { usePermissionStore } from '@/store/permissions';
 import { access, login } from './api';
+import { ArcVpnLogo } from '@/components/ArcVpnLogo';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, refetchOnWindowFocus: false } },
@@ -36,6 +38,7 @@ const permissions = [
   'tickets:read',
   'traffic:read',
   'sales_stats:read',
+  'expenses:manage',
   'servers:read',
   'remnawave:read',
   'audit:read',
@@ -95,8 +98,8 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
           }
         }}
       >
-        <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-accent-500/15 text-xl font-bold text-accent-400">
-          A
+        <div className="mb-6 flex h-11 w-11 items-center justify-center rounded-xl bg-accent-500/15 text-accent-100">
+          <ArcVpnLogo className="h-8 w-8" />
         </div>
         <p className="mb-1 text-xs font-medium uppercase tracking-wider text-accent-400">ArcVPN</p>
         <h1 className="mb-2 text-2xl font-bold text-dark-50">Вход в админ-панель</h1>
@@ -135,8 +138,8 @@ function Login({ onSuccess }: { onSuccess: () => void }) {
 function Unavailable() {
   return (
     <div className="py-20 text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-dark-700 bg-dark-800 text-accent-400">
-        A
+      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-dark-700 bg-dark-800 text-accent-100">
+        <ArcVpnLogo className="h-8 w-8" />
       </div>
       <h1 className="text-xl font-bold text-dark-100">Раздел подключается к ArcVPN</h1>
       <p className="mt-2 text-sm text-dark-400">
@@ -160,6 +163,7 @@ function AdminRoutes() {
           <Route path="/admin/marketing" element={<ArcMarketing />} />
           <Route path="/admin/payments" element={<AdminPayments />} />
           <Route path="/admin/sales-stats" element={<AdminSalesStats />} />
+          <Route path="/admin/profit" element={<AdminProfit />} />
           <Route path="/admin/traffic" element={<AdminTrafficUsage />} />
           <Route path="/admin/traffic-usage" element={<AdminTrafficUsage />} />
           <Route path="/admin/tickets" element={<AdminTickets />} />

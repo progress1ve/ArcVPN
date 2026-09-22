@@ -4903,23 +4903,72 @@ def api_admin_expenses(expense_id: Optional[int] = None):
         if not cursor.rowcount:
             return _api_error("expense_not_found", 404)
         _append_admin_audit_best_effort("expense.delete", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(expense_id))
+    selected_month = _clean_text(request.args.get("month"), 7) or datetime.now().strftime("%Y-%m")
+    if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", selected_month):
+        return _api_error("invalid_month", 400)
+
+    def add_months(month: str, offset: int) -> str:
+        year, number = map(int, month.split("-"))
+        absolute = year * 12 + number - 1 + offset
+        return f"{absolute // 12:04d}-{absolute % 12 + 1:02d}"
+
+    def recognized_months(period_days: Any) -> int:
+        try:
+            days = max(1, int(period_days or 30))
+        except (TypeError, ValueError):
+            days = 30
+        return max(1, min(120, round(days / 30.4375)))
+
+    amount_sql = _admin_payment_rub_sql()
     with get_db() as conn:
         rows = [dict(row) for row in conn.execute("""SELECT id,title,category,
             amount_cents/100.0 AS amount_rub,incurred_on,recurring_monthly,note,created_at
             FROM service_expenses ORDER BY incurred_on DESC,id DESC LIMIT 500""").fetchall()]
-        month_expenses = float(conn.execute("""SELECT COALESCE(SUM(amount_cents),0)/100.0
-            FROM service_expenses WHERE
-              strftime('%Y-%m',incurred_on)=strftime('%Y-%m','now')
-              OR (recurring_monthly=1 AND date(incurred_on)<=date('now'))""").fetchone()[0])
-        month_revenue = float(conn.execute("""SELECT COALESCE(SUM(CASE
-            WHEN yookassa_payment_id IS NOT NULL AND yookassa_payment_id!='' THEN amount_cents/100.0
-            WHEN payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN amount_cents
-            ELSE 0 END),0) FROM payments WHERE status IN ('paid','succeeded')
-            AND paid_at >= datetime('now','start of month')""").fetchone()[0])
+        payments = [dict(row) for row in conn.execute(f"""
+            SELECT paid_at,period_days,{amount_sql} AS amount_rub
+            FROM payments p
+            WHERE p.status IN ('paid','succeeded')
+              AND COALESCE(p.payment_type,'')!='trial'
+              AND p.paid_at IS NOT NULL
+        """).fetchall()]
+
+    series_start = add_months(selected_month, -11)
+    revenue_cents = {add_months(series_start, index): 0 for index in range(12)}
+    for payment in payments:
+        paid_month = str(payment.get("paid_at") or "")[:7]
+        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", paid_month):
+            continue
+        total_cents = int((Decimal(str(payment.get("amount_rub") or 0)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+        if total_cents <= 0:
+            continue
+        duration = recognized_months(payment.get("period_days"))
+        base, remainder = divmod(total_cents, duration)
+        for index in range(duration):
+            month = add_months(paid_month, index)
+            if month in revenue_cents:
+                revenue_cents[month] += base + (1 if index < remainder else 0)
+
+    expense_cents = {month: 0 for month in revenue_cents}
+    for expense in rows:
+        incurred_month = str(expense.get("incurred_on") or "")[:7]
+        cents = int(round(float(expense.get("amount_rub") or 0) * 100))
+        for month in expense_cents:
+            if month == incurred_month or (expense.get("recurring_monthly") and incurred_month <= month):
+                expense_cents[month] += cents
+
+    monthly = [{
+        "month": month,
+        "recognized_revenue_rub": revenue_cents[month] / 100.0,
+        "expenses_rub": expense_cents[month] / 100.0,
+        "net_profit_rub": (revenue_cents[month] - expense_cents[month]) / 100.0,
+    } for month in revenue_cents]
+    selected = next(item for item in monthly if item["month"] == selected_month)
     return _api_no_store(jsonify({"ok": True, "expenses": rows, "summary": {
-        "month_revenue_rub": month_revenue, "month_expenses_rub": month_expenses,
-        "month_net_rub": month_revenue - month_expenses,
-    }}))
+        "month": selected_month,
+        "month_revenue_rub": selected["recognized_revenue_rub"],
+        "month_expenses_rub": selected["expenses_rub"],
+        "month_net_rub": selected["net_profit_rub"],
+    }, "monthly": monthly}))
 
 
 @app.route('/api/admin/campaigns', methods=['GET', 'POST'])

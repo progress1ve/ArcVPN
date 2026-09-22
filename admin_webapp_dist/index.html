@@ -87,7 +87,9 @@
           } catch (e) {}
 
           var theme;
-          if (stored === 'light' || stored === 'dark') {
+          if (location.pathname.indexOf('/admin') === 0) {
+            theme = 'dark';
+          } else if (stored === 'light' || stored === 'dark') {
             theme = enabled[stored] ? stored : enabled.dark ? 'dark' : 'light';
           } else if (window.matchMedia('(prefers-color-scheme: light)').matches && enabled.light) {
             theme = 'light';
@@ -238,7 +240,7 @@
           });
       })();
     </script>
-    <script type="module" crossorigin src="/admin/assets/index-DyExfXAk.js"></script>
+    <script type="module" crossorigin src="/admin/assets/index-5kb15Cfy.js"></script>
     <link rel="modulepreload" crossorigin href="/admin/assets/vendor-react-CrWNp1RU.js">
     <link rel="modulepreload" crossorigin href="/admin/assets/vendor-i18n--T2ml-o-.js">
     <link rel="modulepreload" crossorigin href="/admin/assets/vendor-query-BBBtmfg2.js">
@@ -249,7 +251,7 @@
     <link rel="modulepreload" crossorigin href="/admin/assets/vendor-motion-Spr_Mh3q.js">
     <link rel="modulepreload" crossorigin href="/admin/assets/vendor-recharts-CoxMyth6.js">
     <link rel="modulepreload" crossorigin href="/admin/assets/vendor-table-CP5ZeoeR.js">
-    <link rel="stylesheet" crossorigin href="/admin/assets/index-BEBLb82c.css">
+    <link rel="stylesheet" crossorigin href="/admin/assets/index-CulzOBcD.css">
   </head>
   <body>
     <div id="root"></div>

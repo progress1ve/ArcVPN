@@ -1,87 +1,44 @@
-# Stage: AutoSelect distribution and CDN/XHTTP stability
+# Admin reliability, branding and monthly profit — 2026-09-22
 
 ## Goal
 
-- Keep AutoSelect availability-aware while distributing normal connections across
-  both Germany and Estonia instead of collapsing onto one lowest-variance node.
-- Reproduce and identify the reported CDN/XHTTP disconnect after roughly two
-  minutes without changing the published CDN topology on assumption alone.
+Make the admin first render deterministic and Russian, show real active-trial
+counts, use the owner-provided ArcVPN mark as a native SVG, and keep every
+admin route dark without offering a light-theme toggle. Add an operator-facing
+monthly profit report with accrual revenue and editable operating expenses.
 
-## Accepted public contract
+## Visible contract
 
-| Path | Candidates | Selection | CDN fallback | Public identifiers |
-| --- | --- | --- | --- | --- |
-| `Автовыбор | Самый быстрый` | Germany and Estonia ordinary main outbounds | `leastLoad`, retain the two best healthy candidates and randomly choose between them | existing hidden `cdn-de.arccnet.space` fallback only when main candidates are unavailable | subscription URLs, UUIDs, visible names and order unchanged |
-
-Expected distribution is statistical rather than a hard session quota: with both
-nodes healthy, Germany should normally receive about 35–65% of a sufficiently
-large sample; an unavailable or failed-probe node must be excluded.
-
-## CDN diagnostic contract
-
-| Visible profile | Client hostname | CDN resource | Origin group | Active / backup | Host/SNI | Inbound/path | Multiplier | Failure behavior | Rollback |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| existing CDN/XHTTP bypass | `cdn-de.arccnet.space` | existing Yandex CDN | Moscow origin | Moscow to Germany, Estonia backup | `cdn-de.arccnet.space` | XHTTP `packet-up`, `/api-test` | 1 | preserve current route while collecting timed edge/origin evidence | no topology mutation in this diagnostic stage |
+| Surface | Required behavior |
+| --- | --- |
+| First render | Admin navigation never renders raw keys such as `admin.groups.analytics`; the Russian fallback bundle is ready before React mounts. |
+| Brand | Desktop and mobile admin headers show the white ArcVPN vector mark matching `arcLOGO_NEW22.webp`, not the fallback `A`. |
+| Trial statistic | `Триалы` equals distinct users with `trial_entitlements.status='active'` whose linked key is not expired. Paid/completed trials are excluded. |
+| Theme | Every `/admin` route starts and remains dark. Desktop/mobile theme buttons are absent on admin routes. Customer routes retain their existing theme behavior. |
+| Profit | `/admin/profit` allocates each successful paid subscription across its paid months, excludes trials, subtracts one-time and recurring expenses, and exposes a 12-month comparison. |
+| Expenses | Owner/finance roles can add categorized hosting, CDN, advertising or other expenses and remove them with a confirmation step and audit event. |
 
 ## Components
 
-- `subscription_api.py`
-- focused AutoSelect tests
-- read-only Remnawave, Moscow, Germany and Estonia telemetry
-- `.codex/stages/current.md`, `.codex/handoff.md`, `AI_CONTEXT.md`
-
-## Non-goals
-
-- No subscription URL, UUID, quota, visible order, DNS, CDN resource, origin,
-  inbound, Host/SNI, firewall or Reality change.
-- No hard central session scheduler: AutoSelect runs independently inside each
-  user's Xray client, so an exact global 50/50 split cannot be guaranteed.
-- Do not change XHTTP mode until a real timed tunnel proves a compatible fix.
+- Startup/localization: `admin_webapp/src/main.tsx`, i18n regression tests.
+- Brand: new native SVG component plus desktop/mobile admin header consumers.
+- Theme: `index.html`, `useTheme`, desktop and mobile header controls.
+- Data: `database/db_statistics.py`, ArcVPN dashboard adapter and focused tests.
+- Profit: existing `service_expenses`, enhanced `/api/admin/expenses`, new
+  `AdminProfit` route, navigation entry, monthly chart and calculation tests.
 
 ## Acceptance
 
-- Generated AutoSelect has `leastLoad.expected = 2`, a non-zero failed-probe
-  tolerance, both ordinary main countries, and no display aliases or CDN rows in
-  the healthy main pool.
-- Focused tests and production subscription inspection pass.
-- Production service is active after an ff-only deployment and restart.
-- Current node telemetry shows Germany and Estonia connected.
-- CDN conclusion is backed by bounded edge/origin logs and, where possible, a
-  timed real tunnel; any unproven remediation remains explicitly open.
+- Cold-cache test proves React mounts only after `i18nReady` and translated Russian labels render.
+- Dashboard/backend tests prove non-zero active trial counts and exclude completed trials.
+- Browser evidence shows the SVG mark, Russian labels, non-zero trials, dark styling and no theme toggle.
+- TypeScript, focused Vitest, full Python tests and production build pass.
+- A 400 ₽ four-month payment contributes exactly 100 ₽ to each covered month; recurring and one-time expenses apply to the correct months.
+- Production service remains active; public admin HTML and bundle return 200.
 
 ## Risks and rollback
 
-- A slower but healthy node will receive more connections than before. Health
-  probes and `maxRTT` continue to eject unacceptable candidates.
-- Statistical balance can be uneven in a sample as small as 12 users.
-- Roll back the subscription commit and restart only
-  `arcvpn-subscription.service`; no node-side rollback is required.
-
-## Verification matrix
-
-| Check | Status | Evidence |
-| --- | --- | --- |
-| Live node health | Passed | Germany and Estonia connected; normal host health clean |
-| Existing live distribution | Observed | Remnawave session counters showed Estonia 9, Germany 7 during diagnosis; owner observed a more skewed 10–11 vs 1–2 window |
-| CDN origin errors | Observed | 108,651 successful Moscow XHTTP requests vs 35 non-2xx in rotated/current logs; clustered 5xx aligned with an origin interruption, not a steady two-minute nginx timeout |
-| AutoSelect config/tests | Passed | `leastLoad.expected=2`, `tolerance=0.2`; 30 focused tests passed with the production-compatible config module |
-| Production generated subscription | Passed | HTTP 200; two `proxy-main-*` outbounds, `expected=2`, `tolerance=0.2`, `maxRTT=3s`, existing `proxy-back-1` fallback |
-| Git/deployment/service | Passed | `47536e1` pushed to `main`, production ff-only pull, subscription service active |
-| Timed CDN tunnel | Deferred | Client/platform and failure timestamp are required to correlate the reported fade; no speculative transport mutation made |
-
-## Result and residual risk
-
-- AutoSelect no longer narrows every client to a single lowest-deviation main
-  node. Both healthy main countries participate, while health filtering and the
-  existing CDN fallback remain intact.
-- An exact 50/50 user count is not guaranteed because selection happens per new
-  connection inside each client and the live user sample is small.
-- CDN/XHTTP remains operational but the reported fade is not closed. Current
-  evidence excludes ArcVPN nginx's two-minute timeout and points to the known
-  finite Yandex edge idle-response window for `packet-up`; a correlated real
-  client reproduction is the next acceptance gate.
-
-## Rollback
-
-- Revert `47536e1`, deploy with `git pull --ff-only`, and restart only
-  `arcvpn-subscription.service`. No node/CDN/DNS rollback is necessary.
+- Locale readiness retains its bounded timeout.
+- Trial stats add one indexed aggregate to overview.
+- Theme forcing is scoped to `/admin`.
+- Rollback is a Git revert, admin rebuild and subscription-service restart.

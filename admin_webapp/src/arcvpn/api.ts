@@ -7,7 +7,7 @@ let referralNetworkCache: Promise<Json> | null = null;
 const mockOverview: Json = {
   generated_at: new Date().toISOString(),
   users: { total: 779, day: 11, week: 74, month: 286 },
-  subscriptions: { total: 779, active: 641, expired: 138 },
+  subscriptions: { total: 779, active: 641, expired: 138, trial: 23, paid: 618 },
   financials: { lifetime_rub: 486320, month_rub: 126400, paying_users: 412 },
   business: {
     payments: {
@@ -534,6 +534,7 @@ export function dashboardStats(data: Json): Json {
     system: { stats: { loadAvg: [node.load_1m], memoryUsed: node.memory_used_pct } },
   }));
   const active = Number(data.subscriptions?.active || 0);
+  const trial = Number(data.subscriptions?.trial || 0);
   const total = Number(data.subscriptions?.total || active);
   const today = Number(data.business?.payments?.day?.revenue_rub || 0);
   const month = Number(
@@ -552,8 +553,8 @@ export function dashboardStats(data: Json): Json {
     subscriptions: {
       total,
       active,
-      trial: 0,
-      paid: active,
+      trial,
+      paid: Number(data.subscriptions?.paid ?? Math.max(0, active - trial)),
       expired: Number(data.subscriptions?.expired || Math.max(0, total - active)),
       purchased_today: Number(data.business?.payments?.day?.orders || 0),
       purchased_week: Number(data.business?.payments?.week?.orders || 0),
