@@ -1650,7 +1650,16 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "fallbackTag": "proxy-back-1" if lte_outbounds else "direct",
                 "selector": ["proxy-main"],
                 "strategy": {
-                    "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
+                    # Keep both healthy main countries in the eligible set.
+                    # leastLoad still filters failed/high-RTT outbounds, then
+                    # randomly distributes new connections across the two
+                    # best candidates instead of pinning every client to one.
+                    "settings": {
+                        "baselines": ["1s"],
+                        "expected": 2,
+                        "maxRTT": "3s",
+                        "tolerance": 0.2,
+                    },
                     "type": "leastLoad",
                 },
                 "tag": "balancer_main",

@@ -97,7 +97,12 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main"])
         self.assertEqual(balancers["balancer_main"]["strategy"], {
             "type": "leastLoad",
-            "settings": {"baselines": ["1s"], "expected": 1, "maxRTT": "3s"},
+            "settings": {
+                "baselines": ["1s"],
+                "expected": 2,
+                "maxRTT": "3s",
+                "tolerance": 0.2,
+            },
         })
         self.assertEqual(auto["burstObservatory"], {
             "pingConfig": {

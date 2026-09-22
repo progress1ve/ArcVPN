@@ -1,72 +1,69 @@
-# Paid subscription trial-state repair — 2026-09-21
-
-## Previous stage
-
-The referral activation, RU gateway and bot artwork stage is complete in
-commit `f28662f`; its detailed evidence remains in Git history.
+# Stage: AutoSelect distribution and CDN/XHTTP stability
 
 ## Goal
 
-Stop successfully fulfilled subscription purchases from remaining classified as
-trial, repair existing affected rows, and expose the current VPS in the compact
-mobile admin user row.
+- Keep AutoSelect availability-aware while distributing normal connections across
+  both Germany and Estonia instead of collapsing onto one lowest-variance node.
+- Reproduce and identify the reported CDN/XHTTP disconnect after roughly two
+  minutes without changing the published CDN topology on assumption alone.
 
-## Contract
+## Accepted public contract
 
-- A confirmed `new`, `renew`, or `upgrade` purchase completes an active trial
-  entitlement idempotently after its paid limits are durably applied.
-- Paid trial offers, top-ups, add-ons, pending/failed payments and unfulfilled
-  orders do not complete the trial entitlement.
-- Existing active trial rows are repaired only when a confirmed commercial
-  subscription payment has `addons_applied_at` evidence.
-- LTE usage is preserved. `5 / 75 GB` means 5 GB used from a 75 GB allowance.
-- At 390 px an online user displays the current VPS name when the API supplies
-  it, with a device-count fallback; desktop behavior remains unchanged.
+| Path | Candidates | Selection | CDN fallback | Public identifiers |
+| --- | --- | --- | --- | --- |
+| `Автовыбор | Самый быстрый` | Germany and Estonia ordinary main outbounds | `leastLoad`, retain the two best healthy candidates and randomly choose between them | existing hidden `cdn-de.arccnet.space` fallback only when main candidates are unavailable | subscription URLs, UUIDs, visible names and order unchanged |
+
+Expected distribution is statistical rather than a hard session quota: with both
+nodes healthy, Germany should normally receive about 35–65% of a sufficiently
+large sample; an unavailable or failed-probe node must be excluded.
+
+## CDN diagnostic contract
+
+| Visible profile | Client hostname | CDN resource | Origin group | Active / backup | Host/SNI | Inbound/path | Multiplier | Failure behavior | Rollback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| existing CDN/XHTTP bypass | `cdn-de.arccnet.space` | existing Yandex CDN | Moscow origin | Moscow to Germany, Estonia backup | `cdn-de.arccnet.space` | XHTTP `packet-up`, `/api-test` | 1 | preserve current route while collecting timed edge/origin evidence | no topology mutation in this diagnostic stage |
+
+## Components
+
+- `subscription_api.py`
+- focused AutoSelect tests
+- read-only Remnawave, Moscow, Germany and Estonia telemetry
+- `.codex/stages/current.md`, `.codex/handoff.md`, `AI_CONTEXT.md`
+
+## Non-goals
+
+- No subscription URL, UUID, quota, visible order, DNS, CDN resource, origin,
+  inbound, Host/SNI, firewall or Reality change.
+- No hard central session scheduler: AutoSelect runs independently inside each
+  user's Xray client, so an exact global 50/50 split cannot be guaranteed.
+- Do not change XHTTP mode until a real timed tunnel proves a compatible fix.
 
 ## Acceptance
 
-- Focused lifecycle and migration tests cover conversion, idempotency and
-  exclusions.
-- Backend tests and admin type-check/build pass.
-- Browser evidence at 390 px shows the VPS in the compact row.
-- Production migrates safely, affected services remain active, the reported
-  account is no longer classified as trial, and its 75 GB LTE quota/usage are
-  unchanged.
+- Generated AutoSelect has `leastLoad.expected = 2`, a non-zero failed-probe
+  tolerance, both ordinary main countries, and no display aliases or CDN rows in
+  the healthy main pool.
+- Focused tests and production subscription inspection pass.
+- Production service is active after an ff-only deployment and restart.
+- Current node telemetry shows Germany and Estonia connected.
+- CDN conclusion is backed by bounded edge/origin logs and, where possible, a
+  timed real tunnel; any unproven remediation remains explicitly open.
 
 ## Risks and rollback
 
-- The schema migration rebuilds only `trial_entitlements`, preserving its rows
-  and indexes. Rollback is a Git revert; completed rows remain harmless because
-  old readers select only `active`.
-- The backfill requires a successful subscription operation with applied
-  entitlement evidence and excludes trial offers and non-subscription
-  operations.
-- No UUID, subscription URL, payment amount or traffic counter is changed.
+- A slower but healthy node will receive more connections than before. Health
+  probes and `maxRTT` continue to eject unacceptable candidates.
+- Statistical balance can be uneven in a sample as small as 12 users.
+- Roll back the subscription commit and restart only
+  `arcvpn-subscription.service`; no node-side rollback is required.
 
-## Closeout
+## Verification matrix
 
-| Acceptance | Status | Evidence |
+| Check | Status | Evidence |
 | --- | --- | --- |
-| Trial conversion lifecycle | Passed | Migration v65 and runtime transition use confirmed commercial operations plus durable entitlement evidence; exclusion/idempotency tests pass. |
-| Legacy repair | Passed | Production migrated 64 → 65, converted 3 rows and reports 0 remaining eligible active trials. |
-| Reported account | Passed | Source-of-truth aggregate confirms the 75 GB entitlement and existing 4–6 GB usage were preserved while its trial state became completed. |
-| Mobile VPS visibility | Passed | 390 px browser render displays `Онлайн · Germany DHost` in the compact row. |
-| Regression | Passed | 208 pytest tests, admin TypeScript check and production build passed; one existing UTC deprecation warning remains. |
-| Production | Passed | Commit `257c0de` deployed; bot and subscription services are active; public admin page and hashed JS bundle return 200. |
-
-## Admin dashboard de-duplication — 2026-09-21
-
-- Outcome: remove the duplicate Promocodes shortcut from the Tariffs dashboard
-  card while preserving promocode management in Marketing/referral campaigns.
-- Breakpoints: the dashboard grid and shared card component remain unchanged on
-  mobile, tablet, desktop and wide layouts.
-- Exclusions: do not remove the shared `GlassCard`, the Tariffs section, RBAC,
-  routes or the Marketing promocodes tab.
-- Acceptance: TypeScript and production build pass; rendered dashboard contains
-  Tariffs and Campaigns but no duplicate Promocodes shortcut.
-- Rollback: revert the single navigation-item removal and rebuild the admin
-  bundle.
-
-Closeout: TypeScript and production build passed. Browser inspection of the
-mobile dashboard retained the functional section cards and referral links while
-the duplicate Promocodes shortcut was absent.
+| Live node health | Passed | Germany and Estonia connected; normal host health clean |
+| Existing live distribution | Observed | Remnawave session counters showed Estonia 9, Germany 7 during diagnosis; owner observed a more skewed 10–11 vs 1–2 window |
+| CDN origin errors | Observed | 108,651 successful Moscow XHTTP requests vs 35 non-2xx in rotated/current logs; clustered 5xx aligned with an origin interruption, not a steady two-minute nginx timeout |
+| AutoSelect config/tests | Passed | `leastLoad.expected=2`, `tolerance=0.2`; 30 focused tests passed with the production-compatible config module |
+| Production generated subscription | Pending | |
+| Timed CDN tunnel | Pending | |
