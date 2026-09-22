@@ -25,6 +25,7 @@ import { SyncTab } from '../components/admin/userDetail/SyncTab';
 import { ReferralsTab } from '../components/admin/userDetail/ReferralsTab';
 import { BalanceTab } from '../components/admin/userDetail/BalanceTab';
 import { ActivityTab } from '../components/admin/userDetail/ActivityTab';
+import { AnswersTab } from '../components/admin/userDetail/AnswersTab';
 import { TicketsTab } from '../components/admin/userDetail/TicketsTab';
 import { InfoTab } from '../components/admin/userDetail/InfoTab';
 import { SubscriptionTab } from '../components/admin/userDetail/SubscriptionTab';
@@ -54,7 +55,15 @@ export default function AdminUserDetail() {
   const [user, setUser] = useState<UserDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
-    'info' | 'subscription' | 'balance' | 'sync' | 'tickets' | 'gifts' | 'referrals' | 'activity'
+    | 'info'
+    | 'subscription'
+    | 'balance'
+    | 'sync'
+    | 'tickets'
+    | 'gifts'
+    | 'referrals'
+    | 'answers'
+    | 'activity'
   >('info');
   const [syncStatus, setSyncStatus] = useState<PanelSyncStatusResponse | null>(null);
   const [tariffs, setTariffs] = useState<UserAvailableTariff[]>([]);
@@ -837,6 +846,7 @@ export default function AdminUserDetail() {
             'tickets',
             'gifts',
             'referrals',
+            'answers',
             'activity',
           ] as const
         )
@@ -858,6 +868,7 @@ export default function AdminUserDetail() {
               {tab === 'tickets' && t('admin.users.detail.tabs.tickets')}
               {tab === 'gifts' && t('admin.users.detail.tabs.gifts')}
               {tab === 'referrals' && t('admin.users.detail.tabs.referrals')}
+              {tab === 'answers' && 'Ответы'}
               {tab === 'activity' && t('admin.users.detail.tabs.activity')}
             </button>
           ))}
@@ -1014,6 +1025,10 @@ export default function AdminUserDetail() {
         {/* Referrals Tab */}
         {activeTab === 'referrals' && user && userId && (
           <ReferralsTab user={user} userId={userId} onUserRefresh={loadUser} />
+        )}
+
+        {activeTab === 'answers' && (
+          <AnswersTab answers={user.lifecycle_answers} formatDate={formatDate} />
         )}
 
         {/* Activity Tab */}

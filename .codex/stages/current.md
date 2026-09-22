@@ -1,55 +1,41 @@
-# Admin reliability, branding and monthly profit — 2026-09-22
+# User feedback in Admin and trial win-back — 2026-09-22
 
 ## Goal
 
-Make the admin first render deterministic and Russian, show real active-trial
-counts, use the owner-provided ArcVPN mark as a native SVG, and keep every
-admin route dark without offering a light-theme toggle. Add an operator-facing
-monthly profit report with accrual revenue and editable operating expenses.
+Return lifecycle questionnaire answers in the existing protected user-detail API
+and show them in a compact dedicated «Ответы» tab in Client 360. Prepare, but do
+not send or enable, a segmented trial-to-paid win-back offer.
 
 ## Visible contract
 
 | Surface | Required behavior |
 | --- | --- |
-| First render | Admin navigation never renders raw keys such as `admin.groups.analytics`; the Russian fallback bundle is ready before React mounts. |
-| Brand | Desktop and mobile admin headers show the white ArcVPN vector mark matching `arcLOGO_NEW22.webp`, not the fallback `A`. |
-| Trial statistic | `Триалы` equals distinct users with `trial_entitlements.status='active'` whose linked key is not expired. Paid/completed trials are excluded. |
-| Theme | Every `/admin` route starts and remains dark. Desktop/mobile theme buttons are absent on admin routes. Customer routes retain their existing theme behavior. |
-| Profit | `/admin/profit` allocates each successful paid subscription across its paid months, excludes trials, subtracts one-time and recurring expenses, and exposes a 12-month comparison. |
-| Expenses | Owner/finance roles can add categorized hosting, CDN, advertising or other expenses and remove them with a confirmation step and audit event. |
+| User API | `/api/admin/users/<id>` returns only that user's answered lifecycle records with event key, answer and timestamps. |
+| User card | «Ответы» shows the question, a readable Russian answer, optional free-text detail and answer time. |
+| Empty state | Users without answers get a clear compact empty state, not a blank or an error. |
+| Access | Existing `users:overview` permission remains the only read gate; no private subscription values are added. |
+| Campaign | No discount, promocode or broadcast is created or sent in this stage. |
 
 ## Components
 
-- Startup/localization: `admin_webapp/src/main.tsx`, i18n regression tests.
-- Brand: new native SVG component plus desktop/mobile admin header consumers.
-- Theme: `index.html`, `useTheme`, desktop and mobile header controls.
-- Data: `database/db_statistics.py`, ArcVPN dashboard adapter and focused tests.
-- Profit: existing `service_expenses`, enhanced `/api/admin/expenses`, new
-  `AdminProfit` route, navigation entry, monthly chart and calculation tests.
+- Backend: `subscription_api.py` user-detail response.
+- Frontend: `admin_webapp/src/api/adminUsers.ts`, user-detail page and a new
+  answers tab component.
+- Verification: focused backend/frontend tests, TypeScript and production
+  build. Browser QA is explicitly delegated to the owner for this release.
 
 ## Acceptance
 
-- Cold-cache test proves React mounts only after `i18nReady` and translated Russian labels render.
-- Dashboard/backend tests prove non-zero active trial counts and exclude completed trials.
-- Browser evidence shows the SVG mark, Russian labels, non-zero trials, dark styling and no theme toggle.
-- TypeScript, focused Vitest, full Python tests and production build pass.
-- A 400 ₽ four-month payment contributes exactly 100 ₽ to each covered month; recurring and one-time expenses apply to the correct months.
-- Production service remains active; public admin HTML and bundle return 200.
+- Trial rating and expired win-back answers map to readable Russian text.
+- Free-form detail after an answer code remains visible.
+- Records from a different user never appear in the response.
+- Existing databases without the optional lifecycle table return an empty list.
+- Focused tests, TypeScript and production build pass.
+- If released, production pulls with `--ff-only`, only the subscription service
+  is restarted, the service is active, and HTTP/API smoke checks pass.
 
 ## Risks and rollback
 
-- Locale readiness retains its bounded timeout.
-- Trial stats add one indexed aggregate to overview.
-- Theme forcing is scoped to `/admin`.
+- Read-only query only; it does not alter lifecycle answers or bot behavior.
+- Unknown future answer codes fall back to the stored value rather than vanish.
 - Rollback is a Git revert, admin rebuild and subscription-service restart.
-
-## Release evidence
-
-- Commit: `3ac044c`; pushed to `main` and pulled with `--ff-only` on `pl-control`.
-- Backend: 210 tests passed; focused profit/trial checks passed after final rebase.
-- Frontend: type-check, production build and 10 focused i18n/dashboard tests passed.
-- Browser: mobile admin and profit route verified locally; production login is
-  dark, Russian and shows the SVG logo.
-- Production: service active, overview reports trial 3 / paid 14, admin HTML and
-  new bundle return 200, unauthenticated expenses request returns 403.
-- Rollback: revert `3ac044c`, pull and restart only `arcvpn-subscription.service`.

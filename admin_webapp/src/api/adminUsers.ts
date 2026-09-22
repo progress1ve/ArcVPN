@@ -123,6 +123,13 @@ export interface UserReferralInfo {
   referred_by_username: string | null;
 }
 
+export interface UserLifecycleAnswer {
+  event_key: string;
+  answer: string;
+  sent_at: string | null;
+  answered_at: string | null;
+}
+
 export interface UserDetailResponse {
   id: number;
   telegram_id: number;
@@ -158,6 +165,7 @@ export interface UserDetailResponse {
   promo_offer_discount_source: string | null;
   promo_offer_discount_expires_at: string | null;
   recent_transactions: UserTransactionItem[];
+  lifecycle_answers: UserLifecycleAnswer[];
   remnawave_id: number | null;
 }
 

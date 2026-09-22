@@ -5225,6 +5225,17 @@ def api_admin_user_detail(telegram_id: int):
             "earned_days": sum(int(item.get("reward_days") or 0) for item in referral_friends),
             "friends": referral_friends,
         }
+        lifecycle_answers = []
+        has_lifecycle_events = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='lifecycle_events'"
+        ).fetchone()
+        if has_lifecycle_events:
+            lifecycle_answers = [dict(row) for row in conn.execute("""
+                SELECT event_key,answer,sent_at,answered_at
+                FROM lifecycle_events
+                WHERE user_id=? AND answer IS NOT NULL AND trim(answer)!=''
+                ORDER BY COALESCE(answered_at,sent_at) DESC,id DESC
+            """, (user_id,)).fetchall()]
         timeline = []
         for item in subscriptions:
             timeline.append({"kind": "subscription", "at": item.get("created_at"), "title": "Подписка создана", "detail": item.get("tariff_name") or item.get("custom_name") or f"Подписка #{item['id']}"})
@@ -5263,7 +5274,7 @@ def api_admin_user_detail(telegram_id: int):
     return _api_no_store(jsonify({
         "ok": True, "user": user_payload, "subscriptions": subscriptions,
         "payments": payments, "devices": devices, "referrals": referral_summary,
-        "timeline": timeline,
+        "timeline": timeline, "lifecycle_answers": lifecycle_answers,
     }))
 
 

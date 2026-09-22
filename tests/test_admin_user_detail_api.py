@@ -57,6 +57,10 @@ def detail_db(monkeypatch):
         CREATE TABLE trial_entitlements (
           user_id INTEGER PRIMARY KEY, tariff_id INTEGER, status TEXT, vpn_key_id INTEGER
         );
+        CREATE TABLE lifecycle_events (
+          id INTEGER PRIMARY KEY, user_id INTEGER, event_key TEXT, answer TEXT,
+          sent_at TEXT, answered_at TEXT
+        );
         CREATE TABLE ad_campaigns (
           id INTEGER PRIMARY KEY, name TEXT, code TEXT, entry_bonus_days INTEGER DEFAULT 0,
           payment_bonus_days INTEGER DEFAULT 0, is_active INTEGER DEFAULT 1,
@@ -88,6 +92,11 @@ def detail_db(monkeypatch):
           (10,1,'Primary',datetime('now','+10 days'),'2026-08-01',1024,2048,1,'2026-08-10',NULL,1,1),
           (11,2,'Trial',datetime('now','+5 days'),'2026-08-02',0,2048,0,NULL,NULL,1,1);
         INSERT INTO trial_entitlements VALUES (2,1,'active',11);
+        INSERT INTO lifecycle_events VALUES
+          (1,1,'trial_day1_rating','service: Не открывался YouTube','2026-08-07','2026-08-07 12:05:00'),
+          (2,1,'expired_winback','expensive','2026-08-08','2026-08-08 12:05:00'),
+          (3,2,'trial_day1_rating','great','2026-08-09','2026-08-09 12:05:00'),
+          (4,1,'trial_day1_rating',NULL,'2026-08-10',NULL);
         INSERT INTO ad_campaigns VALUES (1,'Telegram','telegram_sep',0,0,1,'2026-08-01',NULL);
         INSERT INTO user_campaign_attribution VALUES (2,1,'2026-08-02');
         INSERT INTO user_devices VALUES
@@ -119,6 +128,10 @@ def test_user_detail_exposes_purchases_and_deduplicated_direct_referrals(
     payload = response.get_json()
     assert payload["payments"][0]["order_id"] == "owner-order"
     assert payload["payments"][0]["amount_rub"] == 299
+    assert [item["answer"] for item in payload["lifecycle_answers"]] == [
+        "expensive",
+        "service: Не открывался YouTube",
+    ]
     assert payload["referrals"]["invited_count"] == 2
     assert payload["referrals"]["paid_count"] == 0
     assert payload["referrals"]["earned_days"] == 17
@@ -154,6 +167,15 @@ def test_referral_network_returns_real_deduplicated_edges(client, detail_db):
     assert friend["subscription_status"] == "trial_active"
     assert payload["campaigns"][0]["name"] == "Telegram"
     assert {"source": "campaign_1", "target": "user_2", "type": "campaign"} in payload["edges"]
+
+
+def test_user_detail_tolerates_database_without_lifecycle_events(client, detail_db):
+    detail_db.execute("DROP TABLE lifecycle_events")
+
+    response = client.get("/api/admin/users/700001")
+
+    assert response.status_code == 200
+    assert response.get_json()["lifecycle_answers"] == []
 
 
 def test_admin_operational_registries_use_live_database(client, detail_db):

@@ -238,6 +238,20 @@ const mockDetail = (telegramId: number): Json => ({
       last_seen_at: '2026-09-13T18:15:00Z',
     },
   ],
+  lifecycle_answers: [
+    {
+      event_key: 'trial_day1_rating',
+      answer: 'service: Не открывался YouTube',
+      sent_at: '2026-09-19T12:00:00Z',
+      answered_at: '2026-09-19T12:05:00Z',
+    },
+    {
+      event_key: 'expired_winback',
+      answer: 'expensive',
+      sent_at: '2026-09-21T12:00:00Z',
+      answered_at: '2026-09-21T12:03:00Z',
+    },
+  ],
   referrals: {
     invited_count: 4,
     paid_count: 2,
@@ -680,6 +694,7 @@ export async function userDetail(telegramId: number): Promise<Json> {
       is_completed: ['paid', 'succeeded'].includes(p.status),
       created_at: p.paid_at,
     })),
+    lifecycle_answers: data.lifecycle_answers || [],
     remnawave_id: null,
   };
 }
