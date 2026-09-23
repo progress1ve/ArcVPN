@@ -163,3 +163,8 @@
 - Observe one new real referred signup through first device connection and
   confirm the single reward/audit row in production; automated idempotency and
   ordering tests already pass.
+# INCY icon and lifecycle automation follow-up — 2026-09-23
+
+- Customer device list now has a transparent inline SVG `INCY` wordmark inheriting the existing blue icon color; it is shown only for `device.browser === 'incy'`. Unknown clients remain unknown.
+- Existing lifecycle scheduler sends day-1 feedback, expired-winback survey, and a 20% connected-trial offer with one reminder. New campaign ideas and a deduplicated queue/permission/frequency contract are in `docs/roadmaps/automated-lifecycle-messaging.md`; no new campaign has been enabled.
+- Owner requested no browser-based deployment check; use local build, service and public HTTP checks, and let the owner visually inspect the cabinet.

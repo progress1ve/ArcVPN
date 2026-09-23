@@ -16,6 +16,13 @@
   import fails. Residual: app-side refreshed profile list is not remotely
   observable; owner should refresh and confirm the row appears.
 
+## Follow-up: INCY identity and automated conversion
+
+- Replace the provisional `I` device mark with a transparent SVG `INCY` wordmark in the existing device-icon blue. Only devices positively identified as INCY receive it; unknown clients are not guessed.
+- Preserve existing lifecycle campaigns while specifying a single, deduplicated automated messaging policy with eligibility, frequency limits, stop conditions, and measurement.
+- New outbound campaigns remain disabled until the owner chooses the initial journeys and approves their copy. No campaign is sent as part of the icon release.
+- Verify the WebApp build and diff; browser visual acceptance remains with the owner per their instruction.
+
 ## Previous stage
 
 ## Goal

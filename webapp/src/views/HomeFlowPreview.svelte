@@ -11,6 +11,7 @@
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
+  import IncyIcon from '../components/IncyIcon.svelte'
 
   loadStatus()
   loadTariffs()
@@ -1430,7 +1431,7 @@
               {#if registeredDevices.length}
                 {#each registeredDevices as device}
                   <article class="registered-device">
-                    <i>{#if device.browser === 'incy'}<strong class="device-app-mark">I</strong>{:else}<DeviceIcon name={deviceIcon(device.platform)} size={25} />{/if}</i>
+                    <i>{#if device.browser === 'incy'}<IncyIcon />{:else}<DeviceIcon name={deviceIcon(device.platform)} size={25} />{/if}</i>
                     <span>
                       {#if editingDeviceId === device.id}
                         <input class="device-name-input" maxlength="60" bind:value={deviceNameDraft} on:keydown={(event) => event.key === 'Enter' && saveDeviceName(device.id)} />
