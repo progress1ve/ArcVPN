@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import subscription_api as api
-from subscription_api import _happ_add_url, _happ_subscription_target
+from subscription_api import _happ_add_url, _happ_subscription_target, _normalize_output_format
 from subscription_pages import render_silent_import_page, render_silent_incy_import_page
 
 
@@ -30,6 +30,25 @@ def test_browser_import_bridge_has_no_provider_id():
 
     assert response.status_code == 200
     assert b"providerid" not in response.data.lower()
+
+
+def test_happ_import_redirect_keeps_composite_autoselect_format():
+    sub_id = "master_subscription_123"
+    client = api.app.test_client()
+
+    happ = client.get(f"/import/{sub_id}", headers={"User-Agent": "Happ/2.9"})
+    hiddify = client.get(f"/import/{sub_id}", headers={"User-Agent": "Hiddify/2.0"})
+
+    assert happ.status_code == 302
+    assert happ.headers["Location"].endswith(f"/sub/{sub_id}?format=json")
+    assert hiddify.status_code == 302
+    assert hiddify.headers["Location"].endswith(f"/sub/{sub_id}?format=plain")
+
+
+def test_existing_happ_plain_subscription_refreshes_as_json():
+    assert _normalize_output_format("plain", "happ") == "json"
+    assert _normalize_output_format("plain", "hiddify") == "plain"
+    assert _normalize_output_format("plain", "generic") == "plain"
 
 
 def test_device_scoped_import_url_has_no_provider_id():

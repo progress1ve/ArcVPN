@@ -1144,6 +1144,11 @@ def _normalize_output_format(raw_format: str, client_family: str) -> str:
             return "plain"
         return "base64"
     output_format = output_format.partition("?")[0].partition("&")[0].strip()
+    # Older Happ imports used /import's explicit format=plain redirect. A
+    # plain share-link list cannot carry the composite AutoSelect profile, so
+    # upgrade only Happ requests in place when that old URL refreshes.
+    if client_family == "happ" and output_format == "plain":
+        return "json"
     return output_format
 
 
@@ -3033,7 +3038,7 @@ def import_to_happ(sub_id: str):
     client_family = _detect_client_family(request.headers.get("User-Agent", ""))
 
     if client_family != "generic":
-        output_format = "plain" if client_family in {"happ", "hiddify"} else "base64"
+        output_format = "json" if client_family == "happ" else "plain" if client_family == "hiddify" else "base64"
         subscription_url = f"{SUBSCRIPTION_URL}/sub/{sub_id}?format={output_format}"
         return redirect(subscription_url)
 

@@ -68,3 +68,22 @@ and investigate LTE usage plus ambiguous client devices before changing accounti
   5 GB counted; no traffic cap fix or data mutation was necessary.
 - Outstanding: source of any existing generic GET-created slot cannot be
   identified from protocol traffic alone. No existing slot was revoked.
+
+## 2026-09-23 Happ AutoSelect import repair
+
+- Goal: restore the existing `Автовыбор | Самый быстрый` profile for Happ
+  subscriptions imported through `/import/<sub_id>`.
+- Current state: normal JSON subscriptions contain AutoSelect; the Happ
+  User-Agent branch of the import endpoint redirects to `format=plain`, which
+  cannot represent the composite AutoSelect profile.
+- Desired state: that redirect selects `format=json`; existing Happ links with
+  explicit `format=plain` refresh as JSON. Hiddify remains plain and other
+  clients retain their prior formats. URLs, UUIDs, node topology and active
+  authorization are unchanged.
+- Affected path: Happ → `/import/<sub_id>` → `/sub/<sub_id>?format=json` →
+  AutoSelect JSON profile with Germany/Estonia main routes and existing CDN
+  fallback. Rollback: revert this redirect change and restart only the
+  subscription service.
+- Acceptance: focused redirect regression and real production subscription
+  generation show AutoSelect first; service stays active. If a specific device
+  returns a limit/revoked profile, diagnose its access state separately.
