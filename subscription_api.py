@@ -1133,12 +1133,12 @@ def _prepare_headers_only_subscription(
 def _normalize_output_format(raw_format: str, client_family: str) -> str:
     output_format = raw_format.strip().lower()
     if not output_format:
-        # Happ understands our JSON array of full Xray profiles.  The first
+        # Happ and INCY understand our JSON array of full Xray profiles. The first
         # profile in that array is the real least-load auto selector; a plain
         # subscription can only contain independent share links and therefore
         # cannot expose a separate "Автовыбор" row.  Keep Hiddify on plain,
         # because it expects URI rows rather than Happ profile JSON.
-        if client_family in {"happ", "generic"}:
+        if client_family in {"happ", "incy", "generic"}:
             return "json"
         if client_family == "hiddify":
             return "plain"

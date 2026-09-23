@@ -51,6 +51,11 @@ def test_existing_happ_plain_subscription_refreshes_as_json():
     assert _normalize_output_format("plain", "generic") == "plain"
 
 
+def test_incy_default_subscription_includes_full_autoselect_profile():
+    assert _normalize_output_format("", "incy") == "json"
+    assert _normalize_output_format("", "hiddify") == "plain"
+
+
 def test_device_scoped_import_url_has_no_provider_id():
     sub_id = "master_subscription_123"
     device_sub_id = "device_subscription_456"
