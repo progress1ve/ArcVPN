@@ -728,7 +728,7 @@
     purchaseCustom = true
     customMonths = Number(selectedPlan?.period_months || 3)
     customDevices = Number(selectedPlan?.device_limit || 3)
-    customLteGb = [0, 15, 30, 45, 75, 115].includes(Number(selectedPlan?.lte_quota_gb))
+    customLteGb = [0, 15, 30, 45, 75, 115, 175, 225].includes(Number(selectedPlan?.lte_quota_gb))
       ? Number(selectedPlan?.lte_quota_gb) : 45
     clearCustomQuote()
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1055,7 +1055,7 @@
             {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
               <button class:active={addonLteGb===pack[0]} aria-pressed={addonLteGb===pack[0]} disabled={Boolean(addonBusy)} on:click={() => addonLteGb=addonLteGb===pack[0]?0:pack[0]}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
             {/each}
-          </div></section>
+          </div><small>Докупленные ГБ действуют до следующего сброса трафика.</small></section>
           <section class="addon-block"><h2>Устройства</h2><div class="device-stepper"><button aria-label="Уменьшить количество устройств" disabled={addonDevices<=0||Boolean(addonBusy)} on:click={() => addonDevices--}>−</button><strong>{addonDevices}</strong><button aria-label="Увеличить количество устройств" disabled={addonDevices>=addonDeviceMax||Boolean(addonBusy)} on:click={() => addonDevices++}>+</button></div><small>25 ₽ за устройство · максимум 15 устройств в подписке.</small></section>
           <section class="purchase-total"><div class="total-row"><span>Выбрано</span><small>{addonLteGb ? `${addonLteGb} ГБ` : 'без трафика'} · {addonDevices} устр.</small></div><button disabled={!addonTotalRub||Boolean(addonBusy)} on:click={addonPurchaseAction}><span>{paymentState==='awaiting'?'Открыть оплату снова':'Выбрать способ оплаты'}</span><strong>{rub(addonTotalRub)}</strong></button></section>
           {#if paymentMessage}<p class="purchase-error" role="status">{paymentMessage}</p>{/if}
@@ -1092,7 +1092,7 @@
               <div class="custom-control">
                 <header><span>Обход глушилок</span><strong>{customLteGb ? `${customLteGb} ГБ` : 'Не нужен'}</strong></header>
                 <div class="custom-options traffic" role="group" aria-label="Трафик обхода глушилок">
-                  {#each [0,15,30,45,75,115] as gb}<button class:active={customLteGb===gb} aria-pressed={customLteGb===gb} on:click={() => setCustomLte(gb)}>{gb ? `${gb} ГБ` : '0 ГБ'}</button>{/each}
+                  {#each [0,15,30,45,75,115,175,225] as gb}<button class:active={customLteGb===gb} aria-pressed={customLteGb===gb} on:click={() => setCustomLte(gb)}>{gb ? `${gb} ГБ` : '0 ГБ'}</button>{/each}
                 </div>
                 <small>Основной трафик остаётся безлимитным на любом варианте.</small>
               </div>

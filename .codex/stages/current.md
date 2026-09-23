@@ -14,6 +14,7 @@ and investigate LTE usage plus ambiguous client devices before changing accounti
 | Meaning | `speed` means the user selected «Низкая скорость» when asked what to improve. A later purchase does not change the historical answer. |
 | Win-back | Target only connected, expired trial users without a successful commercial payment; offer a one-use 20% reduction on a 3-month first purchase for 48 hours, with one follow-up at most and immediate stop after payment. Existing lifecycle exclusions and eligibility date apply. |
 | LTE | Compare local and panel usage, effective allowance, add-on balance and provisioning; correct only a demonstrated mismatch with regression coverage. |
+| Add-on and custom tariff | Disclose that purchased bypass GB expire at the next traffic reset. Permit 175 and 225 GB custom bypass tiers consistently in the public builder, WebApp, server quote and payment validation. |
 | Devices | Do not label an unidentified client as Happ. Show INCY only when an actual client identifier proves it; ambiguous `generic` entries remain clearly unidentified and HEAD checks do not create slots. A real direct GET can still reserve a recovery slot by design. |
 
 ## Components
@@ -36,6 +37,7 @@ and investigate LTE usage plus ambiguous client devices before changing accounti
 - Unknown client remains unknown; known INCY renders as INCY; HEAD creates no slot.
 - Relevant tests, TypeScript and build pass. Production rollout follows the
   repository pull/restart/HTTP checks without browser automation.
+- 175/225 GB quote prices remain monotonic, and the add-on expiry note appears beside the GB choices.
 
 ## Risks and rollback
 

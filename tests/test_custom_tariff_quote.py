@@ -54,7 +54,7 @@ def test_custom_quote_is_monotonic_for_supported_choices():
 
 @pytest.mark.parametrize("months", [1, 3, 6, 12])
 def test_custom_quote_matrix_has_no_price_inversions(months):
-    lte_choices = [0, 15, 30, 45, 75, 115]
+    lte_choices = [0, 15, 30, 45, 75, 115, 175, 225]
     for devices in range(1, 16):
         prices = [api._custom_tariff_quote({"period_months": months}, devices, gb, CATALOG)["price_rub"] for gb in lte_choices]
         assert prices == sorted(prices)
