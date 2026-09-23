@@ -1,4 +1,20 @@
-# ArcVPN handoff — Happ AutoSelect import restored
+# ArcVPN handoff — INCY AutoSelect restored
+
+## 2026-09-23 INCY subscription fix
+
+- Release `9ce4d3b` is deployed on `pl-control`; only the subscription service
+  was restarted and is active.
+- INCY's default `/sub/<id>` request now receives the full JSON profiles,
+  including the composite AutoSelect profile. Happ remains JSON, Hiddify remains
+  plain, and subscription URLs, user UUIDs and node topology are unchanged.
+- Production check with the reported subscription and INCY User-Agent: HTTP 200,
+  JSON, 13 profiles, AutoSelect first with a routing balancer. Focused production
+  tests: 13 passed.
+- Owner should refresh the existing subscription in INCY. If the profile is
+  still absent, inspect its imported subscription cache/profile visibility in
+  the app; do not change node routing based on that symptom alone.
+
+## Previous state
 
 ## 2026-09-23 current production
 

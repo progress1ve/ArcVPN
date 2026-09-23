@@ -1,5 +1,23 @@
 # Trial feedback, conversion and client usage — 2026-09-23
 
+## INCY AutoSelect correction — 2026-09-23
+
+- Acceptance: the reported INCY subscription exposes AutoSelect first without
+  changing its URL, user access, Hiddify output or node routing. Passed on the
+  public endpoint: HTTP 200, JSON, 13 profiles, first profile AutoSelect with
+  a balancer.
+- Cause: INCY defaulted to base64 share links, which cannot contain a composite
+  Xray balancer profile. Only its default format now resolves to JSON.
+- Release: `9ce4d3b` pushed to `main`, pulled fast-forward on `pl-control`, and
+  only `arcvpn-subscription.service` restarted. Service active; 13 focused tests
+  passed in production. Local pytest was unavailable due to absent private
+  `config.py`; the production environment supplied it.
+- Rollback: revert `9ce4d3b` and restart the subscription service if INCY JSON
+  import fails. Residual: app-side refreshed profile list is not remotely
+  observable; owner should refresh and confirm the row appears.
+
+## Previous stage
+
 ## Goal
 
 Add a standalone admin feedback overview with response statistics and user drill-down.
