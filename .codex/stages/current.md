@@ -22,6 +22,7 @@
 - Preserve existing lifecycle campaigns while specifying a single, deduplicated automated messaging policy with eligibility, frequency limits, stop conditions, and measurement.
 - New outbound campaigns remain disabled until the owner chooses the initial journeys and approves their copy. No campaign is sent as part of the icon release.
 - Verify the WebApp build and diff; browser visual acceptance remains with the owner per their instruction.
+- Outcome: `c1f0e7f` deployed on `pl-control`; WebApp build passed (existing unused-CSS warnings), subscription service active, `/app/` and the new `/app/assets/App-B4lS35NJ.js` return HTTP 200. No browser QA per owner request. New outbound campaigns remain disabled; implementation awaits approval of the first journeys and copy.
 
 ## Previous stage
 
