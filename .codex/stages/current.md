@@ -55,3 +55,16 @@ and investigate LTE usage plus ambiguous client devices before changing accounti
 | Feedback | API/filter test, React type-check/build | Auth gate and aggregate/API smoke |
 | Win-back | eligibility, discount and idempotency tests | Bot status and bounded journal |
 | LTE/devices | regression tests and read-only accounting audit | Panel/local consistency and service health |
+
+## Outcome
+
+- Released `46f5344` and `0b0df96` to production; schema v66. Backup created
+  before migration and passed SQLite `quick_check`.
+- 214 backend tests passed; admin type-check/build and WebApp build passed.
+- Public admin/WebApp plus both referenced bundles return 200; feedback without
+  authentication returns 403. Bot and subscription services active. Browser QA
+  omitted per owner request.
+- LTE reported account has effective 50 GB in local DB and Remnawave and over
+  5 GB counted; no traffic cap fix or data mutation was necessary.
+- Outstanding: source of any existing generic GET-created slot cannot be
+  identified from protocol traffic alone. No existing slot was revoked.

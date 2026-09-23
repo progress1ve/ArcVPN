@@ -1,4 +1,38 @@
-# ArcVPN handoff — user feedback in Admin
+# ArcVPN handoff — feedback, trial conversion and bypass choices
+
+## Current production state — 2026-09-23
+
+- Production is `0b0df96` on Poland control plane; database schema v66,
+  `arcvpn-subscription.service` and `arcvpn-bot.service` active.
+- `/admin/feedback` now shows aggregate trial/win-back answer categories,
+  response counts, payment-history filter and links to users. The old per-user
+  tab remains for drill-down. `speed` is the complaint «Низкая скорость».
+- Connected expired trial users without commercial payment are split by user
+  parity: one cohort receives a one-use 20% offer for a 3-month tariff for 48h
+  and at most one reminder; the other keeps the existing survey. Eligibility
+  and discount are checked server-side. Production eligible audience was zero
+  immediately before rollout.
+- 175 and 225 GB bypass choices are available in public/WebApp custom builders
+  and server quote validation. Add-on GB screen says they last until the next
+  traffic reset. Main traffic remains unlimited.
+- A `HEAD` subscription check no longer reserves a direct-import device slot.
+  INCY is labelled only when the request identifies it; unknown stays unknown.
+  Existing generic slots were not removed.
+- For the reported add-on account, local and Remnawave both showed an active
+  50 GB allowance and just over 5 GB used, so no 5 GB cap or counter repair was
+  justified.
+- Full backend suite: 214 passed (one old deprecation warning); WebApp and
+  admin builds and admin TypeScript passed. Public admin/WebApp plus referenced
+  assets return 200; unauthenticated feedback returns 403. Browser QA remains
+  with the owner by request.
+
+## Next step
+
+- Owner checks the new answer dashboard and custom-tier/add-on presentation on
+  phone. Capture a real INCY import User-Agent if it still appears as generic;
+  do not infer the app from a VPN connection or delete an unknown slot.
+
+## Previous release
 
 ## Current production state — 2026-09-23
 

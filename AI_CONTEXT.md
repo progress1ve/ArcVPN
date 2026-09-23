@@ -1,5 +1,22 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## Trial conversion, feedback and bypass add-ons (2026-09-23)
+
+- Admin answer dashboard is `/admin/feedback` backed by protected
+  `/api/admin/feedback`; `lifecycle_rating:speed` originates from the complaint
+  button «Низкая скорость», even if the user later pays.
+- Migration v66 adds `trial_winback_offers`. An account-bound 20% offer for a
+  3-month paid tariff lasts 48 hours for connected expired trial users with no
+  commercial payment. The scheduler uses even user IDs as the offer cohort and
+  sends at most one reminder; the other cohort keeps the survey. Payment quote
+  and checkout recheck eligibility server-side.
+- Custom bypass choices include 175/225 GB in public and WebApp builders and
+  `CUSTOM_LTE_CHOICES_GB`; pricing extrapolates the existing family anchor and
+  remains monotonic. Add-on GB expire at the next traffic-cycle reset.
+- Subscription `HEAD` requests must never create a direct-import device slot.
+  Detect INCY only with an explicit client marker; leave generic app unknown.
+  A real direct GET can still reserve a recovery slot by design.
+
 ## Admin reliability and monthly profit (2026-09-22)
 
 - `/admin` waits for `i18nReady` before mounting, is dark-only, and uses the
