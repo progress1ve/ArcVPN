@@ -162,6 +162,7 @@ const sections: AdminSection[] = [
     gradient: 'linear-gradient(135deg, rgb(var(--color-accent-400)), rgb(var(--color-error-400)))',
     items: [
       { name: 'admin.nav.users', icon: 'users', to: '/admin/users', permission: 'users:read' },
+      { name: 'Ответы', icon: 'file-text', to: '/admin/feedback', permission: 'users:read' },
       {
         name: 'admin.nav.bulkActions',
         icon: 'list-checks',

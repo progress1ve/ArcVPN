@@ -5,6 +5,10 @@
   export let size = 26
 
   const ICONS = {
+    unknown: {
+      vb: '0 0 24 24',
+      d: 'M4 4h16v12H4V4zm2 2v8h12V6H6zm-3 12h18v2H3v-2z',
+    },
     happ: {
       vb: '0 0 24 24',
       d: 'M7.1 2h5.1l-1.45 7.1h3.3L15.5 2h5.1l-4.1 20h-5.1l1.58-7.75h-3.3L8.1 22H3z',

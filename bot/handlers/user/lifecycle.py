@@ -1,7 +1,7 @@
 """Feedback and win-back callbacks for lifecycle messages."""
 
 from aiogram import F, Router
-from aiogram.types import CallbackQuery, ForceReply, Message
+from aiogram.types import CallbackQuery, ForceReply, Message, InlineKeyboardButton, InlineKeyboardMarkup
 
 from database.connection import get_db
 from database.db_keys import extend_vpn_key
@@ -117,6 +117,19 @@ async def lifecycle_winback(callback: CallbackQuery):
             "Напишите, пожалуйста, название VPN, которым вы пользуетесь, и почему решили выбрать его.",
             reply_markup=ForceReply(input_field_placeholder="Название VPN и причина выбора"),
         )
+
+
+@router.callback_query(F.data == "lifecycle_offer:reason")
+async def lifecycle_offer_reason(callback: CallbackQuery):
+    """Open the existing reason survey from a trial conversion offer."""
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="💸 Дорого", callback_data="lifecycle_winback:expensive")],
+        [InlineKeyboardButton(text="📉 Плохо работало", callback_data="lifecycle_winback:quality")],
+        [InlineKeyboardButton(text="🔄 Пользуюсь другим VPN", callback_data="lifecycle_winback:competitor")],
+        [InlineKeyboardButton(text="💬 Другое", callback_data="lifecycle_winback:other")],
+    ])
+    await callback.answer()
+    await callback.message.edit_reply_markup(reply_markup=kb)
 
 
 @router.message(F.reply_to_message.text.contains("название VPN"))

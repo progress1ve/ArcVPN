@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 65
+LATEST_VERSION = 66
 
 
 def get_current_version() -> int:
@@ -2524,6 +2524,21 @@ def migration_65(conn: sqlite3.Connection) -> None:
     logger.info("Migration v65 applied; completed %s converted trials", cursor.rowcount)
 
 
+def migration_66(conn: sqlite3.Connection) -> None:
+    """Track one personal trial offer and its checkout independently of surveys."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS trial_winback_offers (
+            user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            sent_at DATETIME,
+            reminder_sent_at DATETIME,
+            claimed_order_id TEXT UNIQUE
+        );
+        CREATE INDEX IF NOT EXISTS idx_trial_winback_offers_sent
+            ON trial_winback_offers(sent_at,reminder_sent_at);
+    """)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2590,6 +2605,7 @@ MIGRATIONS = {
     63: migration_63,
     64: migration_64,
     65: migration_65,
+    66: migration_66,
 }
 
 

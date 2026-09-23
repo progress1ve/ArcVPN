@@ -16,10 +16,12 @@ def _connection():
             id INTEGER PRIMARY KEY, telegram_id INTEGER NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP
         );
         CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT);
-        CREATE TABLE vpn_keys (id INTEGER PRIMARY KEY, user_id INTEGER, expires_at TEXT);
+        CREATE TABLE vpn_keys (id INTEGER PRIMARY KEY, user_id INTEGER, expires_at TEXT, last_online_at TEXT);
         CREATE TABLE trial_entitlements (
-            user_id INTEGER PRIMARY KEY, status TEXT NOT NULL, activated_at TEXT
+            user_id INTEGER PRIMARY KEY, vpn_key_id INTEGER, status TEXT NOT NULL, activated_at TEXT
         );
+        CREATE TABLE payments (user_id INTEGER, status TEXT, payment_type TEXT, operation_type TEXT, offer_code TEXT);
+        CREATE TABLE trial_winback_offers (user_id INTEGER PRIMARY KEY, sent_at TEXT, reminder_sent_at TEXT, claimed_order_id TEXT);
         CREATE TABLE lifecycle_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, event_key TEXT NOT NULL,
             answer TEXT, sent_at TEXT DEFAULT CURRENT_TIMESTAMP, answered_at TEXT,
@@ -39,6 +41,9 @@ class _Bot:
 
     async def send_photo(self, telegram_id, photo, caption, reply_markup):
         self.sent.append((telegram_id, caption, reply_markup))
+
+    async def send_message(self, telegram_id, text, reply_markup):
+        self.sent.append((telegram_id, text, reply_markup))
 
 
 def test_trial_rating_is_sent_once_after_24_hours(monkeypatch):
@@ -62,6 +67,31 @@ def test_trial_rating_is_sent_once_after_24_hours(monkeypatch):
     event = conn.execute("SELECT event_key FROM lifecycle_events WHERE user_id=1").fetchone()
     assert event["event_key"] == "trial_day1_rating"
     assert conn.execute("SELECT COUNT(*) FROM lifecycle_events WHERE user_id=2").fetchone()[0] == 0
+
+
+def test_connected_expired_trial_gets_one_offer_not_generic_winback(monkeypatch):
+    conn = _connection()
+    conn.executescript("""
+        INSERT INTO users(id,telegram_id) VALUES (4,1004);
+        INSERT INTO vpn_keys(id,user_id,expires_at,last_online_at)
+        VALUES (44,4,datetime('now','-3 days'),datetime('now','-4 days'));
+        INSERT INTO trial_entitlements(user_id,vpn_key_id,status,activated_at)
+        VALUES (4,44,'active',datetime('now','-10 days'));
+    """)
+
+    @contextmanager
+    def fake_db():
+        yield conn
+        conn.commit()
+
+    monkeypatch.setattr(database.connection, "get_db", fake_db)
+    bot = _Bot()
+    asyncio.run(_send_lifecycle_batch(bot))
+    asyncio.run(_send_lifecycle_batch(bot))
+    offers = [item for item in bot.sent if item[0] == 1004 and "скидкой 20%" in item[1]]
+    assert len(offers) == 1
+    assert "скидкой 20%" in offers[0][1]
+    assert conn.execute("SELECT sent_at FROM trial_winback_offers WHERE user_id=4").fetchone()[0]
 
 
 def test_rating_callback_accepts_current_and_legacy_events(monkeypatch):

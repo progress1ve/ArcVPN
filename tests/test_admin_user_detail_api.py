@@ -178,6 +178,20 @@ def test_user_detail_tolerates_database_without_lifecycle_events(client, detail_
     assert response.get_json()["lifecycle_answers"] == []
 
 
+def test_feedback_overview_counts_answers_and_keeps_paid_status_separate(client, detail_db):
+    response = client.get("/api/admin/feedback?event=trial&answer=service&paid=yes")
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["total"] == 1
+    assert payload["items"][0]["answer"] == "service: Не открывался YouTube"
+    assert payload["items"][0]["has_paid"] == 1
+    assert all(item["telegram_id"] == 700001 for item in payload["items"])
+    assert {tuple((row["event"], row["answer"], row["count"])) for row in payload["summary"]} >= {
+        ("trial", "service", 1), ("trial", "great", 1), ("winback", "expensive", 1)
+    }
+    assert client.get("/api/admin/feedback?answer=no_such_answer").status_code == 400
+
+
 def test_admin_operational_registries_use_live_database(client, detail_db):
     payments = client.get("/api/admin/payments?status=paid").get_json()
     assert payments["total"] == 1

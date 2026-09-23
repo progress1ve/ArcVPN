@@ -13,6 +13,7 @@ import AdminPanel from '@/pages/AdminPanel';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AdminUsers from '@/pages/AdminUsers';
 import AdminUserDetail from '@/pages/AdminUserDetail';
+import AdminFeedback from '@/pages/AdminFeedback';
 import ReferralNetwork from '@/pages/ReferralNetwork';
 import AdminPayments from '@/pages/AdminPayments';
 import AdminSalesStats from '@/pages/AdminSalesStats';
@@ -159,6 +160,7 @@ function AdminRoutes() {
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/users/:id" element={<AdminUserDetail />} />
+          <Route path="/admin/feedback" element={<AdminFeedback />} />
           <Route path="/admin/referral-network" element={<ReferralNetwork />} />
           <Route path="/admin/marketing" element={<ArcMarketing />} />
           <Route path="/admin/payments" element={<AdminPayments />} />

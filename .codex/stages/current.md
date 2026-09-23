@@ -1,52 +1,55 @@
-# User feedback in Admin and trial win-back — 2026-09-22
+# Trial feedback, conversion and client usage — 2026-09-23
 
 ## Goal
 
-Return lifecycle questionnaire answers in the existing protected user-detail API
-and show them in a compact dedicated «Ответы» tab in Client 360. Prepare, but do
-not send or enable, a segmented trial-to-paid win-back offer.
+Add a standalone admin feedback overview with response statistics and user drill-down.
+Correct trial-response semantics, implement the approved targeted win-back offer,
+and investigate LTE usage plus ambiguous client devices before changing accounting.
 
 ## Visible contract
 
 | Surface | Required behavior |
 | --- | --- |
-| User API | `/api/admin/users/<id>` returns only that user's answered lifecycle records with event key, answer and timestamps. |
-| User card | «Ответы» shows the question, a readable Russian answer, optional free-text detail and answer time. |
-| Empty state | Users without answers get a clear compact empty state, not a blank or an error. |
-| Access | Existing `users:overview` permission remains the only read gate; no private subscription values are added. |
-| Campaign | No discount, promocode or broadcast is created or sent in this stage. |
+| Admin feedback | Separate «Ответы» button in the Users group opens a dashboard of sent/answered counts, answer categories, trial-to-paid status and a filtered list linking to users. The per-user answer tab remains available for drill-down. |
+| Meaning | `speed` means the user selected «Низкая скорость» when asked what to improve. A later purchase does not change the historical answer. |
+| Win-back | Target only connected, expired trial users without a successful commercial payment; offer a one-use 20% reduction on a 3-month first purchase for 48 hours, with one follow-up at most and immediate stop after payment. Existing lifecycle exclusions and eligibility date apply. |
+| LTE | Compare local and panel usage, effective allowance, add-on balance and provisioning; correct only a demonstrated mismatch with regression coverage. |
+| Devices | Do not label an unidentified client as Happ. Show INCY only when an actual client identifier proves it; ambiguous `generic` entries remain clearly unidentified and HEAD checks do not create slots. A real direct GET can still reserve a recovery slot by design. |
 
 ## Components
 
-- Backend: `subscription_api.py` user-detail response.
-- Frontend: `admin_webapp/src/api/adminUsers.ts`, user-detail page and a new
-  answers tab component.
-- Verification: focused backend/frontend tests, TypeScript and production
-  build. Browser QA is explicitly delegated to the owner for this release.
+- Admin API and React dashboard/routes/navigation.
+- Lifecycle scheduler, callback and payment quote/promo integration.
+- LTE identity/sync/purchase path and device registration/subscription fetch path.
+- Focused tests, type-check/build, production service and HTTP checks. Browser
+  verification is delegated to the owner per instruction.
 
 ## Acceptance
 
-- Trial rating and expired win-back answers map to readable Russian text.
-- Free-form detail after an answer code remains visible.
-- Records from a different user never appear in the response.
-- Existing databases without the optional lifecycle table return an empty list.
-- Focused tests, TypeScript and production build pass.
-- If released, production pulls with `--ff-only`, only the subscription service
-  is restarted, the service is active, and HTTP/API smoke checks pass.
+- Aggregate feedback totals match underlying events and filters; categories
+  separate praise from complaints and paid status from historical response.
+- Admin links work from overview to the selected user.
+- Win-back discount cannot be reused, cannot apply to paid users, and respects
+  its expiry; no duplicate Telegram messages from scheduler retries.
+- LTE fix is based on an observed source-of-truth discrepancy and does not reset
+  existing purchased traffic.
+- Unknown client remains unknown; known INCY renders as INCY; HEAD creates no slot.
+- Relevant tests, TypeScript and build pass. Production rollout follows the
+  repository pull/restart/HTTP checks without browser automation.
 
 ## Risks and rollback
 
-- Read-only query only; it does not alter lifecycle answers or bot behavior.
-- Unknown future answer codes fall back to the stored value rather than vanish.
-- Rollback is a Git revert, admin rebuild and subscription-service restart.
+- Billing and quota logic is high impact: preserve user entitlements and
+  compare against the panel before any data correction.
+- Bot offer delivery must be idempotent. The existing 3-day feedback gift must
+  not combine into repeated discount offers.
+- Roll back runtime via Git revert and affected-service restart; retain event
+  and payment records for audit.
 
-## Release evidence
+## Verification matrix
 
-- Commit `75b78c6` was pushed to `main` and pulled with `--ff-only` on
-  `pl-control`.
-- Backend focused tests: 4 passed; frontend focused tests: 2 passed.
-- TypeScript and production build passed. Browser QA was skipped by explicit
-  owner request.
-- Production `arcvpn-subscription.service` is active; admin HTML and referenced
-  JS return 200; unauthenticated user-detail API correctly returns 403.
-- No discount, promocode or broadcast was created or sent.
+| Area | Local | Production |
+| --- | --- | --- |
+| Feedback | API/filter test, React type-check/build | Auth gate and aggregate/API smoke |
+| Win-back | eligibility, discount and idempotency tests | Bot status and bounded journal |
+| LTE/devices | regression tests and read-only accounting audit | Panel/local consistency and service health |

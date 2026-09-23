@@ -135,6 +135,7 @@
   let promoQuote = null
   let promoBusy = false
   let promoMessage = ''
+  let offerAutoApply = false
   let recurring = { enabled: false, method: null, provider_ready: false }
   let recurringBusy = false
   let recurringConfirm = false
@@ -178,6 +179,10 @@
   $: purchaseDevices = purchaseCustom ? customDevices : Number(selectedPlan?.device_limit || 2)
   $: purchaseLteGb = purchaseCustom ? customLteGb : Number(selectedPlan?.lte_quota_gb || 0)
   $: purchaseQuoteKey = `${selectedPlan?.id || 0}:${purchaseCustom ? `${purchaseDevices}:${purchaseLteGb}` : 'fixed'}`
+  $: if (offerAutoApply && !accountLoading && selectedPlan && Number(selectedPlan.period_months) === 3) {
+    offerAutoApply = false
+    queueMicrotask(() => applyPromocode())
+  }
   $: purchaseTotalRub = promoQuote && promoQuote.quote_key === purchaseQuoteKey
     ? Number(promoQuote.final_amount_rub)
     : purchaseBaseRub
@@ -353,7 +358,7 @@
     if (platform === 'ios' || platform === 'macos') return 'apple'
     if (platform === 'android') return 'android'
     if (platform === 'windows') return 'windows'
-    return 'happ'
+    return 'unknown'
   }
 
   async function openReferralQr() {
@@ -691,6 +696,7 @@
         promocode_not_found: 'Промокод не найден.', promocode_disabled: 'Промокод отключён.',
         promocode_expired: 'Срок действия промокода истёк.', promocode_exhausted: 'Промокод уже исчерпан.',
         promocode_already_used: 'Вы уже использовали этот промокод.',
+        offer_not_available: 'Персональная скидка недоступна или её срок истёк.',
       })[error.reason] || 'Промокод не удалось применить.'
       haptic('warning')
     } finally { promoBusy = false }
@@ -973,6 +979,13 @@
     const requestedScreen = pageUrl.searchParams.get('screen') || (pageUrl.hash === '#connect' ? 'connect' : '')
     const requestedProduct = pageUrl.searchParams.get('product')
     const requestedMonths = Number(pageUrl.searchParams.get('months') || 0)
+    if (pageUrl.searchParams.get('offer') === 'trial_winback') {
+      selectedProduct = 'standard'
+      requestedPlanMonths = 3
+      promoCode = 'ARCTRIAL20'
+      autoRenew = false
+      offerAutoApply = true
+    }
     if (['economy','standard','family'].includes(requestedProduct)) selectedProduct = requestedProduct
     if ([1,3,6,12].includes(requestedMonths)) {
       customMonths = requestedMonths
@@ -1417,12 +1430,12 @@
               {#if registeredDevices.length}
                 {#each registeredDevices as device}
                   <article class="registered-device">
-                    <i><DeviceIcon name={deviceIcon(device.platform)} size={25} /></i>
+                    <i>{#if device.browser === 'incy'}<strong class="device-app-mark">I</strong>{:else}<DeviceIcon name={deviceIcon(device.platform)} size={25} />{/if}</i>
                     <span>
                       {#if editingDeviceId === device.id}
                         <input class="device-name-input" maxlength="60" bind:value={deviceNameDraft} on:keydown={(event) => event.key === 'Enter' && saveDeviceName(device.id)} />
                       {:else}
-                        <b>{device.platform === 'unknown' ? 'Устройство Happ' : (device.display_name || device.model || 'Устройство')}</b>
+                        <b>{device.platform === 'unknown' ? (device.browser === 'incy' ? 'Устройство INCY' : device.browser === 'happ' ? 'Устройство Happ' : 'Приложение не определено') : (device.display_name || device.model || 'Устройство')}</b>
                       {/if}
                       <small>{[device.model && device.model !== device.display_name ? device.model : '', device.screen_size, device.browser].filter(Boolean).join(' · ') || 'Данные платформы скрыты системой'}</small>
                     </span>

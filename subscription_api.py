@@ -973,6 +973,8 @@ def _mask_email(email: str) -> str:
 
 def _detect_client_family(user_agent: str) -> str:
     agent = user_agent.lower()
+    if "incy" in agent:
+        return "incy"
     if "happ" in agent:
         return "happ"
     if "hiddify" in agent:
@@ -2862,6 +2864,10 @@ def subscription(sub_id: str, path_device_token: str = ''):
                     f"{PROFILE_TITLE} • СТАРАЯ ПОДПИСКА",
                 )
         elif subscription_requires_device_token(sub_id):
+            if request.method == "HEAD":
+                return _response_from_prepared(
+                    _prepare_headers_only_subscription(key, output_format), profile_title
+                )
             # The public subscription URL is also the recovery path when Telegram/WebApp
             # is unavailable. Reserve one deterministic managed slot for direct imports
             # instead of trapping the user in a WebApp-only bootstrap loop.
@@ -2901,7 +2907,9 @@ def subscription(sub_id: str, path_device_token: str = ''):
                     recovery_token,
                     import_platform,
                     import_model,
-                    "Устройство Happ",
+                    "Устройство INCY" if client_family == "incy" else (
+                        "Устройство Happ" if client_family == "happ" or happ_device else "Приложение не определено"
+                    ),
                     client_family,
                     "",
                 )
@@ -3791,11 +3799,18 @@ def api_create_sbp_payment():
     promocode = None
     promo_code = str(payload.get("promocode") or "").strip().upper()
     if promo_code:
-        from database.db_promocodes import is_promocode_valid, compute_discount_rub
-        valid, promo_error, promocode = is_promocode_valid(promo_code, user_id)
-        if not valid:
-            return _api_error(promo_error or "invalid_promocode", 400)
-        discount_rub = min(price_rub - 1, int(compute_discount_rub(promocode, total_rub) or 0))
+        from database.db_trial_winback import OFFER_CODE, offer_discount
+        if promo_code == OFFER_CODE:
+            if not offer_discount(user_id, tariff, custom=is_custom):
+                return _api_error("offer_not_available", 409)
+            discount_rub = min(price_rub - 1, price_rub * 20 // 100)
+            wants_recurring = False
+        else:
+            from database.db_promocodes import is_promocode_valid, compute_discount_rub
+            valid, promo_error, promocode = is_promocode_valid(promo_code, user_id)
+            if not valid:
+                return _api_error(promo_error or "invalid_promocode", 400)
+            discount_rub = min(price_rub - 1, int(compute_discount_rub(promocode, total_rub) or 0))
         total_rub = max(1, total_rub - discount_rub)
     keys = get_user_keys_for_display(telegram_id)
     key_id = keys[0].get("id") if keys else None
@@ -3804,11 +3819,21 @@ def api_create_sbp_payment():
         vpn_key_id=key_id, amount_cents=total_rub * 100,
         operation_type="renew" if key_id else "new", promocode_id=promocode.get("id") if promocode else None,
     )
+    if promo_code == "ARCTRIAL20":
+        from database.db_trial_winback import claim_offer
+        if not claim_offer(user_id, order["order_id"], discount_rub):
+            with get_db() as conn:
+                conn.execute("UPDATE payments SET status='canceled' WHERE order_id=? AND status='pending'",
+                             (order["order_id"],))
+            return _api_error("offer_not_available", 409)
     if wants_recurring:
         with get_db() as conn:
             conn.execute("UPDATE payments SET auto_renew_requested=1 WHERE order_id=?", (order["order_id"],))
     if not set_payment_requested_entitlements(order["order_id"], devices, lte_gb):
         logger.error("Не удалось сохранить add-ons заказа %s", order["order_id"])
+        if promo_code == "ARCTRIAL20":
+            from database.db_trial_winback import release_offer
+            release_offer(user_id, order["order_id"])
         return _api_error("payment_initialization_failed", 500)
     try:
         payment = ASYNC_EXECUTOR.run(create_yookassa_qr_payment(
@@ -3824,6 +3849,9 @@ def api_create_sbp_payment():
         save_yookassa_payment_id(order["order_id"], payment["yookassa_payment_id"])
     except Exception:
         logger.exception("Не удалось создать СБП-платёж для user=%s", telegram_id)
+        if promo_code == "ARCTRIAL20":
+            from database.db_trial_winback import release_offer
+            release_offer(user_id, order["order_id"])
         return _api_error("payment_provider_unavailable", 503)
     return _api_no_store(jsonify({
         "ok": True, "order_id": order["order_id"],
@@ -3853,6 +3881,9 @@ def api_yookassa_webhook():
     if event == "payment.canceled":
         if order.get("offer_code") == "email_paid_trial":
             update_email_paid_trial_claim(order["order_id"], "canceled")
+        if order.get("offer_code") == "trial_winback_20":
+            from database.db_trial_winback import release_offer
+            release_offer(int(order["user_id"]), order["order_id"])
         return jsonify({"ok": True, "status": "canceled"})
     if event != "payment.succeeded":
         return jsonify({"ok": True, "status": event.removeprefix("payment.")})
@@ -3945,6 +3976,9 @@ def api_sbp_payment_status(order_id: str):
         fulfillment_status = order.get("fulfillment_status") or "pending"
         if status == "canceled" and order.get("offer_code") == "email_paid_trial":
             update_email_paid_trial_claim(order_id, "canceled")
+        if status == "canceled" and order.get("offer_code") == "trial_winback_20":
+            from database.db_trial_winback import release_offer
+            release_offer(int(order["user_id"]), order_id)
         if status == "succeeded":
             try:
                 provider_amount_cents = int(
@@ -4389,6 +4423,18 @@ def api_validate_promocode():
         return _api_error("tariff_or_user_not_found", 404)
     if not code:
         return _api_error("promocode_required", 400)
+    from database.db_trial_winback import OFFER_CODE, offer_discount
+    if code == OFFER_CODE:
+        if not offer_discount(user_id, tariff, custom=payload.get("custom") is True):
+            return _api_error("offer_not_available", 409)
+        base_rub = int(tariff.get("price_rub") or round(int(tariff.get("price_cents") or 0) / 100))
+        discount_rub = min(max(0, base_rub - 1), base_rub * 20 // 100)
+        return _api_no_store(jsonify({
+            "ok": True, "code": code, "base_amount_rub": base_rub,
+            "discount_type": "percent", "discount_value": 20,
+            "discount_label": "20%", "discount_rub": discount_rub,
+            "final_amount_rub": max(1, base_rub - discount_rub),
+        }))
     from database.db_promocodes import (
         compute_discount_rub, format_promocode_discount, is_promocode_valid,
     )
@@ -5158,6 +5204,67 @@ def api_admin_user_subscription(telegram_id: int):
             "title": "Действие администратора", "detail": f"subscription.manage · {action}"},
         "panel_synced": bool(synchronize_panel or reset_lte_username),
     }))
+
+
+@app.route('/api/admin/feedback', methods=['GET'])
+def api_admin_feedback():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    event = str(request.args.get("event") or "all")
+    answer = str(request.args.get("answer") or "all")
+    paid = str(request.args.get("paid") or "all")
+    if event not in {"all", "trial", "winback"} or paid not in {"all", "yes", "no"}:
+        return _api_error("invalid_filter", 400)
+    valid_answers = {"all", "great", "connection", "speed", "service", "setup",
+                     "expensive", "quality", "competitor", "other", "1", "3", "5"}
+    if answer not in valid_answers:
+        return _api_error("invalid_filter", 400)
+    try:
+        cursor = max(0, int(request.args.get("cursor", "0")))
+        limit = max(1, min(100, int(request.args.get("limit", "25"))))
+    except ValueError:
+        return _api_error("invalid_pagination", 400)
+    with get_db() as conn:
+        if not conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='lifecycle_events'").fetchone():
+            return _api_no_store(jsonify({"ok": True, "summary": [], "items": [], "total": 0,
+                                          "cursor": cursor, "next_cursor": None}))
+        paid_sql = """EXISTS (SELECT 1 FROM payments p WHERE p.user_id=le.user_id
+            AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
+            AND COALESCE(p.operation_type,'')!='trial_start'
+            AND COALESCE(p.offer_code,'')!='email_paid_trial')"""
+        base = f"""FROM lifecycle_events le JOIN users u ON u.id=le.user_id
+            WHERE le.event_key IN ('trial_day1_rating','day5_rating','expired_winback')"""
+        summary = [dict(row) for row in conn.execute(f"""
+            SELECT CASE WHEN le.event_key='expired_winback' THEN 'winback' ELSE 'trial' END AS event,
+                   CASE WHEN le.answer IS NULL THEN 'unanswered'
+                        WHEN instr(le.answer,':')>0 THEN trim(substr(le.answer,1,instr(le.answer,':')-1))
+                        ELSE trim(le.answer) END AS answer,
+                   COUNT(*) AS count,
+                   SUM(CASE WHEN {paid_sql} THEN 1 ELSE 0 END) AS paid_count
+            {base}
+            GROUP BY event,answer ORDER BY event, count DESC
+        """).fetchall()]
+        filters = ["le.answer IS NOT NULL", "trim(le.answer)!=''"]
+        params: list[Any] = []
+        if event != "all":
+            filters.append("le.event_key='expired_winback'" if event == "winback"
+                           else "le.event_key IN ('trial_day1_rating','day5_rating')")
+        if answer != "all":
+            filters.append("(le.answer=? OR le.answer LIKE ?)")
+            params.extend([answer, answer + ": %"])
+        if paid != "all":
+            filters.append(paid_sql if paid == "yes" else "NOT " + paid_sql)
+        where = base + " AND " + " AND ".join(filters)
+        total = int(conn.execute(f"SELECT COUNT(*) {where}", params).fetchone()[0])
+        items = [dict(row) for row in conn.execute(f"""
+            SELECT u.telegram_id,u.username,u.first_name,le.event_key,le.answer,
+                   le.sent_at,le.answered_at,{paid_sql} AS has_paid
+            {where} ORDER BY COALESCE(le.answered_at,le.sent_at) DESC,le.id DESC
+            LIMIT ? OFFSET ?
+        """, (*params, limit, cursor)).fetchall()]
+    return _api_no_store(jsonify({"ok": True, "summary": summary, "items": items,
+                                  "total": total, "cursor": cursor,
+                                  "next_cursor": cursor + limit if cursor + limit < total else None}))
 
 
 @app.route('/api/admin/users/<int:telegram_id>', methods=['GET'])

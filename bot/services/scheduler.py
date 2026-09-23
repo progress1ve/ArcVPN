@@ -14,7 +14,7 @@ import logging
 import os
 import shutil
 import html
-from datetime import datetime, time as dt_time, timedelta
+from datetime import datetime, time as dt_time, timedelta, timezone
 from typing import Optional
 
 from aiogram import Bot
@@ -128,6 +128,45 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
             )
               AND NOT EXISTS (SELECT 1 FROM vpn_keys active WHERE active.user_id=u.id AND active.expires_at > datetime('now'))
               AND NOT EXISTS (SELECT 1 FROM lifecycle_events le WHERE le.user_id=u.id AND le.event_key='expired_winback')
+              AND NOT (u.id % 2 = 0
+                AND EXISTS (SELECT 1 FROM trial_entitlements te WHERE te.user_id=u.id)
+                AND EXISTS (SELECT 1 FROM vpn_keys vk JOIN trial_entitlements te ON te.vpn_key_id=vk.id
+                    WHERE te.user_id=u.id AND vk.last_online_at IS NOT NULL)
+                AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.user_id=u.id
+                  AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
+                  AND COALESCE(p.operation_type,'')!='trial_start'
+                  AND COALESCE(p.offer_code,'')!='email_paid_trial'))
+            LIMIT 25
+        """).fetchall()
+        offer_users = conn.execute("""
+            SELECT u.id,u.telegram_id FROM users u
+            JOIN trial_entitlements te ON te.user_id=u.id
+            LEFT JOIN trial_winback_offers offer ON offer.user_id=u.id
+            WHERE u.id % 2 = 0
+              AND u.created_at >= COALESCE((SELECT value FROM settings WHERE key='lifecycle_eligible_after'), datetime('now'))
+              AND EXISTS (SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id
+                  AND vk.id=te.vpn_key_id AND vk.last_online_at IS NOT NULL
+                  AND vk.expires_at BETWEEN datetime('now','-10 days') AND datetime('now','-2 days'))
+              AND NOT EXISTS (SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at>datetime('now'))
+              AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.user_id=u.id
+                  AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
+                  AND COALESCE(p.operation_type,'')!='trial_start'
+                  AND COALESCE(p.offer_code,'')!='email_paid_trial')
+              AND NOT EXISTS (SELECT 1 FROM lifecycle_events le WHERE le.user_id=u.id AND le.event_key='expired_winback')
+              AND (offer.user_id IS NULL OR offer.sent_at IS NULL)
+            LIMIT 25
+        """).fetchall()
+        reminder_users = conn.execute("""
+            SELECT u.id,u.telegram_id,offer.sent_at FROM trial_winback_offers offer
+            JOIN users u ON u.id=offer.user_id
+            WHERE offer.sent_at<=datetime('now','-24 hours')
+              AND offer.sent_at>datetime('now','-48 hours')
+              AND offer.reminder_sent_at IS NULL
+              AND offer.claimed_order_id IS NULL
+              AND NOT EXISTS (SELECT 1 FROM payments p WHERE p.user_id=u.id
+                  AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
+                  AND COALESCE(p.operation_type,'')!='trial_start'
+                  AND COALESCE(p.offer_code,'')!='email_paid_trial')
             LIMIT 25
         """).fetchall()
 
@@ -176,6 +215,45 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
         except Exception as exc:
             logger.warning("Lifecycle winback delivery failed for %s: %s", row["telegram_id"], exc)
+
+    offer_url = f"{os.getenv('WEBAPP_URL', getattr(__import__('config'), 'WEBAPP_URL', 'https://arccnet.space')).rstrip('/')}/app/?screen=tariffs&product=standard&months=3&offer=trial_winback"
+    for row in offer_users:
+        with get_db() as conn:
+            conn.execute("INSERT OR IGNORE INTO trial_winback_offers(user_id) VALUES (?)", (row["id"],))
+        deadline = datetime.now(timezone(timedelta(hours=3))) + timedelta(hours=48)
+        caption = (
+            "🎁 <b>Вернитесь в ArcVPN со скидкой 20%</b>\n\n"
+            "Вы уже подключали пробную подписку. До "
+            f"<b>{deadline:%d.%m в %H:%M} МСК</b> для вас действует персональная скидка "
+            "20% на первый тариф на 3 месяца. Обычный трафик — безлимитный; "
+            "трафик обхода учитывается отдельно.\n\n"
+            "Если что-то помешало пользоваться ArcVPN, расскажите нам об этом."
+        )
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатить со скидкой −20%", url=offer_url)],
+            [InlineKeyboardButton(text="Почему не подошло?", callback_data="lifecycle_offer:reason")],
+        ])
+        try:
+            await bot.send_photo(row["telegram_id"], FSInputFile(os.path.join(assets, "arc-winback-v1.png")),
+                                 caption=caption, reply_markup=kb)
+            with get_db() as conn:
+                conn.execute("UPDATE trial_winback_offers SET sent_at=CURRENT_TIMESTAMP WHERE user_id=? AND sent_at IS NULL", (row["id"],))
+                conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
+        except Exception as exc:
+            logger.warning("Trial offer delivery failed for %s: %s", row["telegram_id"], exc)
+
+    for row in reminder_users:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="Оплатить со скидкой −20%", url=offer_url)],
+        ])
+        try:
+            await bot.send_message(row["telegram_id"],
+                                   "⏳ Персональная скидка 20% на подписку на 3 месяца скоро закончится. "
+                                   "Она действует 48 часов с первого сообщения.", reply_markup=kb)
+            with get_db() as conn:
+                conn.execute("UPDATE trial_winback_offers SET reminder_sent_at=CURRENT_TIMESTAMP WHERE user_id=? AND reminder_sent_at IS NULL", (row["id"],))
+        except Exception as exc:
+            logger.warning("Trial offer reminder failed for %s: %s", row["telegram_id"], exc)
 
 
 async def run_lifecycle_scheduler(bot: Bot) -> None:
