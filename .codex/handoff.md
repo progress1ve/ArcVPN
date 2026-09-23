@@ -1,8 +1,11 @@
-# ArcVPN handoff — admin reliability and monthly profit
+# ArcVPN handoff — user feedback in Admin
 
-## Current production state — 2026-09-22 18:47 МСК
+## Current production state — 2026-09-23
 
-- Production runtime is `3ac044c`; `arcvpn-subscription.service` is active.
+- Production runtime is `75b78c6`; `arcvpn-subscription.service` is active.
+- Client 360 now has an «Ответы» tab with each user's trial-rating and expired
+  win-back answers, optional free-text detail and answer time. The protected
+  user-detail API returns only the selected user's answered lifecycle events.
 - Admin waits for Russian i18n readiness before React mounts, so raw
   `admin.*` keys no longer flash on a cold load.
 - `/admin` is dark-only and no longer exposes theme controls. Desktop, mobile,
@@ -13,13 +16,13 @@
 - New `/admin/profit` recognizes paid subscription revenue across the covered
   calendar months, excludes trials, and subtracts categorized one-time or
   recurring expenses. Existing `service_expenses` rows are reused.
-- Production HTML and the referenced `index-5kb15Cfy.js` bundle return 200;
-  unauthenticated profit API access returns 403.
+- Production admin HTML and its referenced bundle return 200; unauthenticated
+  user-detail API access returns 403. Browser QA was explicitly left to owner.
 
 ## Next step
 
-- Enter/verify the real recurring hosting and CDN costs in «Прибыль», then
-  compare the selected month's recognized revenue with the finance source.
+- Review «Ответы» on a real user and approve the proposed segmented trial
+  win-back experiment before any discount or broadcast is created.
 
 ## Prior infrastructure state
 

@@ -39,3 +39,14 @@ not send or enable, a segmented trial-to-paid win-back offer.
 - Read-only query only; it does not alter lifecycle answers or bot behavior.
 - Unknown future answer codes fall back to the stored value rather than vanish.
 - Rollback is a Git revert, admin rebuild and subscription-service restart.
+
+## Release evidence
+
+- Commit `75b78c6` was pushed to `main` and pulled with `--ff-only` on
+  `pl-control`.
+- Backend focused tests: 4 passed; frontend focused tests: 2 passed.
+- TypeScript and production build passed. Browser QA was skipped by explicit
+  owner request.
+- Production `arcvpn-subscription.service` is active; admin HTML and referenced
+  JS return 200; unauthenticated user-detail API correctly returns 403.
+- No discount, promocode or broadcast was created or sent.
