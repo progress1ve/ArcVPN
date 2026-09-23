@@ -87,3 +87,13 @@ and investigate LTE usage plus ambiguous client devices before changing accounti
 - Acceptance: focused redirect regression and real production subscription
   generation show AutoSelect first; service stays active. If a specific device
   returns a limit/revoked profile, diagnose its access state separately.
+- Result: `98cf0c9` pushed to `main`, pulled fast-forward on `pl-control`, and
+  only `arcvpn-subscription.service` restarted. It is active.
+- Checks: 38 focused tests passed; Python compilation and staged diff check
+  passed. In 16 sampled active subscriptions, 14 old Happ plain URLs now
+  produce JSON with AutoSelect, while two produce explicit device-limit rows.
+  The Happ import redirect points to `format=json`; Hiddify stays on plain.
+- Residual: the owner's individual device has not yet been identified. If it
+  sees a limit notice, resolve its device access rather than altering the
+  subscription generator. If it still shows an old list after refresh, check
+  the Happ cache/imported subscription identity.

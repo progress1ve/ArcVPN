@@ -1,4 +1,21 @@
-# ArcVPN handoff — feedback, trial conversion and bypass choices
+# ArcVPN handoff — Happ AutoSelect import restored
+
+## 2026-09-23 current production
+
+- Release `98cf0c9` is deployed on `pl-control`; subscription service is active.
+- Happ `/import/<sub_id>` redirects to JSON; old Happ links containing
+  `format=plain` are served as JSON when refreshed, restoring the composite
+  `Автовыбор | Самый быстрый` profile without changing subscription URLs or
+  user UUIDs. Hiddify's plain format remains unchanged.
+- Production check: 14 of 16 sampled active subscriptions expose AutoSelect
+  through their old Happ plain URLs. The other two are device-limit responses,
+  which intentionally contain no normal VPN profiles and need account-specific
+  access diagnosis if reported by the owner.
+- Next action for the owner: refresh the subscription in Happ. If the profile
+  remains absent, capture the visible profile names or a redacted screenshot to
+  distinguish a device-limit response from a client cache problem.
+
+## Previous state
 
 ## Current production state — 2026-09-23
 

@@ -1897,3 +1897,12 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   existing single CDN route is still fallback-only while main nodes are usable.
 - Selection is client-side and per connection, so global user counts are
   statistical rather than a centrally enforced 50/50 quota.
+
+## 2026-09-23: Happ import format preserves AutoSelect
+
+- Happ needs ArcVPN's JSON subscription because AutoSelect is a full Xray
+  profile. The `/import/<sub_id>` Happ redirect uses `format=json` and old
+  Happ links with explicit `format=plain` are upgraded during refresh.
+- Hiddify remains on plain share links. A device-limit or revoked response
+  intentionally replaces normal profiles, including AutoSelect; diagnose that
+  access state separately from subscription format.
