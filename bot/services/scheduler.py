@@ -1213,13 +1213,21 @@ async def _process_first_device_connection(bot: Bot, key: dict, devices: int, de
         text = (
             f"✅ <b>ArcVPN подключён</b>\n\n"
             f"Подписка: <b>{escape_html(str(keyname))}</b>\n"
-            f"Устройств подключено: <b>{devices} из {device_limit}</b>\n\n"
-            f"Если это были не вы, откройте Настройки → Устройства и освободите слот."
+            + (f"Устройств сейчас онлайн: <b>{devices} из {device_limit}</b>\n\n" if devices else "Подключение подтверждено использованным VPN-трафиком.\n\n")
+            + "Если это были не вы, откройте Настройки → Устройства и освободите слот."
         )
         await send_to_user(bot, telegram_id, text)
     mark_key_connect_notified(key['id'])
     key['connect_notified'] = 1
     return True
+
+
+def _has_first_connection_evidence(key: dict) -> bool:
+    """A real online session or authoritative VPN bytes, never WebApp import."""
+    return not key.get('connect_notified') and (
+        int(key.get('_online_devices') or 0) >= 1
+        or int(key.get('_new_traffic_used') or 0) > 0
+    )
 
 
 async def sync_traffic_stats(bot: Bot) -> None:
@@ -1355,15 +1363,16 @@ async def sync_traffic_stats(bot: Bot) -> None:
         mark_keys_online(online_key_ids)
 
     for key in keys:
-        if '_online_devices' not in key:
-            continue
-        devices = key['_online_devices']
-        if devices != (key.get('online_devices') or 0):
+        devices = key.get('_online_devices')
+        if devices is not None and devices != (key.get('online_devices') or 0):
             update_key_online_devices(key['id'], devices)
         # Первое реальное подключение → одноразовое уведомление «подписка подключена».
-        if devices >= 1 and not key.get('connect_notified'):
+        # A short VPN session may be missed by the online-IP poll. The
+        # authoritative per-key traffic counter is also evidence of real use;
+        # a WebApp device import alone is not.
+        if _has_first_connection_evidence(key):
             try:
-                await _process_first_device_connection(bot, key, devices, device_limit)
+                await _process_first_device_connection(bot, key, devices or 0, device_limit)
             except Exception as e:
                 logger.error(
                     "Не удалось обработать первое подключение key=%s: %s",

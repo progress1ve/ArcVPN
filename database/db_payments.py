@@ -1010,14 +1010,10 @@ _BONUS_FLAG_COLUMN = {
 
 def grant_referral_bonus_once(referrer_id: int, referral_id: int, kind: str, days: int) -> bool:
     """
-    Атомарно начисляет реферальный бонус ОДИН раз для пары (реферер, друг).
+    Atomically extend eligible keys and record the once-per-friend reward.
 
-    Используется новой моделью «3 + 5»: kind='trial' (+3 за запуск друга),
-    kind='purchase' (+5 за первую покупку друга). Повторный вызов с тем же
-    kind для той же пары вернёт False и ничего не начислит.
-
-    Дни накапливаются в referral_stats.total_reward_days (для статистики);
-    фактическое продление ключа реферера делает вызывающий код (billing).
+    The ledger flag must never be committed without the corresponding local key
+    extensions. External panel synchronization is retried independently.
 
     Args:
         referrer_id: внутренний ID реферера (кому бонус)
@@ -1029,11 +1025,29 @@ def grant_referral_bonus_once(referrer_id: int, referral_id: int, kind: str, day
         True — бонус начислен впервые; False — уже был начислен (или kind неизвестен).
     """
     flag = _BONUS_FLAG_COLUMN.get(kind)
-    if not flag:
+    if not flag or days <= 0 or referrer_id == referral_id:
         logger.warning("grant_referral_bonus_once: неизвестный kind=%r", kind)
         return False
 
     with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        edge = conn.execute(
+            "SELECT 1 FROM users WHERE id=? AND referred_by=?",
+            (referral_id, referrer_id),
+        ).fetchone()
+        if not edge:
+            return False
+        recipients = (referrer_id, referral_id) if kind == 'purchase' else (referrer_id,)
+        key_ids = []
+        for user_id in recipients:
+            key = conn.execute(
+                "SELECT id FROM vpn_keys WHERE user_id=? ORDER BY expires_at DESC LIMIT 1",
+                (user_id,),
+            ).fetchone()
+            if not key:
+                logger.warning("Referral reward deferred: no key for user %s", user_id)
+                return False
+            key_ids.append(key['id'])
         # Гарантируем наличие строки статистики (level=1) — без инкремента счётчиков.
         conn.execute("""
             INSERT OR IGNORE INTO referral_stats
@@ -1045,10 +1059,23 @@ def grant_referral_bonus_once(referrer_id: int, referral_id: int, kind: str, day
         cursor = conn.execute(f"""
             UPDATE referral_stats
             SET {flag} = 1,
-                total_reward_days = total_reward_days + ?
-            WHERE referrer_id = ? AND referral_id = ? AND level = 1 AND {flag} = 0
+                total_reward_days = COALESCE(total_reward_days, 0) + ?
+            WHERE referrer_id = ? AND referral_id = ? AND level = 1 AND COALESCE({flag}, 0) = 0
         """, (days, referrer_id, referral_id))
         granted = cursor.rowcount > 0
+        if granted:
+            for key_id in key_ids:
+                updated = conn.execute("""
+                    UPDATE vpn_keys
+                    SET expires_at = datetime(
+                        CASE WHEN expires_at > datetime('now') THEN expires_at
+                             ELSE datetime('now') END,
+                        '+' || ? || ' days'
+                    ), panel_disabled_at = NULL
+                    WHERE id = ?
+                """, (days, key_id))
+                if updated.rowcount != 1:
+                    raise RuntimeError("Referral key extension failed")
 
     if granted:
         logger.info("Реф-бонус %s: +%s дн. рефереру %s за друга %s", kind, days, referrer_id, referral_id)

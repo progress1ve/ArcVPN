@@ -1,4 +1,18 @@
-# AutoSelect session load distribution — 2026-09-27
+# Referral reward recovery — 2026-09-27
+
+Goal: grant configured entry and first-purchase day bonuses reliably, and restore only demonstrably missed production rewards.
+
+Scope: payment fulfillment paths, first-connection telemetry, referral ledger, tests, and bounded recovery. No tariff, URL, UUID, node, or frontend change.
+
+Acceptance: an applied first purchase grants the configured purchase bonus once to both parties regardless of payment entry point; genuine first VPN use grants the configured entry bonus once to the inviter; replay/recovery cannot add days twice; production candidates are audited against payments, referral edges, existing flags and VPN use; service and ledger/expiry are verified after release.
+
+Risks: flags and expiries update separately; historical usage can be incomplete. Dry-run recovery, inspect candidates, snapshot affected state, skip ambiguity. Roll back code by revert and affected-service restart; data by per-account journal, not broad restore.
+
+Verification matrix: focused tests, relevant suite, staged diff, commit/push, production ff-only pull, restart only affected services, service/public health, live ledger/expiry audit.
+
+Pre-release evidence: production read-only audit found seven referred accounts, one eligible paid-applied account without purchase reward, and one account with authoritative VPN usage but no entry reward; both are the same referral pair. The inviter has no ledger row. Local 225 tests pass (one existing datetime deprecation warning). Recovery command defaults to dry-run and requires explicit expected counts for apply.
+
+## Archived prior stage: AutoSelect session load distribution — 2026-09-27
 
 ## Accepted behavior
 

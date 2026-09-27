@@ -455,9 +455,6 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
         )
         update_order_fulfillment(order_id, 'applied')
 
-        if order.get('payment_type') == 'crypto':
-            await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
-
         return True, f"✅ Оплата прошла успешно!\n\nВаш ключ продлён на {days} дней.", _reload_order(order_id)
 
     logger.error("Не удалось продлить ключ %s после оплаты!", key_id)
@@ -564,9 +561,6 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
 
         update_order_fulfillment(order_id, 'applied')
 
-        if order.get('payment_type') == 'crypto':
-            await process_referral_reward(user_internal_id, days, order.get('amount_cents', 0), 'crypto')
-
         return True, "✅ Оплата прошла успешно!", _reload_order(order_id)
     except Exception as e:
         logger.error("Ошибка создания черновика ключа: %s", e)
@@ -596,6 +590,8 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         # period again. Only an operator may reconcile and release such orders.
         if fulfillment_status == 'manual_review':
             return True, "✅ Оплата принята и ожидает проверки поддержки.", order
+        if _get_order_operation_type(order) in {'new', 'renew', 'upgrade'} and int(order.get('amount_cents') or 0) > 0:
+            await process_referral_reward(int(order['user_id']))
         return True, "✅ Этот платёж уже был обработан ранее.", order
 
     payment_marked_paid = False
@@ -660,6 +656,8 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         result = await _apply_new_subscription_order(order_id, order)
     if result[0] and result[2] and result[2].get('fulfillment_status') == 'applied':
         await process_campaign_bonus(order['user_id'], 'payment')
+        if int(order.get('amount_cents') or 0) > 0:
+            await process_referral_reward(int(order['user_id']))
     return result
 
 
@@ -1191,8 +1189,7 @@ async def process_referral_reward(
         logger.info("Реф-бонус за покупку уже выдавался: реферер %s, друг %s", referrer_id, payer_id)
         return
 
-    await grant_bonus_days(referrer_id, bonus_days)   # рефереру +N
-    await grant_bonus_days(payer_id, bonus_days)       # другу +N
+    await _sync_referral_reward_keys(referrer_id, payer_id)
     await _notify_referral_bonus(referrer_id, payer_id, bonus_days, kind='purchase')
 
 
@@ -1221,8 +1218,26 @@ async def process_referral_trial_reward(referee_internal_id: int) -> None:
     if not grant_referral_bonus_once(referrer_id, referee_internal_id, 'trial', bonus_days):
         return
 
-    await grant_bonus_days(referrer_id, bonus_days)
+    await _sync_referral_reward_keys(referrer_id)
     await _notify_referral_bonus(referrer_id, referee_internal_id, bonus_days, kind='trial')
+
+
+async def _sync_referral_reward_keys(*user_ids: int) -> None:
+    """Publish the already-committed local reward; never extend keys here."""
+    from database.requests import get_user_by_id, get_user_primary_key
+    from bot.services.vpn_api import push_key_to_panel
+
+    for user_id in user_ids:
+        user = get_user_by_id(user_id)
+        key = get_user_primary_key(user['telegram_id']) if user else None
+        if not key:
+            logger.error("Referral key missing after committed reward for user %s", user_id)
+            continue
+        try:
+            if not await push_key_to_panel(key['id']):
+                logger.error("Referral key sync returned false for user %s", user_id)
+        except Exception:
+            logger.exception("Referral key sync failed for user %s", user_id)
 
 
 async def _notify_referral_bonus(referrer_id: int, friend_id: int, days: int, kind: str) -> None:
@@ -1368,9 +1383,6 @@ async def complete_payment_flow(
             
             # Очистка FSM данных о балансе
             await state.update_data(balance_to_deduct=0, remaining_cents=0)
-            
-            # Реферальное вознаграждение
-            await process_referral_reward(user_internal_id, days, referral_amount, payment_type)
             
             # Финализация UI
             await finalize_payment_ui(message, state, text, order, user_id=telegram_id)

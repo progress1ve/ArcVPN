@@ -145,6 +145,7 @@
 | Тип задачи | Читать сначала |
 |---|---|
 | Бот, ключи, триал, рефералы | 1, 3, 4, 9, 10, 12, 13 |
+
 | Платежи, промокоды, тарифы | 1, 3, 4, 9, 13 |
 | Подписки, x-ui, инбаунды, ноды | 1, 2, 5–8, 13 |
 | Mini App | 1, 3, 11 |
@@ -1906,3 +1907,10 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Hiddify remains on plain share links. A device-limit or revoked response
   intentionally replaces normal profiles, including AutoSelect; diagnose that
   access state separately from subscription format.
+
+## 2026-09-27: Referral reward integrity
+
+- First confirmed VPN use (online-device poll or authoritative per-key VPN bytes) earns configured entry days for the inviter; WebApp device import alone does not.
+- A paid/applied new, renewal or upgrade order earns configured first-purchase days once for inviter and friend, independent of payment channel.
+- Referral ledger flag and local key extensions must commit in one SQLite transaction. Panel synchronization follows and must be checked separately.
+- `scripts/reconcile_referral_rewards.py` is dry-run by default and requires expected candidate counts for apply.
