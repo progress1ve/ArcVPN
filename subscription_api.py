@@ -46,6 +46,7 @@ from bot.utils.key_generator import generate_link
 from bot.utils.telegram_webapp import get_telegram_id
 import config
 from database.connection import DB_PATH, get_db
+from database.db_autoselect import choose_autoselect_country
 from database.db_webapp import adopt_import_device_identity, get_lte_identity, get_user_entitlements
 from database.db_servers import get_server_by_id
 from database.db_admin_audit import append_admin_audit, list_admin_audit
@@ -1543,8 +1544,60 @@ def _happ_tiktok_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: st
     return rule
 
 
+async def _remnawave_auto_snapshot(key: ActiveKeyRecord) -> tuple[dict[str, int], Optional[str], Optional[str]]:
+    """Read only the connected main-node populations and this user's activity."""
+    runtime = _load_remnawave_runtime_config()
+    client = RemnawaveClient({
+        "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
+        "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
+    })
+    try:
+        nodes = await client.get_inbounds()
+        counts = {}
+        node_countries = {}
+        for node in nodes:
+            country = {
+                "ArcVPN Germany 1chost": "de",
+                "ArcVPN Estonia 1chost": "ee",
+            }.get(str(node.get("name") or ""))
+            if country and node.get("isConnected") and not node.get("isDisabled"):
+                counts[country] = max(0, int(node.get("usersOnline") or 0))
+                node_countries[str(node.get("uuid") or "")] = country
+        user = await client.get_user(key.panel_email)
+        traffic = (
+            user.get("userTraffic") or {}
+            if user and str(user.get("vlessUuid") or "") == str(key.client_uuid or "")
+            else {}
+        )
+        return (
+            counts, traffic.get("onlineAt"),
+            node_countries.get(str(traffic.get("lastConnectedNodeUuid") or "")),
+        )
+    finally:
+        await client.close()
+
+
+def _select_autoselect_country(key: ActiveKeyRecord, countries: set[str]) -> str:
+    """Keep a viewer on one main node until an offline refresh can rebalance."""
+    counts: Optional[dict[str, int]] = None
+    online_at: Optional[str] = None
+    current_country: Optional[str] = None
+    try:
+        counts, online_at, current_country = ASYNC_EXECUTOR.run(_remnawave_auto_snapshot(key), timeout=8)
+    except Exception as exc:
+        logger.warning("AutoSelect telemetry unavailable: %s", type(exc).__name__)
+    try:
+        return choose_autoselect_country(
+            key.id, countries, counts, online_at, current_country=current_country,
+        )
+    except Exception as exc:
+        logger.warning("AutoSelect assignment unavailable: %s", type(exc).__name__)
+        ordered = sorted(countries)
+        return ordered[key.id % len(ordered)]
+
+
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
-    """Return a Happ JSON array with a real least-load profile and regular rows."""
+    """Return a Happ JSON array with one session-stable AutoSelect main."""
     links = sorted(
         _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
@@ -1555,6 +1608,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     )
     regular: list[Dict[str, Any]] = []
     auto_outbounds: list[Dict[str, Any]] = []
+    auto_country_outbounds: dict[str, Dict[str, Any]] = {}
     youtube_outbounds: list[Dict[str, Any]] = []
     lte_outbounds: list[Dict[str, Any]] = []
     for index, link in enumerate(links, start=1):
@@ -1614,12 +1668,24 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 candidate = _json_outbound_from_share_link(link, f"proxy-main-{len(auto_outbounds) + 1}")
                 if candidate is not None:
                     auto_outbounds.append(candidate)
+                    country = (
+                        "de" if any(part in name for part in ("Германия", "Germany"))
+                        else "ee" if any(part in name for part in ("Эстония", "Estonia"))
+                        else None
+                    )
+                    if country and country not in auto_country_outbounds:
+                        auto_country_outbounds[country] = candidate
     # The YouTube profile has the same ordinary main candidates as AutoSelect.
     # Unlike AutoSelect, it intentionally has no CDN fallback: selecting it must
     # never spend bypass/CDN traffic or silently move to a different path.
     youtube_outbounds = [copy.deepcopy(item) for item in auto_outbounds]
     for index, item in enumerate(youtube_outbounds, start=1):
         item["tag"] = f"proxy-youtube-{index}"
+
+    if len(auto_country_outbounds) >= 2:
+        selected_country = _select_autoselect_country(key, set(auto_country_outbounds))
+        auto_outbounds = [copy.deepcopy(auto_country_outbounds[selected_country])]
+        auto_outbounds[0]["tag"] = "proxy-main-1"
 
     host_priority = {host: index for index, host in enumerate(BYPASS_CDN_HOST_PRIORITY)}
     lte_outbounds.sort(key=lambda item: host_priority.get(
@@ -1657,13 +1723,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "fallbackTag": "proxy-back-1" if lte_outbounds else "direct",
                 "selector": ["proxy-main"],
                 "strategy": {
-                    # Keep both healthy main countries in the eligible set.
-                    # leastLoad still filters failed/high-RTT outbounds, then
-                    # randomly distributes new connections across the two
-                    # best candidates instead of pinning every client to one.
+                    # Only the refresh-assigned main is eligible.  Xray still
+                    # checks its health and can use the existing CDN fallback.
                     "settings": {
                         "baselines": ["1s"],
-                        "expected": 2,
+                        "expected": 1,
                         "maxRTT": "3s",
                         "tolerance": 0.2,
                     },

@@ -55,7 +55,9 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "vless://33333333-3333-3333-3333-333333333333@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%234",
             "vless://44444444-4444-4444-4444-444444444444@cdn-de.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%235",
         ])
-        with patch("subscription_api._catalog_overrides", return_value={}):
+        with patch("subscription_api._catalog_overrides", return_value={}), patch(
+            "subscription_api._select_autoselect_country", return_value="de"
+        ):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония",
@@ -76,7 +78,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             for item in profiles[0]["outbounds"]
             if item.get("tag", "").startswith("proxy-main-")
         ]
-        self.assertEqual(auto_hosts, ["ee.example", "de.example"])
+        self.assertEqual(auto_hosts, ["de.example"])
 
     def test_every_bypass_uses_whitenode_least_load_contract(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
@@ -99,7 +101,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "type": "leastLoad",
             "settings": {
                 "baselines": ["1s"],
-                "expected": 2,
+                "expected": 1,
                 "maxRTT": "3s",
                 "tolerance": 0.2,
             },

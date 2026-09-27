@@ -1,3 +1,56 @@
+# AutoSelect session load distribution — 2026-09-27
+
+## Accepted behavior
+
+The owner accepted selection on subscription refresh using current Remnawave
+`usersOnline`, with the selected main node retained while the user is active.
+There is no permanent account-to-country binding and no Moscow ingress hop.
+Xray's `leastLoad` is an RTT/stability selector, not a server-user-count selector;
+it may send consecutive connections to different countries. Replace it only in
+the customer-facing AutoSelect profile. Preserve the existing CDN emergency
+fallback, manual country profiles, YouTube profile, quota, and identifiers.
+
+| Client path | Visible profile | Client hostname | CDN resource / origin | Host/SNI | Inbound/path | Multiplier | Public impact | Failure / rollback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Assigned main | AutoSelect | Germany `de.arccnet.space` or Estonia `87.251.19.197` | none | existing node-specific SNI | existing Reality TCP/443 | 1 | same subscription URL and user UUID; one selected main at a time | existing CDN fallback only if selected main fails; revert subscription-code commit |
+| Emergency | AutoSelect fallback | `cdn-de.arccnet.space` | existing single Yandex CDN / Moscow origin | existing CDN Host/SNI | XHTTP `/api-test` | 1 | no new profile or URL | unchanged resource and origin; revert code commit |
+| Manual/other | Country, YouTube, bypass profiles | existing published hosts | existing resources | unchanged | unchanged | 1 | unchanged | unchanged |
+
+## Components and acceptance
+
+- Components: `subscription_api.py`, one small persistence helper or migration,
+  focused tests, current stage, handoff. No node, DNS, firewall or panel write.
+- On refresh, choose the connected main node with fewer `usersOnline` users;
+  account for concurrent recent assignments so a burst of new users splits.
+- Keep the selected main while panel activity is recent. Reconsider only after
+  at least 30 minutes without panel activity and a subsequent refresh.
+- While panel telemetry is unavailable, retain an existing assignment. Never
+  issue an invalid or empty AutoSelect profile.
+- AutoSelect has exactly one normal main candidate; CDN remains an emergency
+  fallback. No Germany/Estonia switching among successive video connections.
+- Verify representative live subscriptions, syntax and real tunneled requests
+  through AutoSelect, and that public URLs/UUIDs and other profiles remain stable.
+
+## Risk and rollback
+
+- A subscription refresh is the only observable decision point; INCY does not
+  call this API each time the VPN switch is pressed. New users may retain a
+  previously downloaded assignment until the next refresh.
+- A stale `onlineAt` or panel outage could skew distribution; retain prior
+  assignment and use a conservative connected-node fallback.
+- Roll back the single runtime commit and restart only
+  `arcvpn-subscription.service`; do not alter node configuration.
+
+## Verification matrix
+
+| Check | State | Evidence |
+| --- | --- | --- |
+| Current production behavior and counters | Passed | `leastLoad` client routing; Remnawave exposes `usersOnline` for connected DE/EE |
+| Focused tests | Passed | 51 relevant tests passed in an isolated, migrated SQLite test database |
+| Public subscription contract | Pending | |
+| Real tunnel | Pending | |
+| Commit and deployment | Pending | |
+
 # Trial feedback, conversion and client usage — 2026-09-23
 
 ## INCY AutoSelect correction — 2026-09-23
