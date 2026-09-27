@@ -7,7 +7,6 @@ try:
         ActiveKeyRecord,
         HAPP_ROUTING_PROFILE,
         TIKTOK_PROXY_SITES,
-        YOUTUBE_PROXY_SITES,
         _build_happ_json_subscription,
     )
 except ModuleNotFoundError as exc:  # Minimal local test environment may omit Flask.
@@ -28,7 +27,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
 
-        self.assertEqual(HAPP_ROUTING_PROFILE["ProxySites"], [*TIKTOK_PROXY_SITES, *YOUTUBE_PROXY_SITES])
+        self.assertEqual(HAPP_ROUTING_PROFILE["ProxySites"], TIKTOK_PROXY_SITES)
         for profile in profiles:
             rules = profile["routing"]["rules"]
             tiktok_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES)
@@ -40,31 +39,6 @@ class HappFallbackBalancerTests(unittest.TestCase):
                 self.assertEqual(rules[tiktok_index]["balancerTag"], "balancer_main")
             else:
                 self.assertEqual(rules[tiktok_index]["outboundTag"], "proxy")
-
-    def test_youtube_video_cdn_cannot_fall_through_to_russian_ip_direct_route(self):
-        key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
-        links = "\n".join([
-            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
-            "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
-        ])
-        with patch("subscription_api._catalog_overrides", return_value={}):
-            profiles = json.loads(_build_happ_json_subscription(key, links))
-
-        self.assertIn("domain:googlevideo.com", YOUTUBE_PROXY_SITES)
-        for profile in profiles:
-            rules = profile["routing"]["rules"]
-            video_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == YOUTUBE_PROXY_SITES)
-            direct_domain_index = next(i for i, rule in enumerate(rules) if rule.get("outboundTag") == "direct" and "domain" in rule)
-            direct_ip = next(rule["ip"] for rule in rules if rule.get("outboundTag") == "direct" and "ip" in rule)
-            self.assertLess(video_index, direct_domain_index)
-            self.assertNotIn("geoip:ru", direct_ip)
-            self.assertIn("geoip:private", direct_ip)
-            if profile["remarks"] == "🇷🇺 Ютуб без рекламы":
-                self.assertEqual(rules[video_index]["balancerTag"], "balancer_youtube")
-            elif profile["remarks"].startswith(("Автовыбор", "🇪🇺 Лучший обход", "🇪🇺 Обход")):
-                self.assertEqual(rules[video_index]["balancerTag"], "balancer_main")
-            else:
-                self.assertEqual(rules[video_index]["outboundTag"], "proxy")
 
     def test_customer_profile_order_keeps_five_bypass_balancers(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)

@@ -148,12 +148,6 @@ TIKTOK_PROXY_SITES = [
     "domain:muscdn.com",
     "domain:pstatp.com",
 ]
-YOUTUBE_PROXY_SITES = [
-    "domain:youtube.com",
-    "domain:youtube-nocookie.com",
-    "domain:googlevideo.com",
-    "domain:ytimg.com",
-]
 ARCVPN_DNS_PROFILE = os.getenv("ARCVPN_DNS_PROFILE", "legacy").strip().lower()
 ARCVPN_DNS_CANARY_TELEGRAM_IDS = {
     int(value) for value in os.getenv("ARCVPN_DNS_CANARY_TELEGRAM_IDS", "").split(",")
@@ -682,7 +676,7 @@ def _build_happ_routing_profile() -> Dict[str, Any]:
         "DomesticDNSType": "System",
         "DirectSites": list(SPLIT_TUNNELING_DIRECT_SITES),
         "DirectIp": direct_ip_rules,
-        "ProxySites": list(dict.fromkeys([*TIKTOK_PROXY_SITES, *YOUTUBE_PROXY_SITES])),
+        "ProxySites": list(TIKTOK_PROXY_SITES),
         "ProxyIp": [],
         "BlockSites": [],
         "BlockIp": [],
@@ -1532,13 +1526,7 @@ def _happ_direct_rules() -> list[Dict[str, Any]]:
         "domain:rutube.ru",
         "domain:kinopoisk.ru",
     ]))
-    # A Googlevideo edge may have a Russian IP. In TUN mode the destination
-    # can be IP-only, so geoip:ru here would bypass the tunnel before the
-    # player ever reaches its CDN. Keep only local/private IPs direct.
-    ips = list(dict.fromkeys([
-        *(item for item in SPLIT_TUNNELING_DIRECT_IP if item != "geoip:ru"),
-        *LOCAL_AND_RESERVED_CIDRS,
-    ]))
+    ips = list(dict.fromkeys([*SPLIT_TUNNELING_DIRECT_IP, *LOCAL_AND_RESERVED_CIDRS]))
     return [
         {"outboundTag": "direct", "protocol": ["bittorrent"], "type": "field"},
         {"domain": domains, "outboundTag": "direct", "type": "field"},
@@ -1549,15 +1537,6 @@ def _happ_direct_rules() -> list[Dict[str, Any]]:
 def _happ_tiktok_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: str | None = None) -> Dict[str, Any]:
     """Force TikTok through VPN before geoip:ru can classify a CDN address as direct."""
     rule: Dict[str, Any] = {"domain": list(TIKTOK_PROXY_SITES), "type": "field"}
-    if balancer_tag:
-        rule["balancerTag"] = balancer_tag
-    else:
-        rule["outboundTag"] = outbound_tag or "proxy"
-    return rule
-
-
-def _happ_youtube_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: str | None = None) -> Dict[str, Any]:
-    rule: Dict[str, Any] = {"domain": list(YOUTUBE_PROXY_SITES), "type": "field"}
     if balancer_tag:
         rule["balancerTag"] = balancer_tag
     else:
@@ -1657,7 +1636,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
                     _happ_tiktok_proxy_rule(outbound_tag="proxy"),
-                    _happ_youtube_proxy_rule(outbound_tag="proxy"),
                     *_happ_direct_rules(),
                     {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
                 ],
@@ -1760,7 +1738,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
             "rules": [
                 _happ_tiktok_proxy_rule(balancer_tag="balancer_main"),
-                _happ_youtube_proxy_rule(balancer_tag="balancer_main"),
                 *_happ_direct_rules(),
                 {"balancerTag": "balancer_main", "network": "tcp,udp", "type": "field"},
             ],
@@ -1827,7 +1804,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
                     _happ_tiktok_proxy_rule(balancer_tag="balancer_youtube"),
-                    _happ_youtube_proxy_rule(balancer_tag="balancer_youtube"),
                     *_happ_direct_rules(),
                     {"balancerTag": "balancer_youtube", "network": "tcp,udp", "type": "field"},
                 ],
