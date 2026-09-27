@@ -1,4 +1,10 @@
-# ArcVPN handoff — YouTube routing rollback
+# ArcVPN handoff — afterfive YouTube routing canary
+
+On 2026-09-27 the owner approved a one-account YouTube routing canary for afterfive (@progressive_dev). Runtime commit `b97c79f` was pushed to main and deployed by fast-forward on Poland; only `arcvpn-subscription.service` restarted and is active. Generated JSON profiles for this account put narrow YouTube/googlevideo/ytimg proxy domains before the unchanged `geoip:ru` direct-IP rule. The gate requires both stored account names and fails closed. Plain share-link output, other users, nodes, Moscow bridge, DNS and Windows binary were not changed.
+
+Evidence: 229 local tests passed (one existing deprecation warning); production DB found exactly one account matching both names; after deployment, live gate returned true for it and false for a control account. Landing and panel returned HTTP 200. Real INCY playback has not been tested; ask the owner to refresh the subscription and retry the same video. If unsuccessful, revert `b97c79f`, pull fast-forward and restart only the subscription service. Stage details are in `.codex/stages/current.md`.
+
+## Archived rollback handoff
 
 On 2026-09-27 the unverified YouTube routing release `e80bd3e` and its closeout `aca715a` were reverted by `8a2a508` and `24d6a24`. Poland production is at `8a2a508`; `subscription_api.py` and routing tests match pre-change `7f4fc75`. The subscription service is active; landing and panel return HTTP 200. No route diagnosis or Moscow bridge mutation has been made. Next: diagnose the Moscow bridge and VPS read-only before proposing any fix.
 

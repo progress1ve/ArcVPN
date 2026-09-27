@@ -6,7 +6,7 @@ Contract: on this account's JSON subscription profiles, a narrow YouTube/googlev
 
 Acceptance: production database identifies exactly one matching account; focused tests prove the rule order and fail-closed identity gate; non-canary output omits the new rule; service remains active and public endpoint healthy. Real YouTube playback remains an owner-side test after refreshing the INCY subscription. Rollback: revert the scoped runtime commit, ff-only pull and restart only `arcvpn-subscription.service`.
 
-Evidence so far: production read-only database check found one `progressive_dev` account and its first name matched `afterfive`; focused tests initially passed before the identity test was added. No client playback is claimed.
+Evidence: production read-only database check found one `progressive_dev` account and its first name matched `afterfive`. Local suite: 229 passed, one existing deprecation warning; staged diff check passed. Runtime commit `b97c79f` pushed to main, Poland pulled fast-forward, only the subscription service restarted and is active. Production live gate returned true for this account and false for a control account. Public landing and panel HTTP 200. The owner still needs to refresh INCY and verify real playback; no client playback is claimed.
 
 ## Archived rollback stage
 
