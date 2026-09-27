@@ -1,4 +1,27 @@
-# ArcVPN handoff — INCY AutoSelect restored
+# ArcVPN handoff — AutoSelect load distribution
+
+## 2026-09-27 session-stable AutoSelect
+
+- Runtime release `44dae54` is deployed on `pl-control`; only
+  `arcvpn-subscription.service` was restarted and is active. A production SQLite
+  backup was taken before the fast-forward pull.
+- At subscription refresh, Remnawave `usersOnline` and recent assignment
+  reservations select one connected Germany/Estonia main node. The assignment
+  remains while panel activity is recent and can rebalance after 30 minutes
+  offline and another refresh. Existing online users keep their current node
+  on the first refresh where panel telemetry identifies it.
+- The client receives one main AutoSelect outbound, so new video connections
+  cannot jump between Germany and Estonia. The existing Yandex CDN path is
+  still an emergency fallback. Manual country and YouTube profiles are unchanged.
+- Evidence: 51 focused tests; three active public JSON subscriptions returned
+  HTTP 200 with 13 profiles, one AutoSelect main, one CDN fallback, two YouTube
+  outbounds; a live AutoSelect canary passed Xray config validation and returned
+  HTTP 204 through the tunnel.
+- Limit: distribution changes when a subscription refreshes, not when INCY's
+  connect button is pressed. Inspect measured usersOnline after normal customer
+  refreshes rather than treating an immediate static assignment count as load.
+
+## Previous state
 
 ## 2026-09-23 INCY subscription fix
 

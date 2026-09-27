@@ -47,9 +47,9 @@ fallback, manual country profiles, YouTube profile, quota, and identifiers.
 | --- | --- | --- |
 | Current production behavior and counters | Passed | `leastLoad` client routing; Remnawave exposes `usersOnline` for connected DE/EE |
 | Focused tests | Passed | 51 relevant tests passed in an isolated, migrated SQLite test database |
-| Public subscription contract | Pending | |
-| Real tunnel | Pending | |
-| Commit and deployment | Pending | |
+| Public subscription contract | Passed | Three active public JSON subscriptions: HTTP 200, 13 profiles, one main and one CDN fallback in AutoSelect, two YouTube outbounds |
+| Real tunnel | Passed | Live AutoSelect JSON passed Xray config validation and returned HTTP 204 through a local SOCKS canary |
+| Commit and deployment | Passed | Runtime commit `44dae54` pushed to `main`, production fast-forwarded, subscription service active; SQLite backup taken first |
 
 # Trial feedback, conversion and client usage — 2026-09-23
 
