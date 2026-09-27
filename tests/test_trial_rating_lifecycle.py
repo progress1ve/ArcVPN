@@ -39,8 +39,8 @@ class _Bot:
     def __init__(self):
         self.sent = []
 
-    async def send_photo(self, telegram_id, photo, caption, reply_markup):
-        self.sent.append((telegram_id, caption, reply_markup))
+    async def send_photo(self, telegram_id, photo, caption, reply_markup, parse_mode=None):
+        self.sent.append((telegram_id, caption, reply_markup, parse_mode, photo.path))
 
     async def send_message(self, telegram_id, text, reply_markup):
         self.sent.append((telegram_id, text, reply_markup))
@@ -61,6 +61,8 @@ def test_trial_rating_is_sent_once_after_24_hours(monkeypatch):
 
     assert [item[0] for item in bot.sent] == [1001]
     assert "работает уже день" in bot.sent[0][1]
+    assert bot.sent[0][3] == "HTML"
+    assert bot.sent[0][4].endswith("arc-feedback-v2.png")
     buttons = [button.callback_data for row in bot.sent[0][2].inline_keyboard for button in row]
     assert "lifecycle_rating:service" in buttons
     assert not any(value.endswith((":1", ":3", ":5")) for value in buttons)
@@ -94,7 +96,7 @@ def test_connected_expired_trial_gets_one_offer_not_generic_winback(monkeypatch)
     assert conn.execute("SELECT sent_at FROM trial_winback_offers WHERE user_id=4").fetchone()[0]
 
 
-def test_rating_callback_accepts_current_and_legacy_events(monkeypatch):
+def test_rating_detail_and_back_work_for_current_and_old_event_keys(monkeypatch):
     conn = _connection()
     conn.executescript("""
         INSERT INTO lifecycle_events(user_id,event_key) VALUES (1,'trial_day1_rating');
@@ -107,9 +109,17 @@ def test_rating_callback_accepts_current_and_legacy_events(monkeypatch):
         conn.commit()
 
     monkeypatch.setattr(lifecycle, "get_db", fake_db)
-    assert lifecycle._record_rating_answer(1001, "5") == (True, 1)
-    assert lifecycle._record_rating_answer(1002, "3") == (True, 2)
-    assert lifecycle._record_rating_answer(1001, "1") == (False, 1)
+    assert lifecycle._record_rating_answer(1001, "other") == (True, 1)
+    assert lifecycle._reset_rating_answer(1001)
+    assert lifecycle._record_rating_answer(1001, "service") == (True, 1)
+    assert lifecycle._record_rating_detail(1001, "Не открывался YouTube")
+    assert conn.execute("SELECT answer FROM lifecycle_events WHERE user_id=1").fetchone()[0] == "service: Не открывался YouTube"
+    assert lifecycle._record_rating_answer(1002, "other") == (True, 2)
+    assert lifecycle._record_rating_detail(1002, "Больше серверов")
+    assert conn.execute("SELECT answer FROM lifecycle_events WHERE user_id=2").fetchone()[0] == "other: Больше серверов"
+    assert lifecycle._record_rating_answer(1002, "5") == (False, None)
+    assert lifecycle._reset_rating_answer(1002)
+    assert conn.execute("SELECT answer FROM lifecycle_events WHERE user_id=2").fetchone()[0] is None
 
 
 def test_renew_tariff_back_button_returns_to_main_cabinet():

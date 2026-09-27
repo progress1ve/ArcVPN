@@ -1,3 +1,15 @@
+# Feedback flow, notification formatting and sales conversion — 2026-09-27
+
+Goal: repair Telegram HTML captions, let users return from the "Other" detail prompt, persist and display the detail, replace the feedback banner with the supplied blue ArcVPN visual language, remove only historical numeric rating answers (1/3/5), and calculate trial conversion from trial entitlements rather than payment rows.
+
+Contract: feedback photo and thank-you captions render HTML; "Other" can be cancelled via an inline Back button while the answer is provisional; free text changes it to `other: <detail>`; the admin page shows the detail. Other notification captions with HTML must explicitly request HTML parsing; no blanket parse-mode change for all bot messages. The new banner keeps the reference image's logo, blue glow, crosshairs and footer, with the central title "Ваше мнение". Legacy numeric answers are deleted only after an exact-count backup; nonnumeric/current answers and event delivery records remain. Conversion for the selected period is users whose trial activated in the period and later had at least one successful non-trial purchase divided by users whose trial activated in the period; active trials are a current snapshot. No payment, entitlement or subscription mutation.
+
+Components: `bot/services/scheduler.py`, `bot/handlers/user/lifecycle.py`, `bot/assets/`, `subscription_api.py`, `admin_webapp/src/api/adminSalesStats.ts`, focused tests, and a guarded production cleanup. Avoid unrelated frontend redesign. Acceptance: caption renders without literal tags; Back restores buttons and clears provisional answer; details appear in admin API/UI; old numeric rows disappear while other answers remain; trial/paid cohort counts agree with SQL; local tests/build pass; only affected services restart after deployment; public pages and services remain healthy. UI responsive acceptance is source/build plus owner screenshots because the owner previously requested no browser check during deployments.
+
+Risks/rollback: Telegram API cannot retroactively reformat already-sent messages; only new/edit callbacks improve. Back cannot recover a completed old response without explicit reset. Preserve deleted rows in a restricted SQLite backup, then delete by exact answer code and event class only. Runtime rollback by revert/pull and affected-service restart; data restoration from backup if needed.
+
+## Archived YouTube rollout
+
 # YouTube video routing for all JSON subscriptions — 2026-09-27
 
 Goal: extend the working afterfive INCY/Happ JSON routing rule to all customers. The owner confirmed real playback on the canary and explicitly authorized this rollout. No direct-RU-IP removal, Russian-app bypass change, node, bridge, DNS, CDN, URL, UUID, or Windows binary change.

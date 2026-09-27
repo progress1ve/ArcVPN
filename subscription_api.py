@@ -5306,7 +5306,7 @@ def api_admin_feedback():
     if event not in {"all", "trial", "winback"} or paid not in {"all", "yes", "no"}:
         return _api_error("invalid_filter", 400)
     valid_answers = {"all", "great", "connection", "speed", "service", "setup",
-                     "expensive", "quality", "competitor", "other", "1", "3", "5"}
+                     "expensive", "quality", "competitor", "other"}
     if answer not in valid_answers:
         return _api_error("invalid_filter", 400)
     try:
@@ -5849,24 +5849,78 @@ def api_admin_sales_stats():
         days = min(3660, max(0, int(request.args.get("days") or 0)))
     except (TypeError, ValueError):
         return _api_error("invalid_period", 400)
-    where, params = ["1=1"], []
-    if start:
-        where.append("p.paid_at>=?"); params.append(start)
-    elif days:
-        where.append("p.paid_at>=datetime('now',?)"); params.append(f"-{days} days")
-    if end:
-        where.append("p.paid_at<=?"); params.append(end)
+    def period_filter(column: str) -> tuple[str, list[str]]:
+        clauses, values = ["1=1"], []
+        if start:
+            clauses.append(f"datetime({column})>=datetime(?)"); values.append(start)
+        elif days:
+            clauses.append(f"datetime({column})>=datetime('now',?)"); values.append(f"-{days} days")
+        if end:
+            # Date-picker days include the whole final day; a datetime end is
+            # an exclusive boundary (used for previous-period comparisons).
+            if re.fullmatch(r"\d{4}-\d{2}-\d{2}", end):
+                clauses.append(f"datetime({column})<datetime(?,'+1 day')")
+            else:
+                clauses.append(f"datetime({column})<datetime(?)")
+            values.append(end)
+        return " AND ".join(clauses), values
+
+    payment_where, payment_params = period_filter("p.paid_at")
+    trial_where, trial_params = period_filter("te.activated_at")
+    registration_where, registration_params = period_filter("u.created_at")
     amount_sql = _admin_payment_rub_sql()
     with get_db() as conn:
         payments = [dict(row) for row in conn.execute(f"""
             SELECT p.id,p.user_id,p.payment_type,p.operation_type,p.status,p.period_days,p.paid_at AS created_at,p.paid_at,
                    p.tariff_id,COALESCE(t.name,'Без тарифа') tariff_name,{amount_sql} amount_rub
             FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
-            WHERE {' AND '.join(where)} ORDER BY p.paid_at,p.id LIMIT 10000
-        """, params).fetchall()]
+            WHERE {payment_where} ORDER BY p.paid_at,p.id LIMIT 10000
+        """, payment_params).fetchall()]
         active_subscriptions = int(conn.execute("SELECT COUNT(*) FROM vpn_keys WHERE expires_at>datetime('now')").fetchone()[0])
+        paid_trial_sql = """EXISTS (SELECT 1 FROM payments p WHERE p.user_id=te.user_id
+            AND p.status IN ('paid','succeeded') AND p.operation_type IN ('new','renew','upgrade')
+            AND COALESCE(p.payment_type,'')!='trial' AND COALESCE(p.offer_code,'')!='email_paid_trial'
+            AND datetime(p.paid_at)>=datetime(te.activated_at))"""
+        trial_cohort = dict(conn.execute(f"""
+            SELECT COUNT(*) total, SUM(CASE WHEN {paid_trial_sql} THEN 1 ELSE 0 END) converted
+            FROM trial_entitlements te WHERE te.activated_at IS NOT NULL AND {trial_where}
+        """, trial_params).fetchone())
+        active_trials = int(conn.execute("""SELECT COUNT(*) FROM trial_entitlements te
+            JOIN vpn_keys vk ON vk.id=te.vpn_key_id
+            WHERE te.status='active' AND vk.expires_at>datetime('now')""").fetchone()[0])
+        trial_daily = [dict(row) for row in conn.execute(f"""
+            SELECT date(te.activated_at) date,COUNT(*) trials FROM trial_entitlements te
+            WHERE te.activated_at IS NOT NULL AND {trial_where}
+            GROUP BY date(te.activated_at) ORDER BY date
+        """, trial_params).fetchall()]
+        registration_count = int(conn.execute(f"SELECT COUNT(*) FROM users u WHERE {registration_where}", registration_params).fetchone()[0])
+        registered_trial_users = int(conn.execute(f"""
+            SELECT COUNT(*) FROM users u WHERE {registration_where}
+            AND EXISTS (SELECT 1 FROM trial_entitlements te
+                        WHERE te.user_id=u.id AND te.activated_at IS NOT NULL)
+        """, registration_params).fetchone()[0])
+        registration_daily = [dict(row) for row in conn.execute(f"""
+            SELECT date(u.created_at) date,COUNT(*) registrations FROM users u
+            WHERE {registration_where} GROUP BY date(u.created_at) ORDER BY date
+        """, registration_params).fetchall()]
+        trial_providers = [dict(row) for row in conn.execute(f"""
+            SELECT COALESCE(NULLIF(u.identity_source,''),'telegram') provider,COUNT(*) count
+            FROM trial_entitlements te JOIN users u ON u.id=te.user_id
+            WHERE te.activated_at IS NOT NULL AND {trial_where}
+            GROUP BY provider ORDER BY count DESC
+        """, trial_params).fetchall()]
     return _api_no_store(jsonify({"ok": True, "payments": payments,
-                                  "active_subscriptions": active_subscriptions}))
+                                  "active_subscriptions": active_subscriptions,
+                                  "trial_stats": {
+                                      "total_trials": int(trial_cohort["total"] or 0),
+                                      "converted_trials": int(trial_cohort["converted"] or 0),
+                                      "active_trials": active_trials,
+                                      "total_registrations": registration_count,
+                                      "registered_trial_users": registered_trial_users,
+                                      "trial_daily": trial_daily,
+                                      "registration_daily": registration_daily,
+                                      "by_provider": trial_providers,
+                                  }}))
 
 
 @app.route('/api/admin/traffic', methods=['GET'])

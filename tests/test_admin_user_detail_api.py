@@ -101,6 +101,9 @@ def detail_db(monkeypatch):
         INSERT INTO user_campaign_attribution VALUES (2,1,'2026-08-02');
         INSERT INTO user_devices VALUES
           (20,1,'iPhone','ios','iPhone',1,'2026-08-02','2026-08-10',NULL);
+        ALTER TABLE users ADD COLUMN identity_source TEXT DEFAULT 'telegram';
+        ALTER TABLE trial_entitlements ADD COLUMN activated_at TEXT;
+        UPDATE trial_entitlements SET activated_at='2026-08-02' WHERE user_id=2;
         """
     )
 
@@ -201,6 +204,10 @@ def test_admin_operational_registries_use_live_database(client, detail_db):
     sales = client.get("/api/admin/sales-stats").get_json()
     assert sales["active_subscriptions"] == 2
     assert {item["operation_type"] for item in sales["payments"]} == {"new", "trial_start"}
+    assert sales["trial_stats"]["total_trials"] == 1
+    assert sales["trial_stats"]["converted_trials"] == 0
+    assert sales["trial_stats"]["active_trials"] == 1
+    assert client.get("/api/admin/sales-stats?start_date=2026-08-02&end_date=2026-08-02").get_json()["trial_stats"]["total_trials"] == 1
 
     traffic = client.get("/api/admin/traffic?sort_by=total_bytes&sort_desc=true").get_json()
     assert traffic["total"] == 3

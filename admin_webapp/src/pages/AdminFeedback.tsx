@@ -26,7 +26,6 @@ const names: Record<string, string> = {
   great: 'Всё отлично', connection: 'Проблема подключения', speed: 'Низкая скорость',
   service: 'Не работал нужный сервис', setup: 'Сложно настроить', other: 'Другое',
   expensive: 'Дорого', quality: 'Качество', competitor: 'Другой VPN',
-  '1': 'Оценка 1', '3': 'Оценка 3', '5': 'Оценка 5',
 };
 
 function answerParts(raw: string) {

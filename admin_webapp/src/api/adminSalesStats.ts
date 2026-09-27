@@ -185,13 +185,26 @@ export interface PaymentHealth {
 // ============ API ============
 
 type RawSale = { id: number; user_id: number; payment_type: string | null; operation_type: string | null; status: string; period_days: number | null; created_at: string; paid_at: string | null; tariff_id: number | null; tariff_name: string; amount_rub: number };
-type SalesRaw = { payments: RawSale[]; active_subscriptions: number };
+type SalesRaw = {
+  payments: RawSale[];
+  active_subscriptions: number;
+  trial_stats: {
+    total_trials: number;
+    converted_trials: number;
+    active_trials: number;
+    total_registrations: number;
+    registered_trial_users: number;
+    trial_daily: { date: string; trials: number }[];
+    registration_daily: { date: string; registrations: number }[];
+    by_provider: ProviderBreakdownItem[];
+  };
+};
 async function loadRaw(params: SalesStatsParams): Promise<SalesRaw> {
   const query = new URLSearchParams();
   if (params.days !== undefined) query.set('days', String(params.days));
   if (params.start_date) query.set('start_date', params.start_date);
   if (params.end_date) query.set('end_date', params.end_date);
-  return adminModuleJson(`/api/admin/sales-stats?${query}`, { active_subscriptions: 2, payments: [{ id: 1, user_id: 1, payment_type: 'cards', operation_type: 'new', status: 'paid', period_days: 30, created_at: '2026-09-14T12:00:00Z', paid_at: '2026-09-14T12:00:00Z', tariff_id: 1, tariff_name: 'Стандарт', amount_rub: 399 }] }) as Promise<SalesRaw>;
+  return adminModuleJson(`/api/admin/sales-stats?${query}`, { active_subscriptions: 2, trial_stats: { total_trials: 0, converted_trials: 0, active_trials: 0, total_registrations: 0, registered_trial_users: 0, trial_daily: [], registration_daily: [], by_provider: [] }, payments: [{ id: 1, user_id: 1, payment_type: 'cards', operation_type: 'new', status: 'paid', period_days: 30, created_at: '2026-09-14T12:00:00Z', paid_at: '2026-09-14T12:00:00Z', tariff_id: 1, tariff_name: 'Стандарт', amount_rub: 399 }] }) as Promise<SalesRaw>;
 }
 const paid = (rows: RawSale[]) => rows.filter((p) => ['paid', 'succeeded'].includes(p.status));
 const kopeks = (rows: RawSale[]) => Math.round(rows.reduce((sum, p) => sum + Number(p.amount_rub || 0), 0) * 100);
@@ -199,14 +212,24 @@ const day = (p: RawSale) => String(p.paid_at || p.created_at).slice(0, 10);
 
 export const salesStatsApi = {
   getSummary: async (params: SalesStatsParams = {}): Promise<SalesSummary> => {
-    const raw = await loadRaw(params); const successful = paid(raw.payments); const trials = successful.filter((p) => p.payment_type === 'trial'); const sales = successful.filter((p) => p.payment_type !== 'trial');
-    const seen = new Set<number>(); let renewals = 0; for (const p of sales) { if (seen.has(p.user_id)) renewals++; seen.add(p.user_id); }
-    return { total_revenue_kopeks: kopeks(sales), manual_topup_kopeks: 0, active_subscriptions: raw.active_subscriptions, active_trials: 0, new_trials: trials.length, new_paid_subscriptions: seen.size, expired_subscriptions: 0, trial_to_paid_conversion: trials.length ? Math.round(seen.size / trials.length * 1000) / 10 : 0, renewals_count: renewals, addon_revenue_kopeks: 0 };
+    const raw = await loadRaw(params); const successful = paid(raw.payments); const sales = successful.filter((p) => p.payment_type !== 'trial');
+    const trials = raw.trial_stats;
+    const newPaid = new Set(sales.filter((p) => p.operation_type === 'new').map((p) => p.user_id)).size;
+    const renewals = sales.filter((p) => p.operation_type === 'renew').length;
+    const addons = sales.filter((p) => p.operation_type?.startsWith('addon_'));
+    return { total_revenue_kopeks: kopeks(sales), manual_topup_kopeks: 0, active_subscriptions: raw.active_subscriptions, active_trials: trials.active_trials, new_trials: trials.total_trials, new_paid_subscriptions: newPaid, expired_subscriptions: 0, trial_to_paid_conversion: trials.total_trials ? Math.round(trials.converted_trials / trials.total_trials * 1000) / 10 : 0, renewals_count: renewals, addon_revenue_kopeks: kopeks(addons) };
   },
 
   getTrials: async (params: SalesStatsParams = {}): Promise<TrialsStats> => {
-    const raw = await loadRaw(params); const trials = paid(raw.payments).filter((p) => p.payment_type === 'trial'); const registrations = new Set(raw.payments.map((p) => p.user_id)).size; const daily = new Map<string, { registrations: Set<number>; trials: number }>(); for (const p of raw.payments) { const key = day(p); const x = daily.get(key) || { registrations: new Set<number>(), trials: 0 }; x.registrations.add(p.user_id); if (p.payment_type === 'trial' && ['paid','succeeded'].includes(p.status)) x.trials++; daily.set(key, x); }
-    return { total_trials: trials.length, total_registrations: registrations, conversion_rate: registrations ? Math.round(trials.length / registrations * 1000) / 10 : 0, avg_trial_duration_days: trials.length ? trials.reduce((s,p)=>s+Number(p.period_days||0),0)/trials.length : 0, by_provider: [], daily: [...daily].map(([date,x])=>({date,registrations:x.registrations.size,trials:x.trials})) };
+    const stats = (await loadRaw(params)).trial_stats;
+    const daily = new Map<string, DailyTrialItem>();
+    for (const row of stats.registration_daily) daily.set(row.date, { date: row.date, registrations: row.registrations, trials: 0 });
+    for (const row of stats.trial_daily) {
+      const current = daily.get(row.date) || { date: row.date, registrations: 0, trials: 0 };
+      current.trials = row.trials;
+      daily.set(row.date, current);
+    }
+    return { total_trials: stats.total_trials, total_registrations: stats.total_registrations, conversion_rate: stats.total_registrations ? Math.round(stats.registered_trial_users / stats.total_registrations * 1000) / 10 : 0, avg_trial_duration_days: 0, by_provider: stats.by_provider, daily: [...daily.values()].sort((a,b) => a.date.localeCompare(b.date)) };
   },
 
   getSales: async (params: SalesStatsParams = {}): Promise<SalesStats> => {

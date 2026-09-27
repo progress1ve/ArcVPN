@@ -105,6 +105,7 @@ async def run_fleet_alert_scheduler(bot: Bot) -> None:
 async def _send_lifecycle_batch(bot: Bot) -> None:
     """Send each lifecycle message once; database uniqueness prevents duplicates."""
     from database.connection import get_db
+    from bot.handlers.user.lifecycle import RATING_CAPTION, rating_keyboard
 
     with get_db() as conn:
         rating_users = conn.execute("""
@@ -172,23 +173,12 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
 
     assets = os.path.join(PROJECT_ROOT, "bot", "assets")
     for row in rating_users:
-        kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="💙 Всё работает отлично", callback_data="lifecycle_rating:great")],
-            [InlineKeyboardButton(text="🔌 Не подключается или нестабильно", callback_data="lifecycle_rating:connection")],
-            [InlineKeyboardButton(text="🐢 Низкая скорость", callback_data="lifecycle_rating:speed")],
-            [InlineKeyboardButton(text="📱 Не работает нужный сервис", callback_data="lifecycle_rating:service")],
-            [InlineKeyboardButton(text="🧩 Сложно настроить", callback_data="lifecycle_rating:setup")],
-            [InlineKeyboardButton(text="💬 Другое", callback_data="lifecycle_rating:other")],
-        ])
         try:
             await bot.send_photo(
-                row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v1.png")),
-                caption=(
-                    "💙 <b>Поможете сделать ArcVPN лучше?</b>\n\n"
-                    "Пробная подписка работает уже день. Что нам важнее всего улучшить?\n\n"
-                    "Выберите один вариант — так мы быстрее поймём, что действительно мешает."
-                ),
-                reply_markup=kb,
+                row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v2.png")),
+                caption=RATING_CAPTION,
+                reply_markup=rating_keyboard(),
+                parse_mode="HTML",
             )
             with get_db() as conn:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'trial_day1_rating')", (row["id"],))
@@ -209,7 +199,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                     "👋 <b>Ваша подписка закончилась</b>\n\n"
                     "Расскажите, почему не стали продлевать. За один ответ мы сразу подарим "
                     "<b>3 дня ArcVPN</b>, чтобы вы могли проверить сервис ещё раз."
-                ), reply_markup=kb,
+                ), reply_markup=kb, parse_mode="HTML",
             )
             with get_db() as conn:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
@@ -235,7 +225,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         ])
         try:
             await bot.send_photo(row["telegram_id"], FSInputFile(os.path.join(assets, "arc-winback-v1.png")),
-                                 caption=caption, reply_markup=kb)
+                                 caption=caption, reply_markup=kb, parse_mode="HTML")
             with get_db() as conn:
                 conn.execute("UPDATE trial_winback_offers SET sent_at=CURRENT_TIMESTAMP WHERE user_id=? AND sent_at IS NULL", (row["id"],))
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
