@@ -65,8 +65,13 @@ def _probe(profile: dict, mode: str) -> None:
     with tempfile.TemporaryDirectory(prefix="arcvpn-auto-canary-") as folder:
         path = Path(folder) / "config.json"
         path.write_text(json.dumps(config), encoding="utf-8")
-        subprocess.run([str(XRAY), "run", "-test", "-c", str(path)],
-                       check=True, capture_output=True, timeout=15)
+        syntax = subprocess.run([str(XRAY), "run", "-test", "-c", str(path)],
+                                capture_output=True, text=True, timeout=15)
+        if syntax.returncode:
+            # Xray prints parser diagnostics, not the generated credentials.
+            # Keep only the final diagnostic line to avoid dumping config data.
+            reason = (syntax.stderr or syntax.stdout).splitlines()[-1][:240]
+            raise RuntimeError(f"Xray rejected AutoSelect config: {reason}")
         with (Path(folder) / "xray.log").open("w", encoding="utf-8") as log:
             process = subprocess.Popen([str(XRAY), "run", "-c", str(path)],
                                        stdout=log, stderr=log)
