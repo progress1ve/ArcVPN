@@ -1,3 +1,11 @@
+# ArcVPN handoff — YouTube routing release
+
+Production `main` includes `e80bd3e`: JSON subscription profiles force YouTube/Googlevideo domains through VPN and no longer send all Russian IP-only destinations direct. `arcvpn-subscription.service` is active; landing and panel HTTP 200; 228 local tests passed. The owner still needs to refresh INCY/ArcVPN-client subscriptions and verify actual PC video playback. No node or client binary was changed. If the video still fails, obtain the browser request error/status and bounded client routing evidence before changing more rules.
+
+The primary checkout remains behind and dirty; continue code work from a clean worktree. Its owner changes and local documentation cleanup remain separate.
+
+## Archived prior handoff
+
 # ArcVPN handoff — custom 500 GB bypass tariff
 
 ## 2026-09-27 current stage
