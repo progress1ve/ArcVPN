@@ -8,6 +8,8 @@ Affected component: `subscription_api.py` JSON profile builder and focused tests
 
 Rollback: revert the scoped runtime commit, fast-forward production and restart only the subscription service. Existing downloaded client profiles remain until refreshed.
 
+Closeout: commit `39bcc2b` pushed to main and pulled fast-forward on Poland; only `arcvpn-subscription.service` restarted and is active. Local suite 228 passed (one existing deprecation warning), staged diff check passed. Public landing and panel returned HTTP 200. Production helper confirmed `googlevideo.com` proxy rule present and `geoip:ru` direct rule retained. The original afterfive client played video with the same rule. Acceptance for other clients' actual playback is deferred until they refresh and test. No rollback needed; revert `39bcc2b` if the general rollout causes regressions.
+
 ## Archived canary stage
 
 # YouTube routing canary for afterfive — 2026-09-27

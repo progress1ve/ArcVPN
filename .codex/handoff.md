@@ -1,4 +1,8 @@
-# ArcVPN handoff — afterfive YouTube routing canary
+# ArcVPN handoff — YouTube video routing for JSON subscriptions
+
+On 2026-09-27 the owner confirmed that the afterfive canary fixed YouTube playback and authorized the same rule for other users. Runtime commit `39bcc2b` is deployed on Poland. All generated INCY/Happ JSON profiles now put narrow YouTube/googlevideo/ytimg proxy domains before the unchanged `geoip:ru` direct-IP rule; Russian-app direct routing, nodes, DNS, bridge, subscription URLs/UUIDs, and plain share-link subscriptions were not changed. Only `arcvpn-subscription.service` restarted and is active. Local suite: 228 passed, one existing deprecation warning. Public landing and panel HTTP 200; production rule and RU-direct checks passed. Clients must refresh their subscription to receive the new profile. The owner withdrew the request for a shareable troubleshooting instruction. Next: observe other clients after refresh; real playback was confirmed for the original canary, not yet independently for every client.
+
+## Archived canary handoff
 
 On 2026-09-27 the owner approved a one-account YouTube routing canary for afterfive (@progressive_dev). Runtime commit `b97c79f` was pushed to main and deployed by fast-forward on Poland; only `arcvpn-subscription.service` restarted and is active. Generated JSON profiles for this account put narrow YouTube/googlevideo/ytimg proxy domains before the unchanged `geoip:ru` direct-IP rule. The gate requires both stored account names and fails closed. Plain share-link output, other users, nodes, Moscow bridge, DNS and Windows binary were not changed.
 

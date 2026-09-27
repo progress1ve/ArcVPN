@@ -1784,6 +1784,16 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Real TCP Reality and official Hysteria2-client canaries returned HTTP 204.
   Inventory credential alias is `ee-1chost`; secrets remain only in the local
   DPAPI vault and production Remnawave/node state.
+## 2026-09-27: YouTube video domains before Russian direct-IP routing
+
+- For generated INCY/Happ JSON profiles, route `youtube.com`,
+  `youtube-nocookie.com`, `googlevideo.com`, and `ytimg.com` through the existing
+  profile proxy/balancer before `geoip:ru`. Keep Russian apps and other Russian
+  IPs direct; do not remove `geoip:ru` globally.
+- The one-account afterfive canary restored real YouTube playback before the
+  rule was extended to all JSON subscribers. Clients need a subscription
+  refresh to receive it. Plain share-link subscriptions are a separate path.
+
 ## 2026-08-29: TikTok forced through VPN before Russian direct routing
 
 - Happ routing now sends explicit TikTok/ByteDance domains through the selected
