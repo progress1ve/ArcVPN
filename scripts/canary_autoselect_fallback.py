@@ -9,6 +9,7 @@ from __future__ import annotations
 import copy
 import json
 import logging
+import os
 import sqlite3
 import subprocess
 import tempfile
@@ -22,6 +23,7 @@ import subscription_api as api
 from database.connection import DB_PATH
 
 XRAY = Path("/tmp/arcvpn-canary-xray")
+XRAY_ASSETS = Path("/tmp/arc-xray-gate")
 SOCKS_PORT = 18083
 
 
@@ -65,8 +67,9 @@ def _probe(profile: dict, mode: str) -> None:
     with tempfile.TemporaryDirectory(prefix="arcvpn-auto-canary-") as folder:
         path = Path(folder) / "config.json"
         path.write_text(json.dumps(config), encoding="utf-8")
+        env = {**os.environ, "XRAY_LOCATION_ASSET": str(XRAY_ASSETS)}
         syntax = subprocess.run([str(XRAY), "run", "-test", "-c", str(path)],
-                                capture_output=True, text=True, timeout=15)
+                                capture_output=True, text=True, timeout=15, env=env)
         if syntax.returncode:
             # Xray prints parser diagnostics, not the generated credentials.
             # Keep only the final diagnostic line to avoid dumping config data.
@@ -74,7 +77,7 @@ def _probe(profile: dict, mode: str) -> None:
             raise RuntimeError(f"Xray rejected AutoSelect config: {reason}")
         with (Path(folder) / "xray.log").open("w", encoding="utf-8") as log:
             process = subprocess.Popen([str(XRAY), "run", "-c", str(path)],
-                                       stdout=log, stderr=log)
+                                       stdout=log, stderr=log, env=env)
             try:
                 deadline = time.monotonic() + 100
                 while time.monotonic() < deadline:
