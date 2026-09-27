@@ -12,6 +12,10 @@ Verification matrix: focused tests, relevant suite, staged diff, commit/push, pr
 
 Pre-release evidence: production read-only audit found seven referred accounts, one eligible paid-applied account without purchase reward, and one account with authoritative VPN usage but no entry reward; both are the same referral pair. The inviter has no ledger row. Local 225 tests pass (one existing datetime deprecation warning). Recovery command defaults to dry-run and requires explicit expected counts for apply.
 
+Release evidence: runtime commit `89bbaf2` was pushed to main and pulled ff-only on the Poland control plane. Bot and subscription services restarted and are active. The bot's first post-restart usage sync granted the missing 5-day entry reward; guarded recovery granted the missing 15-day purchase reward. Ledger now records 20 days with both one-time flags set. Inviter expiry moved by 20 days, friend's by 15 days. Remnawave expiry matches the database for both accounts, and recovery dry-run reports 0/0 remaining. Public panel and landing return HTTP 200. Initial recovery invocation with system Python failed before mutation because dependencies were absent; the service virtualenv invocation succeeded.
+
+Residual risk: external panel synchronization is separate from the SQLite transaction and can fail transiently; reward key sync logs false/exception and live production was explicitly checked. A future durable sync outbox would strengthen this further. Rollback status: no rollback needed; reverting runtime code does not undo correctly awarded customer days.
+
 ## Archived prior stage: AutoSelect session load distribution — 2026-09-27
 
 ## Accepted behavior

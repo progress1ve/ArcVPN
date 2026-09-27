@@ -5,6 +5,8 @@
 - Production audit found one referred pair with a fulfilled first purchase and measured VPN traffic, but no entry/purchase reward flags or days.
 - The payment webhook bypassed the old bot-only referral callback; online-IP polling missed a short VPN session despite authoritative traffic bytes.
 - The release makes local key extensions and reward flags one transaction, awards purchase rewards from unified paid-order handling, detects first use from VPN traffic, and provides guarded dry-run-first recovery.
+- Runtime `89bbaf2` is deployed; the affected pair received 5 entry days for the inviter and 15 purchase days for both parties. Ledger flags, DB expiries and Remnawave expiries agree; dry-run is 0/0. Both services active and public panel/site HTTP 200.
+- Follow-up: consider a durable external-panel sync outbox; SQLite award is atomic but panel writes are a separate operation.
 - See `.codex/stages/current.md` for acceptance and deployment evidence. Do not disclose customer or subscription identifiers.
 
 ## Archived AutoSelect handoff

@@ -48,13 +48,17 @@ def candidates(kind: str) -> list[int]:
 
 async def apply(purchases: list[int], entries: list[int]) -> None:
     from bot.services.billing import process_referral_reward, process_referral_trial_reward
+    from bot.services.vpn_api import close_all_clients
 
-    # Entry first mirrors the chronological product contract: +N inviter,
-    # then first paid purchase +N to both. Each call is DB-idempotent.
-    for user_id in entries:
-        await process_referral_trial_reward(user_id)
-    for user_id in purchases:
-        await process_referral_reward(user_id)
+    try:
+        # Entry first mirrors the product contract: +N inviter, then first
+        # paid purchase +N to both. Each call is DB-idempotent.
+        for user_id in entries:
+            await process_referral_trial_reward(user_id)
+        for user_id in purchases:
+            await process_referral_reward(user_id)
+    finally:
+        await close_all_clients()
 
 
 def main() -> None:
