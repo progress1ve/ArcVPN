@@ -12,6 +12,8 @@ Risks/rollback: a mismatch between frontend selection and backend allowlist reje
 
 Baseline: public landing's custom builder currently ends at 225 GB. Its three-column control and live server-quote behavior were inspected in the browser before edits. Existing backend supports 0–225 GB via explicit allowlist; 500 GB is currently rejected.
 
+Closeout (2026-09-27): runtime commit `085808a` pushed to `main` and pulled fast-forward on Poland production. `arcvpn-subscription.service` restarted and is active. Local verification: focused tests 19 passed, full suite 227 passed (one existing deprecation warning), Vite build passed with existing unused-CSS warnings, staged diff check passed. Local browser showed 500 GB selectable on the cabinet and landing; exact four-viewport acceptance was not available in the browser tool and remains deferred. Public quote for 3 months / 3 devices / 500 GB returned HTTP 200, `price_rub=3239`; unsupported 501 GB returned HTTP 400. No real payment was submitted. Rollback: revert `085808a`, rebuild assets, pull fast-forward and restart the subscription service. Next step: owner-led visual check on mobile and a real checkout only if desired.
+
 ## Archived prior stage: referral reward recovery — 2026-09-27
 
 Goal: grant configured entry and first-purchase day bonuses reliably, and restore only demonstrably missed production rewards.

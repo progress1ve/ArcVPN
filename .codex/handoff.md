@@ -1,4 +1,14 @@
-# ArcVPN handoff — referral reward integrity
+# ArcVPN handoff — custom 500 GB bypass tariff
+
+## 2026-09-27 current stage
+
+- Runtime commit `085808a` is deployed on Poland production. The custom tariff offers 500 GB of bypass traffic on landing and cabinet; the backend quote and payment order accept and persist this entitlement with the existing formula.
+- Local focused tests: 19 passed; full suite: 227 passed with one existing deprecation warning. Vite build passed with existing unused-CSS warnings. Local browser confirmed 500 GB selection on both surfaces at its available viewport.
+- `arcvpn-subscription.service` restarted and is active. Public 3-month / 3-device / 500-GB quote returned HTTP 200 and 3239 RUB; unsupported 501 GB returned HTTP 400. No real payment was submitted. Four exact viewport checks remain deferred.
+- The owner's primary checkout has unrelated dirty files. Its `AI_CONTEXT.md` rewrite and Markdown audit are local-only work, not part of this deployed commit. Do not reset or sweep the owner's files.
+- See `.codex/stages/current.md` for acceptance and rollback.
+
+## Archived referral handoff
 
 ## 2026-09-27 current stage
 
