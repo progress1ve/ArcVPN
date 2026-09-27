@@ -8,6 +8,8 @@ Components: `bot/services/scheduler.py`, `bot/handlers/user/lifecycle.py`, `bot/
 
 Risks/rollback: Telegram API cannot retroactively reformat already-sent messages; only new/edit callbacks improve. Back cannot recover a completed old response without explicit reset. Preserve deleted rows in a restricted SQLite backup, then delete by exact answer code and event class only. Runtime rollback by revert/pull and affected-service restart; data restoration from backup if needed.
 
+Closeout: `803d29f` pushed to main and pulled fast-forward on Poland. Full local suite 229 passed (one existing deprecation warning); admin Vite build and staged diff check passed. A mode-0600 SQLite backup is at `/root/ArcVPN/backups/feedback-20260927-pre-cleanup.sqlite3`. Exactly six historic numeric answers were cleared while event delivery rows were retained; one previously missing afterfive free-text detail was restored from the owner's screenshot. Production confirms zero old numeric answers, that detail present, eight active trials, and the 30-day sales API returns 33 trial activations and five later purchasers. Bot and subscription services active; public panel HTTP 200. No browser QA by owner request. Existing sent Telegram messages cannot be retroactively reformatted; new sends and edited callbacks use the new formatting and image.
+
 ## Archived YouTube rollout
 
 # YouTube video routing for all JSON subscriptions — 2026-09-27
