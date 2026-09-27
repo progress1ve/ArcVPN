@@ -1,3 +1,13 @@
+# YouTube routing rollback — 2026-09-27
+
+Goal: undo the unverified production change `e80bd3e` and its closeout, preserving all unrelated work. Non-goal: no diagnosis-based route or Moscow bridge mutation in this rollback.
+
+Scope: `subscription_api.py`, focused test, stage and handoff restored by Git revert; Poland production subscription service only. Acceptance: runtime files match `7f4fc75`, focused tests pass, production Git ff-only pull succeeds, subscription service active and public landing/panel HTTP 200.
+
+Evidence: reverts `24d6a24` and `8a2a508` pushed to `main`; focused tests 4 passed; `git diff --quiet 7f4fc75 HEAD -- subscription_api.py tests/test_happ_fallback_balancer.py` passed locally and in production. Poland fast-forwarded to `8a2a508`, restarted only `arcvpn-subscription.service`, active; landing and panel returned HTTP 200. No browser playback claim. Rollback complete; next step is read-only Moscow bridge diagnosis.
+
+## Archived prior tariff stage
+
 # Custom tariff: 500 GB bypass — 2026-09-27
 
 Goal: let customers select and purchase 500 GB of bypass quota in the existing custom tariff builder.

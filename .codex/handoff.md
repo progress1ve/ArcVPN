@@ -1,3 +1,9 @@
+# ArcVPN handoff — YouTube routing rollback
+
+On 2026-09-27 the unverified YouTube routing release `e80bd3e` and its closeout `aca715a` were reverted by `8a2a508` and `24d6a24`. Poland production is at `8a2a508`; `subscription_api.py` and routing tests match pre-change `7f4fc75`. The subscription service is active; landing and panel return HTTP 200. No route diagnosis or Moscow bridge mutation has been made. Next: diagnose the Moscow bridge and VPS read-only before proposing any fix.
+
+## Prior tariff handoff
+
 # ArcVPN handoff — custom 500 GB bypass tariff
 
 ## 2026-09-27 current stage
