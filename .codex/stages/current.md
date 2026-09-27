@@ -1,4 +1,18 @@
-# Referral reward recovery — 2026-09-27
+# Custom tariff: 500 GB bypass — 2026-09-27
+
+Goal: let customers select and purchase 500 GB of bypass quota in the existing custom tariff builder.
+
+Contract: append exactly one `500 ГБ` choice after 225 GB on landing and customer cabinet; 1/3/6/12-month server quotes use the existing anchor-based per-GB pricing formula, with no new discount or fixed price. Payment order stores 500 GB requested entitlement and uses that exact server quote. This is not a 500-GB top-up/add-on option. Ordinary traffic remains unlimited.
+
+Components: `subscription_api.py`, `webapp/src/views/{LandingPage,HomeFlowPreview}.svelte`, focused quote/payment tests. No migration, pricing-formula change, subscription identifier change, or other tariff change.
+
+Acceptance: 500 GB can be selected at 390/768/1280/1600 px without overflow; quote is numeric and increases monotonically from 225 GB; payment initiation accepts and persists 500 GB at the quoted price; 501 GB and other unsupported values fail; existing choices and payment paths remain intact. Verify local tests/build, rendered before/after UI, staged diff, production rollout, and public quote response. Never submit a real payment during QA.
+
+Risks/rollback: a mismatch between frontend selection and backend allowlist rejects checkout, so release both together. Existing per-GB extrapolation may create a high price; show the exact server quote before payment. Roll back the scoped commit and restart the subscription service; no data migration or active-subscription changes.
+
+Baseline: public landing's custom builder currently ends at 225 GB. Its three-column control and live server-quote behavior were inspected in the browser before edits. Existing backend supports 0–225 GB via explicit allowlist; 500 GB is currently rejected.
+
+## Archived prior stage: referral reward recovery — 2026-09-27
 
 Goal: grant configured entry and first-purchase day bonuses reliably, and restore only demonstrably missed production rewards.
 

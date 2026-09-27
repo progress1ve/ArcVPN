@@ -257,7 +257,7 @@
         <div class="custom-controls">
           <label><span>Срок</span><div>{#each [1,3,6,12] as month}<button class:active={customMonths === month} on:click={() => customMonths = month}>{month}</button>{/each}</div></label>
           <label><span>Устройства <b>{customDevices}</b></span><input aria-label={`Устройства ${customDevices}`} type="range" min="1" max="15" bind:value={customDevices} /></label>
-          <label><span>Обход</span><div>{#each [0,15,30,45,75,115,175,225] as gb}<button class:active={customLte === gb} on:click={() => customLte = gb}>{gb || '—'}</button>{/each}</div></label>
+          <label class="bypass-choice"><span>Обход</span><div>{#each [0,15,30,45,75,115,175,225,500] as gb}<button class:active={customLte === gb} aria-pressed={customLte === gb} on:click={() => customLte = gb}>{gb || '—'}</button>{/each}</div></label>
         </div>
         <div class="custom-total">
           <small class="custom-label">Ваша цена</small>
@@ -1026,7 +1026,10 @@
   .app-icon-stage{border-left:1px solid var(--cabinet-hairline);background:radial-gradient(ellipse at 72% 58%,rgba(79,169,220,.18),transparent 60%),linear-gradient(180deg,#0a1927 0%,#07121d 30%,#050c14 100%)}
 
   @media(max-width:900px){.app-icon-stage{border-top:1px solid var(--cabinet-hairline);border-left:0}}
+  .custom-controls label.bypass-choice>div{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));min-width:0}
+  .custom-controls label.bypass-choice button{min-width:0;padding:0 3px}
   @media(max-width:620px){
+    .custom-controls label.bypass-choice{grid-template-columns:1fr;gap:7px;padding:12px 0}
     .bypass-section{box-sizing:border-box;overflow:hidden}.bypass-phone{width:min(100%,360px)}
     .periods{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:visible}.periods button{min-width:0;width:100%}
     .final-section{width:100%;min-height:440px}

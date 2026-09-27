@@ -54,7 +54,7 @@ def test_custom_quote_is_monotonic_for_supported_choices():
 
 @pytest.mark.parametrize("months", [1, 3, 6, 12])
 def test_custom_quote_matrix_has_no_price_inversions(months):
-    lte_choices = [0, 15, 30, 45, 75, 115, 175, 225]
+    lte_choices = [0, 15, 30, 45, 75, 115, 175, 225, 500]
     for devices in range(1, 16):
         prices = [api._custom_tariff_quote({"period_months": months}, devices, gb, CATALOG)["price_rub"] for gb in lte_choices]
         assert prices == sorted(prices)
@@ -63,7 +63,7 @@ def test_custom_quote_matrix_has_no_price_inversions(months):
         assert prices == sorted(prices)
 
 
-@pytest.mark.parametrize("devices,lte", [(0, 45), (16, 45), (3, 10), (3, 999)])
+@pytest.mark.parametrize("devices,lte", [(0, 45), (16, 45), (3, 10), (3, 501), (3, 999)])
 def test_custom_quote_rejects_values_outside_the_product_choices(devices, lte):
     with pytest.raises(ValueError, match="invalid_custom_entitlements"):
         api._custom_tariff_quote({"period_months": 3}, devices, lte, CATALOG)
@@ -103,6 +103,38 @@ def test_custom_payment_uses_server_quote_and_persists_entitlements():
     assert response.get_json()["base_amount_rub"] == 399
     assert response.get_json()["custom"] is True
     entitlements.assert_called_once_with("custom-order", 3, 45)
+
+
+def test_500_gb_custom_payment_uses_server_quote_and_persists_quota():
+    selected = next(item for item in CATALOG if item["product_code"] == "standard" and item["period_months"] == 3)
+    expected = api._custom_tariff_quote(selected, 3, 500, CATALOG)["price_rub"]
+    assert expected > api._custom_tariff_quote(selected, 3, 225, CATALOG)["price_rub"]
+
+    async def create_payment(**kwargs):
+        assert kwargs["amount_rub"] == expected
+        return {"yookassa_payment_id": "provider-custom-500", "qr_url": "https://pay.example", "status": "pending"}
+
+    def run(coro, timeout=None):
+        return asyncio.run(coro)
+
+    with patch.object(api, "_webapp_telegram_id", return_value=123), patch.object(
+        api, "get_user_internal_id", return_value=5
+    ), patch.object(api, "get_tariff_by_id", return_value=selected), patch.object(
+        api, "get_all_tariffs", return_value=CATALOG
+    ), patch.object(api, "get_user_keys_for_display", return_value=[]), patch.object(
+        api, "prepare_payment_order", return_value={"order_id": "custom-500-order"}
+    ), patch.object(api, "set_payment_requested_entitlements", return_value=True) as entitlements, patch.object(
+        api, "create_yookassa_qr_payment", create_payment
+    ), patch.object(api.ASYNC_EXECUTOR, "run", side_effect=run), patch.object(
+        api, "save_yookassa_payment_id"
+    ):
+        response = api.app.test_client().post("/api/payments/sbp", json={
+            "tariff_id": selected["id"], "devices": 3, "lte_gb": 500,
+            "custom": True, "auto_renew": False,
+        })
+    assert response.status_code == 200
+    assert response.get_json()["base_amount_rub"] == expected
+    entitlements.assert_called_once_with("custom-500-order", 3, 500)
 
 
 def test_addon_payment_uses_server_price_table():
