@@ -1,3 +1,15 @@
+# YouTube routing canary for afterfive — 2026-09-27
+
+Goal: test whether Xray/INCY can route YouTube video CDN by sniffed domain before the existing direct-RU-IP rule. Owner approved only afterfive (@progressive_dev); no global routing, node, bridge, DNS, or CDN change.
+
+Contract: on this account's JSON subscription profiles, a narrow YouTube/googlevideo/ytimg domain proxy rule precedes the existing direct-domain/IP rules. Require both stored username and first name; fail closed on lookup error or name change. Other users' JSON output and all users' `geoip:ru` direct rule remain unchanged. Plain share-link subscriptions and the custom Windows-client executable are outside this canary.
+
+Acceptance: production database identifies exactly one matching account; focused tests prove the rule order and fail-closed identity gate; non-canary output omits the new rule; service remains active and public endpoint healthy. Real YouTube playback remains an owner-side test after refreshing the INCY subscription. Rollback: revert the scoped runtime commit, ff-only pull and restart only `arcvpn-subscription.service`.
+
+Evidence so far: production read-only database check found one `progressive_dev` account and its first name matched `afterfive`; focused tests initially passed before the identity test was added. No client playback is claimed.
+
+## Archived rollback stage
+
 # YouTube routing rollback — 2026-09-27
 
 Goal: undo the unverified production change `e80bd3e` and its closeout, preserving all unrelated work. Non-goal: no diagnosis-based route or Moscow bridge mutation in this rollback.

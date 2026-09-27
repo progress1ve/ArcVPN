@@ -1,13 +1,15 @@
 import json
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 try:
     from subscription_api import (
         ActiveKeyRecord,
         HAPP_ROUTING_PROFILE,
         TIKTOK_PROXY_SITES,
+        YOUTUBE_CANARY_PROXY_SITES,
         _build_happ_json_subscription,
+        _is_youtube_routing_canary,
     )
 except ModuleNotFoundError as exc:  # Minimal local test environment may omit Flask.
     ActiveKeyRecord = _build_happ_json_subscription = None
@@ -18,6 +20,45 @@ else:
 
 @unittest.skipIf(IMPORT_ERROR is not None, f"subscription API dependencies unavailable: {IMPORT_ERROR}")
 class HappFallbackBalancerTests(unittest.TestCase):
+    def test_youtube_canary_requires_both_account_names(self):
+        key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
+        connection = MagicMock()
+        for username, first_name, expected in (
+            ("progressive_dev", "afterfive", True),
+            ("progressive_dev", "someone else", False),
+            ("someone else", "afterfive", False),
+        ):
+            connection.execute.return_value.fetchone.return_value = {
+                "username": username, "first_name": first_name,
+            }
+            context = MagicMock()
+            context.__enter__.return_value = connection
+            with patch("subscription_api.get_db", return_value=context):
+                self.assertEqual(_is_youtube_routing_canary(key), expected)
+
+    def test_youtube_proxy_rule_is_present_only_for_the_canary(self):
+        key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
+        links = "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany"
+        with patch("subscription_api._catalog_overrides", return_value={}), patch(
+            "subscription_api._is_youtube_routing_canary", return_value=False
+        ):
+            baseline = _build_happ_json_subscription(key, links)
+        with patch("subscription_api._catalog_overrides", return_value={}), patch(
+            "subscription_api._is_youtube_routing_canary", return_value=True
+        ):
+            canary = json.loads(_build_happ_json_subscription(key, links))
+
+        self.assertNotIn("domain:googlevideo.com", baseline)
+        self.assertIn("geoip:ru", baseline)
+        for profile in canary:
+            rules = profile["routing"]["rules"]
+            youtube_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == YOUTUBE_CANARY_PROXY_SITES)
+            ru_index = next(i for i, rule in enumerate(rules) if "geoip:ru" in rule.get("ip", []))
+            self.assertLess(youtube_index, ru_index)
+            self.assertEqual(rules[youtube_index].get("outboundTag") or rules[youtube_index].get("balancerTag"),
+                             "balancer_youtube" if profile["remarks"] == "🇷🇺 Ютуб без рекламы" else
+                             "balancer_main" if profile["remarks"].startswith(("Автовыбор", "🇪🇺")) else "proxy")
+
     def test_tiktok_is_forced_through_vpn_before_direct_rules_in_every_profile(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
