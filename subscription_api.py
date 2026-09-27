@@ -1615,7 +1615,7 @@ def _select_autoselect_country(key: ActiveKeyRecord, countries: set[str]) -> str
 
 
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
-    """Return a Happ JSON array with one session-stable AutoSelect main."""
+    """Return Happ JSON with Estonia-primary AutoSelect and observed backups."""
     links = sorted(
         _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
@@ -1701,10 +1701,18 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     for index, item in enumerate(youtube_outbounds, start=1):
         item["tag"] = f"proxy-youtube-{index}"
 
-    if len(auto_country_outbounds) >= 2:
-        selected_country = _select_autoselect_country(key, set(auto_country_outbounds))
-        auto_outbounds = [copy.deepcopy(auto_country_outbounds[selected_country])]
+    # Country priority is fixed in the client profile, not decided at refresh:
+    # Estonia is the only routine main, Germany is observed but used only after
+    # Estonia fails, and the existing CDN is the final emergency path.
+    auto_failover = "ee" in auto_country_outbounds and "de" in auto_country_outbounds
+    if auto_country_outbounds:
+        primary = auto_country_outbounds.get("ee") or auto_country_outbounds["de"]
+        auto_outbounds = [copy.deepcopy(primary)]
         auto_outbounds[0]["tag"] = "proxy-main-1"
+        if auto_failover:
+            reserve = copy.deepcopy(auto_country_outbounds["de"])
+            reserve["tag"] = "proxy-reserve-de"
+            auto_outbounds.append(reserve)
 
     host_priority = {host: index for index, host in enumerate(BYPASS_CDN_HOST_PRIORITY)}
     lte_outbounds.sort(key=lambda item: host_priority.get(
@@ -1713,6 +1721,12 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     ))
     for index, item in enumerate(lte_outbounds, start=1):
         item["tag"] = f"proxy-back-{index}"
+
+    if auto_failover:
+        auto_outbounds.append({
+            "protocol": "loopback", "tag": "proxy-stage-2",
+            "settings": {"inboundTag": "auto-reserve"},
+        })
 
     if not auto_outbounds:
         return json.dumps(regular, ensure_ascii=False, separators=(",", ":"))
@@ -1724,7 +1738,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             },
             # Observe only normal nodes. CDN is an emergency fallback, not a
             # low-latency competitor in routine AutoSelect decisions.
-            "subjectSelector": ["proxy-main"],
+            "subjectSelector": ["proxy-main-1", "proxy-reserve-de"] if auto_failover else ["proxy-main"],
         },
         "dns": _client_dns_config(key),
         "inbounds": _json_local_inbounds(key),
@@ -1739,11 +1753,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "remarks": "Автовыбор | Самый быстрый",
         "routing": {
             "balancers": [{
-                "fallbackTag": "proxy-back-1" if lte_outbounds else "direct",
-                "selector": ["proxy-main"],
+                "fallbackTag": "proxy-stage-2" if auto_failover else "proxy-back-1" if lte_outbounds else "direct",
+                "selector": ["proxy-main-1"] if auto_failover else ["proxy-main"],
                 "strategy": {
-                    # Only the refresh-assigned main is eligible.  Xray still
-                    # checks its health and can use the existing CDN fallback.
+                    # Only Estonia is eligible in routine use. The loopback
+                    # fallback re-enters routing for Germany and then CDN.
                     "settings": {
                         "baselines": ["1s"],
                         "expected": 1,
@@ -1753,9 +1767,21 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                     "type": "leastLoad",
                 },
                 "tag": "balancer_main",
-            }],
+            }] + ([{
+                "fallbackTag": "proxy-back-1" if lte_outbounds else "direct",
+                "selector": ["proxy-reserve-de"],
+                "strategy": {
+                    "settings": {"baselines": ["1s"], "expected": 1,
+                                 "maxRTT": "3s", "tolerance": 0.2},
+                    "type": "leastLoad",
+                },
+                "tag": "balancer_reserve",
+            }] if auto_failover else []),
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
-            "rules": [
+            "rules": ([{
+                "inboundTag": ["auto-reserve"], "network": "tcp,udp",
+                "balancerTag": "balancer_reserve", "type": "field",
+            }] if auto_failover else []) + [
                 _happ_tiktok_proxy_rule(balancer_tag="balancer_main"),
                 _happ_youtube_proxy_rule(balancer_tag="balancer_main"),
                 *_happ_direct_rules(),

@@ -1,3 +1,29 @@
+# AutoSelect Estonia → Germany → CDN fallback — 2026-09-27
+
+Owner narrowed this stage: implement AutoSelect only; defer all discount and lifecycle automation changes until tomorrow. The draft marketing contract below is future work, not authorization to change marketing runtime now.
+
+Goal: add exactly two automated first-purchase journeys and change AutoSelect priority to Estonia, Germany on Estonia failure, existing CDN last. Owner approved the public discount and priority contract in chat. No new nodes/CDN resources, no URL/UUID rotation, no manual-country changes.
+
+Marketing contract: Used trial with no commercial payment gets 20% off its first purchase, including preset and custom tariffs, valid 48 hours; message shows current server-sourced prices, value options and custom-builder action. Trial with no connected device gets connection instructions, ArcVPN value proposition and 25% off first purchase for 48 hours. The branches are mutually exclusive; successful purchase or first device connection suppresses the non-connected branch. No retroactive bulk send without inspecting eligible population and an explicit cutoff. Existing 20% cohort/survey state must be migrated safely without double sending. Server quote and payment creation must enforce the same offer eligibility and one-time claim. Actual base prices come from the catalog; 1 month/1 device/15 GB was 104 RUB when checked, not 100 RUB.
+
+Topology contract: the existing JSON `Автовыбор | Самый быстрый` should prefer Estonia while healthy, use Germany only on Estonia failure, and existing CDN only if both normal nodes fail. Manual Estonia/Germany/YouTube profiles remain unchanged. Public subscription URL and UUID stay unchanged. Detailed per-path route table and live acceptance evidence are required before production mutation.
+
+Components for this stage: AutoSelect JSON builder/assignment logic and focused tests. Non-goals: all bot, discount, offer, tariff, price and frontend changes; direct-RU routing, new CDN or node, generic marketing broadcast, Android/iOS clients.
+
+Owner-accepted client path table (2026-09-27 chat):
+
+| Visible profile | Client hostname | CDN resource | Origin group | Active / backup | Host and SNI | Inbound and path | Multiplier | Public URL impact | Failure behavior | Rollback |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Автовыбор | ee.arccnet.space | none | existing Remnawave main | Estonia / Germany | ee.arccnet.space; existing Germany de.arccnet.space | existing Reality TCP, no path | 1 | none | observed Estonia failure routes new connections to Germany | previous JSON builder |
+| Автовыбор backup | de.arccnet.space | none | existing Remnawave main | Germany / CDN | de.arccnet.space | existing Reality TCP, no path | 1 | none | observed Germany failure routes new connections to existing CDN | previous JSON builder |
+| Автовыбор last resort | cdn-de.arccnet.space | existing CDN resource | existing CDN origin | CDN / none | existing CDN Host/SNI unchanged | XHTTP `/api-test` | 1 | none | no additional fallback | previous JSON builder |
+
+Only generated JSON changes. Manual country and YouTube profiles are unchanged. No node, CDN, certificate, DNS, subscription URL, UUID, public hostname or server origin configuration mutation.
+
+Acceptance matrix: local tests prove two mutually exclusive cohorts, one send per account, expiry and successful-payment stopping, signed quote/order consistency for preset/custom and 20%/25%, no stale discount wording; generated JSON proves Estonia primary/Germany backup/CDN last with unchanged manual profiles and URLs; Xray syntax plus real tunnel through Estonia and controlled failure through Germany and CDN; production public services remain healthy. Browser QA deferred at owner's prior request. Risks: revenue leakage, unwanted sends, offer overlap and route disruption. Rollback: disable campaign send gates, revert runtime commit, restore prior JSON builder; preserve existing active orders and account access. Do not change node process/config to simulate failure without separate gate.
+
+## Archived feedback stage
+
 # Feedback flow, notification formatting and sales conversion — 2026-09-27
 
 Goal: repair Telegram HTML captions, let users return from the "Other" detail prompt, persist and display the detail, replace the feedback banner with the supplied blue ArcVPN visual language, remove only historical numeric rating answers (1/3/5), and calculate trial conversion from trial entitlements rather than payment rows.
