@@ -1544,7 +1544,7 @@ def _happ_tiktok_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: st
     return rule
 
 
-YOUTUBE_CANARY_PROXY_SITES = [
+YOUTUBE_PROXY_SITES = [
     "domain:youtube.com",
     "domain:youtube-nocookie.com",
     "domain:googlevideo.com",
@@ -1552,25 +1552,9 @@ YOUTUBE_CANARY_PROXY_SITES = [
 ]
 
 
-def _is_youtube_routing_canary(key: ActiveKeyRecord) -> bool:
-    """Fail closed: this temporary route belongs only to afterfive's account."""
-    try:
-        with get_db() as conn:
-            row = conn.execute(
-                "SELECT username, first_name FROM users WHERE telegram_id = ?",
-                (int(key.telegram_id),),
-            ).fetchone()
-    except (sqlite3.Error, ValueError, TypeError):
-        return False
-    return bool(
-        row
-        and str(row["username"] or "").casefold() == "progressive_dev"
-        and str(row["first_name"] or "").casefold() == "afterfive"
-    )
-
-
-def _happ_youtube_canary_rule(*, outbound_tag: str | None = None, balancer_tag: str | None = None) -> Dict[str, Any]:
-    rule: Dict[str, Any] = {"domain": list(YOUTUBE_CANARY_PROXY_SITES), "type": "field"}
+def _happ_youtube_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: str | None = None) -> Dict[str, Any]:
+    """Keep YouTube video CDN in the tunnel even when its IP is Russian."""
+    rule: Dict[str, Any] = {"domain": list(YOUTUBE_PROXY_SITES), "type": "field"}
     if balancer_tag:
         rule["balancerTag"] = balancer_tag
     else:
@@ -1632,7 +1616,6 @@ def _select_autoselect_country(key: ActiveKeyRecord, countries: set[str]) -> str
 
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     """Return a Happ JSON array with one session-stable AutoSelect main."""
-    youtube_canary = _is_youtube_routing_canary(key)
     links = sorted(
         _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
@@ -1671,7 +1654,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
                     _happ_tiktok_proxy_rule(outbound_tag="proxy"),
-                    *([_happ_youtube_canary_rule(outbound_tag="proxy")] if youtube_canary else []),
+                    _happ_youtube_proxy_rule(outbound_tag="proxy"),
                     *_happ_direct_rules(),
                     {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
                 ],
@@ -1774,7 +1757,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
             "rules": [
                 _happ_tiktok_proxy_rule(balancer_tag="balancer_main"),
-                *([_happ_youtube_canary_rule(balancer_tag="balancer_main")] if youtube_canary else []),
+                _happ_youtube_proxy_rule(balancer_tag="balancer_main"),
                 *_happ_direct_rules(),
                 {"balancerTag": "balancer_main", "network": "tcp,udp", "type": "field"},
             ],
@@ -1841,7 +1824,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
                 "rules": [
                     _happ_tiktok_proxy_rule(balancer_tag="balancer_youtube"),
-                    *([_happ_youtube_canary_rule(balancer_tag="balancer_youtube")] if youtube_canary else []),
+                    _happ_youtube_proxy_rule(balancer_tag="balancer_youtube"),
                     *_happ_direct_rules(),
                     {"balancerTag": "balancer_youtube", "network": "tcp,udp", "type": "field"},
                 ],

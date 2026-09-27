@@ -1,3 +1,15 @@
+# YouTube video routing for all JSON subscriptions — 2026-09-27
+
+Goal: extend the working afterfive INCY/Happ JSON routing rule to all customers. The owner confirmed real playback on the canary and explicitly authorized this rollout. No direct-RU-IP removal, Russian-app bypass change, node, bridge, DNS, CDN, URL, UUID, or Windows binary change.
+
+Contract: every generated JSON profile routes only `youtube.com`, `youtube-nocookie.com`, `googlevideo.com`, and `ytimg.com` through its existing proxy/balancer before direct rules. `geoip:ru` and private-IP direct rules remain in place and ordered after these domains. Plain share-link subscriptions are not modified because the proven canary was JSON-only; clients must refresh their subscription. No new outbound or traffic multiplier.
+
+Affected component: `subscription_api.py` JSON profile builder and focused tests; `arcvpn-subscription.service` on Poland. Acceptance: all representative keys get the same domain rule; profile order, outbound target, `geoip:ru`, and ordinary subscription identifiers stay unchanged; local full suite passes; production fast-forward, service active and public endpoints healthy. The owner's working canary is real-client evidence for this route, but other clients' playback needs post-refresh confirmation.
+
+Rollback: revert the scoped runtime commit, fast-forward production and restart only the subscription service. Existing downloaded client profiles remain until refreshed.
+
+## Archived canary stage
+
 # YouTube routing canary for afterfive — 2026-09-27
 
 Goal: test whether Xray/INCY can route YouTube video CDN by sniffed domain before the existing direct-RU-IP rule. Owner approved only afterfive (@progressive_dev); no global routing, node, bridge, DNS, or CDN change.
