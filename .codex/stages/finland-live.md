@@ -47,14 +47,34 @@ Owner requested early production delivery for personal testing.
 - A temporary local credential-bearing canary transfer file was removed;
   restricted remote /opt/arcvpn/staging/fi-cdn-canary.json remains0600.
 
-## Decision required
+## Direct-route repair required
 
-Ask owner to authorize additional hop: CDN -> Moscow -> Estonia -> Finland,
-and reciprocal Finland -> Estonia -> Moscow YouTube relay, or obtain provider
-repair of direct Moscow/Finland route. Do not silently deploy extra topology.
-After decision: verify real CDN and reciprocal bridges, generated configs,
+Owner explicitly rejected an additional Estonia relay. Only the accepted direct
+Moscow/Finland route is in scope; do not propose or deploy the extra hop again.
+After direct reachability is restored: verify real CDN and reciprocal bridges, generated configs,
 download/upload, external decoy, comparable throughput; only then enable FI
 automatic membership and bypass delivery.
 
 Provisioning helpers intentionally refuse re-creation when FI profile exists.
 Do not rerun bootstrap on the live node without first inspecting partial state.
+
+## Direct-route diagnosis and benchmark follow-up
+
+- Moscow tcpdump observed repeated outbound SYNs to Finland TCP80; timed
+  Finland capture observed none. This places the failure before Finland's
+  local INPUT filtering, without identifying which upstream provider causes it.
+- Compared FI/EE: MTU1500, fq_codel, gateway10.0.0.1 onlink, rp_filter2,
+  tcp_mtu_probing0; Finland chooses its correct public source address. No local
+  setting difference demonstrated a cause; broad firewall/sysctl changes avoided.
+- Installed official Ubuntu iperf3/jq on FI. Reviewed multitest and its Russian
+  iperf helper; did not execute full multitest, public report uploads, or tuning.
+- FI -> Petersburg ICMP 3/3, average16.253ms; EE same target 3/3,15.885ms.
+  FI -> Nizhny Novgorod 2/3,28.556ms; sample too small for loss conclusions.
+- Separate 5-second, four-stream TCP directions to Petersburg: first FI run
+  upload24.1Mbps/download548.6Mbps. EE upload1082.9/download766.5Mbps.
+  FI repeat on5202 reset; these short public-server measurements are not a
+  guaranteed capacity estimate or sufficient evidence for priority promotion.
+- Sequential FI repeat on the same5203 endpoint used by EE: upload129.6Mbps,
+  download720.0Mbps. Public endpoint/short-run variation remains significant.
+- FI -> Moscow TCP443 still times out, while Russian public iperf connections
+  work. Failure is not a universal lack of Finland/Russia connectivity.
