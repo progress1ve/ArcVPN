@@ -332,6 +332,11 @@ def test_single_dhost_lte_link_uses_options_transport():
     assert params["path"] == ["/api-test"]
     assert extra["uplinkHTTPMethod"] == "OPTIONS"
     assert extra["xPaddingKey"] == "dc"
+    assert extra["uplinkDataPlacement"] == "header"
+    assert extra["uplinkDataKey"] == "X-Data"
+    assert extra["scMaxEachPostBytes"] == 2048
+    assert extra["scMaxBufferedPosts"] == 30
+    assert urllib.parse.urlsplit(normalized).username == urllib.parse.urlsplit(link).username
 
 
 def test_native_reality_link_replaces_chrome_fingerprint():

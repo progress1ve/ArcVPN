@@ -2340,9 +2340,11 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 # совпадали; uplinkHTTPMethod и sc* добавляем для OPTIONS-трюка.
                 extra: Dict[str, Any] = {
                     "uplinkHTTPMethod": "OPTIONS",
-                    "scMaxEachPostBytes": 5000000,
+                    "uplinkDataPlacement": "header",
+                    "uplinkDataKey": "X-Data",
+                    "scMaxEachPostBytes": 2048,
                     "scMinPostsIntervalMs": 10,
-                    "scMaxBufferedPosts": 50,
+                    "scMaxBufferedPosts": 30,
                 }
                 for pad_key in (
                     "xPaddingObfsMode", "xPaddingKey", "xPaddingHeader",
@@ -2614,9 +2616,11 @@ def _normalize_native_share_link(link: str) -> str:
             "x_padding_bytes": ["100-1000"],
             "extra": [json.dumps({
                 "uplinkHTTPMethod": "OPTIONS",
-                "scMaxEachPostBytes": 5000000,
+                "uplinkDataPlacement": "header",
+                "uplinkDataKey": "X-Data",
+                "scMaxEachPostBytes": 2048,
                 "scMinPostsIntervalMs": 10,
-                "scMaxBufferedPosts": 50,
+                "scMaxBufferedPosts": 30,
                 "xPaddingObfsMode": True,
                 "xPaddingKey": "dc",
                 "xPaddingBytes": "100-1000",
