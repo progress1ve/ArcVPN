@@ -269,6 +269,10 @@ BEST_BYPASS_NAME = "Лучший обход"
 BEST_BYPASS_DISPLAY_NAME = f"🇪🇺 {BEST_BYPASS_NAME}"
 BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space",)
 FINLAND_REALITY_PUBLIC_KEY = "nzWrmYKTZcVd15JMSYh67PoQODq06DFfxgehCGfhEU4"
+# Moscow cannot reach the new Finland IP yet. Keep manual delivery available
+# for the owner's canary, but do not route existing automatic/YouTube sessions
+# through it before the reciprocal bridge is verified.
+FINLAND_BRIDGE_READY = False
 TEMPORARY_LOCATION_ALIASES = (
     ("🇵🇱 Польша", "Германия"),
     ("🇳🇱 Нидерланды", "Германия"),
@@ -1645,6 +1649,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         visible_individually = not override or bool(override["enabled"])
         temporary_alias = name in TEMPORARY_LOCATION_ALIAS_NAMES
         include_in_auto = (not override or bool(override.get("include_in_auto", 1))) and not temporary_alias
+        if "Финляндия" in name and not FINLAND_BRIDGE_READY:
+            include_in_auto = False
         display_name = (
             _safe_profile_display_name(str(override["display_name"]), source_name)
             if override else _subscription_display_name(name)

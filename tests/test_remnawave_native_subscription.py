@@ -144,6 +144,7 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
 
 def test_real_finland_replaces_alias_and_is_a_main_peer(monkeypatch):
     monkeypatch.setattr(api, "_catalog_overrides", lambda: {})
+    monkeypatch.setattr(api, "FINLAND_BRIDGE_READY", True)
     links = "\n".join([
         f"vless://test@fin.arccnet.space:443?security=reality&pbk={api.FINLAND_REALITY_PUBLIC_KEY}#Финляндия%20%231",
         "vless://test@ee.arccnet.space:443?security=reality#Эстония%20%231",
