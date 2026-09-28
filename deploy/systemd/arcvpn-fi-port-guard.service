@@ -1,0 +1,14 @@
+[Unit]
+Description=ArcVPN Finland internal port restrictions
+Before=docker.service
+After=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -c 'iptables -C INPUT -p tcp --dport 22600 ! -s 217.60.33.38 -j REJECT 2>/dev/null || iptables -I INPUT -p tcp --dport 22600 ! -s 217.60.33.38 -j REJECT'
+ExecStart=/bin/sh -c 'iptables -C INPUT -p tcp --dport 2443 ! -s 85.198.101.79 -j REJECT 2>/dev/null || iptables -I INPUT -p tcp --dport 2443 ! -s 85.198.101.79 -j REJECT'
+ExecStart=/bin/sh -c 'ip6tables -C INPUT -p tcp -m multiport --dports 22600,2443 -j REJECT 2>/dev/null || ip6tables -I INPUT -p tcp -m multiport --dports 22600,2443 -j REJECT'
+
+[Install]
+WantedBy=multi-user.target

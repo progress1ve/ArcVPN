@@ -2,6 +2,15 @@ version = 1
 
 # Non-secret topology only. Credential aliases map to the local DPAPI vault.
 [[servers]]
+alias = "fi-1chost"
+role = "vpn-node"
+location = "Finland"
+host = "92.42.102.139"
+ssh_user = "root"
+credential_alias = "fi-1chost"
+status = "manual-canary; Moscow bridge reachability blocked"
+
+[[servers]]
 alias = "pl-control"
 role = "production-control-plane"
 location = "Poland"
