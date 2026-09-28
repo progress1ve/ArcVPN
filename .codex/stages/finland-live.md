@@ -78,3 +78,20 @@ Do not rerun bootstrap on the live node without first inspecting partial state.
   download720.0Mbps. Public endpoint/short-run variation remains significant.
 - FI -> Moscow TCP443 still times out, while Russian public iperf connections
   work. Failure is not a universal lack of Finland/Russia connectivity.
+
+## Owner-requested upload retest
+
+- No routing, firewall, service, or TCP tuning changes. Separate sequential
+  8-second upload tests, four streams, to three Russian public iperf endpoints.
+- FI Petersburg5203:15.0Mbps;5204 interrupted;5205:33.5Mbps.
+  FI Nizhny Novgorod5203:15.0Mbps;5204:67.1Mbps;5205 interrupted.
+  FI Moscow Hostkey5203/5204/5205 all interrupted (no successful result).
+- EE same endpoints5205: Petersburg980.3Mbps, Nizhny Novgorod991.8Mbps,
+  Moscow Hostkey904.7Mbps; all completed. FI5205 follow-up used the same
+  endpoint, port, stream count, and duration, without overlapping EE tests.
+- FI reported client CPU0.3-4.0%, not a demonstrated CPU bottleneck. Public
+  test-server variability remains, but poor FI -> Russia upload repeated across
+  ports/endpoints. This direction is relevant to delivery to Russian clients.
+- Exact provider/root cause remains unproven. No refund/retirement performed;
+  direct Moscow bridge failure remains open. Owner can use these results in a
+  provider ticket or decide to replace FI; existing EE remains the safer primary.
