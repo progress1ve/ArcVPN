@@ -134,12 +134,28 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
 
     assert names == [
         "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды",
-        "🇫🇮 Финляндия", "🇸🇪 Швеция",
+        "🇸🇪 Швеция",
     ]
     assert hosts == [
         "ee.arccnet.space", "de.arccnet.space", "de.arccnet.space",
-        "de.arccnet.space", "ee.arccnet.space", "ee.arccnet.space",
+        "de.arccnet.space", "ee.arccnet.space",
     ]
+
+
+def test_real_finland_replaces_alias_and_is_a_main_peer(monkeypatch):
+    monkeypatch.setattr(api, "_catalog_overrides", lambda: {})
+    links = "\n".join([
+        f"vless://test@fin.arccnet.space:443?security=reality&pbk={api.FINLAND_REALITY_PUBLIC_KEY}#Финляндия%20%231",
+        "vless://test@ee.arccnet.space:443?security=reality#Эстония%20%231",
+        "vless://test@de.arccnet.space:443?security=reality#Германия%20%231",
+    ])
+    profiles = json.loads(api._build_happ_json_subscription(_key(), links))
+    names = [p['remarks'] for p in profiles]
+    assert names[2] == '🇫🇮 Финляндия'
+    auto = profiles[0]
+    mains = [o for o in auto['outbounds'] if o['tag'].startswith('proxy-main-')]
+    assert {o['settings']['vnext'][0]['address'] for o in mains} == {'fin.arccnet.space', 'ee.arccnet.space'}
+    assert auto['routing']['balancers'][0]['strategy']['settings']['expected'] == 2
 
 
 def test_retired_canada_france_and_netherlands_are_not_in_published_catalog():

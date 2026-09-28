@@ -268,10 +268,10 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 BEST_BYPASS_NAME = "Лучший обход"
 BEST_BYPASS_DISPLAY_NAME = f"🇪🇺 {BEST_BYPASS_NAME}"
 BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space",)
+FINLAND_REALITY_PUBLIC_KEY = "nzWrmYKTZcVd15JMSYh67PoQODq06DFfxgehCGfhEU4"
 TEMPORARY_LOCATION_ALIASES = (
     ("🇵🇱 Польша", "Германия"),
     ("🇳🇱 Нидерланды", "Германия"),
-    ("🇫🇮 Финляндия", "Эстония"),
     ("🇸🇪 Швеция", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
@@ -335,7 +335,7 @@ def _profile_country_flag(name: str) -> str:
     if "Обход глушилок" in value or "LTE" in value:
         return "🇪🇺"
     for marker, flag in (
-        ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Албания", "🇦🇱"), ("Германия", "🇩🇪"),
+        ("Финляндия", "🇫🇮"), ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Албания", "🇦🇱"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
         ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
@@ -402,8 +402,10 @@ def _subscription_display_name(name: str) -> str:
         number = number_match.group(1) if number_match else "1"
         return f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
     value = re.sub(r"\s*⚡\s*", " ", value).strip()
-    if any(country in value for country in ("Эстония", "Нидерланды", "Албания", "Германия")):
+    if any(country in value for country in ("Финляндия", "Эстония", "Нидерланды", "Албания", "Германия")):
         value = re.sub(r"\s*#\s*1\s*$", "", value).strip()
+    if "Финляндия" in value:
+        return _safe_profile_display_name(value, value)
     return value
 
 
@@ -420,11 +422,12 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         source_name = _subscription_source_name(raw_name)
         normalized_link = urllib.parse.unquote(link).lower()
         endpoint = (urllib.parse.urlsplit(link).hostname or "").lower()
+        if endpoint == "fin.arccnet.space" and urllib.parse.parse_qs(
+            urllib.parse.urlsplit(link).query
+        ).get("pbk", [""])[0] != FINLAND_REALITY_PUBLIC_KEY:
+            continue
         if (
-            "финляндия" in source_name.lower()
-            or "finland" in source_name.lower()
-            or "fin.arccnet.space" in normalized_link
-            or "cdn-fi.arccnet.space" in normalized_link
+            "cdn-fi.arccnet.space" in normalized_link
             or "195.226.92.37" in normalized_link
         ):
             continue
@@ -501,6 +504,8 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     )
     if "Ютуб без рекламы" in name:
         country_order = 5
+    elif "Финляндия" in name and not _is_lte_subscription_link(link):
+        country_order = 6
     elif "Эстония" in name:
         country_order = 10
     elif "Албания" in name:
@@ -538,6 +543,7 @@ def _normalize_customer_profile_label(link: str) -> str:
         return link
     name = name.replace("Франция", "Канада")
     countries = (
+        ("Финляндия", "🇫🇮"),
         ("Нидерланды", "🇳🇱"),
         ("Эстония", "🇪🇪"),
         ("Албания", "🇦🇱"),
@@ -1615,7 +1621,7 @@ def _select_autoselect_country(key: ActiveKeyRecord, countries: set[str]) -> str
 
 
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
-    """Return Happ JSON with Estonia-primary AutoSelect and observed backups."""
+    """Return Happ JSON with Finland/Estonia peers and observed backups."""
     links = sorted(
         _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
@@ -1690,6 +1696,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                     country = (
                         "de" if any(part in name for part in ("Германия", "Germany"))
                         else "ee" if any(part in name for part in ("Эстония", "Estonia"))
+                        else "fi" if "Финляндия" in name
                         else None
                     )
                     if country and country not in auto_country_outbounds:
@@ -1701,14 +1708,17 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     for index, item in enumerate(youtube_outbounds, start=1):
         item["tag"] = f"proxy-youtube-{index}"
 
-    # Country priority is fixed in the client profile, not decided at refresh:
-    # Estonia is the only routine main, Germany is observed but used only after
-    # Estonia fails, and the existing CDN is the final emergency path.
+    # Finland and Estonia are routine peers. Germany is an observed reserve;
+    # the existing CDN remains the final emergency path.
     auto_failover = "ee" in auto_country_outbounds and "de" in auto_country_outbounds
     if auto_country_outbounds:
-        primary = auto_country_outbounds.get("ee") or auto_country_outbounds["de"]
-        auto_outbounds = [copy.deepcopy(primary)]
-        auto_outbounds[0]["tag"] = "proxy-main-1"
+        primary_nodes = [auto_country_outbounds[country] for country in ("fi", "ee")
+                         if country in auto_country_outbounds]
+        if not primary_nodes:
+            primary_nodes = [auto_country_outbounds["de"]]
+        auto_outbounds = [copy.deepcopy(item) for item in primary_nodes]
+        for index, item in enumerate(auto_outbounds, 1):
+            item["tag"] = f"proxy-main-{index}"
         if auto_failover:
             reserve = copy.deepcopy(auto_country_outbounds["de"])
             reserve["tag"] = "proxy-reserve-de"
@@ -1738,7 +1748,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             },
             # Observe only normal nodes. CDN is an emergency fallback, not a
             # low-latency competitor in routine AutoSelect decisions.
-            "subjectSelector": ["proxy-main-1", "proxy-reserve-de"] if auto_failover else ["proxy-main"],
+            "subjectSelector": ["proxy-main" if "fi" in auto_country_outbounds else "proxy-main-1", "proxy-reserve-de"] if auto_failover else ["proxy-main"],
         },
         "dns": _client_dns_config(key),
         "inbounds": _json_local_inbounds(key),
@@ -1754,13 +1764,13 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "routing": {
             "balancers": [{
                 "fallbackTag": "proxy-stage-2" if auto_failover else "proxy-back-1" if lte_outbounds else "direct",
-                "selector": ["proxy-main-1"] if auto_failover else ["proxy-main"],
+                "selector": ["proxy-main"] if "fi" in auto_country_outbounds or not auto_failover else ["proxy-main-1"],
                 "strategy": {
-                    # Only Estonia is eligible in routine use. The loopback
-                    # fallback re-enters routing for Germany and then CDN.
+                    # The loopback fallback re-enters routing for Germany
+                    # and then CDN after all routine peers fail.
                     "settings": {
                         "baselines": ["1s"],
-                        "expected": 1,
+                        "expected": len(primary_nodes) if auto_country_outbounds else 1,
                         "maxRTT": "3s",
                         "tolerance": 0.2,
                     },
@@ -1859,11 +1869,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         youtube_profiles.append(youtube_profile)
     visible_main = [
         *youtube_profiles,
+        *visible_country("Финляндия"),
         *visible_country("Эстония"),
         *visible_country("Германия"),
         *visible_country("Польша"),
         *visible_country("Нидерланды"),
-        *visible_country("Финляндия"),
         *visible_country("Швеция"),
     ]
     fallback_lte_profiles = []
