@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 66
+LATEST_VERSION = 67
 
 
 def get_current_version() -> int:
@@ -2539,6 +2539,11 @@ def migration_66(conn: sqlite3.Connection) -> None:
     """)
 
 
+def migration_67(conn: sqlite3.Connection) -> None:
+    from database.db_admin_broadcasts import create_schema
+    create_schema(conn)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2606,6 +2611,7 @@ MIGRATIONS = {
     64: migration_64,
     65: migration_65,
     66: migration_66,
+    67: migration_67,
 }
 
 

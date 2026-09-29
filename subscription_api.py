@@ -5199,6 +5199,10 @@ def api_admin_campaigns(campaign_id: Optional[int] = None):
     return _api_no_store(jsonify({"ok": True, "campaigns": campaigns}))
 
 
+from admin_broadcast_api import register_broadcast_routes
+register_broadcast_routes(app, _admin_authorized, _append_admin_audit_best_effort, ASYNC_EXECUTOR, config)
+
+
 @app.route('/api/admin/promocodes', methods=['GET', 'POST'])
 @app.route('/api/admin/promocodes/<int:promocode_id>', methods=['PATCH'])
 def api_admin_promocodes(promocode_id: Optional[int] = None):

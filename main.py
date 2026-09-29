@@ -17,6 +17,7 @@ from database.migrations import run_migrations
 
 from bot.services.vpn_api import close_all_clients
 from bot.services.broadcast_worker import run_broadcast_worker
+from bot.services.admin_broadcast_worker import run_admin_broadcast_worker
 from bot.services.scheduler import (
     run_daily_tasks,
     run_update_check_scheduler,
@@ -176,6 +177,7 @@ async def main():
     recurring_payment_tasks = asyncio.create_task(run_recurring_payment_scheduler(bot))
     lifecycle_tasks = asyncio.create_task(run_lifecycle_scheduler(bot))
     broadcast_tasks = asyncio.create_task(run_broadcast_worker(bot))
+    admin_broadcast_tasks = asyncio.create_task(run_admin_broadcast_worker(bot))
     fleet_alert_tasks = asyncio.create_task(run_fleet_alert_scheduler(bot))
     
     try:
@@ -188,6 +190,7 @@ async def main():
         recurring_payment_tasks.cancel()
         lifecycle_tasks.cancel()
         broadcast_tasks.cancel()
+        admin_broadcast_tasks.cancel()
         fleet_alert_tasks.cancel()
         await bot.session.close()
 

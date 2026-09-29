@@ -217,6 +217,16 @@ def is_promocode_valid(code: str, user_id: int) -> tuple[bool, Optional[str], Op
 
     if not bool(promocode.get('is_active', 1)):
         return False, "❌ Промокод отключен", None
+
+    # Shared validation is used by both bot and web checkout. A private campaign
+    # code must never become usable by another account when it is forwarded.
+    with get_db() as conn:
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='broadcast_personal_promos'").fetchone():
+            binding = conn.execute('SELECT user_id FROM broadcast_personal_promos WHERE promocode_id=?', (promocode['id'],)).fetchone()
+            if binding and int(binding['user_id']) != int(user_id):
+                return False, "❌ Промокод предназначен другому пользователю", None
+            if binding and conn.execute("SELECT 1 FROM payments WHERE promocode_id=? AND status IN ('pending','paid','succeeded') LIMIT 1", (promocode['id'],)).fetchone():
+                return False, "❌ Промокод уже применён к заказу", None
     
     # Проверяем срок действия
     expires_at = datetime.fromisoformat(promocode['expires_at'])

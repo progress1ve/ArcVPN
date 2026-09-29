@@ -24,6 +24,7 @@ import AdminRemnawave from '@/pages/AdminRemnawave';
 import AdminRemnawaveSquadDetail from '@/pages/AdminRemnawaveSquadDetail';
 import AdminSquads from '@/pages/AdminSquads';
 import ArcMarketing from './ArcMarketing';
+import ArcBroadcasts from './ArcBroadcasts';
 import { useAuthStore } from '@/store/auth';
 import { usePermissionStore } from '@/store/permissions';
 import { access, login } from './api';
@@ -73,7 +74,12 @@ function seedSession(role = 'owner') {
       last_name: null,
     } as never,
   });
-  usePermissionStore.setState({ permissions, roles: [role], roleLevel: 999, isLoaded: true });
+  usePermissionStore.setState({
+    permissions: role === 'owner' ? [...permissions, 'broadcasts:read'] : permissions,
+    roles: [role],
+    roleLevel: 999,
+    isLoaded: true,
+  });
 }
 
 function Login({ onSuccess }: { onSuccess: () => void }) {
@@ -163,6 +169,7 @@ function AdminRoutes() {
           <Route path="/admin/feedback" element={<AdminFeedback />} />
           <Route path="/admin/referral-network" element={<ReferralNetwork />} />
           <Route path="/admin/marketing" element={<ArcMarketing />} />
+          <Route path="/admin/broadcasts" element={<ArcBroadcasts />} />
           <Route path="/admin/payments" element={<AdminPayments />} />
           <Route path="/admin/sales-stats" element={<AdminSalesStats />} />
           <Route path="/admin/profit" element={<AdminProfit />} />
