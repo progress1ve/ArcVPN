@@ -33,8 +33,18 @@ def register_broadcast_routes(app, authorized, audit, executor, config):
                 WHERE is_active=1 AND datetime(expires_at)>datetime('now') AND NOT EXISTS(
                     SELECT 1 FROM broadcast_personal_promos bp WHERE bp.promocode_id=p.id) ORDER BY id DESC LIMIT 100''')]
         admins = [int(i) for i in getattr(config, 'ADMIN_IDS', []) if int(i) > 0]
+        test_admins = []
+        with get_db() as conn:
+            for n, admin_id in enumerate(admins):
+                user = conn.execute('SELECT first_name,username FROM users WHERE telegram_id=?', (admin_id,)).fetchone()
+                label = f'Администратор {n + 1}'
+                if user:
+                    label = str(user['first_name'] or label)
+                    if user['username']:
+                        label += f" · @{user['username']}"
+                test_admins.append({'id': admin_id, 'label': label})
         return jsonify(ok=True, tariffs=tariffs, promocodes=promos,
-            test_admins=[{'id': i, 'label': f'Администратор {n + 1}'} for n, i in enumerate(admins)])
+            test_admins=test_admins)
 
     @app.route('/api/admin/broadcasts/users')
     def admin_broadcast_users():
