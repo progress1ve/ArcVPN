@@ -1,5 +1,19 @@
 # ArcVPN handoff — admin broadcasts MVP (2026-09-29)
 
+## Latest production incident fix
+
+Runtime `a5efeb4`: unbound generic subscription GETs without stable HWID cannot
+allocate or reactivate recovery slots. Bound device URLs and recognized clients
+keep existing access. 279 tests passed, including 18 probe regression checks.
+Poland pulled ff-only; subscription service restarted and active; public health
+200. Three real public probes left all device rows unchanged. One verified
+synthetic active slot was deactivated after a restricted DB backup; zero active
+synthetic generic rows remain. @sso095 has one active INCY iPhone 14 Pro and its
+public subscription returns the existing UUID. Key URLs/UUIDs are unchanged.
+No rollback needed. Unrecognized unbound clients use the existing reimport
+response; use explicit import for those clients. Broadcast owner test below
+remains pending. Evidence: `.codex/stages/device-generic-fix.md`.
+
 MVP runtime: `e2d3892` (with UI release `48b006f` and order guards `7e634ed`), based on `e810aae`.
 Poland remains the control plane. This release preserves the latest Germany
 retirement/Estonia CDN changes. Primary checkout has unrelated owner changes;

@@ -14,6 +14,9 @@
   `CUSTOM_LTE_CHOICES_GB`; pricing extrapolates the existing family anchor and
   remains monotonic. Add-on GB expire at the next traffic-cycle reset.
 - Subscription `HEAD` requests must never create a direct-import device slot.
+  Unbound generic `GET` requests without stable client HWID must likewise never
+  allocate or reactivate a slot; use the existing reimport response. Valid
+  device aliases and recognized VPN clients preserve their access behavior.
   Detect INCY only with an explicit client marker; leave generic app unknown.
   A real direct GET can still reserve a recovery slot by design.
 
