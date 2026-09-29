@@ -133,10 +133,11 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
 
     assert names == [
         "🇪🇪 Эстония", "🇩🇪 Германия",
+        "🇳🇱 Нидерланды",
         "🇸🇪 Швеция",
     ]
     assert hosts == [
-        "ee.arccnet.space", "de.arccnet.space", "ee.arccnet.space",
+        "ee.arccnet.space", "de.arccnet.space", "ee.arccnet.space", "ee.arccnet.space",
     ]
 
 

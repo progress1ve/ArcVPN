@@ -274,6 +274,7 @@ FINLAND_REALITY_PUBLIC_KEY = "nzWrmYKTZcVd15JMSYh67PoQODq06DFfxgehCGfhEU4"
 # through it before the reciprocal bridge is verified.
 FINLAND_BRIDGE_READY = False
 TEMPORARY_LOCATION_ALIASES = (
+    ("🇳🇱 Нидерланды", "Эстония"),
     ("🇸🇪 Швеция", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
