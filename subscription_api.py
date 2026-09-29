@@ -268,13 +268,12 @@ LTE_NAME_MARKER = "\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438
 BEST_BYPASS_NAME = "Лучший обход"
 BEST_BYPASS_DISPLAY_NAME = f"🇪🇺 {BEST_BYPASS_NAME}"
 BYPASS_CDN_HOST_PRIORITY = ("cdn-de.arccnet.space",)
-FINLAND_REALITY_PUBLIC_KEY = "nzWrmYKTZcVd15JMSYh67PoQODq06DFfxgehCGfhEU4"
-# Moscow cannot reach the new Finland IP yet. Keep manual delivery available
-# for the owner's canary, but do not route existing automatic/YouTube sessions
-# through it before the reciprocal bridge is verified.
-FINLAND_BRIDGE_READY = False
+FINLAND_REALITY_PUBLIC_KEY = "PAG_2hc5of2fpL4HJmsIRRdAHhLrn1rIchUfW-t00zs"
+# Replacement FI passed Reality, CDN and both reciprocal Moscow tunnel gates.
+FINLAND_BRIDGE_READY = True
 TEMPORARY_LOCATION_ALIASES = (
-    ("🇳🇱 Нидерланды", "Эстония"),
+    ("🇵🇱 Польша", "Финляндия"),
+    ("🇳🇱 Нидерланды", "Финляндия"),
     ("🇸🇪 Швеция", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
@@ -466,7 +465,8 @@ def _expand_lte_profile_links(links: list[str]) -> list[str]:
     by_host: Dict[str, str] = {}
     for link in lte:
         host = (urllib.parse.urlsplit(link).hostname or "").lower()
-        if host in BYPASS_CDN_HOST_PRIORITY and host not in by_host:
+        path = urllib.parse.parse_qs(urllib.parse.urlsplit(link).query).get("path", [""])[0]
+        if host in BYPASS_CDN_HOST_PRIORITY and (host not in by_host or path == "/api-fin"):
             by_host[host] = link
     sources = [by_host[host] for host in BYPASS_CDN_HOST_PRIORITY if host in by_host]
     if not sources:
@@ -492,7 +492,7 @@ def _with_temporary_location_aliases(links: list[str]) -> list[str]:
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else ""
         if _is_lte_subscription_link(link) or "Ютуб без рекламы" in name:
             continue
-        for country in ("Германия", "Эстония"):
+        for country in ("Германия", "Эстония", "Финляндия"):
             if country in name and country not in sources:
                 sources[country] = link.rsplit("#", 1)[0]
     aliases = [
