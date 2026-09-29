@@ -322,8 +322,18 @@ def detail(campaign_id):
 
 def listing():
     with get_db() as conn:
-        ids = [r[0] for r in conn.execute('SELECT id FROM admin_broadcasts ORDER BY id DESC LIMIT 100')]
+        ids = [r[0] for r in conn.execute("SELECT id FROM admin_broadcasts WHERE status != 'deleted' ORDER BY id DESC LIMIT 100")]
     return [detail(i) for i in ids]
+
+
+def delete_draft(campaign_id):
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        changed = conn.execute("""UPDATE admin_broadcasts SET status='deleted',
+            tested_revision=NULL,tested_admin=NULL,tested_at=NULL,
+            updated_at=CURRENT_TIMESTAMP WHERE id=? AND status='draft'""", (campaign_id,)).rowcount
+        if not changed:
+            raise ValueError('Можно удалять только существующий черновик')
 
 
 def render(payload, recipient, *, promo=None):

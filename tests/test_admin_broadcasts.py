@@ -255,3 +255,46 @@ def test_api_requires_owner_rejects_cross_origin_and_untested_start(db, monkeypa
     c = r.get_json()['campaign']
     assert client.post(f"/api/admin/broadcasts/{c['id']}/start", json={'revision': c['revision'], 'count': c['total']}).status_code == 409
     assert client.post(f"/api/admin/broadcasts/{c['id']}/test", json={'admin_id': 123456}).status_code == 400
+
+
+def test_delete_draft_hides_it_and_prevents_test_edit_start(db):
+    c = campaigns.save(payload('days', days=3), 'owner')
+    campaigns.mark_tested(c['id'], c['revision'], 101)
+    campaigns.delete_draft(c['id'])
+    assert campaigns.listing() == []
+    assert campaigns.detail(c['id'])['status'] == 'deleted'
+    assert campaigns.detail(c['id'])['tested_revision'] is None
+    with pytest.raises(ValueError):
+        campaigns.test_samples(c['id'])
+    with pytest.raises(ValueError):
+        campaigns.save(payload(), 'owner', c['id'])
+    with pytest.raises(ValueError):
+        campaigns.start(c['id'], c['revision'], c['total'])
+    with pytest.raises(ValueError):
+        campaigns.delete_draft(c['id'])
+    with db.get_db() as conn:
+        assert conn.execute('SELECT COUNT(*) FROM admin_broadcast_recipients').fetchone()[0] == c['total']
+
+
+@pytest.mark.parametrize('state', ['queued', 'running', 'stopped', 'completed'])
+def test_cannot_delete_started_campaign_history(db, state):
+    c = launch(payload())
+    with db.get_db() as conn:
+        conn.execute('UPDATE admin_broadcasts SET status=? WHERE id=?', (state, c['id']))
+    with pytest.raises(ValueError):
+        campaigns.delete_draft(c['id'])
+    assert campaigns.detail(c['id'])['status'] == state
+
+
+def test_delete_api_owner_and_origin_guard(db, monkeypatch):
+    import subscription_api as api
+    c = campaigns.save(payload(), 'owner')
+    url = f"/api/admin/broadcasts/{c['id']}"
+    client = api.app.test_client()
+    monkeypatch.setattr(api, '_admin_access_context', lambda: {'actor_id': 'support', 'role': 'support'})
+    assert client.delete(url).status_code == 403
+    monkeypatch.setattr(api, '_admin_access_context', lambda: {'actor_id': 'owner', 'role': 'owner'})
+    assert client.delete(url, headers={'Origin': 'https://evil.test'}).status_code == 403
+    assert campaigns.detail(c['id'])['status'] == 'draft'
+    assert client.delete(url).status_code == 200
+    assert client.delete(url).status_code == 409

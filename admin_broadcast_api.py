@@ -82,6 +82,17 @@ def register_broadcast_routes(app, authorized, audit, executor, config):
         except (ValueError, TypeError, AttributeError) as exc:
             return jsonify(ok=False, error=str(exc) if isinstance(exc, ValueError) else 'Некорректные поля'), 400
 
+    @app.route('/api/admin/broadcasts/<int:campaign_id>', methods=['DELETE'])
+    def admin_broadcast_delete(campaign_id):
+        if (error := denied()) is not None:
+            return error
+        try:
+            campaigns.delete_draft(campaign_id)
+            audit('broadcast.delete', 'success', actor_id='owner', target_type='broadcast', target_id=str(campaign_id))
+            return jsonify(ok=True)
+        except ValueError as exc:
+            return jsonify(ok=False, error=str(exc)), 409
+
     @app.route('/api/admin/broadcasts/<int:campaign_id>/test', methods=['POST'])
     def admin_broadcast_test(campaign_id):
         if (error := denied()) is not None:

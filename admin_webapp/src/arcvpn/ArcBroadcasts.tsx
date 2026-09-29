@@ -75,6 +75,11 @@ async function call(path: string, method = 'GET', body?: Row): Promise<Row> {
     }
     const campaign = demoCampaigns.find((c) => c.id === id);
     if (!campaign) throw new Error('Черновик не найден');
+    if (method === 'DELETE') {
+      if (campaign.status !== 'draft') throw new Error('Можно удалять только черновик');
+      demoCampaigns = demoCampaigns.filter((c) => c.id !== id);
+      return { ok: true };
+    }
     if (action === 'test') campaign.tested_revision = campaign.revision;
     if (action === 'start') campaign.status = 'queued';
     if (action === 'stop') campaign.status = 'stopped';
@@ -122,6 +127,7 @@ export default function ArcBroadcasts() {
   const [users, setUsers] = useState<Row[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [discarding, setDiscarding] = useState(false);
+  const [deleting, setDeleting] = useState<Row | null>(null);
   const [loading, setLoading] = useState(true);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const canEdit = !current || current.status === 'draft';
@@ -299,6 +305,37 @@ export default function ArcBroadcasts() {
           {notice}
         </p>
       )}
+      {deleting && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center gap-3 rounded-xl border border-error-500/40 p-3 text-sm"
+        >
+          <p className="min-w-0 break-words">Удалить черновик «{deleting.title}»?</p>
+          <button
+            className={`${button} text-error-300`}
+            disabled={Boolean(busy)}
+            onClick={() =>
+              action('delete', async () => {
+                await call(`/${deleting.id}`, 'DELETE');
+                if (current?.id === deleting.id) {
+                  setCurrent(null);
+                  setEditing(false);
+                  setDirty(false);
+                  setConfirming(false);
+                }
+                setDeleting(null);
+                await load();
+                setNotice('Черновик удалён.');
+              })
+            }
+          >
+            {busy === 'delete' ? 'Удаляем…' : 'Удалить черновик'}
+          </button>
+          <button className={button} disabled={Boolean(busy)} onClick={() => setDeleting(null)}>
+            Отмена
+          </button>
+        </div>
+      )}
       {loading ? (
         <p role="status" className="py-10 text-dark-400">
           Загружаем рассылки…
@@ -315,19 +352,34 @@ export default function ArcBroadcasts() {
           )}
           <div className="grid gap-2">
             {campaigns.map((c) => (
-              <button
-                key={c.id}
-                className={`${button} flex flex-wrap items-center justify-between gap-3 text-left`}
-                onClick={() => open(c)}
-              >
-                <span className="min-w-0 break-words">
-                  <b>{c.title}</b>
-                  <small className="mt-1 block text-dark-400">
-                    {c.total} получателей · доставлено {c.counts.sent || 0}
-                  </small>
-                </span>
-                <span className="text-xs text-accent-300">{status[c.status]}</span>
-              </button>
+              <div key={c.id} className="flex min-w-0 flex-wrap items-center gap-2">
+                <button
+                  className={`${button} flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 text-left`}
+                  disabled={Boolean(busy)}
+                  onClick={() => {
+                    setDeleting(null);
+                    open(c);
+                  }}
+                >
+                  <span className="min-w-0 break-words">
+                    <b>{c.title}</b>
+                    <small className="mt-1 block text-dark-400">
+                      {c.total} получателей · доставлено {c.counts.sent || 0}
+                    </small>
+                  </span>
+                  <span className="text-xs text-accent-300">{status[c.status]}</span>
+                </button>
+                {c.status === 'draft' && (
+                  <button
+                    className={`${button} text-error-300`}
+                    aria-label={`Удалить черновик ${c.title}`}
+                    disabled={Boolean(busy)}
+                    onClick={() => setDeleting(c)}
+                  >
+                    Удалить
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </>
@@ -347,6 +399,18 @@ export default function ArcBroadcasts() {
             >
               ← Все рассылки
             </button>
+            {current?.status === 'draft' && (
+              <button
+                className={`${button} text-error-300`}
+                disabled={Boolean(busy)}
+                onClick={() => {
+                  setConfirming(false);
+                  setDeleting(current);
+                }}
+              >
+                Удалить черновик
+              </button>
+            )}
             <span className="text-xs text-dark-400">
               {current ? status[current.status] : 'Новый черновик'}
               {dirty ? ' · есть несохранённые изменения' : ''}
