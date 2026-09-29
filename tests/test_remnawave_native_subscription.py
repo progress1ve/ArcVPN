@@ -327,11 +327,11 @@ def test_native_dhost_lte_link_gets_happ_fingerprint_and_padding():
     assert params["fp"] == ["firefox"]
     assert params["alpn"] == ["h2,http/1.1"]
     assert params["x_padding_bytes"] == ["100-1000"]
-    assert extra["uplinkHTTPMethod"] == "OPTIONS"
+    assert extra["uplinkHTTPMethod"] == "GET"
     assert extra["xPaddingObfsMode"] is True
 
 
-def test_single_dhost_lte_link_uses_options_transport():
+def test_single_dhost_lte_link_uses_get_header_transport():
     host = "cdn-de.arccnet.space"
     link = (
         f"vless://11111111-1111-4111-8111-111111111111@{host}:443"
@@ -346,10 +346,10 @@ def test_single_dhost_lte_link_uses_options_transport():
     assert params["fp"] == ["firefox"]
     assert params["mode"] == ["packet-up"]
     assert params["path"] == ["/api-test"]
-    assert extra["uplinkHTTPMethod"] == "OPTIONS"
+    assert extra["uplinkHTTPMethod"] == "GET"
     assert extra["xPaddingKey"] == "dc"
     assert extra["uplinkDataPlacement"] == "header"
-    assert extra["uplinkDataKey"] == "X-Data"
+    assert extra["uplinkDataKey"] == "X-Session-Token"
     assert extra["scMaxEachPostBytes"] == 2048
     assert extra["scMaxBufferedPosts"] == 30
     assert urllib.parse.urlsplit(normalized).username == urllib.parse.urlsplit(link).username

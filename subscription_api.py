@@ -2357,11 +2357,11 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
                 # extra-поля XHTTP (uplinkHTTPMethod + padding-обфускация).
                 # padding-поля берём из inbound (панель), чтобы клиент и сервер
-                # совпадали; uplinkHTTPMethod и sc* добавляем для OPTIONS-трюка.
+                # совпадали; загрузка идёт GET с данными в X-Session-Token.
                 extra: Dict[str, Any] = {
-                    "uplinkHTTPMethod": "OPTIONS",
+                    "uplinkHTTPMethod": "GET",
                     "uplinkDataPlacement": "header",
-                    "uplinkDataKey": "X-Data",
+                    "uplinkDataKey": "X-Session-Token",
                     "scMaxEachPostBytes": 2048,
                     "scMinPostsIntervalMs": 10,
                     "scMaxBufferedPosts": 30,
@@ -2635,9 +2635,9 @@ def _normalize_native_share_link(link: str) -> str:
             "alpn": ["h2,http/1.1"],
             "x_padding_bytes": ["100-1000"],
             "extra": [json.dumps({
-                "uplinkHTTPMethod": "OPTIONS",
+                "uplinkHTTPMethod": "GET",
                 "uplinkDataPlacement": "header",
-                "uplinkDataKey": "X-Data",
+                "uplinkDataKey": "X-Session-Token",
                 "scMaxEachPostBytes": 2048,
                 "scMinPostsIntervalMs": 10,
                 "scMaxBufferedPosts": 30,
