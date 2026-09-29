@@ -13,5 +13,7 @@
 - Active stage/evidence: `.codex/stages/current.md`
 - Node contract: `.codex/references/node-config-contract.md`
 - Node/CDN workflow: `.agents/skills/arcvpn-node-ops/`
+- Full node onboarding: `.agents/skills/arcvpn-add-node/`; node speed/IP tests: `.agents/skills/arcvpn-benchmark-nodes/`
+- Dated active node/CDN route snapshot: `docs/operations/node-topology-current.md` (verify live before writes)
 - Owner benchmark method: `docs/operations/server-benchmark-method.md` (Multitest);
-  latest results: `docs/operations/multitest-2026-09-29.md`. Skill changes await owner approval.
+  latest results: `docs/operations/multitest-2026-09-29.md`.

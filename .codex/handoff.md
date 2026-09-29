@@ -10,7 +10,11 @@ Plan only: docs/roadmaps/admin-node-automation.md; owner wants admin workers
 for IP/password provisioning and Multitest, not reliance on Codex. Existing
 AdminNodes only SSH preflight; proposed durable jobs, secret vault, benchmark
 terminal/history then hidden provisioning and real-tunnel publish gates.
-No skills created/changed. Next: agree workflow before implementation.
+Repository skills now cover full node onboarding (`arcvpn-add-node`) and owner-requested
+Multitest benchmarking (`arcvpn-benchmark-nodes`). The dated non-secret route/CDN
+snapshot is `docs/operations/node-topology-current.md`; current GET/header/key CDN
+contract supersedes historical OPTIONS notes. No runtime topology changed in this
+documentation stage. Admin-worker implementation still needs an owner-approved stage.
 
 ## Previous Multitest results
 

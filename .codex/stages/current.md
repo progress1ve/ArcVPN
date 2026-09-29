@@ -1,4 +1,24 @@
-# Current: FI RU repeat + admin node automation plan — 2026-09-29
+# Current: durable ArcVPN node/CDN skills and context — 2026-09-29
+
+Goal: create reusable repository skills for adding nodes and for honest
+Multitest benchmarking. Record current, verified ordinary/CDN/bridge topology
+in one non-secret operational reference and repair stale OPTIONS baselines.
+Non-goals: deploy nodes, run more benchmarks, change Remnawave/CDN/DNS,
+create admin-panel workers or alter subscription runtime.
+Affected: `.agents/skills/`, node contract/references, benchmark method,
+`docs/operations/`, context index/handoff. Acceptance: skill validation,
+source-vs-record consistency, no secrets, no stale live OPTIONS instruction,
+scope boundaries and owner-approval gates. Risk: overfitting a historical
+release as permanent truth. Mitigation: dated snapshot + verify live state
+and public contracts each future run. Rollback: revert documentation commit;
+production runtime unaffected. Matrix: current code/stage/live health,
+validator, diff/secret scan, docs-only production fast-forward.
+
+Local evidence: both new skills passed `quick_validate.py`; inventory IPs,
+Finland release stage and GET/header implementation match the dated snapshot.
+No runtime files changed. Production pull and final Git evidence pending.
+
+## Prior: FI RU repeat + admin node automation plan
 
 Scope: repeat audited original russian-iperf3-servers on active FI only; preserve
 raw terminal output and present verbatim results. Plan only for owner admin

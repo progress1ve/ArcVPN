@@ -3,7 +3,7 @@
 Use this only for anti-block/CDN paths.
 
 - LTE/CDN/XHTTP is a separate product path with traffic multiplier 1; normal profiles also remain multiplier 1. Separate quota and identity are product concerns, not a billing multiplier.
-- Known working DHost baseline: XHTTP `packet-up`, `/api-test`, upstream `OPTIONS`, compatible padding, and origin conversion `OPTIONS -> POST` when required.
+- Current CDN baseline (2026-09-29): XHTTP `packet-up`, `GET` uplink, `uplinkDataPlacement: header`, `uplinkDataKey: X-Session-Token` on both config profile and Host, with rendered VLESS `extra` checked. Estonia `/api-test`, Finland `/api-fin`; preserve compatible padding. The old `OPTIONS -> POST` route is historical. Recheck the live CDN panel and `docs/operations/node-topology-current.md`.
 - Happ fingerprint baseline is `firefox`, with `edge` fallback; `chrome` is known to fail on affected routes.
 - Keep CDN hosts hidden from ordinary auto-selection unless the documented fallback design explicitly requires them.
 - Before issuing a certificate, verify DNS ownership/records and distinguish the origin hostname from the CDN hostname.

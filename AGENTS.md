@@ -21,7 +21,15 @@ Before non-trivial work, read `.codex/handoff.md`, `.codex/project-index.md`, an
 
 - Simple, low-risk, isolated task: work directly and record evidence.
 - Medium/complex task: use `$arcvpn-stage`, create/update `.codex/stages/current.md`, define acceptance before implementation, and split independent work only when the user explicitly authorizes subagents.
+- For full node onboarding use `$arcvpn-add-node`; for requested node speed/IP diagnostics use `$arcvpn-benchmark-nodes`. Confirm the dated snapshot in `docs/operations/node-topology-current.md` against live state.
 - Finish with `$arcvpn-closeout`.
+
+## Working with the owner
+
+- Communicate in concise Russian, lead with the result and the remaining risk. Do not stop after an intermediate check when the authorized task can safely be finished; send progress updates during longer work.
+- For a product-topology or live migration choice, present one explicit route/profile table and ask one focused question if approval is needed. Do not repeatedly ask about routine in-scope diagnostic or implementation steps.
+- For benchmarks, provide the complete copyable terminal output or a private raw-log location when requested, alongside a short interpretation. Distinguish measured results from assumptions and do not call ping or a single iperf run a complete user-experience test.
+- If the owner reverses a production decision, audit the affected routes and subscriptions promptly before restoring anything. Never infer that a returned VPS is available.
 
 ## Production workflow
 

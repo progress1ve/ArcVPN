@@ -6,6 +6,9 @@ description: Provision, repair, validate, or retire ArcVPN nodes, Remnawave bind
 # ArcVPN Node Operations
 
 1. Read `AGENTS.md`, `.codex/handoff.md`, `.codex/server-inventory.toml`, and `.codex/references/node-config-contract.md`.
+   For a whole new-node rollout, follow `$arcvpn-add-node` as the workflow;
+   this skill remains the technical gate for every node/CDN mutation. Compare
+   `docs/operations/node-topology-current.md` with live state before reusing a route.
 2. For server access, automatically use the private `arcvpn-ops` MCP when its
    `arcvpn_*` tools are available. Prefer the narrowest high-level tool, then a
    bounded command, and use an interactive shell only when stateful diagnosis is

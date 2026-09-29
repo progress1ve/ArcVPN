@@ -15,7 +15,7 @@
 
 - Normal profiles: traffic multiplier 1.
 - LTE/anti-block and CDN/XHTTP profiles: separate inbounds/hosts, traffic multiplier 1. Do not silently merge identities, quotas, or product presentation into normal profiles.
-- Working DHost XHTTP baseline: `packet-up`, path `/api-test`, upstream method `OPTIONS`, compatible padding, and origin rewrite `OPTIONS -> POST` where required by the CDN path.
+- Current CDN XHTTP baseline (2026-09-29): `packet-up`, `GET` uplink with `uplinkDataPlacement: header` and `uplinkDataKey: X-Session-Token` on both profile and Host. Estonia uses `/api-test`, Finland `/api-fin`; retain compatible padding and check rendered `extra`. The former `OPTIONS -> POST` route is historical, not a provisioning template. Verify live state; see `docs/operations/node-topology-current.md`.
 
 ## Gate
 
