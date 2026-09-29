@@ -1,6 +1,6 @@
 # Admin broadcasts — proposed contract, 2026-09-29
 
-Status: planning; owner agreement on interaction/reward semantics pending.
+Status: owner accepted the proposed contract for MVP in voice on 2026-09-29.
 
 ## Goal and source of truth
 
@@ -82,8 +82,7 @@ proposed first release.
 
 ## Evidence / next step
 
-Read mandatory local contract/context and relevant skills. Inspected legacy bot
-queue/filter/gift implementation and origin/main admin broadcast routes/client.
-Public admin login inspected in browser; authenticated view pending. No runtime
-edits, sends, bonuses or deployment performed. Next: obtain owner agreement,
-then inspect deployed revision and use suitable managed isolated checkout.
+Owner accepted this contract in voice. MVP is implemented and deployed; local
+checks and authenticated responsive browser acceptance passed. See current.md
+for evidence. Compensation draft is saved but inactive. Owner must select the
+admin test destination, then review that test before separate mass approval.

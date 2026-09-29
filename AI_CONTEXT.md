@@ -1924,3 +1924,19 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - A paid/applied new, renewal or upgrade order earns configured first-purchase days once for inviter and friend, independent of payment channel.
 - Referral ledger flag and local key extensions must commit in one SQLite transaction. Panel synchronization follows and must be checked separately.
 - `scripts/reconcile_referral_rewards.py` is dry-run by default and requires expected candidate counts for apply.
+
+## 2026-09-29 — admin broadcast contract
+
+- Owner broadcasts use the existing deployed React admin; the customer Svelte
+  application remains unchanged. Access is currently owner-only.
+- A Telegram test never grants rewards; any draft change invalidates the test.
+  A real start explicitly confirms the tested revision and frozen recipient count.
+- Gift days extend one canonical existing key from max(current expiry, now),
+  preserving tariff, limits, UUID and subscription URL. External expiry sync is
+  acknowledged before reporting a gift in the recipient message.
+- New campaign promo codes reserve capacity across pending/paid orders; private
+  codes are account-bound. Existing reserved orders retain their discount when
+  completing after promo expiry. No stacking of multiple promo codes.
+- Unknown Telegram send outcomes require manual review; do not blindly repeat.
+- Compensation notice (+3 days) remains a draft until the owner receives a test
+  and separately approves the mass delivery.
