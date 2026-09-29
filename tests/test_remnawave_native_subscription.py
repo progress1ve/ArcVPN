@@ -355,6 +355,17 @@ def test_single_dhost_lte_link_uses_get_header_transport():
     assert urllib.parse.urlsplit(normalized).username == urllib.parse.urlsplit(link).username
 
 
+@pytest.mark.parametrize("path", ["/api-test", "/api-fin"])
+def test_cdn_normalization_preserves_country_path(path):
+    link = ("vless://11111111-1111-4111-8111-111111111111@cdn-de.arccnet.space:443"
+            "?type=xhttp&security=tls&path=" + urllib.parse.quote(path, safe=""))
+    params = urllib.parse.parse_qs(urllib.parse.urlsplit(api._normalize_native_share_link(link)).query)
+    assert params["path"] == [path]
+    extra = json.loads(params["extra"][0])
+    assert extra["uplinkHTTPMethod"] == "GET"
+    assert extra["uplinkDataKey"] == "X-Session-Token"
+
+
 def test_native_reality_link_replaces_chrome_fingerprint():
     link = (
         "vless://11111111-1111-4111-8111-111111111111@node.example.com:443"

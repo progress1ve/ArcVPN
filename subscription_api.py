@@ -2630,7 +2630,7 @@ def _normalize_native_share_link(link: str) -> str:
     }:
         params.update({
             "mode": ["packet-up"],
-            "path": ["/api-test"],
+            "path": [params.get("path", ["/api-test"])[0] or "/api-test"],
             "host": [host],
             "alpn": ["h2,http/1.1"],
             "x_padding_bytes": ["100-1000"],
