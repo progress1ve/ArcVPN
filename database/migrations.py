@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 67
+LATEST_VERSION = 68
 
 
 def get_current_version() -> int:
@@ -2544,6 +2544,11 @@ def migration_67(conn: sqlite3.Connection) -> None:
     create_schema(conn)
 
 
+def migration_68(conn: sqlite3.Connection) -> None:
+    from database.db_admin_broadcasts import create_promo_order_guards
+    create_promo_order_guards(conn)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2612,6 +2617,7 @@ MIGRATIONS = {
     65: migration_65,
     66: migration_66,
     67: migration_67,
+    68: migration_68,
 }
 
 

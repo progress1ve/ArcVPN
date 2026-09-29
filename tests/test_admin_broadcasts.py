@@ -223,6 +223,20 @@ def test_shared_new_promo_is_created_only_on_start(db):
     assert db_promocodes.is_promocode_valid('THANKS', 1)[0]
 
 
+def test_campaign_shared_promo_reserves_capacity_and_one_order_per_user(db):
+    launch(payload('new_promo', code='LAST50', discount_type='fixed', discount_value=50, duration_days=7, max_uses=1))
+    promo = db_promocodes.get_promocode_by_code('LAST50')
+    with db.get_db() as conn:
+        conn.execute("INSERT INTO payments(user_id,tariff_id,order_id,payment_type,period_days,status,promocode_id) VALUES(1,1,'only','yookassa',30,'pending',?)", (promo['id'],))
+    assert not db_promocodes.is_promocode_valid('LAST50', 2)[0]
+    with pytest.raises(sqlite3.IntegrityError), db.get_db() as conn:
+        conn.execute("INSERT INTO payments(user_id,tariff_id,order_id,payment_type,period_days,status,promocode_id) VALUES(2,1,'extra','yookassa',30,'pending',?)", (promo['id'],))
+    with db.get_db() as conn:
+        conn.execute("UPDATE promocodes SET expires_at=datetime('now','-1 day') WHERE id=?", (promo['id'],))
+        conn.execute("UPDATE payments SET status='paid' WHERE order_id='only'")
+    assert not db_promocodes.is_promocode_valid('LAST50', 1)[0]
+
+
 def test_api_requires_owner_rejects_cross_origin_and_untested_start(db, monkeypatch):
     import subscription_api as api
     monkeypatch.setattr(api, '_admin_access_context', lambda: {'actor_id': 'support', 'role': 'support'})

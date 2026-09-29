@@ -69,6 +69,30 @@ def safe_url(value):
     return value
 
 
+def create_promo_order_guards(conn):
+    conn.execute('''CREATE TABLE IF NOT EXISTS broadcast_campaign_promos (
+        promocode_id INTEGER PRIMARY KEY REFERENCES promocodes(id))''')
+    conn.execute('INSERT OR IGNORE INTO broadcast_campaign_promos SELECT promocode_id FROM broadcast_personal_promos')
+    for operation in ('INSERT', 'UPDATE OF promocode_id,user_id,status'):
+        name = 'insert' if operation == 'INSERT' else 'update'
+        exclude_current = '' if operation == 'INSERT' else ' AND id!=NEW.id'
+        new_reservation = '1' if operation == 'INSERT' else "(OLD.promocode_id IS NOT NEW.promocode_id OR OLD.user_id IS NOT NEW.user_id OR OLD.status NOT IN ('pending','paid','succeeded'))"
+        conn.execute(f'''CREATE TRIGGER IF NOT EXISTS broadcast_campaign_order_{name}
+            BEFORE {operation} ON payments
+            WHEN NEW.promocode_id IN (SELECT promocode_id FROM broadcast_campaign_promos)
+                AND NEW.status IN ('pending','paid','succeeded')
+            BEGIN
+                SELECT CASE WHEN EXISTS(SELECT 1 FROM payments WHERE promocode_id=NEW.promocode_id
+                    AND user_id=NEW.user_id AND status IN ('pending','paid','succeeded'){exclude_current})
+                    OR ({new_reservation} AND (SELECT COUNT(*) FROM payments WHERE promocode_id=NEW.promocode_id
+                        AND status IN ('pending','paid','succeeded'){exclude_current}) >=
+                        (SELECT max_uses FROM promocodes WHERE id=NEW.promocode_id))
+                    OR ({new_reservation} AND NOT EXISTS(SELECT 1 FROM promocodes WHERE id=NEW.promocode_id AND is_active=1
+                        AND datetime(expires_at)>datetime('now')))
+                    THEN RAISE(ABORT,'campaign_promocode_reserved_or_expired') END;
+            END''')
+
+
 class TelegramHTML(HTMLParser):
     tags = {'b', 'strong', 'i', 'em', 'u', 's', 'strike', 'del', 'code', 'pre', 'a', 'blockquote', 'tg-spoiler'}
 
@@ -364,11 +388,13 @@ def mark_tested(campaign_id, revision, admin_id):
 
 
 def insert_promo(conn, code, reward, uses):
-    return conn.execute('''INSERT INTO promocodes(code,discount_rub,discount_percent,discount_type,
+    promo_id = conn.execute('''INSERT INTO promocodes(code,discount_rub,discount_percent,discount_type,
         max_uses,expires_at,created_at,is_active) VALUES(?,?,?,?,?,datetime('now',?),CURRENT_TIMESTAMP,1)''',
         (code, reward['discount_value'] if reward['discount_type'] == 'fixed' else 0,
          reward['discount_value'] if reward['discount_type'] == 'percent' else 0,
          reward['discount_type'], uses, f"+{reward['duration_days']} days")).lastrowid
+    conn.execute('INSERT INTO broadcast_campaign_promos VALUES(?)', (promo_id,))
+    return promo_id
 
 
 def start(campaign_id, revision, count):

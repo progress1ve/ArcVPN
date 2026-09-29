@@ -227,6 +227,13 @@ def is_promocode_valid(code: str, user_id: int) -> tuple[bool, Optional[str], Op
                 return False, "❌ Промокод предназначен другому пользователю", None
             if binding and conn.execute("SELECT 1 FROM payments WHERE promocode_id=? AND status IN ('pending','paid','succeeded') LIMIT 1", (promocode['id'],)).fetchone():
                 return False, "❌ Промокод уже применён к заказу", None
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='broadcast_campaign_promos'").fetchone():
+            if conn.execute('SELECT 1 FROM broadcast_campaign_promos WHERE promocode_id=?', (promocode['id'],)).fetchone():
+                if conn.execute("SELECT 1 FROM payments WHERE promocode_id=? AND user_id=? AND status IN ('pending','paid','succeeded')", (promocode['id'], user_id)).fetchone():
+                    return False, "❌ Промокод уже применён к заказу", None
+                reserved = conn.execute("SELECT COUNT(*) FROM payments WHERE promocode_id=? AND status IN ('pending','paid','succeeded')", (promocode['id'],)).fetchone()[0]
+                if reserved >= promocode['max_uses']:
+                    return False, "❌ Промокод исчерпан", None
     
     # Проверяем срок действия
     expires_at = datetime.fromisoformat(promocode['expires_at'])
