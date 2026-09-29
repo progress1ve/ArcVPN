@@ -13,3 +13,10 @@ Components: subscription display alias and ordering tests. No node, DNS,
 Remnawave, routing or quota mutation. Acceptance: exact EE connection payload
 reused by NL; one EE automatic/YouTube main; generated live subscription shows
 NL; services/public HTTP healthy. Preserve Germany retirement filter.
+
+Release4d5049e pushed and Poland pulled ff-only; subscription service restarted,
+both services active and public HTTP200. Fresh-main regression suite286 passed
+(one existing warning); initial fresh-worktree collection needed initializing
+its isolated empty SQLite schema, then passed. Live NL outbound equals EE,
+AutoSelect/YouTube each retain one main. Real NL tunnel exits87.251.19.197,
+ipifyHTTP200. No current Finland alias switch; replacement FI gate is deferred.

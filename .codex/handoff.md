@@ -1,3 +1,12 @@
+# ArcVPN handoff — Netherlands alias (2026-09-29)
+
+Runtime4d5049e adds manual Netherlands backed by Estonia, not a real NL location.
+Live outbound equals EE; real tunnel exits87.251.19.197 HTTP200;286 tests passed.
+Germany remains retired. Future owner request: after replacing and validating
+Finland, move Netherlands to new FI and add Poland backed by it. Do not activate
+on current FI: direct Moscow route still blocked. Evidence:
+`.codex/stages/netherlands-alias.md`; subscription restarted, public HTTP200.
+
 # ArcVPN handoff — admin broadcasts MVP (2026-09-29)
 
 ## Latest production incident fix

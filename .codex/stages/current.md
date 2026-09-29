@@ -22,3 +22,11 @@ No rollback needed. No owner drafts deleted; no sends/grants initiated by agent.
 Latest live UI: outage campaign is stopped with 22 delivered of 24; earlier
 compensation campaign remains a draft (63). These are owner-controlled actions,
 not agent sends. Next: owner refreshes admin and deletes any unwanted draft.
+# Netherlands alias follow-up — 2026-09-29
+
+Owner-approved display-only Netherlands -> existing EE Reality/443, same
+hostname/SNI/inbound, no CDN, multiplier1, unchanged URLs/UUIDs. No additional
+automatic candidate. Release4d5049e deployed;286 tests, live equality and real
+NL tunnel exit87.251.19.197 HTTP200 passed. Exact evidence/rollback:
+`.codex/stages/netherlands-alias.md`. Future Poland/NL -> replacement FI deferred
+until new node and direct Moscow route pass. Preserve existing broadcast work.
