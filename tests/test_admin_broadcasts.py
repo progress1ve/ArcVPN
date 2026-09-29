@@ -168,7 +168,13 @@ def test_personal_discount_bound_atomic_order_reservation_and_test_inactive(db):
         assert conn.execute('SELECT COUNT(*) FROM promocodes').fetchone()[0] == 1
 
 
-def test_photo_limit_includes_gift_line_before_launch(db):
+def test_day_reward_keeps_authored_message_without_extra_copy(db):
+    data = payload('days', days=3)
+    data.update(photo_file_id='photo_id', message_text='<b>Серверы восстановлены</b>\n' + 'x' * 990)
+    assert campaigns.render(data, {'key_id': 1}) == data['message_text']
+
+
+def test_photo_limit_includes_no_subscription_notice_before_launch(db):
     data = payload('days', days=3)
     data.update(photo_file_id='photo_id', message_text='x' * 1020)
     c = campaigns.save(data, 'owner')

@@ -859,11 +859,6 @@ export default function ArcBroadcasts() {
                       __html: previewMarkup || 'Здесь появится ваше сообщение',
                     }}
                   />
-                  {draft.reward.kind === 'days' && (
-                    <p className="mt-4">
-                      🎁 Вам начислено <b>+{draft.reward.days} дн.</b> подписки.
-                    </p>
-                  )}
                   {['existing_promo', 'new_promo', 'personal_discount'].includes(
                     draft.reward.kind,
                   ) && (

@@ -331,8 +331,8 @@ def render(payload, recipient, *, promo=None):
     reward = payload['reward']
     kind = reward['kind']
     if kind == 'days':
-        text += (f"\n\n🎁 Вам начислено <b>+{reward['days']} дн.</b> подписки." if recipient.get('key_id')
-                 else '\n\nБонусные дни доступны пользователям с существующей подпиской. У вашего аккаунта подписки пока нет.')
+        if not recipient.get('key_id'):
+            text += '\n\nБонусные дни доступны пользователям с существующей подпиской. У вашего аккаунта подписки пока нет.'
     elif kind != 'none':
         if kind == 'existing_promo':
             code = promo['code']
