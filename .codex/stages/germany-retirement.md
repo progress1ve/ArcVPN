@@ -19,3 +19,37 @@ Acceptance: no DE or DE aliases in generated JSON/plain; EE and active
 authorization preserved; managed CDN real HTTP204 and EE exit; services/public
 HTTP healthy. FI direct HTTP/bridge ports still fail on today's recheck, so
 conditional FI additions and benchmark are deferred, not passed.
+
+## Release and evidence
+
+- Runtime d1a3c32:233 tests passed, one existing datetime warning; compilation
+  and staged diff check passed. Local Git DNS failed, recovered using a
+  one-command curl DNS pin and Windows schannel; push succeeded. Poland pulled
+  fast-forward and only subscription service restarted; bot/subscription active,
+  public site HTTP200. Bundle staging was attempted but remote push had no
+  credentials; no bundle-based deployment bypass was performed.
+- Six Germany Hosts disabled; existing CDN /api-test Host rebound to EE's
+  managed XHTTP inbound and node. No user UUID/URL/quota rotation or deletion.
+  Restricted panel backup: /root/ArcVPN/backups/germany-retirement-before.json.
+- Moscow EU_BRIDGE selector now EE_BRIDGE only; DE_BRIDGE removed. Inbound
+  bindings reconciled if panel regenerated IDs. Finland remains excluded.
+- nginx upstream arc_xhttp_eu now EE87.251.19.197:80 only; syntax/reload passed.
+  Backup:/opt/arcvpn/staging/ru-arccnet.before-germany-retirement.conf.
+- Three live JSON subscriptions: AutoSelect, YouTube, manual FI, EE, Sweden,
+  five bypass profiles; Germany/Poland/Netherlands absent, no DE endpoint.
+- Real XHTTP direct EE and Moscow origin HTTPS:Google204 from Poland.
+  Full public CDN from Moscow:ipify200 exit87.251.19.197 and Google204, both
+  legacy body and current HEADER2048/X-Data transports. This proves the
+  accepted CDN -> Moscow -> EE route with managed authorization.
+- Full public CDN from Poland repeatedly reset TLS or timed out, despite same
+  identity passing direct origin. Source/edge-specific cause unproven; do not
+  claim universal CDN/mobile-operator acceptance. No speculative transport
+  or CDN resource changes applied.
+- FI -> Moscow443 and Moscow -> FI80/2443 still fail. No FI promotion or
+  conditional benchmark performed. Manual FI retains the previously disclosed
+  broken YouTube->RU policy; its full readiness remains unaccepted.
+
+Rollback restores exact panel/nginx backups and reverts scoped runtime commit,
+but returned Germany must not be re-enabled without explicit owner direction.
+Next step: resolve FI direct provider route, and separately validate CDN from
+owner's mobile operator; existing EE is the only automatic main.
