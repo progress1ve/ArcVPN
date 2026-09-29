@@ -5,10 +5,10 @@ version = 1
 alias = "fi-1chost"
 role = "vpn-node"
 location = "Finland"
-host = "92.42.102.139"
+host = "151.241.137.174"
 ssh_user = "root"
-credential_alias = "fi-1chost"
-status = "manual-canary; Moscow bridge reachability blocked"
+credential_alias = "fi-replacement"
+status = "active; Reality/CDN/reciprocal Moscow gates passed 2026-09-29"
 
 [[servers]]
 alias = "pl-control"

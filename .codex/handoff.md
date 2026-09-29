@@ -1,4 +1,20 @@
-# ArcVPN handoff — Netherlands alias (2026-09-29)
+# ArcVPN handoff — replacement Finland + CDN GET (2026-09-29)
+
+Runtime cc5d21d deployed on Poland. New FI151.241.137.174 is real main peer with
+EE in Auto/YouTube; manual FI follows YouTube. Reciprocal Moscow SS, ordinary
+Reality and public CDN GET/header EE/FI passed real HTTP from Moscow. Poland
+CDN TLS still fails before XHTTP; mobile censorship gate requires owner test.
+Public fin DNS updated, cert valid/renewed; old fake FI hosts disabled; no Germany.
+Poland/NL now display aliases on FI; Sweden EE. GET/header/X-Session-Token on
+server, panel Hosts and rendered subscriptions for all users; preserve /api-fin
+rather than rewriting to /api-test. Users must refresh subscriptions. Owner
+links saved outside Git in Temp ArcVPN-progressive-dev-xhttp.md, EE and FI only.
+288 tests; health200, both services active. Short SPB test favors EE (15ms,
+540/590Mbps vs FI22ms,169/403Mbps upload/download); do not prioritize FI higher.
+Evidence/backups/open gates: `.codex/stages/finland-replacement.md`. Old FI kept
+for rollback; next owner tests repaired links on affected mobile operators.
+
+## Superseded Netherlands-only state
 
 Runtime4d5049e adds manual Netherlands backed by Estonia, not a real NL location.
 Live outbound equals EE; real tunnel exits87.251.19.197 HTTP200;286 tests passed.

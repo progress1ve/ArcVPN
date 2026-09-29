@@ -1,4 +1,14 @@
-# Delete broadcast drafts — 2026-09-29
+# Current: Finland replacement + all-user CDN GET — 2026-09-29
+
+Runtime cc5d21d deployed and verified; 288 tests, both services active, health200.
+Finland public DNS newIP, Reality/CDN/both Moscow SS tunnels passed. Actual
+subscription has FI+EE Auto/YouTube, manual FI after YouTube; FI main bypass;
+owner EE/FI link file updated. Keep equal peers: short speedtest favors EE.
+Open: Poland-source CDN TLS failure and real mobile-operator verification;
+evening/load speed tests. Detailed table/evidence/rollback:
+`.codex/stages/finland-replacement.md`. Next: owner tests the two exported links.
+
+## Prior completed broadcast stage
 
 Owner request: add draft deletion; do not attach screenshots in replies.
 Contract: delete buttons in history and saved-draft editor; confirmation names
@@ -30,3 +40,12 @@ automatic candidate. Release4d5049e deployed;286 tests, live equality and real
 NL tunnel exit87.251.19.197 HTTP200 passed. Exact evidence/rollback:
 `.codex/stages/netherlands-alias.md`. Future Poland/NL -> replacement FI deferred
 until new node and direct Moscow route pass. Preserve existing broadcast work.
+# Replacement Finland — 2026-09-29
+
+Owner authorizes replacing old FI92.42.102.139 with151.241.137.174, restoring
+original FI+EE peer plan, direct Moscow bridge, FI YouTube reciprocal egress,
+same CDN resource and FI /api-fin; Poland/NL aliases use verified new FI.
+Detailed acceptance, route table and rollback: `.codex/stages/finland-replacement.md`.
+No extra Estonia relay, no Germany, no user UUID/URL/quota changes. Stage gates:
+pinned SSH, target-generated unique Reality material, managed node connected,
+real Reality/CDN/reciprocal SS tunnels, generated contracts, comparative speed.
