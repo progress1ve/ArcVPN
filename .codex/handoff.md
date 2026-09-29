@@ -52,3 +52,13 @@ Backup: `/root/ArcVPN/backups/broadcasts-20260929-pre-mvp.sqlite3`, mode 0600.
 Existing subscription UUIDs/URLs match the backup. Stop jobs before reverting
 runtime commits; retain ledger and additive tables, and never blindly undo days.
 See `.codex/stages/current.md` for exact deployment status and residual limits.
+
+## Day-bonus copy correction — 2026-09-29
+
+Runtime ee7c079 removes the automatic gift sentence from preview and Telegram;
+owner authors the bonus copy. Actual reward grants are unchanged. 31 campaign
+checks and admin build passed; production four-width browser check passed.
+There are now two drafts: owner's outage message for 24 active subscribers and
+previous compensation draft for 63. Both untested after invalidating one old
+successful day test; neither started or delivered. Repeat the test before any
+mass confirmation. Generic-device repair from 83976e6 is preserved.

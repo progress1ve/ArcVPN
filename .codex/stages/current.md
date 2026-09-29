@@ -14,3 +14,12 @@ Rollback: revert this scoped commit; retain reward ledger. No mass send authoriz
 Latest-main generic-device repair is preserved (83976e6); its separate evidence
 is in `.codex/stages/device-generic-fix.md`.
 Local: 31 campaign checks passed; admin TypeScript/Vite build passed.
+
+Deployed runtime: ee7c079, production ff-only pull, both affected services active.
+Server render preserves authored text; public admin HTTP 200. One previously
+successful day-draft test invalidated; both campaigns remain drafts, untested,
+no deliveries. Authenticated browser: duplicate absent and no overflow at
+390/768/1280/1600 widths. Evidence: .codex/evidence/broadcasts/copy-fix-*.png.
+Owner's draft “Проблема с серверами решена” targets 24 active subscribers; earlier
+compensation draft targets 63. Audience and copy unchanged. Next: owner reloads
+admin and repeats Telegram test, then separately confirms any actual send.

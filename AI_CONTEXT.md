@@ -1943,3 +1943,5 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 - Unknown Telegram send outcomes require manual review; do not blindly repeat.
 - Compensation notice (+3 days) remains a draft until the owner receives a test
   and separately approves the mass delivery.
+
+- Admin day-gift broadcast copy is authored by the owner; preview and delivery do not append an automatic successful day-grant sentence. Reward processing remains independent of copy.
