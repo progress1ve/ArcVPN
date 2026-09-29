@@ -1945,3 +1945,5 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   and separately approves the mass delivery.
 
 - Admin day-gift broadcast copy is authored by the owner; preview and delivery do not append an automatic successful day-grant sentence. Reward processing remains independent of copy.
+
+- Broadcast deletion is draft-only with named confirmation; soft-deleted drafts retain their ledger but disappear from the list and cannot be launched. Started campaign history is preserved.

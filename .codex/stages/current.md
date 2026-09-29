@@ -10,3 +10,15 @@ Acceptance: status guard and API RBAC/origin tests; build; browser deletion of
 agent-created demo draft, cancel and four responsive sizes; production visible
 controls without deleting owner's drafts. No campaigns sent or bonuses granted.
 Rollback: scoped revert, retained draft data can be restored operationally.
+
+Passed: 37 campaign tests (delete, status guard, no re-test/edit/start, retained
+ledger, owner/origin guards), TypeScript/Vite build, scoped Biome check.
+Browser: agent-created demo draft cancellation and deletion verified; production
+confirmation/cancellation verified at 390/768/1280/1600 without overflow. Local
+evidence delete-draft-*.png / delete-production-*.png; not attached per owner.
+Runtime d992578 pushed and Poland ff-only pulled. Subscription API service
+restarted; both services active; public admin HTTP 200, anonymous DELETE 403.
+No rollback needed. No owner drafts deleted; no sends/grants initiated by agent.
+Latest live UI: outage campaign is stopped with 22 delivered of 24; earlier
+compensation campaign remains a draft (63). These are owner-controlled actions,
+not agent sends. Next: owner refreshes admin and deletes any unwanted draft.

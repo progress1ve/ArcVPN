@@ -33,13 +33,10 @@ for manual review, rather than automatically duplicated.
 
 ## Owner review / pending action
 
-Draft “Компенсация за сбой 29 сентября · +3 дня” is saved for 63 Telegram
-recipients, all with subscriptions. It has not been tested/sent or activated;
-no bonus days have been granted. There are two configured Telegram admins.
-An owner question is pending to choose the test destination; do not guess it.
-After owner selection, send the exact draft test. Mass delivery requires a
-separate explicit approval AFTER the owner checks that test. No customer
-campaign is currently authorized. The UI remains available for MVP feedback.
+Latest UI verification: owner's “Проблема с серверами решена” is stopped,
+22 deliveries out of 24. The earlier compensation draft still has 63 recipients.
+Those state changes were performed outside the agent's workflow; the agent did
+not send or grant rewards. Any further agent sending requires owner instruction.
 
 ## Evidence and rollback
 
@@ -62,3 +59,13 @@ There are now two drafts: owner's outage message for 24 active subscribers and
 previous compensation draft for 63. Both untested after invalidating one old
 successful day test; neither started or delivered. Repeat the test before any
 mass confirmation. Generic-device repair from 83976e6 is preserved.
+
+## Draft deletion — 2026-09-29
+
+Runtime d992578 deployed. Delete buttons in history and saved-draft editor use
+explicit named confirmation. Only drafts can be soft-deleted atomically; deleted
+rows are hidden, retained for recovery, and cannot be edited/tested/started.
+Started/stopped/completed histories cannot be deleted. 37 focused tests, build,
+Biome and four-width demo/production UI checks passed. Only subscription API
+restarted; both services healthy. Agent deleted no owner draft and sent nothing.
+Owner prefers no screenshot attachments in replies. Next: refresh admin to use.
