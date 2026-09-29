@@ -274,8 +274,6 @@ FINLAND_REALITY_PUBLIC_KEY = "nzWrmYKTZcVd15JMSYh67PoQODq06DFfxgehCGfhEU4"
 # through it before the reciprocal bridge is verified.
 FINLAND_BRIDGE_READY = False
 TEMPORARY_LOCATION_ALIASES = (
-    ("🇵🇱 Польша", "Германия"),
-    ("🇳🇱 Нидерланды", "Германия"),
     ("🇸🇪 Швеция", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
@@ -299,6 +297,7 @@ SUBSCRIPTION_INBOUND_ORDER = getattr(config, "SUBSCRIPTION_INBOUND_ORDER", [
 ])
 _CATALOG_CACHE: tuple[float, dict[str, dict[str, Any]]] = (0.0, {})
 RETIRED_NETHERLANDS_ENDPOINTS = frozenset({"193.233.82.42", "nd.arccnet.space"})
+RETIRED_GERMANY_ENDPOINTS = frozenset({"87.121.47.203", "de.arccnet.space", "95.85.249.187"})
 
 
 def _subscription_source_name(name: str) -> str:
@@ -417,6 +416,9 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
     overrides = _catalog_overrides()
     result: list[tuple[tuple[int, int, str], str]] = []
     for link in links:
+        endpoint = (urllib.parse.urlsplit(link).hostname or "").lower()
+        if endpoint in RETIRED_GERMANY_ENDPOINTS:
+            continue
         if urllib.parse.urlsplit(link).scheme.lower() in {"hysteria", "hysteria2", "hy2"}:
             continue
         if "#" not in link:
@@ -439,6 +441,7 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         # Hosts. Unknown hosts remain deliverable for forward-compatible node
         # additions and appear after the managed product-policy rows.
         if any(marker in raw_name for marker in (
+            "Германия", "Germany",
             "Канада", "Canada", "Франция", "France", "Албания", "Albania",
             "Нидерланды", "Netherlands",
         )) or endpoint in RETIRED_NETHERLANDS_ENDPOINTS:

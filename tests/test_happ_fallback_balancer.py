@@ -20,7 +20,7 @@ else:
 @unittest.skipIf(IMPORT_ERROR is not None, f"subscription API dependencies unavailable: {IMPORT_ERROR}")
 class HappFallbackBalancerTests(unittest.TestCase):
     def test_youtube_proxy_rule_precedes_ru_direct_for_all_json_subscribers(self):
-        links = "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany"
+        links = "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Estonia"
         for telegram_id in (1, 2):
             key = ActiveKeyRecord(telegram_id, 1, "test", "2099-01-01", 0, 0, "test", telegram_id)
             with patch("subscription_api._catalog_overrides", return_value={}):
@@ -37,7 +37,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
     def test_tiktok_is_forced_through_vpn_before_direct_rules_in_every_profile(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
-            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
+            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Estonia",
             "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
         ])
         with patch("subscription_api._catalog_overrides", return_value={}):
@@ -75,7 +75,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             profiles = json.loads(_build_happ_json_subscription(key, links))
         self.assertEqual([item["remarks"] for item in profiles], [
             "Автовыбор | Самый быстрый", "🇷🇺 Ютуб без рекламы", "Эстония",
-            "Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды", "🇸🇪 Швеция",
+            "🇸🇪 Швеция",
             "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
@@ -85,7 +85,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         self.assertNotIn("fallbackTag", youtube["routing"]["balancers"][0])
         self.assertEqual(
             [item["tag"] for item in youtube["outbounds"] if item["tag"].startswith("proxy-youtube-")],
-            ["proxy-youtube-1", "proxy-youtube-2"],
+            ["proxy-youtube-1"],
         )
         auto_hosts = [
             item["settings"]["vnext"][0]["address"]
@@ -96,24 +96,17 @@ class HappFallbackBalancerTests(unittest.TestCase):
         auto = profiles[0]
         outbounds = {item["tag"]: item for item in auto["outbounds"]}
         balancers = {item["tag"]: item for item in auto["routing"]["balancers"]}
-        self.assertEqual(outbounds["proxy-reserve-de"]["settings"]["vnext"][0]["address"], "de.example")
-        self.assertEqual(outbounds["proxy-stage-2"], {
-            "protocol": "loopback", "tag": "proxy-stage-2", "settings": {"inboundTag": "auto-reserve"},
-        })
-        self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main-1"])
-        self.assertEqual(balancers["balancer_main"]["fallbackTag"], "proxy-stage-2")
-        self.assertEqual(balancers["balancer_reserve"]["selector"], ["proxy-reserve-de"])
-        self.assertEqual(balancers["balancer_reserve"]["fallbackTag"], "proxy-back-1")
-        self.assertEqual(auto["burstObservatory"]["subjectSelector"], ["proxy-main-1", "proxy-reserve-de"])
-        self.assertEqual(auto["routing"]["rules"][0], {
-            "inboundTag": ["auto-reserve"], "network": "tcp,udp",
-            "balancerTag": "balancer_reserve", "type": "field",
-        })
+        self.assertNotIn("proxy-reserve-de", outbounds)
+        self.assertNotIn("proxy-stage-2", outbounds)
+        self.assertEqual(balancers["balancer_main"]["selector"], ["proxy-main"])
+        self.assertEqual(balancers["balancer_main"]["fallbackTag"], "proxy-back-1")
+        self.assertNotIn("balancer_reserve", balancers)
+        self.assertEqual(auto["burstObservatory"]["subjectSelector"], ["proxy-main"])
 
     def test_every_bypass_uses_whitenode_least_load_contract(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
-            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
+            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Estonia",
             "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%231",
             "vless://33333333-3333-3333-3333-333333333333@cdn-de.arccnet.space:443?security=tls&type=xhttp#Обход%20глушилок%20%28LTE%29%20%232",
         ])
@@ -166,7 +159,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
     def test_direct_cdn_links_become_hidden_fallback_outbounds_only(self):
         key = ActiveKeyRecord(1, 1, "test", "2099-01-01", 0, 0, "test", 1)
         links = "\n".join([
-            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany",
+            "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Estonia",
             "vless://22222222-2222-2222-2222-222222222222@cdn-nd.arccnet.space:443?security=tls&type=xhttp#%F0%9F%87%B3%F0%9F%87%B1%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%234",
             "vless://33333333-3333-3333-3333-333333333333@cdn-de.arccnet.space:443?security=tls&type=xhttp#%F0%9F%87%A9%F0%9F%87%AA%20%D0%9E%D0%B1%D1%85%D0%BE%D0%B4%20%D0%B3%D0%BB%D1%83%D1%88%D0%B8%D0%BB%D0%BE%D0%BA%20%235",
         ])

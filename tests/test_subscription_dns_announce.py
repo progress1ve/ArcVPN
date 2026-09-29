@@ -45,7 +45,7 @@ def test_dns_v2_is_canary_gated_and_has_no_google_or_cloudflare():
 
 
 def test_happ_profiles_receive_v2_dns_without_foreign_geoasset_urls():
-    links = "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Germany"
+    links = "vless://11111111-1111-1111-1111-111111111111@main.example:443?security=none&type=tcp#Estonia"
     with patch("subscription_api.ARCVPN_DNS_PROFILE", "v2"), patch(
         "subscription_api._catalog_overrides", return_value={}
     ):

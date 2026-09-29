@@ -56,7 +56,6 @@ def test_customer_catalog_removes_retired_albania_and_netherlands():
 
     assert names == [
         "Эстония", "Эстония #2",
-        "Германия", "Германия #2",
         "🇪🇺 Обход глушилок #1",
     ]
 
@@ -100,26 +99,26 @@ def test_catalog_never_publishes_retired_finland(monkeypatch):
         "vless://id@fin.arccnet.space:443#Финляндия%20%231",
         "vless://id@195.226.92.37:443#Legacy",
         "vless://id@cdn-fi.arccnet.space:443#LTE",
-        "vless://id@de.arccnet.space:443#Германия%20%231",
+        "vless://id@ee.arccnet.space:443#Эстония%20%231",
     ]
 
     result = api._apply_subscription_catalog(links)
 
     assert len(result) == 1
-    assert "de.arccnet.space" in result[0]
+    assert "ee.arccnet.space" in result[0]
 
 
 def test_happ_json_never_keeps_retired_finland_as_hidden_outbound(monkeypatch):
     monkeypatch.setattr(api, "_catalog_overrides", lambda: {})
     links = "\n".join([
         "vless://00000000-0000-4000-8000-000000000001@fin.arccnet.space:443?security=reality#Финляндия%20%231",
-        "vless://00000000-0000-4000-8000-000000000002@de.arccnet.space:443?security=reality#Германия%20%231",
+        "vless://00000000-0000-4000-8000-000000000002@ee.arccnet.space:443?security=reality#Эстония%20%231",
     ])
 
     prepared = api._prepare_subscription(_key(), links, "json")
 
     assert "fin.arccnet.space" not in prepared.body.lower()
-    assert "de.arccnet.space" in prepared.body.lower()
+    assert "ee.arccnet.space" in prepared.body.lower()
 
 
 def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
@@ -133,12 +132,11 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
     hosts = [urllib.parse.urlsplit(link).hostname for link in result]
 
     assert names == [
-        "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды",
+        "🇪🇪 Эстония", "🇩🇪 Германия",
         "🇸🇪 Швеция",
     ]
     assert hosts == [
-        "ee.arccnet.space", "de.arccnet.space", "de.arccnet.space",
-        "de.arccnet.space", "ee.arccnet.space",
+        "ee.arccnet.space", "de.arccnet.space", "ee.arccnet.space",
     ]
 
 
