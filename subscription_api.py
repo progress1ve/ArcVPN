@@ -3011,6 +3011,14 @@ def subscription(sub_id: str, path_device_token: str = ''):
             # is unavailable. Reserve one deterministic managed slot for direct imports
             # instead of trapping the user in a WebApp-only bootstrap loop.
             happ_device = _happ_device_identity()
+            # Browsers, link previews and subscription probes are not imports.
+            # Only a recognized VPN client or stable client HWID may allocate
+            # the recovery slot. Bound device URLs were handled above.
+            if client_family == "generic" and not happ_device:
+                return _response_from_prepared(
+                    _prepare_device_limit_subscription(key, output_format, "legacy"),
+                    profile_title,
+                )
             recovery_token = (
                 happ_device["token"] if happ_device else hashlib.sha256(
                     f"arcvpn-direct-import-v1:{sub_id}".encode("utf-8")

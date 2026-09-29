@@ -1,5 +1,10 @@
 # Admin broadcasts MVP — 2026-09-29
 
+## Active incident repair
+
+Generic device slots: see `device-generic-fix.md` for acceptance and evidence.
+The broadcast owner's pending test below remains pending.
+
 Status: MVP implemented, checked locally and deployed to Poland. Authenticated
 production UI acceptance passed; owner's review and real Telegram test are
 pending the owner's choice between two configured admins. No customer sending
