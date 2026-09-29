@@ -1,4 +1,16 @@
-# ArcVPN handoff — replacement Finland + CDN GET (2026-09-29)
+# ArcVPN handoff — Multitest results (2026-09-29)
+
+Owner requires Multitest for requested server speed comparisons; method in
+docs/operations/server-benchmark-method.md, evidence multitest-2026-09-29.md.
+Actual Multitest RU speed/IPQuality-private-IPv4/short CPU completed on active
+FI, EE, Moscow, Poland. No network tuning, report upload or runtime deployment.
+FI repeat: NN remains4Mbps, Moscow6431->520Mbps, SPB second receiver0 invalid.
+EE around1Gbps to Moscow/SPB/NN, lower RTT; FI geobases FI/JP/IR/AE, services
+AE/NL, one VPN marker. DNSBL blacklisted0 all four isn't universal clean-IP.
+Skill update explicitly deferred: present full-new-node workflow proposal AFTER
+tests, implement only following owner consent. No skill files changed.
+
+## Production remains: replacement Finland + CDN GET
 
 Runtime cc5d21d deployed on Poland. New FI151.241.137.174 is real main peer with
 EE in Auto/YouTube; manual FI follows YouTube. Reciprocal Moscow SS, ordinary

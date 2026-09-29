@@ -1,4 +1,24 @@
-# Current: Finland replacement + all-user CDN GET — 2026-09-29
+# Current: owner Multitest benchmark — 2026-09-29
+
+Owner requests actual Multitest first; skill changes explicitly deferred until
+results and owner approval. Test active SSH-managed FI, EE, Moscow, Poland;
+retired servers excluded, provider-managed Albania has no authorized SSH.
+Use reviewed pinned Multitest Russian speed/IPQuality/short CPU modules,
+privacy -p/-4 on IP checker, no report uploads, BBR/IPv6/network tuning or
+production restarts. Preserve raw private logs and report missing tests honestly.
+Upstream RU speed labels sent/received of one forward test as Upload/Download;
+do not describe these as independent directions. Benchmark isn't tunnel gate.
+Acceptance: per-host results/errors, source hashes, post-run health, concise
+comparison and proposed skill update ONLY (no skill implementation).
+
+Completed: four actual Multitest module runs + FI RU speed repeat. Full evidence
+`docs/operations/multitest-2026-09-29.md`; method recorded in separate MD, not SQL.
+No skill file changed, no runtime deploy/restart or tuning; both services active,
+health200. Reports private. FI repeat NN4Mbps, Moscow unstable, SPB receiver0
+invalid; no claims of universal clean IP or mobile bypass. Next: owner agrees
+or revises proposed end-to-end node skill. No rollback needed for diagnostics.
+
+## Completed: Finland replacement + all-user CDN GET
 
 Runtime cc5d21d deployed and verified; 288 tests, both services active, health200.
 Finland public DNS newIP, Reality/CDN/both Moscow SS tunnels passed. Actual

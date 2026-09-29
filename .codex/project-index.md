@@ -13,3 +13,5 @@
 - Active stage/evidence: `.codex/stages/current.md`
 - Node contract: `.codex/references/node-config-contract.md`
 - Node/CDN workflow: `.agents/skills/arcvpn-node-ops/`
+- Owner benchmark method: `docs/operations/server-benchmark-method.md` (Multitest);
+  latest results: `docs/operations/multitest-2026-09-29.md`. Skill changes await owner approval.
