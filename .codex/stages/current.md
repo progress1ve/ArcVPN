@@ -1,4 +1,35 @@
-# Current: owner Multitest benchmark — 2026-09-29
+# Current: FI RU repeat + admin node automation plan — 2026-09-29
+
+Scope: repeat audited original russian-iperf3-servers on active FI only; preserve
+raw terminal output and present verbatim results. Plan only for owner admin
+node provisioning and benchmark workers, no runtime/UI implementation or skill
+changes. Components to inspect: existing nodes.preflight API, provisioner,
+RBAC, admin nodes UI, persisted job infrastructure, node route contract.
+Acceptance: full terminal artifact or explicit failure, honest sent/received
+semantics, post-test node health, written staged plan with secret storage,
+job cancellation/recovery, real-tunnel publication gates and browser QA.
+Risks: temporary test bandwidth/load, shared public test endpoints. Bound test
+to 900s; no tuning/restart/topology changes; stop only diagnostic job if needed.
+Plan remains a proposal, not authority to provision/publish nodes.
+
+Passed: original FI RU module exit0/109s, terminal TXT/raw LOG delivered,
+post-run remnanode running/nginx active, scoped architecture plan saved.
+Evidence docs/operations/finland-ru-repeat-2026-09-29.md. FI Moscow5606Mbps;
+do not infer permanent throughput or prioritize above EE from one test.
+No runtime/skill changes; deployment is docs-only, no service restart needed.
+Rollback not needed for diagnostic. Next: owner approval/revision of plan.
+
+## Earlier repeat Multitest 5/6/9 with terminal artifacts
+
+Owner wants full terminal output rather than rewritten tables. Scope FI/EE
+comparison, sequential per-host Multitest modules5/6/9; review nested scripts,
+bounded execution and preserve raw logs/clean readable text outside Git.
+Identify actual Kazan/Moscow/Novosibirsk coverage; never relabel fallback cities.
+No network tuning, production topology changes, skill changes or report upload.
+Acceptance: six complete outputs or explicit failures, download/display files,
+honest direction/city limitations, post-test health. Keep FI/EE equal peers.
+
+## Prior completed Multitest benchmark
 
 Owner requests actual Multitest first; skill changes explicitly deferred until
 results and owner approval. Test active SSH-managed FI, EE, Moscow, Poland;

@@ -1,4 +1,18 @@
-# ArcVPN handoff — Multitest results (2026-09-29)
+# ArcVPN handoff — FI repeat + admin node automation plan (2026-09-29)
+
+Latest FI original RU repeat (MSK19:29–19:31): Moscow5606Mbps/27ms,
+SPB2202Mbps/24ms, NN2114Mbps/30ms, Chely1752Mbps/78ms, Tyumen519Mbps/56ms.
+Upstream columns are forward sender/receiver, not two directions. This strong
+repeat prevents declaring FI bad from earlier weak snapshots. Keep FI/EE peers.
+Evidence: docs/operations/finland-ru-repeat-2026-09-29.md. Full terminal logs
+outside Git in Temp/ArcVPN-multitest-569. Node healthy; no runtime changes.
+Plan only: docs/roadmaps/admin-node-automation.md; owner wants admin workers
+for IP/password provisioning and Multitest, not reliance on Codex. Existing
+AdminNodes only SSH preflight; proposed durable jobs, secret vault, benchmark
+terminal/history then hidden provisioning and real-tunnel publish gates.
+No skills created/changed. Next: agree workflow before implementation.
+
+## Previous Multitest results
 
 Owner requires Multitest for requested server speed comparisons; method in
 docs/operations/server-benchmark-method.md, evidence multitest-2026-09-29.md.
