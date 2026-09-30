@@ -1,5 +1,9 @@
 # ArcVPN handoff — FI repeat + admin node automation plan (2026-09-29)
 
+## Active work — React node operations, 2026-09-30
+
+Work is in isolated `netherlands-alias` checkout at baseline d7d9ca5; the owner's dirty primary checkout and production files are untouched. React node detail now has useful tabs with existing SVG icons, hidden tab scrollbar, real agent charts/capacity and fleet-history availability. SSH preflight now requires an independently checked fingerprint and never persists the password. Read APIs and additive migrations 69–70 are local only. The full Python suite passes (301 tests), both frontend builds pass, and React browser widths 390/768/1280/1600 were inspected. Multitest worker, LatencyLab mobile adapter, Telegram integration and installation worker are **not implemented**; the owner authorized production release only once ready. LatencyLab API documentation is pending. The owner confirmed there is no test VPS now and installer testing will happen later. See `.codex/stages/current.md`. Do not run the unpinned Multitest `curl | bash` command or deploy this partial stage as a complete solution.
+
 Latest FI original RU repeat (MSK19:29–19:31): Moscow5606Mbps/27ms,
 SPB2202Mbps/24ms, NN2114Mbps/30ms, Chely1752Mbps/78ms, Tyumen519Mbps/56ms.
 Upstream columns are forward sender/receiver, not two directions. This strong

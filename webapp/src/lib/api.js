@@ -339,6 +339,9 @@ export const fetchAdminNodeMetrics = (host, range = '1h') => (import.meta.env.DE
 export const preflightAdminNode = (payload) => (import.meta.env.DEV
   ? mockAdminSection('preflight', { ok: true, host: payload.host, addresses: [payload.host], preset: payload.preset, system: 'Linux qa', docker: true, curl: true, next_step: 'bootstrap' }, {})
   : post('/api/admin/nodes/preflight', payload))
+export const fetchAdminNodeHostKey = (host, port = 22) => (import.meta.env.DEV
+  ? mockAdminSection('host-key', { fingerprint: 'SHA256:development-only-key', algorithm: 'ssh-ed25519' }, {})
+  : post('/api/admin/nodes/ssh-host-key', { host, port }))
 export const fetchAdminBackups = () => (import.meta.env.DEV ? mockAdminSection('backups', { ok: true, backups: mockBackups }, { ok: true, backups: [] }) : get('/api/admin/backups'))
 export const createAdminBackup = () => (import.meta.env.DEV ? mockAdminSection('backups', { ok: true, backups: (mockBackups = [{ name: `vpn_bot-${Date.now()}.db`, size_bytes: 7340032, created_at: new Date().toISOString() }, ...mockBackups]) }, { ok: true, backups: [] }) : post('/api/admin/backups'))
 export const fetchAdminAudit = (limit = 100) => (import.meta.env.DEV ? mockAdminSection('audit', { ok: true, events: mockAuditEvents.slice(0, limit) }, { ok: true, events: [] }) : get(`/api/admin/audit?limit=${encodeURIComponent(limit)}`))

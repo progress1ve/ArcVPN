@@ -21,6 +21,7 @@ import AdminProfit from '@/pages/AdminProfit';
 import AdminTrafficUsage from '@/pages/AdminTrafficUsage';
 import AdminTickets from '@/pages/AdminTickets';
 import AdminRemnawave from '@/pages/AdminRemnawave';
+import ArcNodeDetail from '@/pages/ArcNodeDetail';
 import AdminRemnawaveSquadDetail from '@/pages/AdminRemnawaveSquadDetail';
 import AdminSquads from '@/pages/AdminSquads';
 import ArcMarketing from './ArcMarketing';
@@ -178,6 +179,7 @@ function AdminRoutes() {
           <Route path="/admin/tickets" element={<AdminTickets />} />
           <Route path="/admin/tickets/:ticketId" element={<AdminTickets />} />
           <Route path="/admin/remnawave" element={<AdminRemnawave />} />
+          <Route path="/admin/remnawave/nodes/:host" element={<ArcNodeDetail />} />
           <Route path="/admin/squads" element={<AdminSquads />} />
           <Route path="/admin/remnawave/squads/:uuid" element={<AdminRemnawaveSquadDetail />} />
           <Route path="/admin/*" element={<Unavailable />} />

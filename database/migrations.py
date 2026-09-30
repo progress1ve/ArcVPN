@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 68
+LATEST_VERSION = 70
 
 
 def get_current_version() -> int:
@@ -2549,6 +2549,71 @@ def migration_68(conn: sqlite3.Connection) -> None:
     create_promo_order_guards(conn)
 
 
+def migration_69(conn: sqlite3.Connection) -> None:
+    """Keep mobile-operator LTE evidence separate from ordinary node health."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS lte_operator_probe_results (
+            id INTEGER PRIMARY KEY,
+            batch_id TEXT NOT NULL,
+            node_host TEXT NOT NULL,
+            operator TEXT NOT NULL CHECK(operator IN ('t2','t_mobile','megafon','beeline','mts')),
+            target_path TEXT NOT NULL,
+            test_kind TEXT NOT NULL CHECK(test_kind IN ('tcp','tls','client_tunnel')),
+            restriction_state TEXT NOT NULL CHECK(restriction_state IN ('confirmed','unconfirmed','unknown')),
+            allowed_control_ok INTEGER,
+            blocked_control_ok INTEGER,
+            region TEXT,
+            outcome TEXT NOT NULL CHECK(outcome IN ('ok','failed','unknown')),
+            rtt_ms REAL,
+            reason TEXT,
+            provider TEXT NOT NULL,
+            checked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_lte_operator_probe_host_time
+            ON lte_operator_probe_results(node_host, checked_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_lte_operator_probe_batch
+            ON lte_operator_probe_results(batch_id, node_host);
+        CREATE TABLE IF NOT EXISTS lte_operator_alert_state (
+            node_host TEXT NOT NULL,
+            operator TEXT NOT NULL,
+            target_path TEXT NOT NULL,
+            test_kind TEXT NOT NULL,
+            consecutive_failures INTEGER NOT NULL DEFAULT 0,
+            consecutive_successes INTEGER NOT NULL DEFAULT 0,
+            incident_started_at DATETIME,
+            alert_sent INTEGER NOT NULL DEFAULT 0,
+            last_checked_at DATETIME,
+            PRIMARY KEY(node_host, operator, target_path, test_kind)
+        );
+        CREATE TABLE IF NOT EXISTS node_capacity_measurements (
+            id INTEGER PRIMARY KEY,
+            node_host TEXT NOT NULL,
+            direction TEXT NOT NULL CHECK(direction IN ('rx','tx')),
+            capacity_mbps REAL NOT NULL CHECK(capacity_mbps > 0),
+            method TEXT NOT NULL,
+            source_job_id TEXT,
+            tested_at DATETIME NOT NULL,
+            verified_at DATETIME NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_node_capacity_host_time
+            ON node_capacity_measurements(node_host, verified_at DESC);
+    """)
+
+
+def migration_70(conn: sqlite3.Connection) -> None:
+    """Keep bounded fleet availability observations for honest uptime bars."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS node_availability_samples (
+            id INTEGER PRIMARY KEY,
+            node_host TEXT NOT NULL,
+            status TEXT NOT NULL CHECK(status IN ('healthy','server_down','possible_ip_block','unknown')),
+            checked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_node_availability_host_time
+            ON node_availability_samples(node_host, checked_at DESC);
+    """)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2618,6 +2683,8 @@ MIGRATIONS = {
     66: migration_66,
     67: migration_67,
     68: migration_68,
+    69: migration_69,
+    70: migration_70,
 }
 
 

@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
+import ArcNodePreflight from './ArcNodePreflight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -63,6 +64,7 @@ import { useReachabilityAvailable } from '../components/admin/reachability/useRe
 import { usePermissionStore } from '../store/permissions';
 import { supportsGeoCheck } from '../utils/nodeVersion';
 import { Skeleton, SkeletonGroup } from '../components/ui/skeleton';
+import { getJson } from '@/arcvpn/api';
 
 const formatBytes = (bytes: number): string => {
   if (bytes === 0) return '0 B';
@@ -148,13 +150,14 @@ function NodeTrafficBreakdown({
 
 interface NodeCardProps {
   node: NodeInfo;
+  registryState?: string;
   providerName?: string;
   realtime?: NodeRealtimeStats;
   onAction: (uuid: string, action: 'enable' | 'disable' | 'restart') => void;
   isLoading?: boolean;
 }
 
-function NodeCard({ node, providerName, realtime, onAction, isLoading }: NodeCardProps) {
+function NodeCard({ node, registryState, providerName, realtime, onAction, isLoading }: NodeCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [geoCheckOpen, setGeoCheckOpen] = useState(false);
@@ -239,6 +242,7 @@ function NodeCard({ node, providerName, realtime, onAction, isLoading }: NodeCar
               {getCountryFlag(node.country_code)}
             </span>
             <h3 className="truncate font-semibold text-dark-100">{node.name}</h3>
+            {registryState && !registryState.startsWith('active') && <span className="max-w-24 truncate rounded bg-warning-500/15 px-1.5 py-0.5 text-[10px] text-warning-400" title={`Реестр ArcVPN: ${registryState}`}>{registryState.includes('retired') ? 'Выведена' : 'Подготовка'}</span>}
             {(providerLabel || providerFavicon) && (
               <span className="flex min-w-0 max-w-[7rem] shrink items-center gap-1 rounded-md bg-accent-500/15 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-accent-300">
                 {providerFavicon && (
@@ -257,6 +261,7 @@ function NodeCard({ node, providerName, realtime, onAction, isLoading }: NodeCar
           </div>
 
           <div className="flex shrink-0 items-center gap-1.5">
+            <Link to={`/admin/remnawave/nodes/${encodeURIComponent(node.address)}`} onClick={(event) => event.stopPropagation()} className="rounded-lg bg-accent-500/15 px-2.5 py-1.5 text-xs font-medium text-accent-300 hover:bg-accent-500/25" aria-label={`Открыть статистику ${node.name}`}>Статистика ↗</Link>
             {canReach && (
               <button
                 onClick={(e) => {
@@ -1023,6 +1028,9 @@ function NodesTab({
 }: NodesTabProps) {
   const { t } = useTranslation();
   const canManage = usePermissionStore((s) => s.hasPermission('remnawave:write'));
+  const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });
+  const documentedNodes = (registry?.nodes || []) as Array<{ host: string; alias: string; role: string; location?: string; status?: string }>;
+  const registryOnly = documentedNodes.filter((server) => server.host && server.role !== 'production-control-plane' && !nodes.some((node) => node.address === server.host));
 
   const stats = useMemo(() => {
     const total = nodes.length;
@@ -1062,6 +1070,7 @@ function NodesTab({
 
   return (
     <div className="space-y-4">
+      {canManage && <ArcNodePreflight />}
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5 max-lg:[&>*:last-child:nth-child(odd)]:col-span-2">
         <StatCard
@@ -1146,6 +1155,7 @@ function NodesTab({
             <NodeCard
               key={node.uuid}
               node={node}
+              registryState={documentedNodes.find((server) => server.host === node.address)?.status}
               providerName={providerByUuid[node.uuid]}
               realtime={realtimeByUuid[node.uuid]}
               onAction={onAction}
@@ -1154,6 +1164,7 @@ function NodesTab({
           ))
         )}
       </div>
+      {registryOnly.length > 0 && <section className="rounded-xl border border-warning-500/25 bg-warning-500/5 p-4"><h3 className="font-semibold text-dark-100">Ноды вне списка Remnawave</h3><p className="mt-1 text-xs text-dark-400">Показаны записи документального реестра. Их актуальность и связность требуют проверки.</p><div className="mt-3 grid gap-2">{registryOnly.map((server) => <Link key={server.host} to={`/admin/remnawave/nodes/${encodeURIComponent(server.host)}`} className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-dark-800 px-3 py-2 text-sm text-dark-200 hover:text-accent-300"><span>{server.alias || server.host} · {server.location || server.host}</span><span className="text-xs text-warning-400">{server.status || 'статус не указан'} · открыть ↗</span></Link>)}</div></section>}
     </div>
   );
 }

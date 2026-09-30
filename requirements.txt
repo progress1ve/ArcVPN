@@ -17,6 +17,8 @@ magic-filter==1.0.12
 MarkupSafe==3.0.3
 multidict==6.7.1
 pillow==12.2.0
+paramiko==5.0.0
+tomli==2.4.1; python_version < "3.11"
 propcache==0.5.2
 pydantic==2.13.4
 pydantic_core==2.46.4

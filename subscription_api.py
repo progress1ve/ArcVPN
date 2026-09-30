@@ -612,6 +612,7 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # from the code, while the behaviour itself stays enabled by default.
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
+    "151.241.137.174": {"provider": "1chost", "location": "Финляндия"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
     "87.251.19.197": {"provider": "1chost", "location": "Эстония"},
@@ -4874,66 +4875,245 @@ def api_admin_node_metrics():
         return _api_error("metrics_unavailable", 503)
 
 
-@app.route('/api/admin/nodes/preflight', methods=['POST'])
-def api_admin_node_preflight():
-    """Validate a new public VPS and SSH credentials without persisting them."""
+@app.route('/api/admin/nodes/lte-availability', methods=['GET'])
+def api_admin_lte_availability():
+    """Read operator-specific evidence; absence of a probe is not availability."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    host = _clean_text(request.args.get("host"), 255).strip().lower()
+    if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
+        return _api_error("invalid_lte_host", 400)
+    try:
+        with get_db() as conn:
+            rows = conn.execute("""
+                SELECT batch_id,operator,target_path,test_kind,restriction_state,
+                       allowed_control_ok,blocked_control_ok,region,
+                       outcome,rtt_ms,reason,provider,checked_at
+                FROM lte_operator_probe_results
+                WHERE node_host=? AND checked_at >= datetime('now','-30 days')
+                ORDER BY checked_at DESC LIMIT 1000
+            """, (host,)).fetchall()
+        return _api_no_store(jsonify({"ok": True, "host": host,
+            "operators": ["t2", "t_mobile", "megafon", "beeline", "mts"],
+            "results": [dict(row) for row in rows]}))
+    except sqlite3.Error:
+        logger.exception("Admin LTE availability query failed")
+        return _api_error("lte_availability_unavailable", 503)
+
+
+@app.route('/api/admin/nodes/availability', methods=['GET'])
+def api_admin_node_availability():
+    """Fleet observations for the 24-hour bar; unknown/gaps stay unknown."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    host = _clean_text(request.args.get("host"), 255).strip().lower()
+    if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
+        return _api_error("invalid_node_host", 400)
+    try:
+        with get_db() as conn:
+            rows = conn.execute("""SELECT status,checked_at FROM node_availability_samples
+                WHERE node_host=? AND checked_at>=datetime('now','-24 hours')
+                ORDER BY checked_at ASC,id ASC LIMIT 500""", (host,)).fetchall()
+        return _api_no_store(jsonify({"ok": True, "host": host,
+            "source": "fleet_monitor", "samples": [dict(row) for row in rows]}))
+    except sqlite3.Error:
+        logger.exception("Admin node availability query failed")
+        return _api_error("node_availability_unavailable", 503)
+
+
+@app.route('/api/admin/nodes/events', methods=['GET'])
+def api_admin_node_events():
+    """Return bounded diagnostics and audited node actions without raw log secrets."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    host = _clean_text(request.args.get("host"), 255).strip().lower()
+    if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
+        return _api_error("invalid_node_host", 400)
+    try:
+        with get_db() as conn:
+            diagnostics = conn.execute("""SELECT ok,created_at FROM node_diagnostic_runs
+                WHERE host=? ORDER BY id DESC LIMIT 30""", (host,)).fetchall()
+            audit = conn.execute("""SELECT action,outcome,created_at FROM admin_audit_events
+                WHERE target_id=? AND target_type IN ('node','ssh_target')
+                ORDER BY id DESC LIMIT 50""", (host,)).fetchall()
+        events = [{"action": "node.diagnostic", "outcome": "success" if row["ok"] else "failed",
+                   "created_at": row["created_at"]} for row in diagnostics]
+        events += [dict(row) for row in audit]
+        events.sort(key=lambda event: event["created_at"], reverse=True)
+        return _api_no_store(jsonify({"ok": True, "host": host, "events": events[:50]}))
+    except sqlite3.Error:
+        logger.exception("Admin node events query failed")
+        return _api_error("node_events_unavailable", 503)
+
+
+@app.route('/api/admin/nodes/registry', methods=['GET'])
+def api_admin_node_registry():
+    """Expose only non-secret documented node roles and lifecycle hints."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    try:
+        try:
+            import tomllib
+        except ModuleNotFoundError:
+            import tomli as tomllib
+        path = os.path.join(os.path.dirname(__file__), ".codex", "server-inventory.toml")
+        with open(path, "rb") as stream:
+            inventory = tomllib.load(stream)
+        nodes = [{key: item.get(key) for key in ("alias", "role", "location", "host", "status")}
+                 for item in inventory.get("servers", []) if isinstance(item, dict)]
+        return _api_no_store(jsonify({"ok": True, "source": "documented_inventory", "nodes": nodes}))
+    except (OSError, ValueError):
+        logger.exception("Admin node registry unavailable")
+        return _api_error("node_registry_unavailable", 503)
+
+
+@app.route('/api/admin/nodes/capacity', methods=['GET'])
+def api_admin_node_capacity():
+    """Return explainable p95 headroom only where capacity was verified."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    host = _clean_text(request.args.get("host"), 255).strip().lower()
+    period = str(request.args.get("range") or "24h")
+    windows = {"15m": "-15 minutes", "1h": "-1 hour", "6h": "-6 hours", "24h": "-24 hours", "7d": "-7 days"}
+    if not host or not re.fullmatch(r"[a-z0-9.:-]+", host) or period not in windows:
+        return _api_error("invalid_capacity_query", 400)
+    try:
+        from monitoring.node_capacity import summarize
+        with get_db() as conn:
+            rows = conn.execute("""SELECT sampled_at,cpu_pct,mem_pct,net_rx_bps,net_tx_bps
+                FROM server_health_samples WHERE host=? AND source='agent'
+                AND sampled_at>=datetime('now',?) ORDER BY sampled_at DESC LIMIT 20000""",
+                (host, windows[period])).fetchall()
+            capacities = conn.execute("""SELECT direction,capacity_mbps,method,tested_at
+                FROM node_capacity_measurements WHERE node_host=?
+                AND verified_at>=datetime('now','-30 days')
+                ORDER BY verified_at DESC LIMIT 20""", (host,)).fetchall()
+        latest = {}
+        evidence = {}
+        for row in capacities:
+            if row["direction"] not in latest:
+                latest[row["direction"]] = float(row["capacity_mbps"])
+                evidence[row["direction"]] = {"method": row["method"], "tested_at": row["tested_at"]}
+        summary = summarize([dict(row) for row in rows], latest, period)
+        return _api_no_store(jsonify({"ok": True, "host": host, "capacity_evidence": evidence, **summary}))
+    except sqlite3.Error:
+        logger.exception("Admin node capacity query failed")
+        return _api_error("capacity_unavailable", 503)
+
+
+@app.route('/api/admin/nodes/ssh-host-key', methods=['POST'])
+def api_admin_node_ssh_host_key():
+    """Show the observed key so the owner can compare it out of band."""
     if not _admin_authorized("nodes.provision"):
         return _api_error("admin_forbidden", 403)
+    origin = request.headers.get("Origin", "")
+    if origin not in {"https://arccnet.space", "https://panel.arccnet.space",
+                      "http://127.0.0.1:5173", "http://localhost:5173"}:
+        return _api_error("admin_origin_forbidden", 403)
+    payload = request.get_json(silent=True) or {}
+    host = _clean_text(payload.get("host"), 255).strip().lower()
+    try:
+        port = int(payload.get("port") or 22)
+        address = ipaddress.ip_address(host)
+    except (ValueError, TypeError):
+        return _api_error("invalid_ssh_target", 400)
+    if not address.is_global or not 1 <= port <= 65535:
+        return _api_error("invalid_ssh_target", 400)
+    try:
+        import paramiko
+    except ImportError:
+        logger.error("SSH preflight dependency unavailable")
+        return _api_error("ssh_dependency_unavailable", 503)
+    try:
+        with socket.create_connection((host, port), timeout=8) as connection:
+            transport = paramiko.Transport(connection)
+            try:
+                transport.start_client(timeout=8)
+                key = transport.get_remote_server_key()
+                fingerprint = "SHA256:" + base64.b64encode(
+                    hashlib.sha256(key.asbytes()).digest()).decode("ascii").rstrip("=")
+                return _api_no_store(jsonify({"ok": True, "host": host, "port": port,
+                    "algorithm": key.get_name(), "fingerprint": fingerprint,
+                    "trusted": False}))
+            finally:
+                transport.close()
+    except (OSError, paramiko.SSHException):
+        return _api_error("ssh_unavailable", 503)
+
+
+@app.route('/api/admin/nodes/preflight', methods=['POST'])
+def api_admin_node_preflight():
+    """Read a public VPS only after its SSH host key was verified out of band."""
+    if not _admin_authorized("nodes.provision"):
+        return _api_error("admin_forbidden", 403)
+    origin = request.headers.get("Origin", "")
+    if origin not in {"https://arccnet.space", "https://panel.arccnet.space",
+                      "http://127.0.0.1:5173", "http://localhost:5173"}:
+        return _api_error("admin_origin_forbidden", 403)
     payload = request.get_json(silent=True) or {}
     host = _clean_text(payload.get("host"), 255).strip().lower()
     username = _clean_text(payload.get("username") or "root", 32)
     password = str(payload.get("password") or "")
-    preset = str(payload.get("preset") or "direct")
-    if preset not in {"direct", "bridge", "warp"}:
+    expected_fingerprint = str(payload.get("expected_fingerprint") or "").strip()
+    preset = str(payload.get("preset") or "full")
+    try:
+        port = int(payload.get("port") or 22)
+        address = ipaddress.ip_address(host)
+    except (ValueError, TypeError):
+        return _api_error("invalid_ssh_target", 400)
+    if preset not in {"direct", "bridge", "warp", "full"}:
         return _api_error("invalid_preset", 400)
-    if not host or not re.fullmatch(r"[a-z0-9.-]+", host) or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", username):
+    if not address.is_global or not 1 <= port <= 65535 or not re.fullmatch(r"[a-z_][a-z0-9_-]{0,31}", username):
         return _api_error("invalid_ssh_target", 400)
     if not password or len(password) > 256:
         return _api_error("invalid_ssh_password", 400)
+    if not re.fullmatch(r"SHA256:[A-Za-z0-9+/]{43}", expected_fingerprint):
+        return _api_error("ssh_fingerprint_required", 400)
     try:
-        addresses = {item[4][0] for item in socket.getaddrinfo(host, 22, type=socket.SOCK_STREAM)}
-        if not addresses or any(ipaddress.ip_address(address).is_private or ipaddress.ip_address(address).is_loopback
-                                or ipaddress.ip_address(address).is_link_local for address in addresses):
-            return _api_error("public_host_required", 400)
-        askpass = os.path.join(os.path.dirname(__file__), "scripts", "ssh_askpass.sh")
-        os.chmod(askpass, 0o700)
-        env = os.environ.copy()
-        env.update({
-            "SSH_ASKPASS": askpass,
-            "SSH_ASKPASS_REQUIRE": "force",
-            "DISPLAY": "arcvpn-preflight",
-            "ARC_NODE_SSH_PASSWORD": password,
-        })
-        completed = subprocess.run([
-            "ssh", "-o", "BatchMode=no", "-o", "ConnectTimeout=8",
-            "-o", "ConnectionAttempts=1", "-o", "StrictHostKeyChecking=no",
-            "-o", "UserKnownHostsFile=/dev/null", "-o", "LogLevel=ERROR",
-            f"{username}@{host}",
-            "printf 'ARC_PREFLIGHT_OK\\n'; uname -srm; command -v docker || true; command -v curl || true",
-        ], env=env, capture_output=True, text=True, timeout=15, check=False)
-        # Drop references immediately; neither audit nor response contains it.
-        env.pop("ARC_NODE_SSH_PASSWORD", None)
+        import paramiko
+    except ImportError:
+        logger.error("SSH preflight dependency unavailable")
+        return _api_error("ssh_dependency_unavailable", 503)
+    try:
+        def fingerprint(key):
+            return "SHA256:" + base64.b64encode(hashlib.sha256(key.asbytes()).digest()).decode("ascii").rstrip("=")
+        class PinnedKeyPolicy(paramiko.MissingHostKeyPolicy):
+            def missing_host_key(self, client, hostname, key):
+                if not hmac.compare_digest(fingerprint(key), expected_fingerprint):
+                    raise paramiko.SSHException("ssh_host_key_mismatch")
+        client = paramiko.SSHClient()
+        client.set_missing_host_key_policy(PinnedKeyPolicy())
+        try:
+            client.connect(hostname=host, port=port, username=username, password=password,
+                           allow_agent=False, look_for_keys=False, timeout=8, auth_timeout=8,
+                           banner_timeout=8)
+            _, stdout, _ = client.exec_command(
+                "uname -srm; (cat /etc/os-release | head -n 4) 2>/dev/null; "
+                "df -h / | tail -n 1; free -m | head -n 2; "
+                "systemctl is-active remnanode docker nginx 2>/dev/null || true",
+                timeout=8)
+            system_info = stdout.read(2048).decode("utf-8", "replace").strip()
+        finally:
+            client.close()
         password = ""
-        ok = completed.returncode == 0 and "ARC_PREFLIGHT_OK" in completed.stdout
         append_admin_audit(
-            "node.preflight", "success" if ok else "failed",
+            "node.preflight", "success",
             actor_id=str(_admin_telegram_id() or "password-session"),
             target_type="ssh_target", target_id=host,
-            metadata={"addresses": sorted(addresses), "preset": preset, "ssh": ok},
+            metadata={"port": port, "preset": preset, "ssh": True},
         )
-        if not ok:
-            return _api_error("ssh_auth_failed", 422)
-        lines = [line.strip() for line in completed.stdout.splitlines() if line.strip()]
         return _api_no_store(jsonify({
-            "ok": True, "host": host, "addresses": sorted(addresses), "preset": preset,
-            "system": lines[1] if len(lines) > 1 else "unknown",
-            "docker": any(line.endswith("docker") for line in lines[2:]),
-            "curl": any(line.endswith("curl") for line in lines[2:]),
-            "next_step": "bootstrap",
+            "ok": True, "host": host, "port": port, "preset": preset,
+            "system": system_info, "fingerprint": expected_fingerprint,
+            "next_step": "review_route_table",
         }))
-    except (OSError, socket.gaierror, subprocess.SubprocessError) as exc:
-        logger.exception("Node SSH preflight failed")
-        return _api_error(type(exc).__name__, 503)
+    except paramiko.AuthenticationException:
+        return _api_error("ssh_auth_failed", 422)
+    except paramiko.SSHException as exc:
+        return _api_error("ssh_host_key_mismatch" if str(exc) == "ssh_host_key_mismatch" else "ssh_unavailable", 422)
+    except (OSError, TimeoutError):
+        logger.warning("Node SSH preflight unavailable for %s", host)
+        return _api_error("ssh_unavailable", 503)
 
 
 @app.route('/api/admin/backups', methods=['GET', 'POST'])
@@ -6601,35 +6781,39 @@ def api_admin_overview():
                 "inbounds_count": len(squad.get("inbounds") or squad.get("activeInbounds") or []),
             } for squad in remna_squads],
         }
-        # Germany and Estonia XHTTP are the active/backup origins behind one
-        # paid CDN edge, so
-        # expose them explicitly instead of pretending they are extra VPSes.
+        # Only report current Remnawave nodes. Retired hosts never count as
+        # available capacity or as a working CDN origin.
         remnawave["nodes"] = [
             node for node in remnawave["nodes"]
-            if not node.get("disabled")
-            and not any(marker in str(node.get("name") or "").lower()
-                        for marker in ("finland", "albania", "netherlands"))
+            if str(node.get("address") or "") not in RETIRED_GERMANY_ENDPOINTS
+            and str(node.get("address") or "") not in RETIRED_NETHERLANDS_ENDPOINTS
         ]
         lte_specs = (
             {
-                "id": "lte-de", "name": "Германия LTE", "country_code": "DE",
-                "node_marker": "Germany 1chost", "inbound_tag": "DE_1CHOST_LTE_XHTTP",
-                "public_host": "cdn-de.arccnet.space", "profile_name": BEST_BYPASS_DISPLAY_NAME,
+                "id": "lte-fi", "name": "Финляндия LTE", "country_code": "FI",
+                "origin_host": "151.241.137.174", "origin_domain": "fin.arccnet.space", "inbound_marker": "FI",
+                "public_host": "cdn-de.arccnet.space", "path": "/api-fin",
+                "profile_name": BEST_BYPASS_DISPLAY_NAME,
             },
             {
                 "id": "lte-ee", "name": "Эстония LTE", "country_code": "EE",
-                "node_marker": "Estonia 1chost", "inbound_tag": "EE_1CHOST_LTE_XHTTP",
-                "public_host": "cdn-de.arccnet.space", "profile_name": BEST_BYPASS_DISPLAY_NAME,
+                "origin_host": "87.251.19.197", "origin_domain": "ee.arccnet.space", "inbound_marker": "EE",
+                "public_host": "cdn-de.arccnet.space", "path": "/api-test",
+                "profile_name": BEST_BYPASS_DISPLAY_NAME,
             },
         )
         lte_edges = []
         for spec in lte_specs:
             parent = next(
-                (node for node in remnawave["nodes"] if spec["node_marker"].lower() in str(node.get("name") or "").lower()),
+                (node for node in remnawave["nodes"]
+                 if node.get("address") in {spec["origin_host"], spec["origin_domain"]}),
                 None,
             )
             inbound = next(
-                (item for item in (parent or {}).get("inbounds", []) if item.get("tag") == spec["inbound_tag"]),
+                (item for item in (parent or {}).get("inbounds", [])
+                 if spec["inbound_marker"] in str(item.get("tag") or "").upper()
+                 and "LTE" in str(item.get("tag") or "").upper()
+                 and str(item.get("network") or "").lower() in {"xhttp", "splithttp"}),
                 None,
             )
             lte_edges.append({
@@ -6640,12 +6824,11 @@ def api_admin_overview():
                 "inbound_active": inbound is not None,
                 "network": (inbound or {}).get("network") or "xhttp",
                 "port": (inbound or {}).get("port") or 10001,
-                "path": "/api-test",
                 "traffic_factor": 1,
                 "users_online": int((parent or {}).get("users_online") or 0),
                 "traffic_used_gb": float((parent or {}).get("traffic_used_gb") or 0),
                 "diagnostic": (parent or {}).get("diagnostic"),
-                "healthy": bool((parent or {}).get("connected") and inbound is not None),
+                "healthy": bool((parent or {}).get("connected") and not (parent or {}).get("disabled") and inbound is not None),
             })
         remnawave["lte_edges"] = lte_edges
         node_distribution: Dict[str, int] = {}

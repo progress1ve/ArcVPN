@@ -1,7 +1,7 @@
 import sqlite3
 
-from database.migrations import migration_63
-from monitoring.fleet_alerts import Observation, classify, format_moscow_time, should_monitor, update_state
+from database.migrations import migration_63, migration_70
+from monitoring.fleet_alerts import Observation, classify, collect_events, format_moscow_time, should_monitor, update_state
 
 
 def state_db():
@@ -84,3 +84,23 @@ def test_unknown_does_not_advance_recovery_or_clear_incident():
     row = conn.execute("SELECT * FROM fleet_alert_state WHERE node_key='node-1'").fetchone()
     assert row["alert_sent"] == 1
     assert row["status"] == "server_down"
+
+
+def test_fleet_collection_persists_availability_sample(tmp_path, monkeypatch):
+    from monitoring import fleet_alerts
+    path = tmp_path / "fleet.sqlite3"
+    with sqlite3.connect(path) as conn:
+        migration_63(conn)
+        migration_70(conn)
+    monkeypatch.setattr(fleet_alerts, "fetch_remnawave_nodes", lambda: [{
+        "uuid": "node-1", "name": "ArcVPN Estonia", "address": "203.0.113.9",
+        "isConnected": True, "isDisabled": False,
+    }])
+    monkeypatch.setattr(fleet_alerts, "russian_probe_nodes", lambda: ["ru1", "ru2"])
+    monkeypatch.setattr(fleet_alerts, "tcp_ports", lambda node: [443])
+    monkeypatch.setattr(fleet_alerts, "direct_probe", lambda host, ports: {
+        "ok": True, "ports": [{"port": 443, "ok": True}],
+    })
+    collect_events(str(path), external_probe=lambda host, port, nodes: {"completed": 2, "success": 2})
+    with sqlite3.connect(path) as conn:
+        assert conn.execute("SELECT status FROM node_availability_samples").fetchone()[0] == "healthy"

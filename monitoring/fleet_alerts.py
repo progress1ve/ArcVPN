@@ -214,8 +214,12 @@ def collect_events(db_path: str | None = None, external_probe: Callable[[str, in
             event = None if dry_run else update_state(
                 conn, str(node.get("uuid") or host), str(node.get("name") or host), observation
             )
+            if not dry_run:
+                conn.execute("""INSERT INTO node_availability_samples(node_host,status)
+                    VALUES (?,?)""", (host, observation.status))
             if event:
                 events.append(event)
         if not dry_run:
+            conn.execute("DELETE FROM node_availability_samples WHERE checked_at < datetime('now','-30 days')")
             conn.commit()
     return {"checked": len(observations), "events": events, "external_nodes": len(ru_nodes)}
