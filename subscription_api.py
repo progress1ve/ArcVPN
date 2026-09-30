@@ -6199,6 +6199,28 @@ def api_admin_traffic_registry():
                                   "offset": offset,"limit": limit}))
 
 
+@app.route('/api/admin/traffic/today', methods=['GET'])
+def api_admin_traffic_today():
+    """Real UTC-day usage by ordinary/LTE Remnawave identity group."""
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    from bot.services.remnawave_stats import get_remnawave_daily_product_traffic
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    try:
+        groups = ASYNC_EXECUTOR.run(get_remnawave_daily_product_traffic(today), timeout=35)
+    except Exception as exc:
+        logger.warning("Admin daily traffic unavailable (%s)", type(exc).__name__)
+        return _api_error("traffic_today_unavailable", 503)
+    return _api_no_store(jsonify({
+        "ok": True,
+        "date": today,
+        "timezone": "UTC",
+        "as_of": datetime.now(timezone.utc).isoformat(),
+        "groups": groups,
+    }))
+
+
 @app.route('/api/admin/overview', methods=['GET'])
 def api_admin_overview():
     """Read-only first slice of ArcVPN Business Console."""

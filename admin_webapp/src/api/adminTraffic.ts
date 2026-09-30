@@ -31,6 +31,17 @@ export interface TrafficUsageResponse {
   available_statuses: string[];
 }
 
+export interface TodayTrafficUsage {
+  ok: true;
+  date: string;
+  timezone: 'UTC';
+  as_of: string;
+  groups: {
+    main: { bytes: number; active_users: number };
+    lte: { bytes: number; active_users: number };
+  };
+}
+
 export interface ExportCsvResponse {
   success: boolean;
   message: string;
@@ -89,6 +100,13 @@ const enrichmentCache: { data: TrafficEnrichmentResponse | null; timestamp: numb
 };
 
 export const adminTrafficApi = {
+  getTodayUsage: async (): Promise<TodayTrafficUsage> => {
+    const data = await adminModuleJson('/api/admin/traffic/today', { ok: false });
+    if (!data?.ok || !data.groups?.main || !data.groups?.lte) {
+      throw new Error('Daily traffic unavailable');
+    }
+    return data as TodayTrafficUsage;
+  },
   getTrafficUsage: async (
     params: TrafficParams,
     options?: { skipCache?: boolean },

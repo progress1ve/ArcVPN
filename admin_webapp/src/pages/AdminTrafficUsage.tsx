@@ -224,6 +224,13 @@ export default function AdminTrafficUsage() {
     gcTime: 5 * 60 * 1000,
   });
 
+  const todayQuery = useQuery({
+    queryKey: ['admin-traffic-today'] as const,
+    queryFn: adminTrafficApi.getTodayUsage,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+
   // Sync trafficQuery into the existing state vars so the rest of the
   // page (selectors, table, derived memos) is untouched.
   useEffect(() => {
@@ -391,6 +398,7 @@ export default function AdminTrafficUsage() {
     adminTrafficApi.invalidateCache();
     queryClient.invalidateQueries({ queryKey: ['admin-traffic'] });
     queryClient.invalidateQueries({ queryKey: ['admin-traffic-enrichment'] });
+    queryClient.invalidateQueries({ queryKey: ['admin-traffic-today'] });
     enrichmentQuery.refetch();
   };
 
@@ -737,6 +745,44 @@ export default function AdminTrafficUsage() {
           <RefreshIcon className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
+
+      {/* Real UTC-day counters; independent of the cumulative user table below. */}
+      <section aria-label={t('admin.trafficUsage.todayTitle')} className="mb-5">
+        <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-dark-100">{t('admin.trafficUsage.todayTitle')}</h2>
+            <p className="text-xs text-dark-400">{t('admin.trafficUsage.todayHint')}</p>
+          </div>
+          {todayQuery.data && (
+            <span className="text-xs text-dark-400">
+              {todayQuery.data.date} · UTC · {t('admin.trafficUsage.updatedAt')} {new Date(todayQuery.data.as_of).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+            </span>
+          )}
+        </div>
+        {todayQuery.isError ? (
+          <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+            {t('admin.trafficUsage.todayUnavailable')}
+          </div>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {(['main', 'lte'] as const).map((group) => (
+              <article key={group} className="rounded-xl border border-dark-700 bg-dark-800/70 p-4">
+                <div className="text-sm text-dark-300">
+                  {t(`admin.trafficUsage.${group === 'main' ? 'todayMain' : 'todayLte'}`)}
+                </div>
+                <div className="mt-2 text-2xl font-semibold tabular-nums text-dark-100" aria-busy={todayQuery.isLoading}>
+                  {todayQuery.data ? formatBytes(todayQuery.data.groups[group].bytes) : '—'}
+                </div>
+                <div className="mt-1 text-xs text-dark-400">
+                  {todayQuery.data
+                    ? t('admin.trafficUsage.todayActive', { count: todayQuery.data.groups[group].active_users })
+                    : t('admin.trafficUsage.loading')}
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {/* Controls */}
       <div className="mb-4 flex flex-col gap-3">

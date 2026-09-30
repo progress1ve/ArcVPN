@@ -1,4 +1,7 @@
-# Current: React admin node operations — 2026-09-30
+# Current: React admin node operations and traffic usage — 2026-09-30
+
+The parallel ordinary/LTE traffic slice has its own acceptance and evidence in
+`.codex/stages/traffic-usage-today.md`; the node operations contract continues below.
 
 Goal: truthful per-node detail, load/headroom alerts, Russian-city Multitest runs with history/comparison, and safe new-node onboarding from IP and credentials.
 

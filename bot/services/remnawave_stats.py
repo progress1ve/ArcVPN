@@ -46,6 +46,62 @@ def remnawave_authority_enabled() -> bool:
     return bool(credentials.get("panel_api_url") and credentials.get("panel_api_token"))
 
 
+async def get_remnawave_daily_product_traffic(day: str) -> dict[str, dict[str, int]]:
+    """Sum a full UTC day of traffic for ordinary and LTE panel identities.
+
+    Internal squads identify product identities, not disjoint physical nodes.
+    A failed or incomplete pagination must never be reported as zero usage.
+    """
+    client = RemnawaveClient(_credentials())
+    squad_names = {"main": "ArcVPN Staging", "lte": "ArcVPN LTE"}
+    try:
+        payload = await client._request("GET", "/api/internal-squads")
+        squads = payload.get("internalSquads") if isinstance(payload, dict) else payload
+        if not isinstance(squads, list):
+            raise ValueError("Invalid internal-squads response")
+        results: dict[str, dict[str, int]] = {}
+        for product, name in squad_names.items():
+            matches = [item for item in squads if isinstance(item, dict) and item.get("name") == name]
+            if len(matches) != 1 or not matches[0].get("uuid"):
+                raise ValueError(f"Missing or ambiguous {product} squad")
+            usage: dict[int, int] = {}
+            cursor: str | None = None
+            for _ in range(100):
+                params: dict[str, Any] = {"start": day, "end": day, "limit": 1000}
+                if cursor:
+                    params["cursor"] = cursor
+                page = await client._request(
+                    "GET",
+                    f"/api/bandwidth-stats/internal-squads/{matches[0]['uuid']}/usage",
+                    params=params,
+                )
+                if not isinstance(page, dict) or not isinstance(page.get("users"), list):
+                    raise ValueError("Invalid squad usage response")
+                for item in page["users"]:
+                    if not isinstance(item, dict):
+                        raise ValueError("Invalid squad usage item")
+                    user_id = int(item["id"])
+                    used = int(item["totalBytes"])
+                    if user_id in usage or used < 0:
+                        raise ValueError("Duplicate identity or negative traffic")
+                    usage[user_id] = used
+                if not page.get("hasMore"):
+                    break
+                next_cursor = page.get("nextCursor")
+                if not next_cursor or str(next_cursor) == cursor:
+                    raise ValueError("Incomplete squad usage pagination")
+                cursor = str(next_cursor)
+            else:
+                raise ValueError("Squad usage page limit exceeded")
+            results[product] = {
+                "bytes": sum(usage.values()),
+                "active_users": sum(value > 0 for value in usage.values()),
+            }
+        return results
+    finally:
+        await client.close()
+
+
 async def get_remnawave_network_stats() -> dict[str, Any]:
     """Return authoritative users/nodes data without exposing panel secrets."""
     client = RemnawaveClient(_credentials())
