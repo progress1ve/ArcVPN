@@ -24,31 +24,16 @@ import {
   formatCurrency,
   formatShortDate,
   toBackendSortField,
-  bytesToGbPerDay,
-  getRatio,
-  getRowBgColor,
-  getNodeTextColor,
-  getRiskLevel,
-  getCompositeRisk,
-  formatGbPerDay,
 } from '../components/admin/trafficUsage/trafficUsageHelpers';
-import { RiskBadge } from '../components/admin/trafficUsage/RiskBadge';
-import { PeriodSelector, PERIODS } from '../components/admin/trafficUsage/filters/PeriodSelector';
-import { TariffFilter } from '../components/admin/trafficUsage/filters/TariffFilter';
-import { StatusFilter } from '../components/admin/trafficUsage/filters/StatusFilter';
+import { PeriodSelector } from '../components/admin/trafficUsage/filters/PeriodSelector';
 import { NodeFilter } from '../components/admin/trafficUsage/filters/NodeFilter';
-import { CountryFilter } from '../components/admin/trafficUsage/filters/CountryFilter';
 import { Skeleton } from '../components/ui/skeleton';
 import {
-  SearchIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   RefreshIcon,
   DownloadIcon,
   SortIcon,
-  XIcon,
-  ShieldIcon,
-  ServerSmallIcon,
 } from '../components/admin/trafficUsage/TrafficIcons';
 
 // (TanStack Table augmentation + utils + risk helpers moved into ./trafficUsage/trafficUsageHelpers.ts)
@@ -125,20 +110,13 @@ export default function AdminTrafficUsage() {
 
   const [items, setItems] = useState<UserTrafficItem[]>([]);
   const [nodes, setNodes] = useState<TrafficNodeInfo[]>([]);
-  const [availableTariffs, setAvailableTariffs] = useState<string[]>([]);
-  const [availableStatuses, setAvailableStatuses] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
   const [period, setPeriod] = useState(30);
   const [dateMode, setDateMode] = useState(false);
   const [customStart, setCustomStart] = useState('');
   const [customEnd, setCustomEnd] = useState('');
-  const [searchInput, setSearchInput] = useState('');
-  const [committedSearch, setCommittedSearch] = useState('');
-  const [selectedTariffs, setSelectedTariffs] = useState<Set<string>>(new Set());
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<string>>(new Set());
   const [selectedNodes, setSelectedNodes] = useState<Set<string>>(new Set());
-  const [selectedCountries, setSelectedCountries] = useState<Set<string>>(new Set());
   const [offset, setOffset] = useState(0);
   const [total, setTotal] = useState(0);
   const [enrichment, setEnrichment] = useState<Record<number, TrafficEnrichmentData> | null>(null);
@@ -147,46 +125,20 @@ export default function AdminTrafficUsage() {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'total_bytes', desc: true }]);
   const [columnSizing, setColumnSizing] = useState<Record<string, number>>({});
-  const [totalThreshold, setTotalThreshold] = useState('');
-  const [nodeThreshold, setNodeThreshold] = useState('');
-  const [periodDays, setPeriodDays] = useState(30);
 
   const limit = 50;
   const hasData = items.length > 0 || nodes.length > 0;
 
   const sortBy = sorting[0] ? toBackendSortField(sorting[0].id) : 'total_bytes';
   const sortDesc = sorting[0]?.desc ?? true;
-  const tariffsParam = selectedTariffs.size > 0 ? [...selectedTariffs].join(',') : undefined;
-  const statusesParam = selectedStatuses.size > 0 ? [...selectedStatuses].join(',') : undefined;
-
-  // Merge country filter into node UUIDs so backend filters data consistently
-  const mergedNodesParam = useMemo(() => {
-    const countryUuids =
-      selectedCountries.size > 0
-        ? new Set(
-            nodes.filter((n) => selectedCountries.has(n.country_code)).map((n) => n.node_uuid),
-          )
-        : null;
-    const nodeUuids = selectedNodes.size > 0 ? new Set(selectedNodes) : null;
-
-    let merged: Set<string> | null = null;
-    if (countryUuids && nodeUuids) {
-      merged = new Set([...countryUuids].filter((id) => nodeUuids.has(id)));
-    } else {
-      merged = countryUuids || nodeUuids;
-    }
-    return merged && merged.size > 0 ? [...merged].join(',') : undefined;
-  }, [nodes, selectedCountries, selectedNodes]);
+  const mergedNodesParam = selectedNodes.size > 0 ? [...selectedNodes].join(',') : undefined;
 
   const buildParams = useCallback((): TrafficParams => {
     const params: TrafficParams = {
       limit,
       offset,
-      search: committedSearch || undefined,
       sort_by: sortBy,
       sort_desc: sortDesc,
-      tariffs: tariffsParam,
-      statuses: statusesParam,
       nodes: mergedNodesParam,
     };
     if (dateMode && customStart && customEnd) {
@@ -199,11 +151,8 @@ export default function AdminTrafficUsage() {
   }, [
     period,
     offset,
-    committedSearch,
     sortBy,
     sortDesc,
-    tariffsParam,
-    statusesParam,
     mergedNodesParam,
     dateMode,
     customStart,
@@ -220,27 +169,22 @@ export default function AdminTrafficUsage() {
   const trafficQuery = useQuery({
     queryKey: ['admin-traffic', params] as const,
     queryFn: () => adminTrafficApi.getTrafficUsage(params),
-    staleTime: 5 * 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-  });
-
-  const todayQuery = useQuery({
-    queryKey: ['admin-traffic-today'] as const,
-    queryFn: adminTrafficApi.getTodayUsage,
     staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
     retry: 1,
   });
 
   // Sync trafficQuery into the existing state vars so the rest of the
   // page (selectors, table, derived memos) is untouched.
   useEffect(() => {
-    if (!trafficQuery.data) return;
+    if (!trafficQuery.data) {
+      setItems([]);
+      setTotal(0);
+      return;
+    }
     setItems(trafficQuery.data.items);
     setNodes(trafficQuery.data.nodes);
     setTotal(trafficQuery.data.total);
-    setAvailableTariffs(trafficQuery.data.available_tariffs);
-    setAvailableStatuses(trafficQuery.data.available_statuses);
-    setPeriodDays(trafficQuery.data.period_days);
   }, [trafficQuery.data]);
   useEffect(() => {
     setLoading(trafficQuery.isFetching);
@@ -263,42 +207,12 @@ export default function AdminTrafficUsage() {
     setEnrichmentLoading(enrichmentQuery.isFetching);
   }, [enrichmentQuery.isFetching]);
 
-  // Prefetch adjacent periods in background via queryClient — populates the
-  // cache so switching period feels instant.
-  useEffect(() => {
-    if (dateMode) return;
-    const prefetchPeriods = PERIODS.filter((p) => p !== period);
-    const timer = setTimeout(() => {
-      prefetchPeriods.forEach((p) => {
-        const prefetchParams: TrafficParams = {
-          period: p,
-          limit,
-          offset: 0,
-          sort_by: 'total_bytes',
-          sort_desc: true,
-        };
-        queryClient.prefetchQuery({
-          queryKey: ['admin-traffic', prefetchParams] as const,
-          queryFn: () => adminTrafficApi.getTrafficUsage(prefetchParams),
-          staleTime: 5 * 60 * 1000,
-        });
-      });
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [period, dateMode, limit, queryClient]);
-
   useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
     }
   }, [toast]);
-
-  const handleSearch = (e: React.SyntheticEvent) => {
-    e.preventDefault();
-    setOffset(0);
-    setCommittedSearch(searchInput);
-  };
 
   const handleExport = async () => {
     try {
@@ -317,12 +231,7 @@ export default function AdminTrafficUsage() {
         exportData.start_date = customStart;
         exportData.end_date = customEnd;
       }
-      if (tariffsParam) exportData.tariffs = tariffsParam;
-      if (statusesParam) exportData.statuses = statusesParam;
       if (mergedNodesParam) exportData.nodes = mergedNodesParam;
-
-      if (totalThresholdNum > 0) exportData.total_threshold_gb = totalThresholdNum;
-      if (nodeThresholdNum > 0) exportData.node_threshold_gb = nodeThresholdNum;
 
       await adminTrafficApi.exportCsv(exportData);
       setToast({ message: t('admin.trafficUsage.exportSuccess'), type: 'success' });
@@ -372,23 +281,8 @@ export default function AdminTrafficUsage() {
     setOffset(0);
   };
 
-  const handleTariffChange = (next: Set<string>) => {
-    setSelectedTariffs(next);
-    setOffset(0);
-  };
-
-  const handleStatusChange = (next: Set<string>) => {
-    setSelectedStatuses(next);
-    setOffset(0);
-  };
-
   const handleNodeChange = (next: Set<string>) => {
     setSelectedNodes(next);
-    setOffset(0);
-  };
-
-  const handleCountryChange = (next: Set<string>) => {
-    setSelectedCountries(next);
     setOffset(0);
   };
 
@@ -398,37 +292,13 @@ export default function AdminTrafficUsage() {
     adminTrafficApi.invalidateCache();
     queryClient.invalidateQueries({ queryKey: ['admin-traffic'] });
     queryClient.invalidateQueries({ queryKey: ['admin-traffic-enrichment'] });
-    queryClient.invalidateQueries({ queryKey: ['admin-traffic-today'] });
     enrichmentQuery.refetch();
   };
 
-  const availableCountries = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const n of nodes) {
-      if (n.country_code) map.set(n.country_code, (map.get(n.country_code) || 0) + 1);
-    }
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([code, count]) => ({ code, count }));
-  }, [nodes]);
-
-  // When country/node filter is active, show only matching node columns
+  // Show only the selected profile group column.
   const displayNodes = useMemo(() => {
-    let filtered = nodes;
-    if (selectedCountries.size > 0) {
-      filtered = filtered.filter((n) => selectedCountries.has(n.country_code));
-    }
-    if (selectedNodes.size > 0) {
-      filtered = filtered.filter((n) => selectedNodes.has(n.node_uuid));
-    }
-    return filtered;
-  }, [nodes, selectedCountries, selectedNodes]);
-
-  const totalThresholdNum = Math.max(0, parseFloat(totalThreshold) || 0);
-  const hasTotalThreshold = totalThresholdNum > 0;
-  const nodeThresholdNum = Math.max(0, parseFloat(nodeThreshold) || 0);
-  const hasNodeThreshold = nodeThresholdNum > 0;
-  const hasAnyThreshold = hasTotalThreshold || hasNodeThreshold;
+    return selectedNodes.size > 0 ? nodes.filter((n) => selectedNodes.has(n.node_uuid)) : nodes;
+  }, [nodes, selectedNodes]);
 
   const columns = useMemo<ColumnDef<UserTrafficItem>[]>(() => {
     const cols: ColumnDef<UserTrafficItem>[] = [
@@ -592,60 +462,15 @@ export default function AdminTrafficUsage() {
             if (bytes <= 0) {
               return <span className="text-xs text-dark-300">{'\u2014'}</span>;
             }
-            const dailyNode = bytesToGbPerDay(bytes, periodDays);
-            const nodeRatio = hasNodeThreshold ? getRatio(dailyNode, nodeThresholdNum) : 0;
-            const textColor = hasNodeThreshold ? getNodeTextColor(nodeRatio) : undefined;
             return (
               <div className="flex flex-col items-center">
-                <span
-                  className="text-xs text-dark-300"
-                  style={{
-                    color: textColor,
-                    fontWeight: nodeRatio > 0.8 ? 600 : undefined,
-                  }}
-                >
-                  {formatBytes(bytes)}
-                </span>
-                {hasNodeThreshold && (
-                  <span
-                    className="text-[9px] leading-tight opacity-60"
-                    style={{ color: textColor }}
-                  >
-                    {formatGbPerDay(dailyNode)} GB/d
-                  </span>
-                )}
+                <span className="text-xs text-dark-300">{formatBytes(bytes)}</span>
               </div>
             );
           },
         }),
       ),
     ];
-
-    // Risk column — insert before total when any threshold is set
-    if (hasAnyThreshold) {
-      cols.push({
-        id: 'risk',
-        header: t('admin.trafficUsage.risk'),
-        size: 100,
-        minSize: 80,
-        meta: { align: 'center' as const },
-        accessorFn: (row) => {
-          const result = getCompositeRisk(row, totalThresholdNum, nodeThresholdNum, periodDays);
-          return result.ratio;
-        },
-        enableSorting: false,
-        cell: ({ row }) => {
-          const result = getCompositeRisk(
-            row.original,
-            totalThresholdNum,
-            nodeThresholdNum,
-            periodDays,
-          );
-          const level = getRiskLevel(result.ratio);
-          return <RiskBadge level={level} ratio={result.ratio} gbPerDay={result.gbPerDay} />;
-        },
-      });
-    }
 
     cols.push({
       accessorKey: 'total_bytes',
@@ -659,17 +484,7 @@ export default function AdminTrafficUsage() {
         if (bytes <= 0) {
           return <span className="text-xs font-semibold text-dark-100">{'\u2014'}</span>;
         }
-        const dailyTotal = bytesToGbPerDay(bytes, periodDays);
-        return (
-          <div className="flex flex-col items-center">
-            <span className="text-xs font-semibold text-dark-100">{formatBytes(bytes)}</span>
-            {hasTotalThreshold && (
-              <span className="text-[9px] leading-tight text-dark-400">
-                {formatGbPerDay(dailyTotal)} GB/d
-              </span>
-            )}
-          </div>
-        );
+        return <span className="text-xs font-semibold text-dark-100">{formatBytes(bytes)}</span>;
       },
     });
 
@@ -677,12 +492,6 @@ export default function AdminTrafficUsage() {
   }, [
     displayNodes,
     t,
-    hasAnyThreshold,
-    hasTotalThreshold,
-    hasNodeThreshold,
-    totalThresholdNum,
-    nodeThresholdNum,
-    periodDays,
     enrichment,
     enrichmentLoading,
   ]);
@@ -746,20 +555,20 @@ export default function AdminTrafficUsage() {
         </button>
       </div>
 
-      {/* Real UTC-day counters; independent of the cumulative user table below. */}
+      {/* Same real UTC interval as the user table below. */}
       <section aria-label={t('admin.trafficUsage.todayTitle')} className="mb-5">
         <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
           <div>
             <h2 className="text-sm font-semibold text-dark-100">{t('admin.trafficUsage.todayTitle')}</h2>
             <p className="text-xs text-dark-400">{t('admin.trafficUsage.todayHint')}</p>
           </div>
-          {todayQuery.data && (
+          {trafficQuery.data && (
             <span className="text-xs text-dark-400">
-              {todayQuery.data.date} · UTC · {t('admin.trafficUsage.updatedAt')} {new Date(todayQuery.data.as_of).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+              {trafficQuery.data.start_date} — {trafficQuery.data.end_date} · UTC · {t('admin.trafficUsage.updatedAt')} {new Date(trafficQuery.data.as_of).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
             </span>
           )}
         </div>
-        {todayQuery.isError ? (
+        {trafficQuery.isError ? (
           <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
             {t('admin.trafficUsage.todayUnavailable')}
           </div>
@@ -770,14 +579,17 @@ export default function AdminTrafficUsage() {
                 <div className="text-sm text-dark-300">
                   {t(`admin.trafficUsage.${group === 'main' ? 'todayMain' : 'todayLte'}`)}
                 </div>
-                <div className="mt-2 text-2xl font-semibold tabular-nums text-dark-100" aria-busy={todayQuery.isLoading}>
-                  {todayQuery.data ? formatBytes(todayQuery.data.groups[group].bytes) : '—'}
+                <div className="mt-2 text-2xl font-semibold tabular-nums text-dark-100" aria-busy={trafficQuery.isLoading}>
+                  {trafficQuery.data ? formatBytes(trafficQuery.data.groups[group].bytes) : '—'}
                 </div>
                 <div className="mt-1 text-xs text-dark-400">
-                  {todayQuery.data
-                    ? t('admin.trafficUsage.todayActive', { count: todayQuery.data.groups[group].active_users })
+                  {trafficQuery.data
+                    ? t('admin.trafficUsage.todayActive', { count: trafficQuery.data.groups[group].active_users })
                     : t('admin.trafficUsage.loading')}
                 </div>
+                {trafficQuery.data && trafficQuery.data.groups[group].unmapped_bytes > 0 && (
+                  <div className="mt-1 text-xs text-amber-300">{t('admin.trafficUsage.unmapped', { amount: formatBytes(trafficQuery.data.groups[group].unmapped_bytes) })}</div>
+                )}
               </article>
             ))}
           </div>
@@ -798,66 +610,7 @@ export default function AdminTrafficUsage() {
             onCustomStartChange={handleCustomStartChange}
             onCustomEndChange={handleCustomEndChange}
           />
-          <TariffFilter
-            available={availableTariffs}
-            selected={selectedTariffs}
-            onChange={handleTariffChange}
-          />
           <NodeFilter available={nodes} selected={selectedNodes} onChange={handleNodeChange} />
-          <CountryFilter
-            available={availableCountries}
-            selected={selectedCountries}
-            onChange={handleCountryChange}
-          />
-          <StatusFilter
-            available={availableStatuses}
-            selected={selectedStatuses}
-            onChange={handleStatusChange}
-          />
-
-          {/* Threshold inputs */}
-          <div className="flex items-center gap-1.5 rounded-lg border border-dark-700 bg-dark-800 px-2 py-1">
-            <ShieldIcon className="h-3.5 w-3.5" />
-            <input
-              type="number"
-              value={totalThreshold}
-              onChange={(e) => setTotalThreshold(e.target.value)}
-              placeholder={t('admin.trafficUsage.totalThreshold')}
-              step="0.1"
-              min="0"
-              max="9999"
-              className="w-20 bg-transparent text-xs text-dark-200 placeholder-dark-500 [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
-            {totalThreshold && (
-              <button
-                onClick={() => setTotalThreshold('')}
-                className="text-dark-500 hover:text-dark-300"
-              >
-                <XIcon className="h-3 w-3" />
-              </button>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 rounded-lg border border-dark-700 bg-dark-800 px-2 py-1">
-            <ServerSmallIcon className="h-3.5 w-3.5" />
-            <input
-              type="number"
-              value={nodeThreshold}
-              onChange={(e) => setNodeThreshold(e.target.value)}
-              placeholder={t('admin.trafficUsage.nodeThreshold')}
-              step="0.1"
-              min="0"
-              max="9999"
-              className="w-20 bg-transparent text-xs text-dark-200 placeholder-dark-500 [appearance:textfield] focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-            />
-            {nodeThreshold && (
-              <button
-                onClick={() => setNodeThreshold('')}
-                className="text-dark-500 hover:text-dark-300"
-              >
-                <XIcon className="h-3 w-3" />
-              </button>
-            )}
-          </div>
 
           <button
             onClick={handleExport}
@@ -869,24 +622,12 @@ export default function AdminTrafficUsage() {
           </button>
         </div>
 
-        <form onSubmit={handleSearch}>
-          <div className="relative">
-            <input
-              type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder={t('admin.trafficUsage.search')}
-              className="w-full rounded-xl border border-dark-700 bg-dark-800 py-2 pl-10 pr-4 text-dark-100 placeholder-dark-500 focus:border-dark-600 focus:outline-none"
-            />
-            <div className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">
-              <SearchIcon />
-            </div>
-          </div>
-        </form>
       </div>
 
       {/* Table */}
-      {initialLoading && !hasData ? (
+      {trafficQuery.isError ? (
+        <div role="alert" className="py-12 text-center text-amber-300">{t('admin.trafficUsage.todayUnavailable')}</div>
+      ) : initialLoading && !hasData ? (
         <div className="flex justify-center py-12">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-accent-500 border-t-transparent" />
         </div>
@@ -945,21 +686,10 @@ export default function AdminTrafficUsage() {
               </thead>
               <tbody>
                 {table.getRowModel().rows.map((row) => {
-                  const compositeRatio = hasAnyThreshold
-                    ? getCompositeRisk(
-                        row.original,
-                        totalThresholdNum,
-                        nodeThresholdNum,
-                        periodDays,
-                      ).ratio
-                    : 0;
-                  const rowBg = hasAnyThreshold ? getRowBgColor(compositeRatio) : undefined;
-
                   return (
                     <tr
                       key={row.id}
                       className="cursor-pointer border-b border-dark-700/50 transition-colors hover:bg-dark-800/50"
-                      style={{ backgroundColor: rowBg }}
                       onClick={() =>
                         navigate(`/admin/users/${row.original.user_id}`, backTo(location))
                       }

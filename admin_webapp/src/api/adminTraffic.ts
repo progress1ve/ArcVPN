@@ -29,6 +29,13 @@ export interface TrafficUsageResponse {
   period_days: number;
   available_tariffs: string[];
   available_statuses: string[];
+  start_date: string;
+  end_date: string;
+  as_of: string;
+  groups: {
+    main: { bytes: number; active_users: number; unmapped_bytes: number };
+    lte: { bytes: number; active_users: number; unmapped_bytes: number };
+  };
 }
 
 export interface TodayTrafficUsage {
@@ -73,7 +80,7 @@ export type TrafficParams = {
   end_date?: string;
 };
 
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+const CACHE_TTL = 60 * 1000;
 const MAX_CACHE_ENTRIES = 20;
 
 const trafficCache = new Map<string, { data: TrafficUsageResponse; timestamp: number }>();
@@ -122,10 +129,14 @@ export const adminTrafficApi = {
 
     const query = new URLSearchParams();
     for (const [key, value] of Object.entries(params)) if (value !== undefined && value !== '') query.set(key, String(value));
-    const raw = await adminModuleJson(`/api/admin/traffic?${query}`, { items: [{ user_id:1,telegram_id:700001,username:'alex',first_name:'Алексей',main_bytes:197568495616,lte_bytes:31138512896,traffic_limit_bytes:322122547200,device_limit:2,subscription_end:'2026-10-20',total_bytes:228707008512 }], total:1,offset:0,limit:50 });
+    const raw = await adminModuleJson(`/api/admin/traffic/period?${query}`, { ok: false });
+    if (!raw?.ok || !raw.groups?.main || !raw.groups?.lte) {
+      throw new Error('Period traffic unavailable');
+    }
     const data: TrafficUsageResponse = {
       items: (raw.items || []).map((row: Record<string, unknown>) => ({ user_id:Number(row.user_id),telegram_id:Number(row.telegram_id),username:row.username?String(row.username):null,email:null,full_name:String(row.first_name||row.username||`ID ${row.telegram_id}`),tariff_name:'ArcVPN',subscription_status:row.subscription_end && String(row.subscription_end)>new Date().toISOString()?'active':'expired',traffic_limit_gb:Number(row.traffic_limit_bytes||0)/1024**3,device_limit:Number(row.device_limit||2),node_traffic:{main:Number(row.main_bytes||0),lte:Number(row.lte_bytes||0)},total_bytes:Number(row.total_bytes||0) })),
-      nodes:[{node_uuid:'main',node_name:'Основной трафик',country_code:''},{node_uuid:'lte',node_name:'LTE-трафик',country_code:''}], total:Number(raw.total||0),offset:Number(raw.offset||0),limit:Number(raw.limit||50),period_days:Number(params.period||30),available_tariffs:['ArcVPN'],available_statuses:['active','expired'],
+      nodes:[{node_uuid:'main',node_name:'Обычные профили',country_code:''},{node_uuid:'lte',node_name:'LTE-обход',country_code:''}], total:Number(raw.total||0),offset:Number(raw.offset||0),limit:Number(raw.limit||50),period_days:(Date.parse(raw.end_date)-Date.parse(raw.start_date))/86400000+1,available_tariffs:['ArcVPN'],available_statuses:['active','expired'],
+      start_date:String(raw.start_date),end_date:String(raw.end_date),as_of:String(raw.as_of),groups:raw.groups,
     };
 
     trafficCache.set(key, { data, timestamp: Date.now() });

@@ -102,6 +102,79 @@ async def get_remnawave_daily_product_traffic(day: str) -> dict[str, dict[str, i
         await client.close()
 
 
+async def get_remnawave_period_user_traffic(start: str, end: str) -> dict[str, Any]:
+    """Complete inclusive UTC range usage and panel identity lookup.
+
+    Never return a partial page as a plausible period total.
+    """
+    client = RemnawaveClient(_credentials())
+    try:
+        squads_payload = await client._request("GET", "/api/internal-squads")
+        squads = squads_payload.get("internalSquads") if isinstance(squads_payload, dict) else squads_payload
+        if not isinstance(squads, list):
+            raise ValueError("Invalid internal-squads response")
+        group_usage: dict[str, dict[int, int]] = {}
+        for group, name in (("main", "ArcVPN Staging"), ("lte", "ArcVPN LTE")):
+            matches = [s for s in squads if isinstance(s, dict) and s.get("name") == name and s.get("uuid")]
+            if len(matches) != 1:
+                raise ValueError("Missing or ambiguous traffic squad")
+            usage: dict[int, int] = {}
+            cursor: str | None = None
+            for _ in range(100):
+                params: dict[str, Any] = {"start": start, "end": end, "limit": 1000}
+                if cursor:
+                    params["cursor"] = cursor
+                page = await client._request(
+                    "GET", f"/api/bandwidth-stats/internal-squads/{matches[0]['uuid']}/usage", params=params
+                )
+                if not isinstance(page, dict) or not isinstance(page.get("users"), list):
+                    raise ValueError("Invalid traffic usage page")
+                for item in page["users"]:
+                    if not isinstance(item, dict):
+                        raise ValueError("Invalid traffic usage item")
+                    panel_id, amount = int(item["id"]), int(item["totalBytes"])
+                    if panel_id in usage or amount < 0:
+                        raise ValueError("Duplicate identity or negative traffic")
+                    usage[panel_id] = amount
+                if not page.get("hasMore"):
+                    break
+                next_cursor = page.get("nextCursor")
+                if not next_cursor or str(next_cursor) == cursor:
+                    raise ValueError("Incomplete traffic pagination")
+                cursor = str(next_cursor)
+            else:
+                raise ValueError("Traffic page limit exceeded")
+            group_usage[group] = usage
+
+        panel_users: dict[int, dict[str, Any]] = {}
+        offset = 0
+        for _ in range(100):
+            page = await client._request("GET", "/api/users", params={"start": offset, "size": 500})
+            if not isinstance(page, dict) or not isinstance(page.get("users"), list):
+                raise ValueError("Invalid panel users page")
+            for item in page["users"]:
+                if not isinstance(item, dict):
+                    raise ValueError("Invalid panel user")
+                panel_id = int(item["id"])
+                if panel_id in panel_users:
+                    raise ValueError("Duplicate panel user")
+                panel_users[panel_id] = {
+                    "vless_uuid": str(item.get("vlessUuid") or "").lower(),
+                    "telegram_id": str(item.get("telegramId") or ""),
+                }
+            offset += len(page["users"])
+            total = int(page["total"])
+            if offset >= total:
+                break
+            if not page["users"]:
+                raise ValueError("Incomplete panel users pagination")
+        else:
+            raise ValueError("Panel users page limit exceeded")
+        return {"usage": group_usage, "panel_users": panel_users}
+    finally:
+        await client.close()
+
+
 async def get_remnawave_network_stats() -> dict[str, Any]:
     """Return authoritative users/nodes data without exposing panel secrets."""
     client = RemnawaveClient(_credentials())

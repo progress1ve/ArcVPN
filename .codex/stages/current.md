@@ -1,5 +1,7 @@
 # Current: React admin node operations and traffic usage — 2026-09-30
 
+Active correction of period-dependent admin traffic: `.codex/stages/traffic-period-2026-09-30.md`.
+
 The parallel ordinary/LTE traffic slice has its own acceptance and evidence in
 `.codex/stages/traffic-usage-today.md`; the node operations contract continues below.
 

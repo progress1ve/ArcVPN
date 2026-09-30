@@ -6221,6 +6221,106 @@ def api_admin_traffic_today():
     }))
 
 
+@app.route('/api/admin/traffic/period', methods=['GET'])
+def api_admin_traffic_period():
+    """Actual inclusive UTC-period usage for the React traffic console."""
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    from bot.services.remnawave_stats import get_remnawave_period_user_traffic
+
+    today = datetime.now(timezone.utc).date()
+    try:
+        if request.args.get("start_date") or request.args.get("end_date"):
+            start = datetime.strptime(request.args["start_date"], "%Y-%m-%d").date()
+            end = datetime.strptime(request.args["end_date"], "%Y-%m-%d").date()
+        else:
+            days = int(request.args.get("period") or 30)
+            if days not in (1, 3, 7, 14, 30):
+                raise ValueError("Invalid period")
+            start, end = today - timedelta(days=days - 1), today
+        if start > end or end > today or (end - start).days >= 366:
+            raise ValueError("Invalid date range")
+        limit = min(100, max(10, int(request.args.get("limit") or 50)))
+        offset = max(0, int(request.args.get("offset") or 0))
+    except (KeyError, TypeError, ValueError):
+        return _api_error("invalid_traffic_period", 400)
+    try:
+        panel = ASYNC_EXECUTOR.run(
+            get_remnawave_period_user_traffic(start.isoformat(), end.isoformat()), timeout=35
+        )
+    except Exception as exc:
+        logger.warning("Admin period traffic unavailable (%s)", type(exc).__name__)
+        return _api_error("traffic_period_unavailable", 503)
+
+    with get_db() as conn:
+        users = [dict(row) for row in conn.execute("""SELECT id,telegram_id,username,first_name,
+          COALESCE(device_limit,2) device_limit, COALESCE(lte_remnawave_user_id,'') lte_panel_id,
+          (SELECT MAX(expires_at) FROM vpn_keys WHERE user_id=users.id) subscription_end,
+          (SELECT SUM(COALESCE(traffic_limit,0)) FROM vpn_keys WHERE user_id=users.id) traffic_limit_bytes
+          FROM users""")]
+        key_rows = conn.execute("SELECT client_uuid,user_id FROM vpn_keys WHERE client_uuid IS NOT NULL").fetchall()
+    by_id = {int(row["id"]): row for row in users}
+    by_telegram = {str(row["telegram_id"]): int(row["id"]) for row in users if row["telegram_id"]}
+    by_lte = {str(row["lte_panel_id"]): int(row["id"]) for row in users if row["lte_panel_id"]}
+    by_uuid = {str(row["client_uuid"]).lower(): int(row["user_id"]) for row in key_rows}
+    values = {user_id: {"main": 0, "lte": 0} for user_id in by_id}
+    groups = {}
+    for group in ("main", "lte"):
+        usage = panel["usage"][group]
+        unmapped = 0
+        for panel_id, amount in usage.items():
+            identity = panel["panel_users"].get(panel_id, {})
+            local_id = (by_lte.get(str(panel_id)) if group == "lte" else
+                        by_uuid.get(identity.get("vless_uuid", "")))
+            if local_id is None:
+                local_id = by_telegram.get(identity.get("telegram_id", ""))
+            if local_id in values:
+                values[local_id][group] += amount
+            else:
+                unmapped += amount
+        groups[group] = {"bytes": sum(usage.values()),
+                         "active_users": sum(amount > 0 for amount in usage.values()),
+                         "unmapped_bytes": unmapped}
+
+    selected = set(filter(None, (request.args.get("nodes") or "").split(",")))
+    if selected and not selected.issubset({"main", "lte"}):
+        return _api_error("invalid_traffic_group", 400)
+    selected = selected or {"main", "lte"}
+    needle = _clean_text(request.args.get("search"), 100).lower()
+    now_sql = datetime.now(timezone.utc).isoformat()
+    rows = []
+    for row in users:
+        if needle and not any(needle in str(row.get(field) or "").lower()
+                              for field in ("username", "first_name", "telegram_id")):
+            continue
+        status = "active" if row["subscription_end"] and str(row["subscription_end"]) > now_sql else "expired"
+        if request.args.get("statuses") and status not in request.args["statuses"].split(","):
+            continue
+        if request.args.get("tariffs") and "ArcVPN" not in request.args["tariffs"].split(","):
+            continue
+        amounts = values[int(row["id"])]
+        main_bytes = amounts["main"] if "main" in selected else 0
+        lte_bytes = amounts["lte"] if "lte" in selected else 0
+        rows.append({"user_id": row["id"], "telegram_id": row["telegram_id"],
+                     "username": row["username"], "first_name": row["first_name"],
+                     "main_bytes": main_bytes, "lte_bytes": lte_bytes,
+                     "total_bytes": main_bytes + lte_bytes,
+                     "traffic_limit_bytes": row["traffic_limit_bytes"] or 0,
+                     "device_limit": row["device_limit"], "subscription_end": row["subscription_end"]})
+    sort_by = request.args.get("sort_by") or "total_bytes"
+    sort_by = {"node_main": "main_bytes", "node_lte": "lte_bytes",
+               "traffic_limit_gb": "traffic_limit_bytes", "full_name": "username"}.get(sort_by, sort_by)
+    if sort_by not in {"total_bytes", "main_bytes", "lte_bytes", "username", "telegram_id",
+                       "traffic_limit_bytes", "device_limit"}:
+        sort_by = "total_bytes"
+    rows.sort(key=lambda row: (row.get(sort_by) is None, row.get(sort_by) or 0, row["user_id"]),
+              reverse=str(request.args.get("sort_desc") or "true").lower() != "false")
+    return _api_no_store(jsonify({"ok": True, "items": rows[offset:offset + limit],
+        "total": len(rows), "offset": offset, "limit": limit,
+        "start_date": start.isoformat(), "end_date": end.isoformat(), "timezone": "UTC",
+        "as_of": datetime.now(timezone.utc).isoformat(), "groups": groups}))
+
+
 @app.route('/api/admin/overview', methods=['GET'])
 def api_admin_overview():
     """Read-only first slice of ArcVPN Business Console."""
