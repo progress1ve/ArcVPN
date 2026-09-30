@@ -1010,9 +1010,7 @@ interface NodesTabProps {
   providerByUuid: Record<string, string>;
   realtimeByUuid: Record<string, NodeRealtimeStats>;
   isLoading: boolean;
-  onRefresh: () => void;
   onAction: (uuid: string, action: 'enable' | 'disable' | 'restart') => void;
-  onRestartAll: () => void;
   isActionLoading: boolean;
 }
 
@@ -1021,34 +1019,34 @@ function NodesTab({
   providerByUuid,
   realtimeByUuid,
   isLoading,
-  onRefresh,
   onAction,
-  onRestartAll,
   isActionLoading,
 }: NodesTabProps) {
   const { t } = useTranslation();
   const canManage = usePermissionStore((s) => s.hasPermission('remnawave:write'));
+  const currentHosts = new Set(['87.251.19.197', '151.241.137.174', '85.198.101.79']);
+  const visibleNodes = nodes.filter((node) => currentHosts.has(node.address));
   const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });
   const documentedNodes = (registry?.nodes || []) as Array<{ host: string; alias: string; role: string; location?: string; status?: string }>;
-  const registryOnly = documentedNodes.filter((server) => server.host && server.role !== 'production-control-plane' && !nodes.some((node) => node.address === server.host));
+  const registryOnly = documentedNodes.filter((server) => currentHosts.has(server.host) && !visibleNodes.some((node) => node.address === server.host));
 
   const stats = useMemo(() => {
-    const total = nodes.length;
-    const online = nodes.filter((n) => n.is_connected && n.is_node_online && !n.is_disabled).length;
-    const offline = nodes.filter(
+    const total = visibleNodes.length;
+    const online = visibleNodes.filter((n) => n.is_connected && n.is_node_online && !n.is_disabled).length;
+    const offline = visibleNodes.filter(
       (n) => (!n.is_connected || !n.is_node_online) && !n.is_disabled,
     ).length;
-    const disabled = nodes.filter((n) => n.is_disabled).length;
-    const totalUsers = nodes.reduce((acc, n) => acc + (n.users_online ?? 0), 0);
+    const disabled = visibleNodes.filter((n) => n.is_disabled).length;
+    const totalUsers = visibleNodes.reduce((acc, n) => acc + (n.users_online ?? 0), 0);
     return { total, online, offline, disabled, totalUsers };
-  }, [nodes]);
+  }, [visibleNodes]);
 
   const traffic = useMemo(() => {
-    const vals = Object.values(realtimeByUuid);
+    const vals = visibleNodes.map((node) => realtimeByUuid[node.uuid]).filter(Boolean);
     const download = vals.reduce((a, n) => a + (n.downloadBytes ?? 0), 0);
     const upload = vals.reduce((a, n) => a + (n.uploadBytes ?? 0), 0);
     return { download, upload, total: download + upload };
-  }, [realtimeByUuid]);
+  }, [realtimeByUuid, visibleNodes]);
 
   if (isLoading) {
     return (
@@ -1105,25 +1103,6 @@ function NodesTab({
         />
       </div>
 
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={onRefresh}
-          className="flex items-center gap-2 rounded-lg bg-dark-700 px-3 py-1.5 text-dark-300 transition-colors hover:bg-dark-600"
-        >
-          <RefreshIcon />
-          {t('common.refresh', 'Refresh')}
-        </button>
-        {canManage && <button
-          onClick={onRestartAll}
-          disabled={isActionLoading}
-          className="flex items-center gap-2 rounded-lg bg-warning-500/20 px-3 py-1.5 text-warning-400 transition-colors hover:bg-warning-500/30 disabled:opacity-50"
-        >
-          <ArrowPathIcon />
-          {t('admin.remnawave.nodes.restartAll', 'Restart All')}
-        </button>}
-      </div>
-
       {/* Realtime traffic totals (merged from the former Traffic tab) */}
       {traffic.total > 0 && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-1 text-xs text-dark-400">
@@ -1146,17 +1125,17 @@ function NodesTab({
 
       {/* Nodes List */}
       <div className="space-y-3">
-        {nodes.length === 0 ? (
+        {visibleNodes.length === 0 ? (
           <p className="py-8 text-center text-dark-400">
             {t('admin.remnawave.nodes.noNodes', 'No nodes found')}
           </p>
         ) : (
-          nodes.map((node) => (
+          visibleNodes.map((node) => (
             <NodeCard
               key={node.uuid}
               node={node}
               registryState={documentedNodes.find((server) => server.host === node.address)?.status}
-              providerName={providerByUuid[node.uuid]}
+              providerName={node.address === '87.251.19.197' || node.address === '151.241.137.174' ? 'One Cent Host' : providerByUuid[node.uuid]}
               realtime={realtimeByUuid[node.uuid]}
               onAction={onAction}
               isLoading={isActionLoading}
@@ -1490,7 +1469,6 @@ export default function AdminRemnawave() {
   const {
     data: nodesData,
     isLoading: isLoadingNodes,
-    refetch: refetchNodes,
   } = useQuery({
     queryKey: ['admin-remnawave-nodes'],
     queryFn: adminRemnawaveApi.getNodes,
@@ -1552,13 +1530,6 @@ export default function AdminRemnawave() {
     },
   });
 
-  const restartAllMutation = useMutation({
-    mutationFn: adminRemnawaveApi.restartAllNodes,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-remnawave-nodes'] });
-    },
-  });
-
   const syncServersMutation = useMutation({
     mutationFn: adminRemnawaveApi.syncServers,
     onSuccess: () => {
@@ -1569,16 +1540,6 @@ export default function AdminRemnawave() {
   // Handlers
   const handleNodeAction = (uuid: string, action: 'enable' | 'disable' | 'restart') => {
     nodeActionMutation.mutate({ uuid, action });
-  };
-
-  const handleRestartAll = () => {
-    if (
-      confirm(
-        t('admin.remnawave.nodes.confirmRestartAll', 'Are you sure you want to restart all nodes?'),
-      )
-    ) {
-      restartAllMutation.mutate();
-    }
   };
 
   const handleSyncServers = () => {
@@ -1706,10 +1667,8 @@ export default function AdminRemnawave() {
           providerByUuid={providerByUuid}
           realtimeByUuid={realtimeByUuid}
           isLoading={isLoadingNodes}
-          onRefresh={() => refetchNodes()}
           onAction={handleNodeAction}
-          onRestartAll={handleRestartAll}
-          isActionLoading={nodeActionMutation.isPending || restartAllMutation.isPending}
+          isActionLoading={nodeActionMutation.isPending}
         />
       )}
 

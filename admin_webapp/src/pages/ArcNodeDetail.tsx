@@ -283,7 +283,7 @@ export default function ArcNodeDetail() {
       : getJson(`/api/admin/nodes/metrics?host=${encodeURIComponent(host)}&range=${period}`);
     const operatorRequest = import.meta.env.DEV
       ? Promise.resolve({ results: [] })
-      : getJson(`/api/admin/nodes/lte-availability?host=${encodeURIComponent(host)}`);
+      : getJson(`/api/admin/nodes/operator-probes?host=${encodeURIComponent(host)}`);
     const registryRequest = import.meta.env.DEV
       ? Promise.resolve({ nodes: [] })
       : getJson('/api/admin/nodes/registry');
@@ -295,7 +295,7 @@ export default function ArcNodeDetail() {
       : getJson(`/api/admin/nodes/events?host=${encodeURIComponent(host)}`);
     const availabilityRequest = import.meta.env.DEV
       ? Promise.resolve({ samples: [] })
-      : getJson(`/api/admin/nodes/availability?host=${encodeURIComponent(host)}`);
+      : getJson(`/api/admin/nodes/uptime-history?host=${encodeURIComponent(host)}`);
     Promise.allSettled([
       getOverview(),
       metricsRequest,
@@ -428,8 +428,8 @@ export default function ArcNodeDetail() {
             {node?.name || server?.name || host}
           </h1>
           <p className="mt-2 text-sm text-dark-400">
-            {server?.location || node?.country_code || 'Расположение не подтверждено'} ·{' '}
-            {server?.provider || 'Провайдер не указан'} · {host}
+            {server?.location || documented?.location || node?.country_code || 'Расположение не подтверждено'} ·{' '}
+            {server?.provider || (['87.251.19.197', '151.241.137.174'].includes(host) ? 'One Cent Host' : 'Провайдер не указан')} · {host}
           </p>
         </div>
       </div>

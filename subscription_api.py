@@ -4876,6 +4876,7 @@ def api_admin_node_metrics():
 
 
 @app.route('/api/admin/nodes/lte-availability', methods=['GET'])
+@app.route('/api/admin/nodes/operator-probes', methods=['GET'])
 def api_admin_lte_availability():
     """Read operator-specific evidence; absence of a probe is not availability."""
     if not _admin_authorized("nodes.diagnose"):
@@ -4902,6 +4903,7 @@ def api_admin_lte_availability():
 
 
 @app.route('/api/admin/nodes/availability', methods=['GET'])
+@app.route('/api/admin/nodes/uptime-history', methods=['GET'])
 def api_admin_node_availability():
     """Fleet observations for the 24-hour bar; unknown/gaps stay unknown."""
     if not _admin_authorized("nodes.diagnose"):
