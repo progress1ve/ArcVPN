@@ -1,5 +1,9 @@
 # ArcVPN handoff — FI repeat + admin node automation plan (2026-09-29)
 
+## Daily ordinary/LTE traffic — 2026-09-30
+
+Production commit `ffdcfd3` adds an authenticated UTC-day Remnawave internal-squad usage split to `/admin/traffic-usage`, with cards for ordinary and LTE identities. Poland subscription service is active, and a production browser check showed nonzero data for both groups. This is product-group traffic, not a physical-server breakdown; existing table below remains cumulative. Source and tests: `bot/services/remnawave_stats.py`, `subscription_api.py`, `admin_webapp/src/pages/AdminTrafficUsage.tsx`, `tests/test_admin_traffic_today.py`. Evidence and remaining narrow-viewport check: `.codex/stages/traffic-usage-today.md`.
+
 ## Active work — React node operations, 2026-09-30
 
 Work is in isolated `netherlands-alias` checkout at baseline d7d9ca5; the owner's dirty primary checkout and production files are untouched. React node detail now has useful tabs with existing SVG icons, hidden tab scrollbar, real agent charts/capacity and fleet-history availability. SSH preflight now requires an independently checked fingerprint and never persists the password. Read APIs and additive migrations 69–70 are local only. The full Python suite passes (301 tests), both frontend builds pass, and React browser widths 390/768/1280/1600 were inspected. Multitest worker, LatencyLab mobile adapter, Telegram integration and installation worker are **not implemented**; the owner authorized production release only once ready. LatencyLab API documentation is pending. The owner confirmed there is no test VPS now and installer testing will happen later. See `.codex/stages/current.md`. Do not run the unpinned Multitest `curl | bash` command or deploy this partial stage as a complete solution.
