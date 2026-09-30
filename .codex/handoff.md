@@ -2,7 +2,9 @@
 
 ## Daily ordinary/LTE traffic — 2026-09-30
 
-Production commit `ffdcfd3` adds an authenticated UTC-day Remnawave internal-squad usage split to `/admin/traffic-usage`, with cards for ordinary and LTE identities. Poland subscription service is active, and a production browser check showed nonzero data for both groups. This is product-group traffic, not a physical-server breakdown; existing table below remains cumulative. Source and tests: `bot/services/remnawave_stats.py`, `subscription_api.py`, `admin_webapp/src/pages/AdminTrafficUsage.tsx`, `tests/test_admin_traffic_today.py`. Evidence and remaining narrow-viewport check: `.codex/stages/traffic-usage-today.md`.
+Follow-up commit `df20b92` fixes the period selector and per-user rows using a new authenticated Remnawave range endpoint. Cards, rows and CSV now read the selected inclusive UTC interval. Only period, ordinary/LTE selector and CSV remain in the filter bar. Production API returned distinct 1d/7d values and correctly zeroed ordinary bytes for LTE-only rows. Production browser loaded new cards/filter bar; visual interaction after switching period awaits owner check because the inspection tool timed out. See `.codex/stages/traffic-period-2026-09-30.md`.
+
+Earlier commit `ffdcfd3` introduced UTC-day cards. The subsequent `df20b92` release replaced the table's misleading cumulative values with actual range usage. Both are product-group traffic, not a physical-server breakdown. Source and tests: `bot/services/remnawave_stats.py`, `subscription_api.py`, `admin_webapp/src/pages/AdminTrafficUsage.tsx`, `tests/test_admin_traffic_period.py`.
 
 ## Active work — React node operations, 2026-09-30
 
