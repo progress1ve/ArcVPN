@@ -74,6 +74,8 @@ def main() -> int:
 
     # Never hold the shared SQLite write lock while network probes run.
     with sqlite3.connect(db_path, timeout=30) as conn:
+        from node_demand import record
+        record(conn, nodes)
         for host, diagnostic in diagnostics:
             conn.execute("INSERT INTO node_diagnostic_runs(host,result_json,ok) VALUES(?,?,?)",
                          (host, json.dumps(diagnostic, ensure_ascii=False), int(diagnostic["ok"])))

@@ -118,3 +118,20 @@ def test_renamed_locations_keep_balancer_identity_and_aliases(monkeypatch):
     peers=[o for o in profiles[0]['outbounds'] if o['tag'].startswith('proxy-main-')]
     assert len(peers)==2
     assert {o['settings']['vnext'][0]['address'] for o in peers}=={'fi.example','ee.example'}
+
+
+def test_best_bypass_is_not_left_as_a_duplicate_manual_location():
+    source={'remarks':'Лучший обход','outbounds':[], 'routing':{'balancers':[{'selector':[],'strategy':{'type':'leastLoad'}}]}}
+    result=apply([source],defaults())
+    assert len(result)==5
+    assert all('balancers' in p['routing'] for p in result)
+
+
+def test_publication_preserves_interleaved_manual_location():
+    auto={'remarks':'Автовыбор','outbounds':[], 'routing':{'balancers':[{'selector':[]}]}}
+    bypass={'remarks':'Лучший обход','outbounds':[], 'routing':{'balancers':[{'selector':[]}]}}
+    manual={'remarks':'FI','outbounds':[]}
+    policy=[defaults()[0],defaults()[2]]
+    result=apply([auto,manual,bypass],policy)
+    assert result[1]['remarks']=='FI'
+    assert result[2]['remarks']=='Лучший обход'

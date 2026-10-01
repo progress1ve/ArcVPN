@@ -5110,18 +5110,15 @@ def api_admin_node_capacity():
         return _api_error("admin_forbidden", 403)
     host = _clean_text(request.args.get("host"), 255).strip().lower()
     period = str(request.args.get("range") or "24h")
-    try:
-        demand_mbps = float(request.args.get("demand_mbps", "10"))
-    except ValueError:
-        return _api_error("invalid_user_demand",400)
-    if not 1 <= demand_mbps <= 100:
-        return _api_error("invalid_user_demand",400)
     windows = {"15m": "-15 minutes", "1h": "-1 hour", "6h": "-6 hours", "24h": "-24 hours", "7d": "-7 days"}
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host) or period not in windows:
         return _api_error("invalid_capacity_query", 400)
     try:
-        from monitoring.node_capacity import summarize, network_user_estimate
+        from monitoring.node_capacity import summarize
+        from monitoring.node_demand import schema as demand_schema, estimate as demand_estimate
         with get_db() as conn:
+            demand_schema(conn)
+            demand_rows = [dict(r) for r in conn.execute("SELECT * FROM node_demand_samples WHERE host=? AND sampled_at>=datetime('now','-7 days') ORDER BY sampled_at",(host,))]
             rows = conn.execute("""SELECT sampled_at,cpu_pct,mem_pct,net_rx_bps,net_tx_bps
                 FROM server_health_samples WHERE host=? AND source='agent'
                 AND sampled_at>=datetime('now',?) ORDER BY sampled_at DESC LIMIT 20000""",
@@ -5146,8 +5143,9 @@ def api_admin_node_capacity():
             from monitoring.benchmark_jobs import results
             sampled = datetime.fromisoformat(str(rows[0]["sampled_at"]).replace("Z","+00:00"))
             age = (datetime.now(timezone.utc) - sampled.replace(tzinfo=timezone.utc)).total_seconds()
-            if 0 <= age < 180:
-                estimate = network_user_estimate(summary,results(benchmark["output"]),demand_mbps)
+            paired_age = (datetime.now(timezone.utc) - datetime.fromisoformat(demand_rows[-1]["sampled_at"]).replace(tzinfo=timezone.utc)).total_seconds() if demand_rows else float("inf")
+            if 0 <= age < 180 and 0 <= paired_age < 900:
+                estimate = demand_estimate(demand_rows,results(benchmark["output"]),summary)
         summary["network_user_estimate"] = estimate
         return _api_no_store(jsonify({"ok": True, "host": host, "capacity_evidence": evidence, **summary}))
     except sqlite3.Error:
@@ -5385,6 +5383,31 @@ def api_internal_benchmark_agent():
     return jsonify({"ok":True,"cancel":cancel})
 
 
+def _effective_customer_profiles():
+    # Representative active owner subscription: same renderer as client delivery.
+    with get_db() as conn:
+        row = conn.execute("""SELECT k.sub_id FROM vpn_keys k JOIN users u ON u.id=k.user_id
+            WHERE lower(u.username)='progressive_dev' AND k.expires_at>datetime('now')
+            ORDER BY k.expires_at DESC LIMIT 1""").fetchone()
+    key = get_active_key_by_subscription_id(row["sub_id"]) if row else None
+    if key is None:
+        raise ValueError("representative_subscription_unavailable")
+    links = ASYNC_EXECUTOR.run(_native_remnawave_links(key),timeout=20)
+    return json.loads(_build_happ_json_subscription(key,"\n".join(links)))
+
+
+@app.route('/api/admin/subscription-structure', methods=['GET'])
+def api_admin_subscription_structure():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden",403)
+    try:
+        from monitoring.subscription_structure import project
+        return _api_no_store(jsonify({"ok":True,"profiles":project(_effective_customer_profiles()),
+            "source":"rendered_owner_subscription","note":"Product entitlements may change other users' profile sets"}))
+    except Exception:
+        return _api_error("rendered_structure_unavailable",503)
+
+
 @app.route('/api/admin/subscription-balancers', methods=['GET', 'POST'])
 def api_admin_subscription_balancers():
     from monitoring.subscription_balancers import defaults, digest, validate
@@ -5395,8 +5418,29 @@ def api_admin_subscription_balancers():
     revision = digest(live)
     if request.method == "GET":
         draft = json.loads(get_setting("subscription_balancers_draft", "null") or "null")
+        effective_defaults = defaults()
+        if not live:
+            try:
+                rendered = _effective_customer_profiles()
+                effective_defaults = []
+                bypass_index = 0
+                for profile in rendered:
+                    balancers = (profile.get("routing") or {}).get("balancers") or []
+                    if not balancers:
+                        continue
+                    name = profile.get("remarks", "")
+                    kind = "auto" if "Автовыбор" in name else "youtube" if "Ютуб" in name else "bypass"
+                    if kind == "bypass":
+                        bypass_index += 1
+                    identifier = kind if kind != "bypass" else f"bypass-{bypass_index}"
+                    strategy = (balancers[0].get("strategy") or {}).get("type", "leastLoad")
+                    effective_defaults.append({"id":identifier,"kind":kind,"name":name,
+                        "members":["fi","ee"],"weights":{"fi":1,"ee":1},
+                        "strategy":strategy,"fallback":"existing"})
+            except Exception:
+                return _api_error("rendered_structure_unavailable",503)
         return _api_no_store(jsonify({"ok": True, "live": live, "draft": draft,
-                                     "defaults": defaults(), "revision": revision}))
+                                     "defaults": effective_defaults, "revision": revision}))
     if request.headers.get("Origin", "") not in {"https://arccnet.space", "https://www.arccnet.space",
                                                  "http://127.0.0.1:5173", "http://localhost:5173"}:
         return _api_error("invalid_origin", 403)
@@ -6487,6 +6531,18 @@ def api_admin_traffic_today():
         "as_of": datetime.now(timezone.utc).isoformat(),
         "groups": groups,
     }))
+
+
+@app.route('/api/admin/traffic/retained-total', methods=['GET'])
+def api_admin_traffic_retained_total():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden",403)
+    with get_db() as conn:
+        row=conn.execute("""SELECT
+          COALESCE((SELECT SUM(MAX(0,COALESCE(traffic_used,0))) FROM vpn_keys),0) main,
+          COALESCE((SELECT SUM(MAX(0,COALESCE(lte_used_bytes,0))) FROM users),0) lte""").fetchone()
+    return _api_no_store(jsonify({"ok":True,"main":row['main'],"lte":row['lte'],
+        "scope":"retained_counters","note":"Includes expired subscriptions; reset or deleted historical counters are unavailable"}))
 
 
 @app.route('/api/admin/traffic/period', methods=['GET'])

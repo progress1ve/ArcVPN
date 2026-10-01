@@ -80,7 +80,7 @@ type Overview = {
   }[];
 };
 type Capacity = {
-  network_user_estimate?: {additional_users:number;assumed_mbps_per_user:number;reserve_pct:number;measured_floor_mbps:number} | null;
+  network_user_estimate?: {additional_users:number;observed_mbps_per_user:number;reserve_pct:number;measured_floor_mbps:number} | null;
   coverage_ok: boolean;
   samples: number;
   network: {
@@ -222,7 +222,6 @@ export default function ArcNodeDetail() {
     Array<{ host: string; role?: string; location?: string; status?: string }>
   >([]);
   const [capacity, setCapacity] = useState<Capacity | null>(null);
-  const [demandMbps,setDemandMbps] = useState(10);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   useEffect(() => {
@@ -266,7 +265,7 @@ export default function ArcNodeDetail() {
       : getJson('/api/admin/nodes/registry');
     const capacityRequest = import.meta.env.DEV
       ? Promise.resolve(null)
-      : getJson(`/api/admin/nodes/capacity?host=${encodeURIComponent(host)}&range=${period}&demand_mbps=${demandMbps}`);
+      : getJson(`/api/admin/nodes/capacity?host=${encodeURIComponent(host)}&range=7d`);
     const eventsRequest = import.meta.env.DEV
       ? Promise.resolve({ events: [] })
       : getJson(`/api/admin/nodes/events?host=${encodeURIComponent(host)}`);
@@ -313,7 +312,7 @@ export default function ArcNodeDetail() {
     return () => {
       active = false;
     };
-  }, [host, period, demandMbps]);
+  }, [host, period]);
   useEffect(() => {
     if (operatorRunBaseline === null) return;
     let polls = 0;
@@ -619,10 +618,9 @@ export default function ArcNodeDetail() {
                 <h2 className="mb-4 font-semibold text-dark-100">Нагрузка и запас</h2>
                 <div className="mb-5 grid grid-cols-2 gap-4">
                   <div><p className="text-sm text-dark-400">Людей сейчас</p><p className="mt-2 text-3xl font-semibold text-dark-100">{node?.users_online ?? '—'}</p></div>
-                  <div><p className="text-sm text-dark-400">Теоретически ещё по сети</p><p className="mt-2 text-xl font-semibold text-dark-100">{capacity?.network_user_estimate ? `${capacity.network_user_estimate.additional_users} чел.` : 'Оценка не готова'}</p></div>
+                  <div><p className="text-sm text-dark-400">Запас по средней нагрузке</p><p className="mt-2 text-xl font-semibold text-dark-100">{capacity?.network_user_estimate ? `${capacity.network_user_estimate.additional_users} чел.` : 'Собираем наблюдения'}</p></div>
                 </div>
-                <div className="mb-4 flex flex-wrap gap-4 text-sm"><label>Окно нагрузки <select className="rounded-lg bg-dark-900 p-2" value={period} onChange={e=>setPeriod(e.target.value as Period)}>{periods.map(p=><option key={p} value={p}>{p}</option>)}</select></label><label>На человека <select className="rounded-lg bg-dark-900 p-2" value={demandMbps} onChange={e=>setDemandMbps(Number(e.target.value))}>{[5,10,20].map(n=><option key={n} value={n}>{n} Мбит/с</option>)}</select></label></div>
-                <p className="mb-4 text-sm text-dark-400">Расчёт по минимальной скорости пяти городов РФ, устойчивой нагрузке выбранного окна и запасу 30%. Это сценарий по сети, а не подтверждённая комфортная ёмкость: расход памяти и CPU на новых людей ещё не измерен. При высокой нагрузке CPU/RAM запас считается нулевым.</p>
+                <p className="mb-4 text-sm text-dark-400">Средняя фактическая нагрузка на активного пользователя за последние 7 дней, без ручного задания скорости. Сохраняем 30% канала в резерве. Берём минимальный запас по сети, CPU и памяти. Новая история требует минимум 12 парных замеров за 2 часа; до этого показываем сбор данных. Это оценка по наблюдениям, не результат нагрузочного теста.</p>
                 <details><summary className="mb-3 cursor-pointer text-sm text-primary-300">Как рассчитывается запас</summary>
                 <dl className="space-y-3 text-sm">
                   {[
@@ -644,7 +642,7 @@ export default function ArcNodeDetail() {
                         ? 'Недостаточно данных'
                         : `${capacity?.network?.rx?.headroom_pct}% / ${capacity?.network?.tx?.headroom_pct}%`,
                     ],
-                    ['Дополнительных пользователей', 'Нет достоверной оценки'],
+                    ['Средняя скорость на активного пользователя', capacity?.network_user_estimate ? `${capacity.network_user_estimate.observed_mbps_per_user} Мбит/с` : 'Собираем наблюдения'],
                   ].map(([label, value]) => (
                     <div
                       key={label}

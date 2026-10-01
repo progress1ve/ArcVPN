@@ -49,10 +49,11 @@ def digest(policy):
 
 
 def defaults():
-    return [{"id": kind, "kind": kind, "name": name, "members": ["fi", "ee"],
-             "weights": {"fi": 1, "ee": 1}, "strategy": "leastLoad", "fallback": "existing"}
-            for kind, name in (("auto", "Автовыбор | Самый быстрый"),
-                               ("youtube", "Ютуб без рекламы"), ("bypass", "Обход глушилок"))]
+    specs = [('auto','auto','Автовыбор | Самый быстрый'),('youtube','youtube','Ютуб без рекламы')]
+    specs += [('bypass-'+str(i),'bypass','Лучший обход' if i==1 else 'Обход глушилок #'+str(i)) for i in range(1,6)]
+    return [{'id':identifier,'kind':kind,'name':name,'members':['fi','ee'],
+             'weights':{'fi':1,'ee':1},'strategy':'leastLoad','fallback':'existing'}
+            for identifier,kind,name in specs]
 
 
 def apply(profiles, policy, addresses=None, user_id=None):
@@ -71,7 +72,7 @@ def apply(profiles, policy, addresses=None, user_id=None):
             templates["auto"] = profile
         elif "Ютуб" in name:
             templates["youtube"] = profile
-        elif "Обход" in name:
+        elif "обход" in name.lower():
             templates.setdefault("bypass", profile)
         else:
             manual.append(profile)
@@ -129,4 +130,17 @@ def apply(profiles, policy, addresses=None, user_id=None):
             settings = {}
         primary["strategy"] = {"type": "leastPing" if item["strategy"] == "weightedUsers" else item["strategy"], "settings": settings}
         output.append(profile)
-    return output + manual
+    # Keep the client's manual locations interleaved with generated slots.
+    # A publication must not silently move all bypass profiles above locations.
+    manual_ids = {id(profile) for profile in manual}
+    ordered = []
+    pending = iter(output)
+    for profile in profiles:
+        if id(profile) in manual_ids:
+            ordered.append(profile)
+        else:
+            item = next(pending, None)
+            if item is not None:
+                ordered.append(item)
+    ordered.extend(pending)
+    return ordered
