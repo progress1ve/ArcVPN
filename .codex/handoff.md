@@ -1,3 +1,11 @@
+## Current deployed admin work — 2026-10-01
+
+Runtime 14b45b8 is deployed on Poland. Owner primary dirty checkout and production owner files remain untouched. CDN history now has only time/operator/result; visible diagnostics omit TCP2443. Balancers and manual subscription catalog have draft/preview/revision checked publication, stable identities, ordering, names, strategies, FI/EE members, fallback and sticky weighted user assignment. No changed route policy was published during verification.
+
+Pinned original Multitest module5 workers are enrolled on EE/FI/Moscow; queue/cancel/history/raw output/city results and previous-run comparison are implemented. Real EE and FI jobs completed exit0. EE receiver floor1011.5Mbps. Production browser verifies current FI15 people and network-only additional44 at10Mbps/person, EE3 and69; this is not confirmed comfortable CPU/RAM capacity. All333 Python tests and React build passed. Moscow minute telemetry was enrolled with trusted SSH keys and returned active/success. CDN browser confirms only three history columns, four successful operators and provider-offline Beeline. Current provider offers only Orel; restriction-period proof is absent.
+
+Open acceptance: real LTE/bridge provisioning/removal and encrypted credential vault, test-VPS installation/cancellation, Multitest modules6/9 and service geolocation, confirmed per-user comfortable capacity and headroom alerts, real TG outage/recovery and restriction-period verification. No test VPS exists; owner deferred installation tests. Next: implement service-plan preview and safe provisioning worker without mutating active routes before accepted preview.
+
 # ArcVPN handoff — FI repeat + admin node automation plan (2026-09-29)
 
 ## Daily ordinary/LTE traffic — 2026-09-30
