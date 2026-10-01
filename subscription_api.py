@@ -4902,6 +4902,45 @@ def api_admin_lte_availability():
         return _api_error("lte_availability_unavailable", 503)
 
 
+@app.route('/api/admin/nodes/operator-probes/run', methods=['POST'])
+def api_admin_lte_probe_run():
+    """Start one all-operator check with a bounded manual cooldown."""
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    if request.headers.get("Origin", "") not in {
+        "https://arccnet.space", "https://panel.arccnet.space",
+        "http://127.0.0.1:5173", "http://localhost:5173",
+    }:
+        return _api_error("admin_origin_forbidden", 403)
+    try:
+        lock_age = time.time() - os.stat("/run/lock/arcvpn-lte-monitor.lock").st_mtime
+        if lock_age < 900:
+            return _api_error("lte_probe_cooldown", 429)
+    except FileNotFoundError:
+        pass
+    try:
+        active = subprocess.run(
+            ["/usr/bin/systemctl", "is-active", "--quiet", "arcvpn-lte-operator.service"],
+            check=False, timeout=4,
+        )
+        if active.returncode == 0:
+            return _api_error("lte_probe_running", 409)
+        started = subprocess.run(
+            ["/usr/bin/systemctl", "start", "--no-block", "arcvpn-lte-operator.service"],
+            capture_output=True, check=False, timeout=8,
+        )
+        if started.returncode:
+            return _api_error("lte_probe_start_failed", 503)
+        _append_admin_audit_best_effort(
+            "node.lte_probe", "started", actor_id=str(_admin_telegram_id() or "password-session"),
+            target_type="monitor", target_id="all-operators", metadata={"nodes": 2},
+        )
+        return _api_no_store(jsonify({"ok": True, "status": "started"})), 202
+    except (OSError, subprocess.SubprocessError):
+        logger.exception("Manual LTE probe launch failed")
+        return _api_error("lte_probe_start_failed", 503)
+
+
 @app.route('/api/admin/nodes/availability', methods=['GET'])
 @app.route('/api/admin/nodes/uptime-history', methods=['GET'])
 def api_admin_node_availability():

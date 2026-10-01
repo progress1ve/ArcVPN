@@ -18,6 +18,43 @@ def test_node_capacity_requires_permission(monkeypatch):
     assert response.status_code == 403
 
 
+def test_manual_lte_run_requires_role_and_same_origin(monkeypatch):
+    client = api.app.test_client()
+    monkeypatch.setattr(api, "_admin_authorized", lambda permission: False)
+    denied = client.post("/api/admin/nodes/operator-probes/run",
+                         headers={"Origin": "https://arccnet.space"})
+    assert denied.status_code == 403
+    monkeypatch.setattr(api, "_admin_authorized", lambda permission: True)
+    wrong_origin = client.post("/api/admin/nodes/operator-probes/run",
+                               headers={"Origin": "https://other.example"})
+    assert wrong_origin.status_code == 403
+
+
+def test_manual_lte_run_respects_cooldown(monkeypatch):
+    monkeypatch.setattr(api, "_admin_authorized", lambda permission: True)
+    monkeypatch.setattr(api.os, "stat", lambda path: type("Stat", (), {"st_mtime": api.time.time()})())
+    response = api.app.test_client().post("/api/admin/nodes/operator-probes/run",
+        headers={"Origin": "https://arccnet.space"})
+    assert response.status_code == 429
+
+
+def test_manual_lte_run_starts_only_fixed_worker(monkeypatch):
+    monkeypatch.setattr(api, "_admin_authorized", lambda permission: True)
+    monkeypatch.setattr(api.os, "stat", lambda path: type("Stat", (), {"st_mtime": 0})())
+    calls = []
+
+    def fake_run(argv, **kwargs):
+        calls.append(argv)
+        return type("Completed", (), {"returncode": 3 if len(calls) == 1 else 0})()
+
+    monkeypatch.setattr(api.subprocess, "run", fake_run)
+    monkeypatch.setattr(api, "_append_admin_audit_best_effort", lambda *args, **kwargs: None)
+    response = api.app.test_client().post("/api/admin/nodes/operator-probes/run",
+        headers={"Origin": "https://arccnet.space"})
+    assert response.status_code == 202
+    assert calls[1] == ["/usr/bin/systemctl", "start", "--no-block", "arcvpn-lte-operator.service"]
+
+
 def test_node_capacity_does_not_invent_verified_bandwidth(tmp_path, monkeypatch):
     path = tmp_path / "test.sqlite3"
     with sqlite3.connect(path) as conn:

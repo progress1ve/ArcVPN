@@ -33,6 +33,7 @@ type Sample = {
   uptime_seconds?: number;
 };
 type OperatorProbe = {
+  batch_id: string;
   operator: string;
   target_path: string;
   test_kind: string;
@@ -254,6 +255,8 @@ export default function ArcNodeDetail() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [operatorProbes, setOperatorProbes] = useState<OperatorProbe[]>([]);
+  const [operatorRunMessage, setOperatorRunMessage] = useState('');
+  const [operatorRunBaseline, setOperatorRunBaseline] = useState<string | null>(null);
   const [events, setEvents] = useState<NodeEvent[]>([]);
   const [availability, setAvailability] = useState<AvailabilityPoint[]>([]);
   const [documentedNodes, setDocumentedNodes] = useState<
@@ -343,6 +346,43 @@ export default function ArcNodeDetail() {
       active = false;
     };
   }, [host, period]);
+  useEffect(() => {
+    if (operatorRunBaseline === null) return;
+    let polls = 0;
+    const interval = window.setInterval(async () => {
+      polls += 1;
+      try {
+        const result = await getJson(`/api/admin/nodes/operator-probes?host=${encodeURIComponent(host)}`);
+        const rows = (result.results || []) as OperatorProbe[];
+        if (rows[0]?.batch_id && rows[0].batch_id !== operatorRunBaseline) {
+          setOperatorProbes(rows);
+          setOperatorRunMessage('Проверка завершена. Результаты обновлены.');
+          setOperatorRunBaseline(null);
+          return;
+        }
+      } catch {
+        // Retry while the bounded worker is running.
+      }
+      if (polls >= 36) {
+        setOperatorRunMessage('Проверка ещё выполняется. Результат появится в истории.');
+        setOperatorRunBaseline(null);
+      }
+    }, 10_000);
+    return () => window.clearInterval(interval);
+  }, [host, operatorRunBaseline]);
+  const runAllOperators = async () => {
+    setOperatorRunMessage('Запускаем проверку…');
+    try {
+      await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
+      setOperatorRunMessage('Проверяем все доступные сети и обе LTE-ноды…');
+      setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
+    } catch (failure) {
+      const code = failure instanceof Error ? failure.message : '';
+      setOperatorRunMessage(code.includes('429')
+        ? 'Повторный запуск доступен через 15 минут после предыдущей проверки.'
+        : code.includes('409') ? 'Проверка уже выполняется.' : 'Не удалось запустить проверку.');
+    }
+  };
   const node = overview?.remnawave?.nodes?.find((item) => item.address === host);
   const server = overview?.servers?.find((item) => item.host === host);
   const documented = documentedNodes.find((item) => item.host === host);
@@ -807,7 +847,16 @@ export default function ArcNodeDetail() {
           )}
           {tab === 'availability' && isLte && (
             <section className="rounded-2xl border border-dark-700 bg-dark-800/50 p-5">
-              <h2 className="font-semibold text-dark-100">LTE / SDN · мобильные операторы</h2>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="font-semibold text-dark-100">LTE / SDN · мобильные операторы</h2>
+                {!import.meta.env.DEV && (
+                  <button type="button" onClick={runAllOperators} disabled={operatorRunBaseline !== null}
+                    className="inline-flex items-center gap-2 rounded-xl border border-primary-500/40 bg-primary-500/10 px-3 py-2 text-sm font-medium text-primary-300 transition hover:bg-primary-500/20 disabled:cursor-wait disabled:opacity-50">
+                    <GlobeIcon className="h-4 w-4" /> Проверить все сети
+                  </button>
+                )}
+              </div>
+              {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
                 Один автоматический запуск проверяет VPN-ключ во всех доступных сетях утром, днём и вечером.
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
