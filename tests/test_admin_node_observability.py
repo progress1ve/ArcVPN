@@ -1,7 +1,36 @@
 import sqlite3
+import json
 
 import subscription_api as api
 from database.migrations import migration_69, migration_70
+
+
+def test_provider_metadata_requires_permission(monkeypatch):
+    monkeypatch.setattr(api, "_admin_authorized", lambda permission: False)
+    assert api.app.test_client().get("/api/admin/nodes/operator-network-status").status_code == 403
+
+
+def test_diagnostics_show_safe_port_facts_and_skip_empty_results(tmp_path, monkeypatch):
+    path = tmp_path / "events.sqlite3"
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TABLE node_diagnostic_runs(id INTEGER PRIMARY KEY,host TEXT,ok INTEGER,created_at TEXT,result_json TEXT)")
+        conn.execute("CREATE TABLE admin_audit_events(id INTEGER PRIMARY KEY,target_id TEXT,target_type TEXT,action TEXT,outcome TEXT,created_at TEXT)")
+        for result in ({"ports": []}, {"ports": [{"port": 443, "ok": True, "latency_p50_ms": 21}], "secret": "private-marker"}):
+            conn.execute("INSERT INTO node_diagnostic_runs(host,ok,created_at,result_json) VALUES(?,?,?,?)",
+                         ("203.0.113.9", 1, "2026-10-01 12:00:00", json.dumps(result)))
+    def db():
+        conn = sqlite3.connect(path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    monkeypatch.setattr(api, "get_db", db)
+    monkeypatch.setattr(api, "_admin_authorized", lambda permission: True)
+    response = api.app.test_client().get("/api/admin/nodes/events?host=203.0.113.9")
+    assert response.status_code == 200
+    events = response.get_json()["events"]
+    assert len(events) == 1
+    assert "TCP 443" in events[0]["summary"]
+    assert "21" in events[0]["summary"]
+    assert "private-marker" not in response.get_data(as_text=True)
 
 
 def test_node_registry_exposes_roles_without_credential_alias(monkeypatch):

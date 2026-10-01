@@ -17,6 +17,7 @@ import {
   HistoryIcon,
   BoltIcon,
   GlobeIcon,
+  BackIcon,
 } from '../components/icons';
 
 type Sample = {
@@ -44,7 +45,7 @@ type OperatorProbe = {
   checked_at: string;
   reason?: string;
 };
-type NodeEvent = { action: string; outcome: string; created_at: string };
+type NodeEvent = { action: string; outcome: string; created_at: string; summary?: string };
 type AvailabilityPoint = {
   status: 'healthy' | 'server_down' | 'possible_ip_block' | 'unknown';
   checked_at: string;
@@ -93,8 +94,8 @@ const nodeTabs = [
   { key: 'metrics', label: 'Метрики', icon: ChartIcon },
   { key: 'services', label: 'Сервисы', icon: ServerIcon },
   { key: 'logs', label: 'Логи', icon: HistoryIcon },
-  { key: 'performance', label: 'Производительность', icon: BoltIcon },
-  { key: 'availability', label: 'Доступность', icon: GlobeIcon },
+  { key: 'performance', label: 'Нагрузка', icon: BoltIcon },
+  { key: 'availability', label: 'Доступность CDN', icon: GlobeIcon },
 ] as const;
 const periods: Period[] = ['15m', '1h', '6h', '24h', '7d'];
 const finite = (value: unknown): number | null =>
@@ -198,54 +199,9 @@ function Chart({
   );
 }
 
-function OperatorMark({ code }: { code: string }) {
-  const common = { width: 30, height: 30, viewBox: '0 0 30 30', role: 'img' as const };
-  if (code === 't2')
-    return (
-      <svg {...common} aria-label="T2">
-        <rect width="30" height="30" rx="9" fill="#16171b" />
-        <text x="15" y="21" textAnchor="middle" fill="white" fontSize="17" fontWeight="900">
-          t2
-        </text>
-      </svg>
-    );
-  if (code === 't_mobile')
-    return (
-      <svg {...common} aria-label="Т-Мобайл">
-        <rect width="30" height="30" rx="9" fill="#ffe03d" />
-        <text x="15" y="21" textAnchor="middle" fill="#141414" fontSize="19" fontWeight="900">
-          Т
-        </text>
-      </svg>
-    );
-  if (code === 'megafon')
-    return (
-      <svg {...common} aria-label="МегаФон">
-        <rect width="30" height="30" rx="9" fill="#48bd69" />
-        <circle cx="14" cy="15" r="8" fill="#fff" />
-        <circle cx="17" cy="12" r="5" fill="#48bd69" />
-      </svg>
-    );
-  if (code === 'beeline')
-    return (
-      <svg {...common} aria-label="Билайн">
-        <defs>
-          <clipPath id="beeline-mark">
-            <circle cx="15" cy="15" r="12" />
-          </clipPath>
-        </defs>
-        <circle cx="15" cy="15" r="12" fill="#ffce35" />
-        <g clipPath="url(#beeline-mark)" stroke="#161616" strokeWidth="4">
-          <path d="M2 4h27M2 13h27M2 22h27" />
-        </g>
-      </svg>
-    );
-  return (
-    <svg {...common} aria-label="МТС">
-      <rect width="30" height="30" rx="9" fill="#ed334b" />
-      <path d="M8 22V9h4l3 5 3-5h4v13h-4v-7l-3 5-3-5v7z" fill="white" />
-    </svg>
-  );
+function OperatorMark({ code, name }: { code: string; name: string }) {
+  return <img src={`/admin/operators/${code}.svg`} alt={name}
+    className="h-7 max-w-[120px] object-contain" />;
 }
 
 export default function ArcNodeDetail() {
@@ -255,6 +211,7 @@ export default function ArcNodeDetail() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [operatorProbes, setOperatorProbes] = useState<OperatorProbe[]>([]);
+  const [operatorNetwork, setOperatorNetwork] = useState<{operators: {id: string; online: boolean}[]; regions: {id: string; name: string}[]} | null>(null);
   const [operatorRunMessage, setOperatorRunMessage] = useState('');
   const [operatorRunBaseline, setOperatorRunBaseline] = useState<string | null>(null);
   const [events, setEvents] = useState<NodeEvent[]>([]);
@@ -265,6 +222,14 @@ export default function ArcNodeDetail() {
   const [capacity, setCapacity] = useState<Capacity | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    if (import.meta.env.DEV) return;
+    let active = true;
+    getJson('/api/admin/nodes/operator-network-status').then((data) => {
+      if (active) setOperatorNetwork(data as typeof operatorNetwork);
+    }).catch(() => { if (active) setOperatorNetwork(null); });
+    return () => { active = false; };
+  }, [host]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -435,9 +400,9 @@ export default function ArcNodeDetail() {
           : statuses.length && statuses.every((status) => status === 'healthy')
             ? 'healthy'
             : 'unknown',
-    );
+    ).filter((status) => status !== 'unknown');
   }, [availability]);
-  const measuredBins = availabilityBins.filter((status) => status !== 'unknown');
+  const measuredBins = availabilityBins;
   const availabilityPercent = measuredBins.length
     ? Math.round(
         (100 * measuredBins.filter((status) => status === 'healthy').length) / measuredBins.length,
@@ -467,8 +432,8 @@ export default function ArcNodeDetail() {
     <div className="space-y-6 p-4 pb-24 md:p-7">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <Link to="/admin/remnawave" className="text-sm text-accent-300 hover:underline">
-            Ноды /
+          <Link to="/admin/remnawave?tab=nodes" className="inline-flex items-center gap-2 rounded-xl border border-dark-700 px-3 py-2 text-sm text-accent-300 hover:bg-dark-800">
+            <BackIcon className="h-4 w-4" /> К списку нод
           </Link>
           <h1 className="mt-2 text-3xl font-semibold text-dark-100">
             {node?.name || server?.name || host}
@@ -589,20 +554,20 @@ export default function ArcNodeDetail() {
                       <span>
                         {availabilityPercent === null
                           ? 'Нет проверок'
-                          : `${availabilityPercent}% · ${measuredBins.length}/48 интервалов`}
+                          : `${availabilityPercent}% · ${measuredBins.length} проверенных интервалов`}
                       </span>
                     </div>
                     <div className="flex min-w-0 gap-0.5">
                       {availabilityBins.map((state, i) => (
                         <span
                           key={i}
-                          title={`Интервал ${i + 1}/48: ${state}`}
-                          className={`h-8 min-w-0 flex-1 rounded ${state === 'healthy' ? 'bg-success-500/60' : state === 'server_down' ? 'bg-error-500/70' : state === 'possible_ip_block' ? 'bg-warning-500/70' : 'bg-dark-600/70'}`}
+                          title={`Проверенный интервал ${i + 1}: ${state === 'healthy' ? 'доступна' : 'проверка не прошла'}`}
+                          className={`h-8 min-w-0 flex-1 rounded ${state === 'healthy' ? 'bg-success-500/60' : state === 'possible_ip_block' ? 'bg-warning-500/70' : 'bg-dark-600/70'}`}
                         />
                       ))}
                     </div>
                     <p className="mt-2 text-xs text-dark-500">
-                      Серый — проверки не было; процент считается только по проверенным интервалам.
+                      Показаны только проверенные интервалы. Серый — проверка не прошла.
                     </p>
                   </div>
                 </div>
@@ -625,7 +590,7 @@ export default function ArcNodeDetail() {
                 {events.length ? (
                   events.slice(0, 3).map((event, i) => (
                     <p key={`${event.created_at}-${i}`} className="mt-2 text-sm text-dark-300">
-                      {event.created_at} · {event.action} · {event.outcome}
+                      {event.created_at} · {event.summary || `${event.action} · ${event.outcome}`}
                     </p>
                   ))
                 ) : (
@@ -648,9 +613,14 @@ export default function ArcNodeDetail() {
             <section className="grid gap-4 xl:grid-cols-2">
               <div className="rounded-2xl border border-dark-700 bg-dark-800/50 p-5">
                 <h2 className="mb-4 font-semibold text-dark-100">Нагрузка и запас</h2>
+                <div className="mb-5 grid grid-cols-2 gap-4">
+                  <div><p className="text-sm text-dark-400">Людей сейчас</p><p className="mt-2 text-3xl font-semibold text-dark-100">{node?.users_online ?? '—'}</p></div>
+                  <div><p className="text-sm text-dark-400">Ещё комфортно разместить</p><p className="mt-2 text-xl font-semibold text-dark-100">Оценка не готова</p></div>
+                </div>
+                <p className="mb-4 text-sm text-dark-400">Для оценки свободных мест нужны подтверждённая ёмкость канала и наблюдения за расходом на одного человека.</p>
+                <details><summary className="mb-3 cursor-pointer text-sm text-primary-300">Как рассчитывается запас</summary>
                 <dl className="space-y-3 text-sm">
                   {[
-                    ['Людей сейчас', node?.users_online ?? '—'],
                     ['Наблюдаемый p95 сети ↓', speed(rx95)],
                     ['Наблюдаемый p95 сети ↑', speed(tx95)],
                     [
@@ -679,7 +649,7 @@ export default function ArcNodeDetail() {
                       <dd className="text-right font-medium text-dark-100">{value}</dd>
                     </div>
                   ))}
-                </dl>
+                </dl></details>
                 <p className="mt-4 text-xs text-dark-400">
                   Настроенный порт: {configuredMbps ? `${configuredMbps} Мбит/с` : 'не указан'}. Он
                   не заменяет проверенный замер. Оценка пользователей появится после наблюдения за
@@ -834,7 +804,7 @@ export default function ArcNodeDetail() {
                       className="flex flex-wrap justify-between gap-2 rounded-lg bg-dark-900/60 p-3 text-sm"
                     >
                       <span className="text-dark-200">
-                        {event.action} · {event.outcome}
+                        {event.summary || `${event.action} · ${event.outcome}`}
                       </span>
                       <time className="text-dark-400">{event.created_at}</time>
                     </div>
@@ -848,7 +818,7 @@ export default function ArcNodeDetail() {
           {tab === 'availability' && isLte && (
             <section className="rounded-2xl border border-dark-700 bg-dark-800/50 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <h2 className="font-semibold text-dark-100">LTE / SDN · мобильные операторы</h2>
+                <h2 className="font-semibold text-dark-100">Доступность CDN · мобильные операторы</h2>
                 {!import.meta.env.DEV && (
                   <button type="button" onClick={runAllOperators} disabled={operatorRunBaseline !== null}
                     className="inline-flex items-center gap-2 rounded-xl border border-primary-500/40 bg-primary-500/10 px-3 py-2 text-sm font-medium text-primary-300 transition hover:bg-primary-500/20 disabled:cursor-wait disabled:opacity-50">
@@ -861,34 +831,38 @@ export default function ArcNodeDetail() {
                 Один автоматический запуск проверяет VPN-ключ во всех доступных сетях утром, днём и вечером.
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
+              <p className="mt-2 text-xs text-dark-400">
+                Точки LatencyLab: {operatorNetwork?.regions.map((region) => region.name).join(', ') || 'статус провайдера недоступен'}.
+                {operatorNetwork?.regions.length === 1 && ' Других активных регионов у провайдера сейчас нет.'}
+              </p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {Object.entries(operatorNames).map(([code, name]) => {
                   const latestProbe = operatorProbes.find((probe) => probe.operator === code);
+                  const operatorOffline = operatorNetwork?.operators.find((item) => item.id === code)?.online === false;
                   const tunnel = latestProbe?.test_kind === 'client_tunnel';
                   return (
                     <article
                       key={code}
                       className="rounded-xl border border-dark-700 bg-dark-900/50 p-4"
                     >
-                      <div className="flex items-center gap-2">
-                        <OperatorMark code={code} />
-                        <b className="text-sm text-dark-100">{name}</b>
+                      <div className="inline-flex h-11 items-center rounded-lg bg-white px-3">
+                        <OperatorMark code={code} name={name} />
                       </div>
                       <strong
-                        className={`mt-3 block text-sm ${latestProbe?.outcome === 'ok' && tunnel ? 'text-success-400' : latestProbe?.outcome === 'failed' && tunnel ? 'text-error-400' : 'text-dark-400'}`}
+                        className={`mt-3 block text-sm ${latestProbe?.outcome === 'ok' && tunnel && !operatorOffline ? 'text-success-400' : latestProbe?.outcome === 'failed' && tunnel && !operatorOffline ? 'text-error-400' : 'text-dark-400'}`}
                       >
-                        {latestProbe
+                        {operatorOffline ? 'Оператор офлайн в LatencyLab' : latestProbe
                           ? tunnel
                             ? latestProbe.outcome === 'ok'
                               ? 'VPN подключился'
                               : latestProbe.outcome === 'failed'
                                 ? 'VPN не подключился'
-                                : 'Нет данных'
+                                : latestProbe.reason === 'operator_offline' ? 'Оператор офлайн в LatencyLab' : 'Нет данных'
                             : 'Нет проверки VPN-ключа'
                           : 'Нет проверок'}
                       </strong>
                       <p className="mt-1 text-xs text-dark-400">
-                        {latestProbe
+                        {operatorOffline ? 'Проверка недоступна у провайдера' : latestProbe
                           ? 'VPN-ключ · условия ограничений не подтверждены'
                           : 'Ожидаются данные оператора'}
                       </p>

@@ -4941,6 +4941,36 @@ def api_admin_lte_probe_run():
         return _api_error("lte_probe_start_failed", 503)
 
 
+_OPERATOR_NETWORK_CACHE: Dict[str, Any] = {}
+
+
+@app.route('/api/admin/nodes/operator-network-status', methods=['GET'])
+def api_admin_operator_network_status():
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    cached = _OPERATOR_NETWORK_CACHE
+    if cached and time.monotonic() - cached.get("cached_at", 0) < 60:
+        return _api_no_store(jsonify(cached["payload"]))
+    try:
+        from pathlib import Path
+        from monitoring.latencylab_client import Client, OPERATORS
+        client = Client(Path("/etc/arcvpn/latencylab.key").read_text().strip())
+        online = client.operators()
+        health = client.request("GET", "/api/lab/health")
+        regions = health.get("agents_online") or []
+        payload = {"ok": True, "provider": "latencylab",
+            "operators": [{"id": "t_mobile" if code == "tmobile" else code,
+                           "online": code in online} for code in OPERATORS],
+            "regions": [{"id": region, "name": "Орёл" if region == "orel" else region}
+                        for region in regions if isinstance(region, str)],
+            "checked_at": datetime.now(timezone.utc).isoformat()}
+        _OPERATOR_NETWORK_CACHE.update({"cached_at": time.monotonic(), "payload": payload})
+        return _api_no_store(jsonify(payload))
+    except Exception:
+        logger.warning("Operator provider metadata unavailable")
+        return _api_error("operator_provider_unavailable", 503)
+
+
 @app.route('/api/admin/nodes/availability', methods=['GET'])
 @app.route('/api/admin/nodes/uptime-history', methods=['GET'])
 def api_admin_node_availability():
@@ -4972,13 +5002,31 @@ def api_admin_node_events():
         return _api_error("invalid_node_host", 400)
     try:
         with get_db() as conn:
-            diagnostics = conn.execute("""SELECT ok,created_at FROM node_diagnostic_runs
+            diagnostics = conn.execute("""SELECT ok,created_at,result_json FROM node_diagnostic_runs
                 WHERE host=? ORDER BY id DESC LIMIT 30""", (host,)).fetchall()
             audit = conn.execute("""SELECT action,outcome,created_at FROM admin_audit_events
                 WHERE target_id=? AND target_type IN ('node','ssh_target')
+                AND action <> 'node.diagnostic'
                 ORDER BY id DESC LIMIT 50""", (host,)).fetchall()
-        events = [{"action": "node.diagnostic", "outcome": "success" if row["ok"] else "failed",
-                   "created_at": row["created_at"]} for row in diagnostics]
+        events = []
+        for row in diagnostics:
+            try:
+                result = json.loads(row["result_json"] or "{}")
+            except (ValueError, TypeError):
+                result = {}
+            ports = result.get("ports", []) if isinstance(result, dict) else []
+            checks = [item for item in ports if isinstance(item, dict)
+                      and isinstance(item.get("port"), int) and 1 <= item["port"] <= 65535]
+            if not checks:
+                continue  # Empty diagnostics are not evidence of a node failure.
+            details = []
+            for item in checks:
+                state = "отвечает" if item.get("ok") else "не отвечает"
+                latency = item.get("latency_p50_ms")
+                suffix = f", {latency:.0f} мс" if isinstance(latency, (int, float)) else ""
+                details.append(f"TCP {item['port']}: {state}{suffix}")
+            events.append({"action": "node.diagnostic", "outcome": "success" if row["ok"] else "failed",
+                           "created_at": row["created_at"], "summary": "; ".join(details)})
         events += [dict(row) for row in audit]
         events.sort(key=lambda event: event["created_at"], reverse=True)
         return _api_no_store(jsonify({"ok": True, "host": host, "events": events[:50]}))

@@ -114,7 +114,8 @@ async def run(*, client: Client | None = None, links: dict[str, str] | None = No
                 rows = {}
             for operator in OPERATORS:
                 row = rows.get(operator)
-                reason = None if row is not None else "operator_unavailable_or_job_incomplete"
+                reason = ("operator_offline" if operator not in online else
+                          "provider_result_missing" if row is None else None)
                 latency = row.get("latency_ms") if row else None
                 attempt = Attempt(
                     operator={"tmobile": "t_mobile"}.get(operator, operator),

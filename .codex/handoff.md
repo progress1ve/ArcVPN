@@ -166,3 +166,7 @@ the page polls the history for the new batch. Commit 64c0725 is deployed;
 the authenticated production browser showed the button and the expected
 cooldown message without submitting another provider job. Unauthenticated
 POST returned 403. Build and full Python suite (313 passed) are complete.
+
+## Owner UI correction — 2026-10-01
+
+Current isolated checkout adds downloaded operator brand SVGs (sources.json), live provider offline/region metadata, CDN terminology, visible back-to-node-list, hides unobserved uptime bins, prioritizes people in Load and shows sanitized TCP port facts in logs instead of empty failed diagnostics. Python suite: 315 passed; React build passed. Broad owner acceptance remains open: balancer/subscription editor, LTE/bridge service creation, original Multitest queue/history and calibrated comfortable-user capacity are not implemented. Provider currently reports only Orel; do not invent regions or restricted-period proof. Primary owner checkout untouched.

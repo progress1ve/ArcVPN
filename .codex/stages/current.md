@@ -7,6 +7,8 @@ The parallel ordinary/LTE traffic slice has its own acceptance and evidence in
 
 Goal: truthful per-node detail, load/headroom alerts, Russian-city Multitest runs with history/comparison, and safe new-node onboarding from IP and credentials.
 
+Owner review 2026-10-01: SDN means CDN. Replace handmade operator marks with downloaded brand vectors; explicitly distinguish provider-side offline operators. Hide unobserved uptime intervals and reserve gray for failed checks, without claiming unobserved time healthy. Add a visible return-to-nodes action, rename Performance to Load and Availability to CDN availability. Load prioritizes current people and estimated additional comfortable people with an explicit calibrated assumption. Replace squads with actual subscription/balancer management (order, names, members, strategy, fallback and allocation weights); node services need LTE/bridge change planning and safe implementation. Expose original Multitest jobs/history/logs. Other LatencyLab regions are allowed only when its health API reports actual agents. Preserve current routing until an exact preview of a topology change is accepted.
+
 Non-goals: silently publish a node, alter existing URLs/UUIDs or active routes, run benchmarks or provisioning on production nodes during development.
 
 Components: `admin_webapp` React, `subscription_api.py`, database migrations and monitoring; bounded worker for heavy jobs. Existing Svelte admin is not the live `/admin/remnawave` surface and is not migrated.

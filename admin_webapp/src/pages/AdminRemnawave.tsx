@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import ArcNodePreflight from './ArcNodePreflight';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
@@ -1403,7 +1403,8 @@ export default function AdminRemnawave() {
   const { capabilities } = usePlatform();
 
   // State
-  const [activeTab, setActiveTab] = useState<TabType>('overview');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<TabType>(searchParams.get('tab') === 'nodes' ? 'nodes' : 'overview');
   const [syncResults, setSyncResults] = useState<
     Record<string, { success: boolean; message?: string } | null>
   >({});
@@ -1634,7 +1635,7 @@ export default function AdminRemnawave() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => { setActiveTab(tab.id); setSearchParams({ tab: tab.id }, { replace: true }); }}
             className={`flex min-w-[80px] flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.id
                 ? 'bg-accent-500/20 text-accent-400'
