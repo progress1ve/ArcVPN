@@ -154,5 +154,8 @@ is deployed. The first real scan completed on both nodes: T-Mobile, MegaFon, MTS
 T2 connected; Beeline was offline at LatencyLab and is recorded unknown. The
 systemd timer is active for 07/13/19 MSK, with a small random delay. No Telegram
 alert fired on this healthy first cycle. No node topology or subscription URL
-changes are involved. A UI correction now displays tunnel outcomes independently
-from restriction evidence; its follow-up deployment and browser check are pending.
+changes are involved. The UI correction at 3190ec5 was deployed and verified in
+the authenticated production browser: four "VPN подключился" cards, Beeline
+"Нет данных", Moscow-localized times and an explicit unconfirmed restriction
+notice. An actual restricted/whitelist window and Telegram failure/recovery
+delivery have not been observed; do not claim those gates passed.
