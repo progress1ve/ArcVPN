@@ -162,5 +162,7 @@ delivery have not been observed; do not claim those gates passed.
 The final LTE UI adds one manual "Проверить все сети" action for both EE/FI
 and all currently online operators. Its admin POST uses the existing role,
 an exact Origin allowlist, a 15-minute cooldown, and a fixed systemd unit;
-the page polls the history for the new batch. Build and full Python suite
-(313 passed) are complete; deploy/browser verification is pending.
+the page polls the history for the new batch. Commit 64c0725 is deployed;
+the authenticated production browser showed the button and the expected
+cooldown message without submitting another provider job. Unauthenticated
+POST returned 403. Build and full Python suite (313 passed) are complete.
