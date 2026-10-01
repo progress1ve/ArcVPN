@@ -1,5 +1,6 @@
 from monitoring.node_capacity import summarize
 from datetime import datetime, timedelta, timezone
+from monitoring.node_capacity import network_user_estimate
 
 
 def _samples(count, rx_mbps=20, tx_mbps=10, cpu=20):
@@ -18,6 +19,17 @@ def test_capacity_stays_unknown_without_verified_measurement_or_coverage():
     too_few = summarize(_samples(3), {"rx": 100, "tx": 100}, "24h")
     assert not too_few["coverage_ok"]
     assert too_few["network"]["rx"]["headroom_pct"] is None
+
+
+def test_network_scenario_is_explicit_and_reserves_capacity():
+    summary=summarize(_samples(80,tx_mbps=10),{},'24h')
+    benchmark=[{'city':str(i),'valid':True,'receiver_mbps':100} for i in range(5)]
+    estimate=network_user_estimate(summary,benchmark,10)
+    assert estimate['additional_users']==6
+    assert not estimate['verified_user_capacity']
+    assert network_user_estimate(summary,benchmark[:-1],10) is None
+    high=summarize(_samples(80,cpu=90),{},'24h')
+    assert network_user_estimate(high,benchmark,10)['additional_users']==0
 
 
 def test_sustained_high_load_warns_only_with_sufficient_long_window():

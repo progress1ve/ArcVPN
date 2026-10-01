@@ -5110,11 +5110,17 @@ def api_admin_node_capacity():
         return _api_error("admin_forbidden", 403)
     host = _clean_text(request.args.get("host"), 255).strip().lower()
     period = str(request.args.get("range") or "24h")
+    try:
+        demand_mbps = float(request.args.get("demand_mbps", "10"))
+    except ValueError:
+        return _api_error("invalid_user_demand",400)
+    if not 1 <= demand_mbps <= 100:
+        return _api_error("invalid_user_demand",400)
     windows = {"15m": "-15 minutes", "1h": "-1 hour", "6h": "-6 hours", "24h": "-24 hours", "7d": "-7 days"}
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host) or period not in windows:
         return _api_error("invalid_capacity_query", 400)
     try:
-        from monitoring.node_capacity import summarize
+        from monitoring.node_capacity import summarize, network_user_estimate
         with get_db() as conn:
             rows = conn.execute("""SELECT sampled_at,cpu_pct,mem_pct,net_rx_bps,net_tx_bps
                 FROM server_health_samples WHERE host=? AND source='agent'
@@ -5124,6 +5130,10 @@ def api_admin_node_capacity():
                 FROM node_capacity_measurements WHERE node_host=?
                 AND verified_at>=datetime('now','-30 days')
                 ORDER BY verified_at DESC LIMIT 20""", (host,)).fetchall()
+            try:
+                benchmark = conn.execute("SELECT output FROM node_benchmark_jobs WHERE host=? AND status='completed' AND created_at>datetime('now','-7 days') ORDER BY created_at DESC LIMIT 1",(host,)).fetchone()
+            except sqlite3.OperationalError:
+                benchmark = None
         latest = {}
         evidence = {}
         for row in capacities:
@@ -5131,6 +5141,14 @@ def api_admin_node_capacity():
                 latest[row["direction"]] = float(row["capacity_mbps"])
                 evidence[row["direction"]] = {"method": row["method"], "tested_at": row["tested_at"]}
         summary = summarize([dict(row) for row in rows], latest, period)
+        estimate = None
+        if benchmark and rows:
+            from monitoring.benchmark_jobs import results
+            sampled = datetime.fromisoformat(str(rows[0]["sampled_at"]).replace("Z","+00:00"))
+            age = (datetime.now(timezone.utc) - sampled.replace(tzinfo=timezone.utc)).total_seconds()
+            if 0 <= age < 180:
+                estimate = network_user_estimate(summary,results(benchmark["output"]),demand_mbps)
+        summary["network_user_estimate"] = estimate
         return _api_no_store(jsonify({"ok": True, "host": host, "capacity_evidence": evidence, **summary}))
     except sqlite3.Error:
         logger.exception("Admin node capacity query failed")
@@ -5303,7 +5321,7 @@ def api_admin_backups():
 
 @app.route('/api/admin/nodes/benchmarks', methods=['GET', 'POST'])
 def api_admin_node_benchmarks():
-    from monitoring.benchmark_jobs import schema, enqueue
+    from monitoring.benchmark_jobs import schema, enqueue, results
     if not _admin_authorized("nodes.diagnose"):
         return _api_error("admin_forbidden", 403)
     host = _clean_text(request.args.get("host"), 255)
@@ -5327,6 +5345,8 @@ def api_admin_node_benchmarks():
             else:
                 return _api_error("invalid_action",400)
         jobs = [dict(row) for row in conn.execute("SELECT * FROM node_benchmark_jobs WHERE host=? ORDER BY created_at DESC LIMIT 20",(host,))]
+        for job in jobs:
+            job["results"] = results(job["output"])
         agent = conn.execute("SELECT last_seen FROM node_benchmark_agents WHERE host=? AND last_seen>datetime('now','-5 minutes')",(host,)).fetchone()
     return _api_no_store(jsonify({"ok":True,"jobs":jobs,"agent_last_seen":agent["last_seen"] if agent else None}))
 

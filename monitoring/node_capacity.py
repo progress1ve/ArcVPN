@@ -56,3 +56,21 @@ def summarize(samples: list[dict], capacity: dict[str, float | None], period: st
             "p95": {key: round(value, 2) if value is not None else None for key, value in p95.items()},
             "network": network, "warnings": warnings,
             "additional_users": None, "additional_users_reason": "missing_historical_per_user_demand"}
+
+
+def network_user_estimate(summary: dict, benchmark: list[dict], demand_mbps: float) -> dict | None:
+    """Explicit network-only scenario, never a confirmed comfortable-user limit."""
+    if not summary["coverage_ok"] or len(benchmark) != 5 or len({row.get('city') for row in benchmark}) != 5 or any(not row.get("valid") for row in benchmark):
+        return None
+    if not math.isfinite(demand_mbps) or not 1 <= demand_mbps <= 100:
+        raise ValueError("invalid_demand")
+    observed = summary["network"]["tx"]["observed_p95_mbps"]
+    cpu, memory = summary['p95']['cpu_pct'], summary['p95']['mem_pct']
+    if observed is None or cpu is None or memory is None:
+        return None
+    measured = min(row['receiver_mbps'] for row in benchmark)
+    spare = max(0, measured * .7 - observed)
+    additional = math.floor(spare / demand_mbps) if cpu < 85 and memory < 90 else 0
+    return {"additional_users":additional,"assumed_mbps_per_user":demand_mbps,
+            "reserve_pct":30,"measured_floor_mbps":measured,"observed_p95_mbps":observed,
+            "scope":"node_to_russia_network_only","verified_user_capacity":False}

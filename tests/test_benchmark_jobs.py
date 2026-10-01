@@ -42,3 +42,12 @@ def test_agent_token_cannot_claim_another_node(tmp_path,monkeypatch):
     response=client.post('/api/internal/benchmark-agent',json={'host':'87.251.19.197','action':'claim'},headers={'Authorization':'Bearer test-node-token'})
     assert response.status_code==200
     assert response.get_json()['job'] is None
+
+
+def test_parser_preserves_fallback_and_invalid_receiver():
+    from monitoring.benchmark_jobs import results
+    rows=results('Moscow             990.0 Mbps     995.0 Mbps     20 ms\nTver (F)           0.0 Mbps       88.0 Mbps      N/A ms\n')
+    assert len(rows)==2
+    assert rows[0]['receiver_mbps']==990
+    assert rows[1]['fallback'] and not rows[1]['valid']
+    assert rows[1]['ping_ms'] is None

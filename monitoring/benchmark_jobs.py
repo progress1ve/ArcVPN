@@ -1,5 +1,6 @@
 """Durable bounded original Multitest RU module jobs."""
 import hashlib
+import math
 import re
 import secrets
 from datetime import datetime, timezone
@@ -42,3 +43,15 @@ def clean_output(value):
 
 def token_hash(token):
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+def results(output):
+    cities = 'Moscow|Saint Petersburg|Nizhny Novgorod|Chelyabinsk|Tyumen|Tver|Yaroslavl|Magnitogorsk|Krasnoyarsk'
+    pattern = rf'^\s*({cities})(\s+\(F\))?\s+([\d.]+) Mbps\s+([\d.]+) Mbps\s+([\d.]+|N/A) ms\s*$'
+    rows = []
+    for match in re.finditer(pattern,clean_output(output),re.MULTILINE):
+        receiver,sender=float(match[3]),float(match[4])
+        rows.append({'city':match[1],'fallback':bool(match[2]),'receiver_mbps':receiver,
+                     'sender_mbps':sender,'ping_ms':None if match[5]=='N/A' else float(match[5]),
+                     'valid':math.isfinite(receiver) and math.isfinite(sender) and receiver>0 and sender>0})
+    return rows
