@@ -6538,11 +6538,17 @@ def api_admin_traffic_retained_total():
     if not _admin_authorized("overview.read"):
         return _api_error("admin_forbidden",403)
     with get_db() as conn:
-        row=conn.execute("""SELECT
-          COALESCE((SELECT SUM(MAX(0,COALESCE(traffic_used,0))) FROM vpn_keys),0) main,
-          COALESCE((SELECT SUM(MAX(0,COALESCE(lte_used_bytes,0))) FROM users),0) lte""").fetchone()
-    return _api_no_store(jsonify({"ok":True,"main":row['main'],"lte":row['lte'],
-        "scope":"retained_counters","note":"Includes expired subscriptions; reset or deleted historical counters are unavailable"}))
+        row=conn.execute("SELECT substr(min(created_at),1,10) start FROM users").fetchone()
+    start=row['start'] or datetime.now(timezone.utc).date().isoformat()
+    end=datetime.now(timezone.utc).date().isoformat()
+    try:
+        from bot.services.remnawave_stats import get_remnawave_period_user_traffic
+        panel=ASYNC_EXECUTOR.run(get_remnawave_period_user_traffic(start,end),timeout=35)
+        totals={g:sum(panel['usage'][g].values()) for g in ('main','lte')}
+    except Exception:
+        return _api_error("historical_traffic_unavailable",503)
+    return _api_no_store(jsonify({"ok":True,**totals,"scope":"panel_historical_usage",
+        "start_date":start,"end_date":end}))
 
 
 @app.route('/api/admin/traffic/period', methods=['GET'])

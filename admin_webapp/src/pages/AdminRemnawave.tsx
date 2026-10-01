@@ -951,6 +951,7 @@ export default function AdminRemnawave() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
+            aria-label={tab.label}
             onClick={() => { setActiveTab(tab.id); setSearchParams({ tab: tab.id }, { replace: true }); }}
             className={`flex min-w-[80px] flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
               activeTab === tab.id
