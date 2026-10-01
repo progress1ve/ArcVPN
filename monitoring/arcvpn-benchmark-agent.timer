@@ -1,0 +1,11 @@
+[Unit]
+Description=Poll ArcVPN benchmark queue
+
+[Timer]
+OnBootSec=60
+OnUnitInactiveSec=30
+AccuracySec=5
+Unit=arcvpn-benchmark-agent.service
+
+[Install]
+WantedBy=timers.target

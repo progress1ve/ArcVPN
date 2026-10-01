@@ -395,6 +395,14 @@ def _subscription_inbound_order(name: str) -> int:
     )
 
 
+def _catalog_source_name(name: str) -> str:
+    normalized = _subscription_source_name(re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", name))
+    for source, override in _catalog_overrides().items():
+        if normalized == _subscription_source_name(str(override.get("display_name") or "")):
+            return source
+    return normalized
+
+
 def _subscription_display_name(name: str) -> str:
     """Keep the expensive LTE route explicit in every client UI."""
     value = str(name or "")
@@ -425,7 +433,7 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
             result.append((_subscription_link_order(link), link))
             continue
         raw_name = urllib.parse.unquote(link.rsplit("#", 1)[-1])
-        source_name = _subscription_source_name(raw_name)
+        source_name = _catalog_source_name(raw_name)
         normalized_link = urllib.parse.unquote(link).lower()
         endpoint = (urllib.parse.urlsplit(link).hostname or "").lower()
         if endpoint == "fin.arccnet.space" and urllib.parse.parse_qs(
@@ -476,7 +484,7 @@ def _expand_lte_profile_links(links: list[str]) -> list[str]:
         source = sources[index % len(sources)].rsplit("#", 1)[0]
         label = BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
         expanded.append(source + "#" + urllib.parse.quote(label, safe=""))
-    return [*main, *expanded]
+    return _apply_subscription_catalog([*main, *expanded])
 
 
 def _with_temporary_location_aliases(links: list[str]) -> list[str]:
@@ -490,6 +498,7 @@ def _with_temporary_location_aliases(links: list[str]) -> list[str]:
         if urllib.parse.urlsplit(link).scheme.lower() != "vless":
             continue
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else ""
+        name = _catalog_source_name(name)
         if _is_lte_subscription_link(link) or "Ютуб без рекламы" in name:
             continue
         for country in ("Германия", "Эстония", "Финляндия"):
@@ -506,6 +515,9 @@ def _with_temporary_location_aliases(links: list[str]) -> list[str]:
 def _subscription_link_order(link: str) -> tuple[int, int, str]:
     """Stable customer-facing order shared by native and fallback catalogs."""
     name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else link
+    override = _catalog_overrides().get(_catalog_source_name(name))
+    if override:
+        return (int(override["sort_order"]), 1, name)
     number_match = re.search(r"#\s*([1-9][0-9]*)", name)
     protocol_order = int(number_match.group(1)) if number_match else (
         1 if urllib.parse.urlsplit(link).scheme.lower() == "vless" else 99
@@ -1646,6 +1658,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     lte_outbounds: list[Dict[str, Any]] = []
     for index, link in enumerate(links, start=1):
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else f"ArcVPN #{index}"
+        canonical_name = _catalog_source_name(name)
+        if canonical_name in _catalog_overrides():
+            name = canonical_name
         outbound = _json_outbound_from_share_link(link, "proxy")
         if outbound is None:
             continue
@@ -1828,7 +1843,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         }[country]
         candidates = [
             profile for profile in normal_profiles
-            if any(alias in str(profile.get("remarks") or "") for alias in aliases)
+            if any(alias in _catalog_source_name(str(profile.get("remarks") or "")) for alias in aliases)
             and "Ютуб без рекламы" not in str(profile.get("remarks") or "")
         ]
         protocol_rank = {"vless": 0, "hysteria": 1}
@@ -1887,6 +1902,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *visible_country("Нидерланды"),
         *visible_country("Швеция"),
     ]
+    if _catalog_overrides():
+        visible_main.sort(key=lambda profile: _subscription_inbound_order(_catalog_source_name(str(profile.get("remarks") or ""))))
     fallback_lte_profiles = []
     if lte_outbounds:
         for index in range(5):
@@ -1895,8 +1912,18 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
             )
             fallback_lte_profiles.append(profile)
+    from monitoring.subscription_balancers import apply as apply_balancers
+    try:
+        balancer_policy = json.loads(get_setting("subscription_balancers_live", "[]") or "[]")
+    except (ValueError, sqlite3.Error):
+        balancer_policy = []
+    member_addresses = {}
+    for country, outbound in auto_country_outbounds.items():
+        peers = (outbound.get("settings") or {}).get("vnext") or []
+        if country in {"fi", "ee"} and peers:
+            member_addresses[country] = {str(peers[0].get("address") or "").lower()}
     return json.dumps(
-        [auto_profile, *visible_main, *fallback_lte_profiles],
+        apply_balancers([auto_profile, *visible_main, *fallback_lte_profiles], balancer_policy, member_addresses, key.telegram_id),
         ensure_ascii=False,
         separators=(",", ":"),
     )
@@ -5016,7 +5043,8 @@ def api_admin_node_events():
                 result = {}
             ports = result.get("ports", []) if isinstance(result, dict) else []
             checks = [item for item in ports if isinstance(item, dict)
-                      and isinstance(item.get("port"), int) and 1 <= item["port"] <= 65535]
+                      and isinstance(item.get("port"), int) and 1 <= item["port"] <= 65535
+                      and item["port"] != 2443]
             if not checks:
                 continue  # Empty diagnostics are not evidence of a node failure.
             details = []
@@ -5254,6 +5282,114 @@ def api_admin_backups():
     return _api_no_store(jsonify({"ok": True, "backups": files[:50]}))
 
 
+@app.route('/api/admin/nodes/benchmarks', methods=['GET', 'POST'])
+def api_admin_node_benchmarks():
+    from monitoring.benchmark_jobs import schema, enqueue
+    if not _admin_authorized("nodes.diagnose"):
+        return _api_error("admin_forbidden", 403)
+    host = _clean_text(request.args.get("host"), 255)
+    with get_db() as conn:
+        schema(conn)
+        if request.method == "POST":
+            if request.headers.get("Origin", "") not in {"https://arccnet.space", "https://www.arccnet.space"}:
+                return _api_error("invalid_origin", 403)
+            payload = request.get_json(silent=True) or {}
+            host = _clean_text(payload.get("host"), 255)
+            if payload.get("action") == "cancel":
+                conn.execute("UPDATE node_benchmark_jobs SET status=CASE WHEN status='queued' THEN 'cancelled' ELSE 'cancelling' END WHERE id=? AND host=? AND status IN ('queued','running')", (payload.get("id"),host))
+            elif payload.get("action") == "run":
+                agent = conn.execute("SELECT last_seen FROM node_benchmark_agents WHERE host=? AND last_seen>datetime('now','-5 minutes')", (host,)).fetchone()
+                if not agent or not agent["last_seen"]:
+                    return _api_error("benchmark_agent_unavailable", 409)
+                try:
+                    enqueue(conn,host)
+                except ValueError as exc:
+                    return _api_error(str(exc),409)
+            else:
+                return _api_error("invalid_action",400)
+        jobs = [dict(row) for row in conn.execute("SELECT * FROM node_benchmark_jobs WHERE host=? ORDER BY created_at DESC LIMIT 20",(host,))]
+        agent = conn.execute("SELECT last_seen FROM node_benchmark_agents WHERE host=? AND last_seen>datetime('now','-5 minutes')",(host,)).fetchone()
+    return _api_no_store(jsonify({"ok":True,"jobs":jobs,"agent_last_seen":agent["last_seen"] if agent else None}))
+
+
+@app.route('/api/internal/benchmark-agent', methods=['POST'])
+def api_internal_benchmark_agent():
+    from monitoring.benchmark_jobs import schema, token_hash, now, clean_output
+    payload = request.get_json(silent=True) or {}
+    host = _clean_text(payload.get("host"),255)
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ")
+    with get_db() as conn:
+        schema(conn)
+        agent = conn.execute("SELECT token_hash FROM node_benchmark_agents WHERE host=?",(host,)).fetchone()
+        if not agent or not hmac.compare_digest(token_hash(token),agent["token_hash"]):
+            return _api_error("agent_forbidden",403)
+        conn.execute("UPDATE node_benchmark_agents SET last_seen=? WHERE host=?",(now(),host))
+        if payload.get("action") == "claim":
+            # Serialized claim is a single compare-and-set update; no duplicate execution.
+            conn.execute("UPDATE node_benchmark_jobs SET status='failed' WHERE host=? AND status IN ('running','cancelling') AND updated_at<datetime('now','-20 minutes')",(host,))
+            if conn.execute("SELECT 1 FROM node_benchmark_jobs WHERE host=? AND status IN ('running','cancelling')",(host,)).fetchone():
+                return jsonify({"ok":True,"job":None})
+            job = conn.execute("SELECT id FROM node_benchmark_jobs WHERE host=? AND status='queued' ORDER BY created_at LIMIT 1",(host,)).fetchone()
+            if job:
+                changed = conn.execute("UPDATE node_benchmark_jobs SET status='running',started_at=?,updated_at=? WHERE id=? AND status='queued'",(now(),now(),job["id"])).rowcount
+                return jsonify({"ok":True,"job":{"id":job["id"]} if changed else None})
+            return jsonify({"ok":True,"job":None})
+        job = conn.execute("SELECT status FROM node_benchmark_jobs WHERE id=? AND host=?",(payload.get("id"),host)).fetchone()
+        if not job:
+            return _api_error("job_missing",404)
+        status = payload.get("status")
+        if status not in {"running","failed","completed","cancelled"}:
+            return _api_error("invalid_status",400)
+        cancel = job["status"] == 'cancelling'
+        if job["status"] in {'running','cancelling'}:
+            conn.execute("UPDATE node_benchmark_jobs SET status=?,updated_at=?,output=?,exit_code=? WHERE id=? AND host=?",('cancelling' if cancel and status=='running' else status,now(),clean_output(payload.get('output','')),payload.get('exit_code'),payload.get('id'),host))
+    return jsonify({"ok":True,"cancel":cancel})
+
+
+@app.route('/api/admin/subscription-balancers', methods=['GET', 'POST'])
+def api_admin_subscription_balancers():
+    from monitoring.subscription_balancers import defaults, digest, validate
+    from database.db_settings import set_setting
+    if not _admin_authorized("catalog.manage"):
+        return _api_error("admin_forbidden", 403)
+    live = json.loads(get_setting("subscription_balancers_live", "[]") or "[]")
+    revision = digest(live)
+    if request.method == "GET":
+        draft = json.loads(get_setting("subscription_balancers_draft", "null") or "null")
+        return _api_no_store(jsonify({"ok": True, "live": live, "draft": draft,
+                                     "defaults": defaults(), "revision": revision}))
+    if request.headers.get("Origin", "") not in {"https://arccnet.space", "https://www.arccnet.space",
+                                                 "http://127.0.0.1:5173", "http://localhost:5173"}:
+        return _api_error("invalid_origin", 403)
+    payload = request.get_json(silent=True) or {}
+    try:
+        policy = validate(payload.get("balancers"))
+    except (ValueError, TypeError):
+        return _api_error("invalid_balancer_policy", 400)
+    action = payload.get("action")
+    if action not in {"draft", "preview", "publish"}:
+        return _api_error("invalid_action", 400)
+    fingerprint = digest(policy)
+    if action == "publish":
+        if payload.get("revision") != revision or payload.get("preview_hash") != fingerprint:
+            return _api_error("preview_outdated", 409)
+        with get_db() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            current = conn.execute("SELECT value FROM settings WHERE key='subscription_balancers_live'").fetchone()
+            current_policy = json.loads(current["value"]) if current else []
+            if digest(current_policy) != revision:
+                return _api_error("preview_outdated",409)
+            conn.execute("INSERT INTO settings(key,value) VALUES('subscription_balancers_live',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+                         (json.dumps(policy,ensure_ascii=False),))
+        _append_admin_audit_best_effort("balancers.publish", "success", target_type="subscription_catalog",
+                                      metadata={"count": len(policy), "revision": fingerprint})
+    elif action == "draft":
+        set_setting("subscription_balancers_draft", json.dumps(policy, ensure_ascii=False))
+    return _api_no_store(jsonify({"ok": True, "balancers": policy, "preview_hash": fingerprint,
+                                 "revision": fingerprint if action == "publish" else revision,
+                                 "impact": "Happ JSON: generated profiles replaced in displayed order; manual locations, URLs and UUIDs unchanged"}))
+
+
 @app.route('/api/admin/subscription-catalog', methods=['GET', 'PATCH'])
 def api_admin_subscription_catalog():
     permission = "catalog.manage" if request.method == "PATCH" else "overview.read"
@@ -5268,20 +5404,24 @@ def api_admin_subscription_catalog():
     ]
     allowed_sources = set(defaults)
     if request.method == "PATCH":
+        if request.headers.get("Origin", "") not in {"https://arccnet.space", "https://www.arccnet.space"}:
+            return _api_error("invalid_origin",403)
         payload = request.get_json(silent=True) or {}
         profiles = payload.get("profiles")
         if not isinstance(profiles, list) or not 1 <= len(profiles) <= 100:
             return _api_error("invalid_profiles", 400)
         parsed = []
         seen = set()
+        display_names = set()
         for index, item in enumerate(profiles):
             if not isinstance(item, dict):
                 return _api_error("invalid_profile", 400)
             source = _subscription_source_name(_clean_text(item.get("source_name"), 120))
             display = _clean_text(item.get("display_name"), 120)
-            if not source or source not in allowed_sources or not display or source in seen:
+            if not source or source not in allowed_sources or not display or source in seen or display.casefold() in display_names:
                 return _api_error("invalid_profile", 400)
             seen.add(source)
+            display_names.add(display.casefold())
             parsed.append((
                 source,
                 re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", display).strip(),

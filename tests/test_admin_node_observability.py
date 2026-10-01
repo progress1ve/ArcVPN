@@ -15,7 +15,7 @@ def test_diagnostics_show_safe_port_facts_and_skip_empty_results(tmp_path, monke
     with sqlite3.connect(path) as conn:
         conn.execute("CREATE TABLE node_diagnostic_runs(id INTEGER PRIMARY KEY,host TEXT,ok INTEGER,created_at TEXT,result_json TEXT)")
         conn.execute("CREATE TABLE admin_audit_events(id INTEGER PRIMARY KEY,target_id TEXT,target_type TEXT,action TEXT,outcome TEXT,created_at TEXT)")
-        for result in ({"ports": []}, {"ports": [{"port": 443, "ok": True, "latency_p50_ms": 21}], "secret": "private-marker"}):
+        for result in ({"ports": []}, {"ports": [{"port": 443, "ok": True, "latency_p50_ms": 21}, {"port":2443,"ok":False}], "secret": "private-marker"}):
             conn.execute("INSERT INTO node_diagnostic_runs(host,ok,created_at,result_json) VALUES(?,?,?,?)",
                          ("203.0.113.9", 1, "2026-10-01 12:00:00", json.dumps(result)))
     def db():
@@ -31,6 +31,7 @@ def test_diagnostics_show_safe_port_facts_and_skip_empty_results(tmp_path, monke
     assert "TCP 443" in events[0]["summary"]
     assert "21" in events[0]["summary"]
     assert "private-marker" not in response.get_data(as_text=True)
+    assert "2443" not in response.get_data(as_text=True)
 
 
 def test_node_registry_exposes_roles_without_credential_alias(monkeypatch):

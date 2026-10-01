@@ -1,0 +1,98 @@
+import copy
+import pytest
+from monitoring.subscription_balancers import apply, defaults, digest, validate
+
+
+def template(name="Автовыбор"):
+    return {"remarks": name, "routing": {"rules": [], "balancers": [{"tag": "balancer_main", "selector": ["proxy-main"], "fallbackTag": "proxy-back-1", "strategy": {"type": "leastLoad", "settings": {}}}]},
+            "outbounds": [{"tag": "proxy-main-1", "settings": {"vnext": [{"address": "151.241.137.174", "users": [{"id": "private-identity"}]}]}},
+                          {"tag": "proxy-main-2", "settings": {"vnext": [{"address": "87.251.19.197"}]}}]}
+
+
+def test_no_policy_preserves_legacy_subscription():
+    original = [template()]
+    assert apply(original, []) is original
+
+
+def test_policy_preserves_credentials_and_manual_locations():
+    original = [template(), {"remarks": "Финляндия"}]
+    saved = copy.deepcopy(original)
+    policy = defaults()[:1]
+    policy[0].update(name="Мой выбор", members=["fi"], fallback="block", weights={"fi": 4})
+    result = apply(original, validate(policy))
+    assert original == saved
+    assert result[0]["remarks"] == "Мой выбор"
+    assert result[0]["outbounds"][0]["settings"]["vnext"][0]["users"][0]["id"] == "private-identity"
+    balancer = result[0]["routing"]["balancers"][0]
+    assert balancer["selector"] == ["proxy-main-1"]
+    assert balancer["fallbackTag"] == "block"
+    assert balancer["strategy"]["settings"]["costs"][0]["value"] == .25
+    assert result[-1] == {"remarks": "Финляндия"}
+
+
+def test_missing_selected_node_fails_closed():
+    source = template()
+    source["outbounds"] = source["outbounds"][:1]
+    result = apply([source], defaults()[:1])
+    assert result[0]["routing"]["balancers"][0]["fallbackTag"] == "block"
+
+
+@pytest.mark.parametrize("field,value", [("strategy", "shell"), ("members", []), ("members", ["unknown"]), ("weights", {"fi": -1}), ("name", "\ninvalid")])
+def test_invalid_policies_rejected(field, value):
+    policy = defaults()[:1]
+    policy[0][field] = value
+    with pytest.raises(ValueError):
+        validate(policy)
+
+
+def test_preview_digest_changes_when_route_changes():
+    policy = defaults()
+    old = digest(policy)
+    policy[0]["fallback"] = "block"
+    assert digest(policy) != old
+
+
+def test_weighted_users_are_sticky_and_keep_the_other_node_as_reserve():
+    policy=defaults()[:1]
+    policy[0].update(strategy='weightedUsers',weights={'fi':3,'ee':1})
+    counts={'proxy-main-1':0,'proxy-main-2':0}
+    for user in range(1000):
+        result=apply([template()],policy,user_id=user)[0]
+        primary=result['routing']['balancers'][0]
+        assert primary['selector']==apply([template()],policy,user_id=user)[0]['routing']['balancers'][0]['selector']
+        counts[primary['selector'][0]]+=1
+        assert primary['fallbackTag']=='policy-fallback'
+        reserve=result['routing']['balancers'][-1]
+        assert reserve['selector'][0]!=primary['selector'][0]
+        assert reserve['fallbackTag']=='proxy-back-1'
+    assert 680<counts['proxy-main-1']<820
+
+
+def test_publish_requires_current_preview_and_preserves_live_until_publish(tmp_path,monkeypatch):
+    import subscription_api as api
+    import sqlite3
+    import json
+    path=tmp_path/'policies.sqlite3'
+    with sqlite3.connect(path) as conn:
+        conn.execute('CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT)')
+    def db():
+        conn=sqlite3.connect(path);conn.row_factory=sqlite3.Row;return conn
+    def setting(key,default=None):
+        with db() as conn:
+            row=conn.execute('SELECT value FROM settings WHERE key=?',(key,)).fetchone()
+            return row['value'] if row else default
+    monkeypatch.setattr(api,'get_db',db)
+    monkeypatch.setattr(api,'get_setting',setting)
+    monkeypatch.setattr(api,'_admin_authorized',lambda permission:True)
+    monkeypatch.setattr(api,'_append_admin_audit_best_effort',lambda *args,**kwargs:None)
+    client=api.app.test_client()
+    policy=defaults()
+    headers={'Origin':'https://arccnet.space'}
+    preview=client.post('/api/admin/subscription-balancers',json={'action':'preview','balancers':policy},headers=headers).get_json()
+    assert setting('subscription_balancers_live') is None
+    rejected=client.post('/api/admin/subscription-balancers',json={'action':'publish','balancers':policy,'revision':preview['revision'],'preview_hash':'wrong'},headers=headers)
+    assert rejected.status_code==409
+    published=client.post('/api/admin/subscription-balancers',json={'action':'publish','balancers':policy,'revision':preview['revision'],'preview_hash':preview['preview_hash']},headers=headers)
+    assert published.status_code==200
+    assert json.loads(setting('subscription_balancers_live'))==policy
+    assert client.post('/api/admin/subscription-balancers',json={'action':'preview','balancers':policy},headers={'Origin':'https://other.example'}).status_code==403

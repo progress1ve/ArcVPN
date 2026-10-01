@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router';
+import ArcBenchmarks from './ArcBenchmarks';
 import {
   Area,
   AreaChart,
@@ -610,6 +611,7 @@ export default function ArcNodeDetail() {
             </>
           )}
           {tab === 'performance' && (
+            <>
             <section className="grid gap-4 xl:grid-cols-2">
               <div className="rounded-2xl border border-dark-700 bg-dark-800/50 p-5">
                 <h2 className="mb-4 font-semibold text-dark-100">Нагрузка и запас</h2>
@@ -671,6 +673,8 @@ export default function ArcNodeDetail() {
                 ) : null}
               </div>
             </section>
+            <ArcBenchmarks host={host} />
+            </>
           )}
           {tab === 'metrics' && (
             <>
@@ -876,14 +880,11 @@ export default function ArcNodeDetail() {
               {operatorProbes.length > 0 && (
                 <div className="mt-6 overflow-x-auto">
                   <h3 className="mb-2 text-sm font-semibold text-dark-100">Последние проверки</h3>
-                  <table className="w-full min-w-[640px] text-left text-xs">
+                  <table className="w-full text-left text-xs">
                     <thead className="text-dark-400">
                       <tr>
                         <th className="py-2">Время</th>
                         <th>Оператор</th>
-                        <th>Регион</th>
-                        <th>Проверка</th>
-                        <th>Условия</th>
                         <th>Результат</th>
                       </tr>
                     </thead>
@@ -895,13 +896,6 @@ export default function ArcNodeDetail() {
                         >
                           <td className="py-2">{operatorTime(probe.checked_at)}</td>
                           <td>{operatorNames[probe.operator] || probe.operator}</td>
-                          <td>{probe.region || '—'}</td>
-                          <td>{probe.test_kind}</td>
-                          <td>
-                            {probe.restriction_state === 'confirmed'
-                              ? 'Ограничения'
-                              : 'Не подтверждены'}
-                          </td>
                           <td>
                             {probe.outcome === 'ok'
                               ? 'Успех'

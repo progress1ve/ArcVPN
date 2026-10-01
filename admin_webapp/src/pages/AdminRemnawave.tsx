@@ -1,13 +1,13 @@
 import { useState, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import ArcNodePreflight from './ArcNodePreflight';
+import ArcBalancers from './ArcBalancers';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
   adminRemnawaveApi,
   type NodeInfo,
   type NodeRealtimeStats,
-  type SquadWithLocalInfo,
   type SystemStatsResponse,
   type AutoSyncStatus,
   type RecapResponse,
@@ -19,7 +19,6 @@ import {
 import { usePlatform } from '../platform/hooks/usePlatform';
 import { formatUptime } from '../utils/format';
 import { getFlagEmoji } from '../utils/subscriptionHelpers';
-import Twemoji from 'react-twemoji';
 import { StatCard } from '../components/stats';
 import {
   ServerIcon,
@@ -491,73 +490,6 @@ function NodeCard({ node, registryState, providerName, realtime, onAction, isLoa
 
       {geoCheckOpen && <GeoCheckModal node={node} onClose={() => setGeoCheckOpen(false)} />}
     </>
-  );
-}
-
-interface SquadCardProps {
-  squad: SquadWithLocalInfo;
-  onClick: () => void;
-}
-
-function SquadCard({ squad, onClick }: SquadCardProps) {
-  const { t } = useTranslation();
-
-  return (
-    <div
-      onClick={onClick}
-      className="cursor-pointer rounded-xl border border-dark-700 bg-dark-800/50 p-4 transition-colors hover:border-dark-600"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <span className="text-lg">{getCountryFlag(squad.country_code)}</span>
-            <h3 className="truncate font-medium text-dark-100">
-              <Twemoji options={{ className: 'twemoji', folder: 'svg', ext: '.svg' }}>
-                {squad.display_name || squad.name}
-              </Twemoji>
-            </h3>
-            {squad.is_synced ? (
-              <span className="rounded-full bg-success-500/20 px-2 py-0.5 text-xs text-success-400">
-                {t('admin.remnawave.squads.synced', 'Synced')}
-              </span>
-            ) : (
-              <span className="rounded-full bg-warning-500/20 px-2 py-0.5 text-xs text-warning-400">
-                {t('admin.remnawave.squads.notSynced', 'Not synced')}
-              </span>
-            )}
-          </div>
-          <p className="mt-1 truncate text-xs text-dark-500">{squad.name}</p>
-
-          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-dark-400">
-            <span className="flex items-center gap-1">
-              <UsersIcon className="h-3.5 w-3.5" />
-              {t('admin.remnawave.squads.membersCount', '{{count}} members', {
-                count: squad.members_count,
-              })}
-            </span>
-            {squad.current_users !== undefined && (
-              <span>
-                {squad.current_users} / {squad.max_users ?? '∞'}
-              </span>
-            )}
-            <span>
-              {t('admin.remnawave.squads.inboundsCount', '{{count}} inbounds', {
-                count: squad.inbounds_count,
-              })}
-            </span>
-            {squad.is_available !== undefined && (
-              <span className={squad.is_available ? 'text-success-400' : 'text-error-400'}>
-                {squad.is_available
-                  ? `✓ ${t('admin.remnawave.squads.available', 'Available')}`
-                  : `✗ ${t('admin.remnawave.squads.unavailable', 'Unavailable')}`}
-              </span>
-            )}
-          </div>
-        </div>
-
-        <ChevronRightIcon className="h-5 w-5 shrink-0 text-dark-500" />
-      </div>
-    </div>
   );
 }
 
@@ -1148,113 +1080,6 @@ function NodesTab({
   );
 }
 
-interface SquadsTabProps {
-  squads: SquadWithLocalInfo[];
-  isLoading: boolean;
-  onRefresh: () => void;
-  onNavigate: (uuid: string) => void;
-  onSync: () => void;
-  isSyncing: boolean;
-}
-
-function SquadsTab({
-  squads,
-  isLoading,
-  onRefresh,
-  onNavigate,
-  onSync,
-  isSyncing,
-}: SquadsTabProps) {
-  const { t } = useTranslation();
-  const canManage = usePermissionStore((s) => s.hasPermission('remnawave:write'));
-
-  const stats = useMemo(() => {
-    const total = squads.length;
-    const synced = squads.filter((s) => s.is_synced).length;
-    const available = squads.filter((s) => s.is_available).length;
-    const totalMembers = squads.reduce((acc, s) => acc + s.members_count, 0);
-    return { total, synced, available, totalMembers };
-  }, [squads]);
-
-  if (isLoading) {
-    return (
-      <SkeletonGroup className="space-y-4">
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatCard loading />
-          <StatCard loading />
-          <StatCard loading />
-          <StatCard loading />
-        </div>
-        <Skeleton variant="card" count={2} className="h-32" />
-      </SkeletonGroup>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 max-lg:[&>*:last-child:nth-child(odd)]:col-span-2">
-        <StatCard
-          label={t('admin.remnawave.squads.stats.total', 'Total')}
-          value={stats.total}
-          icon={<ServerIcon className="h-5 w-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label={t('admin.remnawave.squads.stats.synced', 'Synced')}
-          value={stats.synced}
-          icon={<SyncIcon />}
-          tone="success"
-        />
-        <StatCard
-          label={t('admin.remnawave.squads.stats.available', 'Available')}
-          value={stats.available}
-          icon={<ServerIcon className="h-5 w-5" />}
-          tone="accent"
-        />
-        <StatCard
-          label={t('admin.remnawave.squads.stats.members', 'Members')}
-          value={stats.totalMembers}
-          icon={<UsersIcon />}
-          tone="accent"
-        />
-      </div>
-
-      {/* Actions */}
-      <div className="flex gap-2">
-        <button
-          onClick={onRefresh}
-          className="flex items-center gap-2 rounded-lg bg-dark-700 px-3 py-1.5 text-dark-300 transition-colors hover:bg-dark-600"
-        >
-          <RefreshIcon />
-          {t('common.refresh', 'Refresh')}
-        </button>
-        {canManage && <button
-          onClick={onSync}
-          disabled={isSyncing}
-          className="flex items-center gap-2 rounded-lg bg-accent-500/20 px-3 py-1.5 text-accent-400 transition-colors hover:bg-accent-500/30 disabled:opacity-50"
-        >
-          <RefreshIcon spinning={isSyncing} />
-          {t('admin.remnawave.squads.syncServers', 'Sync Servers')}
-        </button>}
-      </div>
-
-      {/* Squads List */}
-      <div className="space-y-3">
-        {squads.length === 0 ? (
-          <p className="py-8 text-center text-dark-400">
-            {t('admin.remnawave.squads.noSquads', 'No squads found')}
-          </p>
-        ) : (
-          squads.map((squad) => (
-            <SquadCard key={squad.uuid} squad={squad} onClick={() => onNavigate(squad.uuid)} />
-          ))
-        )}
-      </div>
-    </div>
-  );
-}
-
 interface SyncTabProps {
   autoSyncStatus: AutoSyncStatus | undefined;
   isLoading: boolean;
@@ -1394,7 +1219,7 @@ function SyncTab({
   );
 }
 
-type TabType = 'overview' | 'nodes' | 'squads' | 'sync';
+type TabType = 'overview' | 'nodes' | 'balancers' | 'sync';
 
 export default function AdminRemnawave() {
   const { t } = useTranslation();
@@ -1404,7 +1229,7 @@ export default function AdminRemnawave() {
 
   // State
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<TabType>(searchParams.get('tab') === 'nodes' ? 'nodes' : 'overview');
+  const [activeTab, setActiveTab] = useState<TabType>(searchParams.get('tab') === 'nodes' ? 'nodes' : searchParams.get('tab') === 'balancers' ? 'balancers' : 'overview');
   const [syncResults, setSyncResults] = useState<
     Record<string, { success: boolean; message?: string } | null>
   >({});
@@ -1478,16 +1303,6 @@ export default function AdminRemnawave() {
     refetchInterval: 5000,
   });
 
-  const {
-    data: squadsData,
-    isLoading: isLoadingSquads,
-    refetch: refetchSquads,
-  } = useQuery({
-    queryKey: ['admin-remnawave-squads'],
-    queryFn: adminRemnawaveApi.getSquads,
-    enabled: activeTab === 'squads',
-  });
-
   const { data: realtimeData } = useQuery({
     queryKey: ['admin-remnawave-realtime'],
     queryFn: adminRemnawaveApi.getNodesRealtime,
@@ -1531,20 +1346,9 @@ export default function AdminRemnawave() {
     },
   });
 
-  const syncServersMutation = useMutation({
-    mutationFn: adminRemnawaveApi.syncServers,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['admin-remnawave-squads'] });
-    },
-  });
-
   // Handlers
   const handleNodeAction = (uuid: string, action: 'enable' | 'disable' | 'restart') => {
     nodeActionMutation.mutate({ uuid, action });
-  };
-
-  const handleSyncServers = () => {
-    syncServersMutation.mutate();
   };
 
   const handleSyncAction = async (
@@ -1573,8 +1377,8 @@ export default function AdminRemnawave() {
     },
     { id: 'nodes' as const, label: t('admin.remnawave.tabs.nodes', 'Nodes'), icon: <GlobeIcon /> },
     {
-      id: 'squads' as const,
-      label: t('admin.remnawave.tabs.squads', 'Squads'),
+      id: 'balancers' as const,
+      label: 'Балансировщики',
       icon: <ServerIcon className="h-5 w-5" />,
     },
   ];
@@ -1673,16 +1477,7 @@ export default function AdminRemnawave() {
         />
       )}
 
-      {activeTab === 'squads' && (
-        <SquadsTab
-          squads={squadsData?.items || []}
-          isLoading={isLoadingSquads}
-          onRefresh={() => refetchSquads()}
-          onNavigate={(uuid) => navigate(`/admin/remnawave/squads/${uuid}`)}
-          onSync={handleSyncServers}
-          isSyncing={syncServersMutation.isPending}
-        />
-      )}
+      {activeTab === 'balancers' && <ArcBalancers />}
 
       {activeTab === 'sync' && (
         <SyncTab

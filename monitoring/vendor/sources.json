@@ -1,0 +1,1 @@
+{"module":"Multitest 5 / run_iperf3_ru","url":"https://raw.githubusercontent.com/itdoginfo/russian-iperf3-servers/main/speedtest.sh","sha256":"068d37703beab0ec7e44a24ed45f6e911af51511ea6476a85add7250fab3d3dc","review":"No nested scripts, package installation, tuning, report uploads or service restart; fixed public iPerf endpoints and dependencies; timeout applied by worker."}
