@@ -149,6 +149,10 @@ new key is in `/etc/arcvpn/latencylab.key` mode 0600, outside Git. Four mobile
 operators were online at verification, so an offline fifth must remain unknown.
 The worker code in `monitoring/lte_operator_worker.py` checks current EE/FI owner
 links in memory across all online operators, stores history, and sends Telegram
-alerts after three failed cycles, recovery after two good cycles. Deploy/first
-real scan/timer verification remain pending at this writing. No node topology
-or subscription URL changes are involved.
+alerts after three failed cycles, recovery after two good cycles. Commit 209cca4
+is deployed. The first real scan completed on both nodes: T-Mobile, MegaFon, MTS,
+T2 connected; Beeline was offline at LatencyLab and is recorded unknown. The
+systemd timer is active for 07/13/19 MSK, with a small random delay. No Telegram
+alert fired on this healthy first cycle. No node topology or subscription URL
+changes are involved. A UI correction now displays tunnel outcomes independently
+from restriction evidence; its follow-up deployment and browser check are pending.

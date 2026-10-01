@@ -105,6 +105,12 @@ const uptime = (value: unknown) =>
   finite(value) === null
     ? '—'
     : `${Math.floor(Number(value) / 86400)} д ${Math.floor((Number(value) % 86400) / 3600)} ч`;
+const operatorTime = (value: string) => {
+  const date = new Date(`${value.replace(' ', 'T')}Z`);
+  return Number.isNaN(date.getTime())
+    ? value
+    : `${date.toLocaleString('ru-RU', { timeZone: 'Europe/Moscow', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} МСК`;
+};
 const quantile = (items: number[], q: number) =>
   items.length ? [...items].sort((a, b) => a - b)[Math.floor((items.length - 1) * q)] : null;
 const capacityWarningText: Record<string, string> = {
@@ -803,16 +809,13 @@ export default function ArcNodeDetail() {
             <section className="rounded-2xl border border-dark-700 bg-dark-800/50 p-5">
               <h2 className="font-semibold text-dark-100">LTE / SDN · мобильные операторы</h2>
               <p className="mt-1 text-sm text-dark-400">
-                Один автоматический запуск проверяет все сети утром, днём и вечером. Доступность
-                TCP/TLS и реального туннеля фиксируется отдельно; режим ограничений должен быть
-                подтверждён контрольными целями.
+                Один автоматический запуск проверяет VPN-ключ во всех доступных сетях утром, днём и вечером.
+                Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {Object.entries(operatorNames).map(([code, name]) => {
                   const latestProbe = operatorProbes.find((probe) => probe.operator === code);
-                  const claim =
-                    latestProbe?.test_kind === 'client_tunnel' &&
-                    latestProbe?.restriction_state === 'confirmed';
+                  const tunnel = latestProbe?.test_kind === 'client_tunnel';
                   return (
                     <article
                       key={code}
@@ -823,16 +826,16 @@ export default function ArcNodeDetail() {
                         <b className="text-sm text-dark-100">{name}</b>
                       </div>
                       <strong
-                        className={`mt-3 block text-sm ${latestProbe?.outcome === 'ok' && claim ? 'text-success-400' : latestProbe?.outcome === 'failed' && claim ? 'text-error-400' : 'text-dark-400'}`}
+                        className={`mt-3 block text-sm ${latestProbe?.outcome === 'ok' && tunnel ? 'text-success-400' : latestProbe?.outcome === 'failed' && tunnel ? 'text-error-400' : 'text-dark-400'}`}
                       >
                         {latestProbe
-                          ? claim
+                          ? tunnel
                             ? latestProbe.outcome === 'ok'
-                              ? 'Работает при ограничениях'
+                              ? 'VPN подключился'
                               : latestProbe.outcome === 'failed'
-                                ? 'Не работает при ограничениях'
-                                : 'Неизвестно'
-                            : 'Нет подтверждённого туннельного теста'
+                                ? 'VPN не подключился'
+                                : 'Нет данных'
+                            : 'Нет проверки VPN-ключа'
                           : 'Нет проверок'}
                       </strong>
                       <p className="mt-1 text-xs text-dark-400">
@@ -841,7 +844,7 @@ export default function ArcNodeDetail() {
                           : 'Ожидаются данные оператора'}
                       </p>
                       {latestProbe && (
-                        <p className="mt-2 text-[11px] text-dark-500">{latestProbe.checked_at}</p>
+                        <p className="mt-2 text-[11px] text-dark-500">{operatorTime(latestProbe.checked_at)}</p>
                       )}
                     </article>
                   );
@@ -867,7 +870,7 @@ export default function ArcNodeDetail() {
                           key={`${probe.checked_at}-${probe.operator}-${i}`}
                           className="border-t border-dark-700"
                         >
-                          <td className="py-2">{probe.checked_at}</td>
+                          <td className="py-2">{operatorTime(probe.checked_at)}</td>
                           <td>{operatorNames[probe.operator] || probe.operator}</td>
                           <td>{probe.region || '—'}</td>
                           <td>{probe.test_kind}</td>
