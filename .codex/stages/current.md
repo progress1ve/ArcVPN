@@ -72,3 +72,14 @@ Only CDN's Moscow reverse-proxy hop is in scope. Reciprocal Shadowsocks bridges 
 Owner steering accepted 2026-10-01: shared CDN source will be Finland, owner already changed source IP. Supersedes pending EE-origin option. Prepare FI nginx /api-fin locally and /api-test relay to EE87.251.19.197:80, preserving both existing exits and public identities. Origin requires HTTP80; existing HTTPS443 reaches Reality, so owner must confirm cloud protocol/port. Accept origin Host cdn-de.arccnet.space and old origin.arccnet.space on FI80. Active/backup cloud state remains owner-operated; rollback = restore prior cloud Moscow origin plus restricted FI nginx backup. No Moscow service deletion, no reciprocal bridge change. Direct FI owner link retains TLS client SNI cdn-de.arccnet.space, GET/header/X-Session-Token and /api-fin.
 
 CDN result2026-10-01: FI origin applied with restrictedbackup/root/arcvpn-fi-cdn-before.Aj3YxP; nginxactive. Owner screenshots verify FI source/HTTP/Hostorigin.arccnet.space. Local publicCDN Xray realtunnel FI204/1.918s and EEviaFI204/1.263s; privateownerfile exported outsideGit. PolandTLSfailsbeforetunnel, knownearlierlimitation. Useroperatorperformance/restrictedmodepending. APIhealthpublic200 and fleetworkerResultsuccess. Admin339tests/build and fourviewportchecks passed; effective12profiles matchowner. No policy or reciprocalbridge mutation.
+
+
+## Private direct-download experiment — 2026-10-01
+Owner authorized a separate protected FI XHTTP endpoint (go after explicit proposal); no subscription publication or network tests. Acceptance: valid existing certificate, unused port, nginx syntax/reload, listener; real client traffic and restricted-mode acceptance deferred to owner.
+
+| Profile | Client hostname | CDN / origin | Host / SNI | Path | Multiplier / IDs | Failure / rollback |
+|---|---|---|---|---|---|---|
+| Private split test upload | cdn-de.arccnet.space:443 | existing CDN / owner-restored FI | cdn-de.arccnet.space | /api-fin | 1; existing identity and URLs | existing CDN behavior |
+| Private split test download | 151.241.137.174:8444 | direct FI, no CDN | cdn-de.arccnet.space / fin.arccnet.space | /api-fin → local10001 | same existing inbound and identity; no published changes | unavailable under whitelist restrictions; remove dedicated config and reload |
+
+Firewall preflight: IPv4/IPv6 INPUT ACCEPT, only unrelated bridge/agent ports restricted; no new rule required. FI certificate SAN fin.arccnet.space, valid through 2026-12-28. No HTTPS direct entrance previously existed; public443 remains Reality.
