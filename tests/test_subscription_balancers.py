@@ -96,3 +96,25 @@ def test_publish_requires_current_preview_and_preserves_live_until_publish(tmp_p
     assert published.status_code==200
     assert json.loads(setting('subscription_balancers_live'))==policy
     assert client.post('/api/admin/subscription-balancers',json={'action':'preview','balancers':policy},headers={'Origin':'https://other.example'}).status_code==403
+
+
+def test_renamed_locations_keep_balancer_identity_and_aliases(monkeypatch):
+    import subscription_api as api
+    import json
+    import urllib.parse
+    from subscription_api import ActiveKeyRecord
+    overrides={'Финляндия':{'display_name':'Мой север','enabled':1,'include_in_auto':1,'sort_order':0},
+               'Эстония':{'display_name':'Мой запад','enabled':1,'include_in_auto':1,'sort_order':1}}
+    monkeypatch.setattr(api,'_catalog_overrides',lambda:overrides)
+    monkeypatch.setattr(api,'get_setting',lambda key,default=None:default)
+    monkeypatch.setattr(api,'FINLAND_BRIDGE_READY',True)
+    key=ActiveKeyRecord(1,1,'test','2099-01-01',0,0,'test',1)
+    links='\n'.join(f'vless://11111111-1111-1111-1111-111111111111@{host}:443?security=none&type=tcp#{urllib.parse.quote(name)}'
+                    for host,name in [('fi.example','Финляндия'),('ee.example','Эстония')])
+    profiles=json.loads(api._build_happ_json_subscription(key,links))
+    names=[p['remarks'] for p in profiles]
+    assert '🇫🇮 Мой север' in names and '🇪🇪 Мой запад' in names
+    assert names.index('🇫🇮 Мой север')<names.index('🇪🇪 Мой запад')
+    peers=[o for o in profiles[0]['outbounds'] if o['tag'].startswith('proxy-main-')]
+    assert len(peers)==2
+    assert {o['settings']['vnext'][0]['address'] for o in peers}=={'fi.example','ee.example'}

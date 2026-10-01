@@ -302,6 +302,7 @@ RETIRED_GERMANY_ENDPOINTS = frozenset({"87.121.47.203", "de.arccnet.space", "95.
 
 def _subscription_source_name(name: str) -> str:
     normalized = str(name or "").strip()
+    normalized = re.sub(r"^[\U0001F1E6-\U0001F1FF]{2}\s*", "", normalized)
     for prefix in ("🇫🇮 ", "🇩🇪 ", "🇳🇱 ", "🇪🇪 ", "🇦🇱 ", "🇷🇺 ", "🇫🇷 ", "🇨🇦 "):
         if normalized.startswith(prefix):
             normalized = normalized[len(prefix):]
@@ -320,6 +321,8 @@ def _subscription_source_name(name: str) -> str:
     normalized = normalized.replace("Франция", "Канада")
     normalized = normalized.replace("(LTE, трафик ×10)", "(LTE)")
     normalized = re.sub(r"\s*⚡\s*", " ", normalized)
+    if any(country in normalized for country in ("Финляндия", "Эстония")):
+        normalized = re.sub(r"\s*#\s*1\s*$", "", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
 
 
@@ -340,7 +343,7 @@ def _profile_country_flag(name: str) -> str:
     for marker, flag in (
         ("Финляндия", "🇫🇮"), ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Албания", "🇦🇱"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
-        ("Ютуб без рекламы", "🇷🇺"),
+        ("Швеция", "🇸🇪"), ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
     ):
         if marker in value:
@@ -377,7 +380,7 @@ def _catalog_overrides() -> dict[str, dict[str, Any]]:
                 "SELECT source_name,display_name,sort_order,enabled,include_in_auto "
                 "FROM subscription_profile_overrides"
             ).fetchall()
-        values = {str(row["source_name"]): dict(row) for row in rows}
+        values = {_subscription_source_name(str(row["source_name"])): dict(row) for row in rows}
     except sqlite3.OperationalError:
         values = {}
     _CATALOG_CACHE = (now, values)
@@ -401,6 +404,20 @@ def _catalog_source_name(name: str) -> str:
         if normalized == _subscription_source_name(str(override.get("display_name") or "")):
             return source
     return normalized
+
+
+def _map_catalog_display(links: list[str]) -> list[str]:
+    result = []
+    for link in links:
+        name = urllib.parse.unquote(link.rsplit("#", 1)[-1])
+        source = _catalog_source_name(name)
+        override = _catalog_overrides().get(source)
+        if override and not bool(override["enabled"]):
+            continue
+        if override:
+            link = link.rsplit("#",1)[0] + "#" + urllib.parse.quote(_safe_profile_display_name(str(override["display_name"]),source),safe="")
+        result.append(link)
+    return result
 
 
 def _subscription_display_name(name: str) -> str:
@@ -448,11 +465,12 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
         # Explicitly retired regions must not leak back from stale Remnawave
         # Hosts. Unknown hosts remain deliverable for forward-compatible node
         # additions and appear after the managed product-policy rows.
-        if any(marker in raw_name for marker in (
+        manual_alias = source_name in {_subscription_source_name(label) for label in TEMPORARY_LOCATION_ALIAS_NAMES}
+        if (not manual_alias and any(marker in raw_name for marker in (
             "Германия", "Germany",
             "Канада", "Canada", "Франция", "France", "Албания", "Albania",
             "Нидерланды", "Netherlands",
-        )) or endpoint in RETIRED_NETHERLANDS_ENDPOINTS:
+        ))) or endpoint in RETIRED_NETHERLANDS_ENDPOINTS:
             continue
         override = overrides.get(source_name)
         if override and not bool(override["enabled"]):
@@ -484,14 +502,15 @@ def _expand_lte_profile_links(links: list[str]) -> list[str]:
         source = sources[index % len(sources)].rsplit("#", 1)[0]
         label = BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
         expanded.append(source + "#" + urllib.parse.quote(label, safe=""))
-    return _apply_subscription_catalog([*main, *expanded])
+    return _map_catalog_display([*main, *expanded])
 
 
 def _with_temporary_location_aliases(links: list[str]) -> list[str]:
     """Add manual display aliases without changing credentials or endpoints."""
     base = [
         link for link in links
-        if urllib.parse.unquote(link.rsplit("#", 1)[-1]) not in TEMPORARY_LOCATION_ALIAS_NAMES
+        if _catalog_source_name(urllib.parse.unquote(link.rsplit("#", 1)[-1])) not in
+        {_subscription_source_name(label) for label in TEMPORARY_LOCATION_ALIAS_NAMES}
     ]
     sources: dict[str, str] = {}
     for link in base:
@@ -509,7 +528,7 @@ def _with_temporary_location_aliases(links: list[str]) -> list[str]:
         for label, source in TEMPORARY_LOCATION_ALIASES
         if source in sources
     ]
-    return [*base, *aliases]
+    return _map_catalog_display([*base, *aliases])
 
 
 def _subscription_link_order(link: str) -> tuple[int, int, str]:
@@ -1667,7 +1686,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         source_name = _subscription_source_name(name)
         override = _catalog_overrides().get(source_name)
         visible_individually = not override or bool(override["enabled"])
-        temporary_alias = name in TEMPORARY_LOCATION_ALIAS_NAMES
+        temporary_alias = _catalog_source_name(name) in {_subscription_source_name(label) for label in TEMPORARY_LOCATION_ALIAS_NAMES}
         include_in_auto = (not override or bool(override.get("include_in_auto", 1))) and not temporary_alias
         if "Финляндия" in name and not FINLAND_BRIDGE_READY:
             include_in_auto = False
@@ -5400,7 +5419,7 @@ def api_admin_subscription_catalog():
     # editable. A catalog override never creates a Remnawave Host/inbound.
     defaults = [
         _subscription_source_name(name)
-        for name in SUBSCRIPTION_INBOUND_ORDER
+        for name in [*SUBSCRIPTION_INBOUND_ORDER, "Финляндия", *TEMPORARY_LOCATION_ALIAS_NAMES]
     ]
     allowed_sources = set(defaults)
     if request.method == "PATCH":
