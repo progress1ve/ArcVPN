@@ -1,4 +1,4 @@
-# ArcVPN node and CDN topology — verified snapshot, 2026-09-29
+# ArcVPN node and CDN topology — verified snapshot, 2026-10-01
 
 This is a non-secret operational snapshot, not a substitute for checking current code, Remnawave, DNS and live tunnels before any change. Historical entries in `AI_CONTEXT.md` can describe retired routes. The production/control plane is Poland `pl-control` (`217.60.33.38`); Germany control plane and Germany exit are retired. Credentials live only in the encrypted local vault referenced by `.codex/server-inventory.toml`, never in Git.
 
@@ -12,7 +12,7 @@ This is a non-secret operational snapshot, not a substitute for checking current
 
 ## CDN bypass
 
-The existing public CDN resource remains `cdn-de.arccnet.space:443` with TLS/SNI, despite its legacy name. Its `ee-origin` origin group routes via Moscow HTTPS `origin.arccnet.space`, then to the selected exit. Estonia uses `/api-test`; Finland uses `/api-fin`. Exit nginx :80 forwards to local Xray :10001. Confirm the actual origin-group, Host, SNI and certificate in the CDN panel before modifying it.
+The existing public CDN resource remains `cdn-de.arccnet.space:443` with client TLS/SNI. Owner changed `ee-origin` to Finland `151.241.137.174`, HTTP port80, origin Host `origin.arccnet.space`, on2026-10-01. Finland nginx accepts this Host; `/api-fin` is local Xray10001 and `/api-test` relays to Estonia87.251.19.197:80. CDN no longer traverses Moscow. Origin Host's A-record may remain Moscow: the configured numeric origin is authoritative. Public subscription URLs, UUIDs and client paths remain unchanged. Reciprocal Shadowsocks/YouTube bridges remain. Real Windows Xray publicCDN204 passed both paths; restricted mobile and throughput comparison gates remain open. Rollbackgroup to prior MoscowHTTPSorigin plus FI nginx restrictedbackup `/root/arcvpn-fi-cdn-before.Aj3YxP`.
 
 The current replacement for the broken OPTIONS scheme is XHTTP `packet-up` with `uplinkHTTPMethod: GET`, `uplinkDataPlacement: header`, and `uplinkDataKey: X-Session-Token`. The three fields must match in both Remnawave config profile `xhttpSettings` and Host `xhttpExtraParams`, and appear in the rendered VLESS `extra`. Preserve other working padding and transport parameters. Old `OPTIONS -> POST` guidance is superseded; do not silently restore it. Keep existing subscription URL, UUID, quota and traffic multiplier 1; clients refresh subscriptions after a change. The Firefox TLS fingerprint has been used as an edge compatibility fallback; Chrome failed in that particular test, not universally.
 
