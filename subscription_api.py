@@ -1941,8 +1941,14 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         peers = (outbound.get("settings") or {}).get("vnext") or []
         if country in {"fi", "ee"} and peers:
             member_addresses[country] = {str(peers[0].get("address") or "").lower()}
+    rendered_profiles = apply_balancers([auto_profile, *visible_main, *fallback_lte_profiles], balancer_policy, member_addresses, key.telegram_id)
+    if get_setting("cdn_ordered_fallbacks_live", "0") == "1":
+        from monitoring.cdn_fallbacks import apply as apply_cdn_fallbacks
+        reserve_names = [item['name'] for item in balancer_policy
+                         if item.get('id') in {'bypass-4', 'bypass-5'}]
+        rendered_profiles = apply_cdn_fallbacks(rendered_profiles, reserve_names)
     return json.dumps(
-        apply_balancers([auto_profile, *visible_main, *fallback_lte_profiles], balancer_policy, member_addresses, key.telegram_id),
+        rendered_profiles,
         ensure_ascii=False,
         separators=(",", ":"),
     )
