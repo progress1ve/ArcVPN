@@ -837,7 +837,7 @@ export default function ArcNodeDetail() {
                       </strong>
                       <p className="mt-1 text-xs text-dark-400">
                         {latestProbe
-                          ? `${latestProbe.test_kind} · ${latestProbe.restriction_state === 'confirmed' ? 'ограничения подтверждены' : 'режим не подтверждён'}`
+                          ? 'VPN-ключ · условия ограничений не подтверждены'
                           : 'Ожидаются данные оператора'}
                       </p>
                       {latestProbe && (

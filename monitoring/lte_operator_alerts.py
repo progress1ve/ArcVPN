@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 
 OPERATORS = frozenset({"t2", "t_mobile", "megafon", "beeline", "mts"})
+FAILURE_THRESHOLD = 3
+RECOVERY_THRESHOLD = 2
 
 
 @dataclass(frozen=True)
@@ -28,7 +30,7 @@ class Attempt:
     @property
     def restriction_state(self) -> str:
         if self.allowed_control_ok is True and self.blocked_control_ok is False:
-            return "confirmed"
+            return "unconfirmed"
         if self.allowed_control_ok is True and self.blocked_control_ok is True:
             return "unconfirmed"
         return "unknown"
@@ -39,12 +41,16 @@ class Attempt:
 
 
 def classify_batch(attempts: list[Attempt]) -> str:
-    """Require three usable attempts under confirmed restrictions for a verdict."""
-    eligible = [item for item in attempts if item.restriction_state == "confirmed"
-                and item.target_ok is not None and item.test_kind == "client_tunnel"]
-    if len(eligible) < 3:
+    """Only a completed real-client tunnel check can establish connectivity.
+
+    Restriction controls are stored separately: their absence must not turn a
+    real operator-side connection failure into a successful VPN result.
+    """
+    eligible = [item for item in attempts if item.target_ok is not None
+                and item.test_kind == "client_tunnel"]
+    if not eligible:
         return "unknown"
-    return "ok" if sum(item.target_ok is True for item in eligible) >= 2 else "failed"
+    return "ok" if sum(item.target_ok is True for item in eligible) > len(eligible) / 2 else "failed"
 
 
 def record_batch(conn: sqlite3.Connection, batch_id: str, node_host: str,
@@ -85,16 +91,18 @@ def record_batch(conn: sqlite3.Connection, batch_id: str, node_host: str,
         failures += 1
         successes = 0
         started = started or checked_at
-        if not alerted:
+        if not alerted and failures >= FAILURE_THRESHOLD:
             event = {"type": "alert", "node_host": node_host, "operator": operator,
-                     "target_path": path, "incident_started_at": started}
+                     "target_path": path, "incident_started_at": started,
+                     "restriction_state": attempts[-1].restriction_state}
             alerted = True
     else:
         successes += 1
         failures = 0
-        if alerted and successes >= 2:
+        if alerted and successes >= RECOVERY_THRESHOLD:
             event = {"type": "recovery", "node_host": node_host, "operator": operator,
-                     "target_path": path, "incident_started_at": started}
+                     "target_path": path, "incident_started_at": started,
+                     "restriction_state": attempts[-1].restriction_state}
             alerted = False
             started = None
     conn.execute("""INSERT INTO lte_operator_alert_state

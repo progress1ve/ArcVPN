@@ -1,0 +1,13 @@
+[Unit]
+Description=ArcVPN LTE operator VPN-key checks
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+WorkingDirectory=/root/ArcVPN
+ExecStart=/root/ArcVPN/venv/bin/python -m monitoring.lte_operator_worker
+TimeoutStartSec=600
+NoNewPrivileges=true
+PrivateTmp=true

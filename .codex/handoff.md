@@ -134,3 +134,21 @@ Started/stopped/completed histories cannot be deleted. 37 focused tests, build,
 Biome and four-width demo/production UI checks passed. Only subscription API
 restarted; both services healthy. Agent deleted no owner draft and sent nothing.
 Owner prefers no screenshot attachments in replies. Next: refresh admin to use.
+
+## Node observability and LTE checks — 2026-10-01
+
+The live React admin has a tabbed node detail and a list restricted to Estonia
+1chost, Finland 1chost and Moscow bridge. This was deployed at 14d36f6. Read-only
+telemetry runs on the EE/FI nodes and the admin shows actual sampled CPU, RAM,
+network and observed uptime; missing samples remain unknown. The owner clarified
+that “OTE multitests” means operator-side LTE client-tunnel checks.
+
+Official LatencyLab OpenAPI is https://latencylab.ru/openapi.yaml. Its Bearer
+API-key, operator list and account quota endpoints were verified on Poland. The
+new key is in `/etc/arcvpn/latencylab.key` mode 0600, outside Git. Four mobile
+operators were online at verification, so an offline fifth must remain unknown.
+The worker code in `monitoring/lte_operator_worker.py` checks current EE/FI owner
+links in memory across all online operators, stores history, and sends Telegram
+alerts after three failed cycles, recovery after two good cycles. Deploy/first
+real scan/timer verification remain pending at this writing. No node topology
+or subscription URL changes are involved.

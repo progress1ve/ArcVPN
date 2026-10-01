@@ -1,0 +1,11 @@
+[Unit]
+Description=Check ArcVPN LTE connectivity three times daily
+
+[Timer]
+OnCalendar=*-*-* 07,13,19:00:00 Europe/Moscow
+Persistent=true
+RandomizedDelaySec=5min
+Unit=arcvpn-lte-operator.service
+
+[Install]
+WantedBy=timers.target
