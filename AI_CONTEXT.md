@@ -1973,3 +1973,5 @@ Owner accepts a separately imported CDN subscription as an optional secondary bo
 Owner requires scheduled bypass failure/recovery notifications only for Estonia; Finland must not generate these Telegram notifications.
 
 Temporary friend access uses isolated guest main/LTE identities, exact expiry, shared device slots with enforce_device_tokens, and term-wide selected LTE quota. Scheduled scoped cleanup removes panel identities and revokes tokens. Online LTE/CDN badge reflects recent isolated identity activity, not CDN byte billing. Owner accepts secondary reserve subscription; primary URL remains direct.
+
+LTE/CDN onlineAt can be produced by client's background CDN observatory even when regular nodes carry user traffic. Admin badge means recent identity activity including probes; it cannot prove actual failover. Numeric form drafts retain empty strings and convert to numbers on submission.
