@@ -6195,6 +6195,13 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
                 FROM users u LEFT JOIN vpn_keys vk ON vk.user_id=u.id
             """).fetchall()
         from monitoring.cdn_connections import states
+        # Older standalone CDN links can authenticate with the main identity.
+        # The node's inbound classification, not the account name, proves CDN.
+        for row in rows:
+            values = cdn_identities.setdefault(int(row['id']), [])
+            for item in (result or {}).get('users', []):
+                if (str(item.get('username') or '').lower() == str(row['panel_email'] or '') and row['panel_email']) or (item.get('telegramId') is not None and str(item['telegramId']) == str(row['telegram_id'])):
+                    values.extend(item.get(k) for k in ('username', 'uuid', 'id', 'vlessUuid', 'shortUuid'))
         with get_db() as conn:
             cdn_states = states(conn, cdn_identities)
         for row in rows:
