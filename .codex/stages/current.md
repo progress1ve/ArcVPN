@@ -108,3 +108,5 @@ Owner explicitly approved preserving five bypass profiles: Best=#1, #2/#3 one CD
 
 ## Ordered CDN fallback publication — 2026-10-01
 Owner-approved five-profile contract deployed f792ba4, live flag enabled. Acceptance: 51 focused tests PASS; Xray syntax PASS; forced actual reserve tunnel HTTP204 PASS; public allowed-device delivery HTTP200 with12profiles/6fast/2reserve PASS. Restricted-mode mobile/video acceptance DEFERRED to owner; large upload reliability OPEN (64KiB reserve timeout). Rollback and exact server backups: docs/operations/cdn-ordered-fallbacks-2026-10-01.md. No installer testing or certification of fleet capacity included. Next: owner refreshes subscription and checks video under restrictions.
+
+Owner presentation correction 2026-10-02: YouTube immediately after Auto, before Estonia; Estonia #1 renamed Estonia in rendered subscription. No tunnel changes. 46 focused tests passed. Private standalone reserve URI exported outside Git for owner speed test.

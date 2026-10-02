@@ -1942,6 +1942,15 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         if country in {"fi", "ee"} and peers:
             member_addresses[country] = {str(peers[0].get("address") or "").lower()}
     rendered_profiles = apply_balancers([auto_profile, *visible_main, *fallback_lte_profiles], balancer_policy, member_addresses, key.telegram_id)
+    # Owner's client order: Auto, YouTube, then manual locations and bypasses.
+    for profile in rendered_profiles:
+        if _subscription_source_name(profile.get("remarks", "")) == "Эстония #1":
+            profile["remarks"] = "🇪🇪 Эстония"
+    youtube_profiles = [profile for profile in rendered_profiles
+                        if _subscription_source_name(profile.get("remarks", "")) == "Ютуб без рекламы"]
+    if youtube_profiles:
+        rendered_profiles = [profile for profile in rendered_profiles if profile not in youtube_profiles]
+        rendered_profiles[1:1] = youtube_profiles
     if get_setting("cdn_ordered_fallbacks_live", "0") == "1":
         from monitoring.cdn_fallbacks import apply as apply_cdn_fallbacks
         reserve_names = [item['name'] for item in balancer_policy
