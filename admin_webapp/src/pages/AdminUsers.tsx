@@ -129,9 +129,7 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
           {formatAmount(user.total_spent_kopeks / 100)}
         </div>
         <div className="hidden text-xs text-dark-500 sm:block">
-          {user.purchase_count > 0
-            ? t('admin.users.purchaseCount', { count: user.purchase_count })
-            : t('admin.users.noPurchases')}
+          Потрачено
         </div>
       </div>
 
