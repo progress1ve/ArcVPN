@@ -1192,15 +1192,6 @@
             <button class="connect-sub-link" on:click={() => copyText(subKey.sub_url, 'Ссылка подписки скопирована')}>
               <span>{subKey.sub_url}</span><ArcIcon name="copy" size={20} weight="bold" />
             </button>
-            {#if subKey.reserve_sub_url}
-              <div class="connect-reserve">
-                <span>Основная ссылка не открывается?</span>
-                <button on:click={() => copyText(subKey.reserve_sub_url, 'Резервная ссылка скопирована')}>
-                  <ArcIcon name="copy" size={16} weight="bold" /> Скопировать резервную для Happ и INCY
-                </button>
-                <small>Добавьте её как отдельную подписку. Обновление пойдёт через CDN.</small>
-              </div>
-            {/if}
           {/if}
 
           {#if connectStage === 'device'}
@@ -2559,11 +2550,6 @@
   .connect-page-head p { margin: 7px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
   .connect-sub-link { width: 100%; min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-top: 24px; padding: 0 18px; border: 1px solid var(--hairline); border-radius: 20px; color: #5dc7f2; background: linear-gradient(135deg,rgba(17,49,59,.86),rgba(12,26,34,.9)); }
   .connect-sub-link span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-  .connect-reserve { display: grid; gap: 7px; margin-top: 10px; padding: 0 4px; }
-  .connect-reserve > span { color: var(--muted); font-size: 11px; font-weight: 700; }
-  .connect-reserve button { width: fit-content; display: inline-flex; align-items: center; gap: 7px; color: #8ecaf0; font-size: 12px; font-weight: 750; text-align: left; }
-  .connect-reserve button:focus-visible { outline: 2px solid #8ecaf0; outline-offset: 4px; border-radius: 4px; }
-  .connect-reserve small { color: var(--muted); font-size: 10px; line-height: 1.4; }
   .connect-section-title { margin: 27px 0 12px; color: var(--muted); font-size: 12px; font-weight: 600; }
   .connect-device-grid { display: grid; grid-template-columns: 1fr; gap: 9px; }
   .connect-device-grid button { min-height: 76px; display: flex; align-items: center; gap: 13px; padding: 12px 15px; border: 1px solid var(--hairline); border-radius: 22px; color: #fff; background: var(--surface); text-align: left; }
