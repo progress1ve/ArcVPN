@@ -5803,6 +5803,7 @@ def api_admin_friend_subscriptions():
     if request.method == 'POST':
         if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space',
                                                     'http://127.0.0.1:5173', 'http://localhost:5173'}:
+            logger.warning('friend_create_origin_rejected origin=%r fetch_site=%r', request.headers.get('Origin', '')[:120], request.headers.get('Sec-Fetch-Site', '')[:30])
             return _api_error('invalid_origin', 403)
         try:
             options = validate_options(request.get_json(silent=True))

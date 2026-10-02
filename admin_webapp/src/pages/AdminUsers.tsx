@@ -13,7 +13,6 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   RefreshIcon,
-  TelegramSmallIcon as TelegramIcon,
   UsersIcon,
   CheckCircleIcon,
   SubscriptionIcon,
@@ -67,15 +66,9 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
           )}
         </div>
 
-        {/* Telegram ID - full width on mobile */}
-        <div className="mb-1 flex items-center gap-1 text-xs text-dark-400 sm:mb-0">
-          <TelegramIcon />
-          <span className="truncate">{user.telegram_id}</span>
-        </div>
-
         {/* Status badges - wrap on mobile */}
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {user.lte_online && <span title="На ноде замечены CDN-соединения к обычным сервисам за последние 3 минуты. Фоновые проверки исключены." className="rounded-full border border-accent-500/40 bg-accent-500/15 px-2 py-0.5 text-xs font-medium text-accent-400">CDN · соединения</span>}
+          {user.lte_online && <span title="На ноде замечены CDN-соединения к обычным сервисам за последние 3 минуты. Фоновые проверки исключены." className="rounded-full border border-accent-500/40 bg-accent-500/15 px-2 py-0.5 text-xs font-medium text-accent-400">Обход глушилок</span>}
           {user.lte_usage === 'probe' && <span className="text-xs text-dark-400">CDN · только проверки</span>}
           {user.lte_usage === 'unknown' && <span title="Нет свежей серверной классификации или клиент использует старую цель проверок. Обновите подписку." className="text-xs text-dark-400">CDN · нет данных</span>}
           {user.status !== 'active' && <StatusBadge status={user.status} />}
@@ -133,7 +126,7 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
 
       <div className="shrink-0 text-right">
         <div className="text-sm font-medium text-dark-100 sm:text-base">
-          {formatAmount(user.balance_rubles)}
+          {formatAmount(user.total_spent_kopeks / 100)}
         </div>
         <div className="hidden text-xs text-dark-500 sm:block">
           {user.purchase_count > 0
