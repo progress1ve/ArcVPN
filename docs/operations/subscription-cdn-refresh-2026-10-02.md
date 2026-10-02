@@ -20,14 +20,17 @@ Existing VPN CDN `cdn-de.arccnet.space` shares the resource and origin. Its XHTT
 - Private rollback backup: /root/arcvpn-sub-cdn-origin-before.75au43en/arcvpn-control-plane.
 - Owner chose to reuse the existing CDN resource rather than create a second paid resource. The unused resource draft was not submitted.
 - The existing resource has CDN/browser caching disabled, cookies forwarded, and query parameters uncached. Its origin remains `ee-origin` (Estonia HTTP:80, Host `origin.arccnet.space`). Estonia `/sub/` proxies to Poland HTTPS with verified SNI `sub.arccnet.space` and no cache.
-- New managed certificate `arc-cert-cdn-sub` (`fpqc3jcvh6utlo7apsju`) covers both `cdn-de.arccnet.space` and `sub.arccnet.space`. Reg.ru CNAME validation records `_acme-challenge.cdn-de` and `_acme-challenge.sub` point to `fpqc3jcvh6utlo7apsju.cm.yandexcloud.net.`; authoritative DNS and Google public DNS have confirmed them. Issuance is pending.
+- New managed certificate `arc-cert-cdn-sub` (`fpqc3jcvh6utlo7apsju`) covers both `cdn-de.arccnet.space` and `sub.arccnet.space`. Reg.ru CNAME validation records `_acme-challenge.cdn-de` and `_acme-challenge.sub` point to `fpqc3jcvh6utlo7apsju.cm.yandexcloud.net.`; authoritative DNS and Google public DNS have confirmed them.
+- The dual-domain certificate is now **Issued**, valid through 2026-12-31; both challenges show Valid in Certificate Manager.
+- Estonia's origin now covers `/sub/`, `/import/`, `/api/device/import/`, and the clean single-token route. Nginx syntax and active state passed; backup `/root/arcvpn-sub-cdn-routes-before.mkj4q0ui`. An allowed device's `/sub/` response was identical byte-for-byte between direct Poland and Estonia, both 200 with no-store. Import HTML also matched; invalid subscription remains denied.
+- Current CDN allowed methods are GET, HEAD, OPTIONS. Device import requires POST. Yandex's CDN documentation says enabling POST may require support permission. Confirm POST passes through the CDN before changing `sub` DNS; a 405 is a release blocker.
 
 ## Pending gates
 
-1. Dual-domain certificate status Issued. Keep both DNS challenge CNAMEs for renewal. The old issued VPN certificate remains attached until this gate passes.
+1. Keep both DNS challenge CNAMEs for renewal. The old issued VPN certificate remains attached until the resource edit.
 2. Add `sub.arccnet.space` to the current resource and select the new dual-domain certificate in one edit. Preserve `ee-origin`, HTTP origin protocol, fixed origin Host, and VPN routes.
 3. Validate edge certificates for both hostnames, real VPN tunnel and exact allowed-device subscription parity without printing identifiers or profile credentials. Invalid identifiers must remain denied and personalized content must never be shared through cache.
-4. Smoke test the existing import, clean subscription route, and app/API paths that use the subscription hostname. Add only required reverse-proxy paths in Estonia.
+4. Smoke test the existing import, clean subscription route, and app/API paths that use the subscription hostname. In particular, allow and verify POST `/api/device/import/<id>` through CDN; do not cut over while it returns 405.
 5. Change only sub A to the assigned CDN CNAME, preserving every other DNS record. Then verify public TLS, subscriptions and VPN again. Roll back to the old A record on failure.
 6. Owner confirms refresh during actual mobile restriction. Normal-network HTTPS evidence does not establish that gate.
 
