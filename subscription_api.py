@@ -6250,6 +6250,8 @@ def api_admin_users():
       WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance') THEN COALESCE(p.amount_cents,0)
       ELSE 0 END"""
     with get_db() as conn:
+        user_columns = {column['name'] for column in conn.execute('PRAGMA table_info(users)')}
+        guest_filter = "WHERE COALESCE(u.identity_source,'telegram')!='guest'" if 'identity_source' in user_columns else ''
         base_sql = f"""WITH customer_rows AS (
           SELECT u.id,u.telegram_id,u.username,u.first_name,u.created_at,
             EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at>datetime('now')) AS active,
@@ -6267,7 +6269,7 @@ def api_admin_users():
               AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
               AND COALESCE(p.operation_type,'')!='trial_start'
               AND COALESCE(p.offer_code,'')!='email_paid_trial'),0) AS paid_rub
-          FROM users u
+          FROM users u {guest_filter}
         ) SELECT * FROM customer_rows {where_sql}"""
         total = int(conn.execute(f"SELECT COUNT(*) FROM ({base_sql})", params).fetchone()[0])
         rows = [dict(row) for row in conn.execute(

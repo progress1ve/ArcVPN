@@ -151,6 +151,15 @@ def test_user_detail_exposes_purchases_and_deduplicated_direct_referrals(
     assert trial_payload["user"]["online_node"] == "ArcVPN Estonia"
 
 
+def test_temporary_guests_do_not_pollute_customer_list(client, detail_db):
+    detail_db.execute('ALTER TABLE users ADD COLUMN identity_source TEXT')
+    detail_db.execute("INSERT INTO users(id,telegram_id,identity_source) VALUES(99,-999,'guest')")
+    detail_db.commit()
+    response = client.get('/api/admin/users')
+    assert response.status_code == 200
+    assert all(row['id'] != 99 for row in response.get_json()['users'])
+
+
 def test_referral_network_returns_real_deduplicated_edges(client, detail_db):
     response = client.get("/api/admin/referral-network")
 
