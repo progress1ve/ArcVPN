@@ -283,7 +283,7 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
         lte_used = max(0, int(row["lte_used_bytes"] or 0))
         effective_lte_quota = max(0, int(row["lte_quota_gb"] or 0)) + max(0, int(row["lte_cycle_bonus_gb"] or 0))
         return {
-            "device_limit": max(2, int(row["device_limit"] or 2)),
+            "device_limit": max(1, int(row["device_limit"] or 2)),
             "lte_quota_gb": effective_lte_quota,
             "lte_base_quota_gb": max(0, int(row["lte_quota_gb"] or 0)),
             "lte_cycle_bonus_gb": max(0, int(row["lte_cycle_bonus_gb"] or 0)),
@@ -314,7 +314,7 @@ def get_user_entitlements_by_id(user_id: int) -> Dict[str, int]:
             (user_id,),
         ).fetchone()
         return {
-            "device_limit": max(2, int(row["device_limit"] or 2)) if row else 2,
+            "device_limit": max(1, int(row["device_limit"] or 2)) if row else 2,
             "lte_quota_gb": (max(0, int(row["lte_quota_gb"] or 0)) + max(0, int(row["lte_cycle_bonus_gb"] or 0))) if row else 0,
             "lte_base_quota_gb": max(0, int(row["lte_quota_gb"] or 0)) if row else 0,
             "lte_cycle_bonus_gb": max(0, int(row["lte_cycle_bonus_gb"] or 0)) if row else 0,
@@ -651,7 +651,7 @@ def get_subscription_device_limit(sub_id: str, default: int = 2) -> int:
                WHERE k.sub_id = ?""",
             (default, sub_id),
         ).fetchone()
-        return max(2, int(row["device_limit"])) if row else max(2, int(default))
+        return max(1, int(row["device_limit"])) if row else max(2, int(default))
 
 
 def get_user_devices(telegram_id: int) -> List[Dict[str, Any]]:

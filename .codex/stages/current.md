@@ -1,3 +1,16 @@
+# Temporary friend subscriptions and CDN reserve — 2026-10-02
+
+Owner now accepts a separately imported CDN reserve in bot and cabinet, and admin-created temporary shared access with expiry and device limit. This supersedes the prior rejection of a second subscription.
+Contract: primary URLs and identities remain unchanged; secondary CDN URL uses same token/entitlement/devices. Admin Users has a Friends access action; creation form has label, days from creation, devices, and LTE quota selected in 15 GiB increments, shared across devices for the full issued term. Result is a CDN GET subscription URL + QR. One subscription may be shared up to the chosen device limit. No user self-service invitations in this stage.
+Components: subscription_api.py, bot keys UI, Svelte cabinet, React admin Users, additive migration, isolated guest provisioning and scheduled cleanup.
+Route: reserve/friend URL cdn-de.arccnet.space/sub/<token> → existing resource bc8r4rihi5cxxmbj3qgs → existing Estonia origin /sub proxy → Poland subscription API; Host origin.arccnet.space, public client TLS cdn-de. Existing VPN profiles/multiplier unchanged. No DNS/CDN/origin mutation. Failure: CDN failure affects reserve only. Rollback runtime commit; preserve additive audit rows, revoke guest identities before retiring worker.
+Acceptance: auth/origin guards, strict input/device limits, idempotent create, no link before full provisioning; expiry blocks access immediately and worker deletes only scoped guest panel identities and key/device tokens, retries provider failures; reserve parity/no-store; QR/copy/error/loading and 390/768/1280/1600 layouts. Real restricted-network first import remains owner mobile gate.
+Verification: focused Python lifecycle/API/device tests, both frontend builds, browser visual evidence, staged diff, commit/push/pull/restart affected services, public probes. Never print bearer identifiers.
+
+Evidence so far: full Python suite 351 passed (one old label assertion aligned with already deployed Estonia flag); focused guest success/failure/expiry/retry/API and LTE presence tests passed after final fixes; Svelte and React production builds passed. Added owner follow-up: highlight online users with recent isolated LTE identity activity, 3-minute observation window, 30-second UI refresh; unknown telemetry never gets an LTE badge. No inference from lifetime usage. The label identifies LTE/CDN profile activity, not packet-level proof every byte hit a CDN edge.
+
+## Preserved earlier owner stages
+
 # Current: React admin node operations and traffic usage — 2026-09-30
 
 Active correction of period-dependent admin traffic: `.codex/stages/traffic-period-2026-09-30.md`.

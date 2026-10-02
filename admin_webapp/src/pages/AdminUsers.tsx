@@ -50,7 +50,7 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
   return (
     <div
       onClick={onClick}
-      className="flex cursor-pointer items-start gap-3 rounded-xl border border-dark-700 bg-dark-800/50 p-3 transition-all hover:border-dark-600 hover:bg-dark-800 sm:items-center sm:gap-4 sm:p-4"
+      className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition-all hover:bg-dark-800 sm:items-center sm:gap-4 sm:p-4 ${user.lte_online ? 'border-accent-500/50 bg-accent-500/10' : 'border-dark-700 bg-dark-800/50 hover:border-dark-600'}`}
     >
       {/* Avatar */}
       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-500 to-accent-700 text-sm font-medium text-white sm:text-base">
@@ -75,6 +75,7 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
 
         {/* Status badges - wrap on mobile */}
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          {user.lte_online && <span title="Активность отдельного LTE/CDN-профиля за последние 3 минуты по Remnawave" className="rounded-full border border-accent-500/40 bg-accent-500/15 px-2 py-0.5 text-xs font-medium text-accent-400">LTE/CDN · обход</span>}
           {user.status !== 'active' && <StatusBadge status={user.status} />}
           {user.has_subscription && user.subscription_status && (
             <span
@@ -167,6 +168,7 @@ export default function AdminUsers() {
       if (statusFilter) params.status = statusFilter;
       return adminUsersApi.getUsers(params as Parameters<typeof adminUsersApi.getUsers>[0]);
     },
+    refetchInterval: 30000,
   });
   const users = usersQuery.data?.users ?? [];
   const total = usersQuery.data?.total ?? 0;
@@ -214,6 +216,8 @@ export default function AdminUsers() {
           <RefreshIcon className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
+
+      <button onClick={() => navigate('/admin/friend-subscriptions')} className="mb-6 flex items-center gap-2 rounded-xl border border-dark-700 bg-dark-800 px-4 py-3 text-dark-100"><UserPlusIcon /> Доступ для друзей</button>
 
       {/* Stats */}
       {stats && (

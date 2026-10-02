@@ -129,6 +129,7 @@ const AdminWithdrawalDetail = lazyWithRetry(() => import('./pages/AdminWithdrawa
 const AdminWithdrawalReject = lazyWithRetry(() => import('./pages/AdminWithdrawalReject'));
 const ReferralPartnerApply = lazyWithRetry(() => import('./pages/ReferralPartnerApply'));
 const ReferralWithdrawalRequest = lazyWithRetry(() => import('./pages/ReferralWithdrawalRequest'));
+const AdminFriendSubscriptions = lazyWithRetry(() => import('./pages/AdminFriendSubscriptions'));
 const AdminUsers = lazyWithRetry(() => import('./pages/AdminUsers'));
 const AdminPayments = lazyWithRetry(() => import('./pages/AdminPayments'));
 const AdminPaymentMethods = lazyWithRetry(() => import('./pages/AdminPaymentMethods'));
@@ -1145,6 +1146,10 @@ function App() {
               </LazyPage>
             </PermissionRoute>
           }
+        />
+        <Route
+          path="/admin/friend-subscriptions"
+          element={<PermissionRoute permission="users:read"><LazyPage><AdminFriendSubscriptions /></LazyPage></PermissionRoute>}
         />
         <Route
           path="/admin/users"

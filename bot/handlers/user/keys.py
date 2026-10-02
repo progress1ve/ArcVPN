@@ -28,6 +28,13 @@ def _subscription_urls(sub_id: str) -> tuple[str, str]:
     subscription_url = f"{base}/sub/{sub_id}"
     return subscription_url, f"{base}/import/{sub_id}"
 
+
+def _reserve_subscription_url(sub_id: str) -> str:
+    import os
+
+    base = os.getenv("SUBSCRIPTION_CDN_RESERVE_URL", "https://cdn-de.arccnet.space")
+    return f"{base.rstrip('/')}/sub/{sub_id}"
+
 @router.message(Command('mykeys'))
 async def cmd_mykeys(message: Message, state: FSMContext):
     """Обработчик команды /mykeys - вызывает логику кнопки 'Мои подписки'."""
@@ -141,6 +148,7 @@ async def show_my_keys(
             text="➕ Докупить трафик или устройство",
             web_app=WebAppInfo(url=f"{webapp_url.rstrip('/')}/app/?screen=addons"),
         ))
+        builder.row(InlineKeyboardButton(text="Резервная подписка · CDN", callback_data="show_cdn_subscription"))
     builder.row(InlineKeyboardButton(
         text="⚡ Продлить подписку",
         callback_data=f"key_renew:{primary['id']}",
@@ -347,6 +355,7 @@ async def show_subscription_handler(callback: CallbackQuery):
         url=import_url,
         style="primary",
     ))
+    builder.row(InlineKeyboardButton(text="Резервная подписка · CDN", callback_data="show_cdn_subscription"))
     builder.row(
         InlineKeyboardButton(text="← Назад", callback_data="my_keys"),
         InlineKeyboardButton(text="🏠 На главную", callback_data="start"),
@@ -360,6 +369,26 @@ async def show_subscription_handler(callback: CallbackQuery):
         "<blockquote>Подписка обновляется автоматически каждый час.</blockquote>"
     )
     await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())
+    await callback.answer()
+
+
+@router.callback_query(F.data == 'show_cdn_subscription')
+async def show_cdn_subscription(callback: CallbackQuery):
+    from database.requests import get_user_primary_key
+    from aiogram.types import InlineKeyboardButton
+    from aiogram.utils.keyboard import InlineKeyboardBuilder
+    primary = get_user_primary_key(callback.from_user.id)
+    if not primary or not primary.get('sub_id'):
+        await callback.answer('Подписка не найдена', show_alert=True)
+        return
+    reserve = _reserve_subscription_url(str(primary['sub_id']))
+    builder = InlineKeyboardBuilder()
+    builder.row(InlineKeyboardButton(text='← Назад', callback_data='show_subscription'))
+    await safe_edit_or_send(callback.message,
+        '🔗 <b>Резервная подписка через CDN</b>\n\n'
+        'Если основной адрес не открывается, скопируйте эту ссылку и добавьте в VPN-клиент:\n\n'
+        f'<code>{escape_html(reserve)}</code>\n\n'
+        'Доступ, срок и лимит устройств общие с основной подпиской.', reply_markup=builder.as_markup())
     await callback.answer()
 
 @router.callback_query(F.data.startswith('key_renew:'))

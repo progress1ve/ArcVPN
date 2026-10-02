@@ -1964,3 +1964,7 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 
 ## 2026-09-30 — актуальный список нод в React-админке
 Владелец требует показывать в списке нод только ArcVPN Estonia 1chost (87.251.19.197), ArcVPN Finland 1chost (151.241.137.174) и ArcVPN Moscow Bridge (85.198.101.79). Для Эстонии и Финляндии провайдер — One Cent Host. Старые записи Remnawave скрываются только в интерфейсе; удаление записей или изменение маршрутов этим решением не разрешено. Упомянутые владельцем «мультитесты OTE» означают проверки LTE через мобильных операторов.
+
+
+## Subscription reserves and temporary friend access — 2026-10-02
+Owner accepts a separately imported CDN subscription as an optional secondary bot/cabinet action; primary remains direct. Admin may issue shared temporary guest access with chosen term, device count, and total LTE allowance in 15 GiB increments; QR uses existing CDN GET delivery. Guest access expires automatically and only its generated panel identities/tokens are retired. No paid client provider integration required. LTE/CDN online highlighting uses recent isolated LTE identity activity, never cumulative traffic.

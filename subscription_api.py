@@ -127,6 +127,9 @@ from subscription_pages import render_import_page, render_silent_import_page, re
 # версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
 # какой-либо новой опции. Обязательным остаётся только SUBSCRIPTION_URL.
 SUBSCRIPTION_URL = config.SUBSCRIPTION_URL
+SUBSCRIPTION_CDN_RESERVE_URL = os.getenv(
+    "SUBSCRIPTION_CDN_RESERVE_URL", "https://cdn-de.arccnet.space"
+).rstrip("/")
 WEBAPP_URL = os.getenv("WEBAPP_URL", SUBSCRIPTION_URL).rstrip("/")
 ENABLE_SPLIT_TUNNELING = getattr(config, "ENABLE_SPLIT_TUNNELING", True)
 SPLIT_TUNNELING_DIRECT_IP = getattr(config, "SPLIT_TUNNELING_DIRECT_IP", ["geoip:ru", "geoip:private"])
@@ -3017,6 +3020,9 @@ def subscription(sub_id: str, path_device_token: str = ''):
         if output_format not in {"base64", "plain", "json"}:
             return Response("Unsupported format", status=400, mimetype="text/plain")
 
+        from bot.services.friend_subscriptions import guest_access_allowed
+        if not guest_access_allowed(sub_id):
+            return _subscription_not_available()
         key = get_active_key_by_subscription_id(sub_id)
         if not key or not key.has_available_traffic:
             # Подписка истекла или исчерпан трафик — пробуем выдать резервный
@@ -3798,6 +3804,7 @@ def api_status():
             "has_sub": bool(sub_id),
             "import_url": _import_url_for(sub_id),
             "sub_url": f"{SUBSCRIPTION_URL}/sub/{sub_id}" if sub_id else None,
+            "reserve_sub_url": f"{SUBSCRIPTION_CDN_RESERVE_URL}/sub/{sub_id}" if sub_id else None,
         })
 
     response = jsonify({
@@ -5769,6 +5776,54 @@ def api_admin_promocodes(promocode_id: Optional[int] = None):
     return _api_no_store(jsonify({"ok": True, "promocodes": get_all_promocodes()}))
 
 
+@app.route('/api/admin/friend-subscriptions', methods=['GET', 'POST'])
+def api_admin_friend_subscriptions():
+    if not _admin_authorized('subscriptions.manage'):
+        return _api_error('admin_forbidden', 403)
+    from bot.services.friend_subscriptions import validate_options, reserve_guest, provision_guest, list_guests
+    if request.method == 'POST':
+        if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space',
+                                                    'http://127.0.0.1:5173', 'http://localhost:5173'}:
+            return _api_error('invalid_origin', 403)
+        try:
+            options = validate_options(request.get_json(silent=True))
+        except (ValueError, TypeError, AttributeError):
+            return _api_error('invalid_friend_options', 400)
+        row, created = reserve_guest(options, str(_admin_telegram_id() or 'password-session'))
+        if created:
+            try:
+                ASYNC_EXECUTOR.run(provision_guest(row), timeout=90)
+            except Exception:
+                return _api_error('friend_provision_failed', 502)
+            _append_admin_audit_best_effort('friend.create', 'success', target_type='friend_subscription',
+                target_id=str(row['id']), metadata={'days': options['days'], 'devices': options['device_limit'],
+                                                  'lte_quota_gb': options['lte_quota_gb']})
+    guests = []
+    for row in list_guests():
+        active = row['state'] == 'active' and row['expires_at'] > datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
+        guests.append({key: row[key] for key in ('id', 'label', 'device_limit', 'lte_quota_gb', 'expires_at', 'state', 'devices_used')})
+        guests[-1]['sub_url'] = f"{SUBSCRIPTION_CDN_RESERVE_URL}/sub/{row['sub_id']}" if active and row['sub_id'] else None
+    return _api_no_store(jsonify({'ok': True, 'subscriptions': guests,
+                                'created_id': row['id'] if request.method == 'POST' else None}))
+
+
+@app.route('/api/admin/friend-subscriptions/<int:guest_id>', methods=['DELETE'])
+def api_admin_delete_friend_subscription(guest_id):
+    if not _admin_authorized('subscriptions.manage'):
+        return _api_error('admin_forbidden', 403)
+    if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space',
+                                                'http://127.0.0.1:5173', 'http://localhost:5173'}:
+        return _api_error('invalid_origin', 403)
+    with get_db() as conn:
+        row = conn.execute('SELECT user_id FROM friend_subscriptions WHERE id=?', (guest_id,)).fetchone()
+        if not row:
+            return _api_error('friend_not_found', 404)
+        conn.execute("UPDATE friend_subscriptions SET state='deleting',expires_at=datetime('now') WHERE id=? AND state!='deleted'", (guest_id,))
+        conn.execute("UPDATE vpn_keys SET expires_at=datetime('now') WHERE user_id=?", (row['user_id'],))
+    _append_admin_audit_best_effort('friend.delete', 'success', target_type='friend_subscription', target_id=str(guest_id))
+    return _api_no_store(jsonify({'ok': True}))
+
+
 @app.route('/api/admin/users/<int:telegram_id>/subscription', methods=['PATCH'])
 def api_admin_user_subscription(telegram_id: int):
     if not _admin_authorized("subscriptions.manage"):
@@ -6062,7 +6117,16 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
                 "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
             })
             try:
-                users = await client._request("GET", "/api/users", params={"start": 0, "size": 500})
+                collected = []
+                for _ in range(100):
+                    page = await client._request('GET', '/api/users', params={'start': len(collected), 'size': 500})
+                    batch = page.get('users', [])
+                    collected.extend(batch)
+                    if not batch or len(collected) >= int(page.get('total') or len(collected)):
+                        break
+                else:
+                    raise ValueError('Presence page limit exceeded')
+                users = {'users': collected}
                 nodes = await client._request("GET", "/api/nodes")
                 return users, nodes
             finally:
@@ -6093,7 +6157,10 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
                 "online_node": node_names.get(node_uuid, "Узел не определён"),
             }
             if item.get("telegramId") is not None:
-                live_by_tg[str(item.get("telegramId"))] = presence
+                # Keep main and LTE identities independently: they can both be online.
+                previous = live_by_tg.get(str(item.get('telegramId')))
+                if not previous or str(previous['online_at']) < str(raw_online_at):
+                    live_by_tg[str(item.get("telegramId"))] = presence
             username = str(item.get("username") or "").strip().lower()
             if username:
                 live_by_username[username] = presence
@@ -6105,9 +6172,10 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
                 FROM users u LEFT JOIN vpn_keys vk ON vk.user_id=u.id
             """).fetchall()
         for row in rows:
-            presence = live_by_tg.get(str(row["telegram_id"])) or live_by_username.get(str(row["panel_email"] or ""))
+            lte_presence = live_by_username.get(f"arc_lte_{row['id']}")
+            presence = lte_presence or live_by_tg.get(str(row["telegram_id"])) or live_by_username.get(str(row["panel_email"] or ""))
             if presence:
-                resolved[int(row["id"])] = presence
+                resolved[int(row["id"])] = {**presence, 'lte_online': bool(lte_presence)}
         _ADMIN_PRESENCE_CACHE = (now, True, resolved)
         return True, resolved
     except Exception:
@@ -6208,10 +6276,14 @@ def api_admin_users():
     if presence_authoritative:
         for row in rows:
             presence = live_presence.get(int(row["id"]))
+            row['lte_online'] = bool(presence and presence.get('lte_online'))
             row["online_devices"] = 1 if presence else 0
             if presence:
                 row["last_online_at"] = presence["online_at"]
                 row["online_node"] = presence["online_node"]
+    else:
+        for row in rows:
+            row['lte_online'] = None
     next_cursor = offset + len(rows) if offset + len(rows) < total else None
     return _api_no_store(jsonify({
         "ok": True, "users": rows, "total": total,

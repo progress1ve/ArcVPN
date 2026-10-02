@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 70
+LATEST_VERSION = 71
 
 
 def get_current_version() -> int:
@@ -2614,6 +2614,27 @@ def migration_70(conn: sqlite3.Connection) -> None:
     """)
 
 
+def migration_71(conn: sqlite3.Connection) -> None:
+    """Isolated, expiring admin-issued guest access; retain lifecycle audit."""
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS friend_subscriptions (
+            id INTEGER PRIMARY KEY,
+            request_id TEXT NOT NULL UNIQUE,
+            user_id INTEGER NOT NULL REFERENCES users(id),
+            label TEXT NOT NULL,
+            device_limit INTEGER NOT NULL CHECK(device_limit BETWEEN 1 AND 15),
+            lte_quota_gb INTEGER NOT NULL CHECK(lte_quota_gb BETWEEN 1 AND 500),
+            created_by TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            expires_at TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'pending'
+                CHECK(state IN ('pending','active','failed','deleting','deleted')),
+            deleted_at TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_friend_expiry ON friend_subscriptions(state,expires_at);
+    """)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2685,6 +2706,7 @@ MIGRATIONS = {
     68: migration_68,
     69: migration_69,
     70: migration_70,
+    71: migration_71,
 }
 
 
