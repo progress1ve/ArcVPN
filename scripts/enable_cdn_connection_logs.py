@@ -22,7 +22,7 @@ async def run():
         backup.parent.mkdir(exist_ok=True)
         backup.write_text(json.dumps(profile), encoding='utf-8'); backup.chmod(0o600)
         config = copy.deepcopy(profile['config'])
-        config.setdefault('log', {})['access'] = '/dev/shm/arcvpn-access.log'
+        config.setdefault('log', {}).update(access='/dev/shm/arcvpn-access.log', loglevel='error', error='none')
         await client._request('PATCH', '/api/config-profiles', json={'uuid': profile['uuid'], 'config': config})
         verified = await client._request('GET', '/api/config-profiles')
         same = next(p for p in verified['configProfiles'] if p['uuid'] == profile['uuid'])
