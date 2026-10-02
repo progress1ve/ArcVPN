@@ -499,7 +499,7 @@ export function userListItem(row: Json): Json {
     username: row.username || null,
     first_name: row.first_name || null,
     last_name: null,
-    full_name: row.first_name || row.username || `ID ${row.telegram_id}`,
+    full_name: row.first_name || row.username || 'Без имени',
     status: 'active',
     balance_kopeks: 0,
     balance_rubles: 0,

@@ -38,7 +38,7 @@ export default function AdminFriendSubscriptions() {
       if (created?.sub_url) { setQr(created); setLabel(''); setRequestId(crypto.randomUUID()); }
       else if (created?.state === 'failed' || created?.state === 'deleting') { setError('Создание не завершилось. Неиспользуемый доступ удаляется; можно попробовать снова.'); setRequestId(crypto.randomUUID()); }
       else setNotice('Создание ещё выполняется. Подписка появится в списке.');
-    } catch { setError('Не удалось создать доступ. Обновите список перед повторной попыткой: создание могло завершиться на сервере.'); }
+    } catch (err) { setError(err instanceof Error && err.message.includes('403') ? 'Запрос отклонён. Перезагрузите страницу и войдите в админку заново, если потребуется.' : 'Не удалось создать доступ. Обновите список перед повторной попыткой: создание могло завершиться на сервере.'); }
     finally { setBusy(false); }
   };
   const remove = async (item: Guest) => {
