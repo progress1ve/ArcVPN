@@ -1971,3 +1971,5 @@ Owner accepts a separately imported CDN subscription as an optional secondary bo
 
 ## LTE notification scope (2026-10-02)
 Owner requires scheduled bypass failure/recovery notifications only for Estonia; Finland must not generate these Telegram notifications.
+
+Temporary friend access uses isolated guest main/LTE identities, exact expiry, shared device slots with enforce_device_tokens, and term-wide selected LTE quota. Scheduled scoped cleanup removes panel identities and revokes tokens. Online LTE/CDN badge reflects recent isolated identity activity, not CDN byte billing. Owner accepts secondary reserve subscription; primary URL remains direct.
