@@ -6,9 +6,9 @@ Owner authorized work in the signed-in Yandex console and asked to preserve its 
 
 | Client hostname | Resource | Origin | Protocol / Host / SNI | Cache | Identifier impact | Rollback |
 |---|---|---|---|---|---|---|
-| sub.arccnet.space | New dedicated Yandex CDN | 217.60.33.38 | HTTPS / sub.arccnet.space / sub.arccnet.space | Disabled, including browser cache; cookies forwarded | None | Restore sub A record 217.60.33.38 |
+| sub.arccnet.space | Existing CDN `bc8r4rihi5cxxmbj3qgs`, additional domain | Estonia origin HTTP:80 → Poland HTTPS:443 | CDN and browser cache disabled; cookies forwarded | None | Restore sub A record 217.60.33.38 |
 
-Existing VPN CDN cdn-de.arccnet.space stays unchanged. Keep GET/HEAD subscription delivery and the other existing web/API methods, request headers, cookies and query parameters working. No public redirect can rescue a blocked initial subscription hostname, so migration requires changing that hostname's DNS after validating the new edge.
+Existing VPN CDN `cdn-de.arccnet.space` shares the resource and origin. Its XHTTP paths must continue working. Keep GET/HEAD subscription delivery and the other existing web/API methods, request headers, cookies and query parameters working. No public redirect can rescue a blocked initial subscription hostname, so migration requires changing that hostname's DNS after validating the new edge.
 
 ## Preparation completed
 
@@ -18,17 +18,19 @@ Existing VPN CDN cdn-de.arccnet.space stays unchanged. Keep GET/HEAD subscriptio
 - Initial public validation file returns HTTP 200 with matching content from both Poland and the owner's computer.
 - HTTPS ACME webroot added on the subscription origin, so CDN HTTPS origin requests can validate the domain. nginx syntax/reload passed; post-reload HTTPS challenge returned 200. Commit 942e4a9.
 - Private rollback backup: /root/arcvpn-sub-cdn-origin-before.75au43en/arcvpn-control-plane.
-- CDN creation draft: numeric Poland origin, HTTPS, manual SNI and Host, sub hostname; CDN/browser caching, cookie ignoring and large-file segmentation disabled. Do not submit with arc-cert-de: it covers only cdn-de and was used during initial form preparation. Select issued arc-cert-sub before creation.
+- Owner chose to reuse the existing CDN resource rather than create a second paid resource. The unused resource draft was not submitted.
+- The existing resource has CDN/browser caching disabled, cookies forwarded, and query parameters uncached. Its origin remains `ee-origin` (Estonia HTTP:80, Host `origin.arccnet.space`). Estonia `/sub/` proxies to Poland HTTPS with verified SNI `sub.arccnet.space` and no cache.
+- New managed certificate `arc-cert-cdn-sub` (`fpqc3jcvh6utlo7apsju`) covers both `cdn-de.arccnet.space` and `sub.arccnet.space`. Reg.ru CNAME validation records `_acme-challenge.cdn-de` and `_acme-challenge.sub` point to `fpqc3jcvh6utlo7apsju.cm.yandexcloud.net.`; authoritative DNS and Google public DNS have confirmed them. Issuance is pending.
 
 ## Pending gates
 
-1. Certificate status Issued, with renewal configured. Static HTTP challenge files alone are not durable renewal; use the documented validation redirect or permanent DNS challenge delegation.
-2. Owner cost confirmation: console estimates 150 RUB/month plus metered traffic. Do not create the paid resource before approval.
-3. Access to Reg.ru DNS (ns1/ns2.reg.ru), requested from owner. Do not change sub DNS before CDN acceptance.
-4. Validate edge certificate and exact existing allowed-device subscription parity without printing identifiers or profile credentials. Invalid identifiers must remain denied and personalized content must never be shared through cache.
-5. Smoke test existing web/app/API behavior, including allowed methods and session cookies. Then change only sub A to the assigned CNAME, preserving every other record.
+1. Dual-domain certificate status Issued. Keep both DNS challenge CNAMEs for renewal. The old issued VPN certificate remains attached until this gate passes.
+2. Add `sub.arccnet.space` to the current resource and select the new dual-domain certificate in one edit. Preserve `ee-origin`, HTTP origin protocol, fixed origin Host, and VPN routes.
+3. Validate edge certificates for both hostnames, real VPN tunnel and exact allowed-device subscription parity without printing identifiers or profile credentials. Invalid identifiers must remain denied and personalized content must never be shared through cache.
+4. Smoke test the existing import, clean subscription route, and app/API paths that use the subscription hostname. Add only required reverse-proxy paths in Estonia.
+5. Change only sub A to the assigned CDN CNAME, preserving every other DNS record. Then verify public TLS, subscriptions and VPN again. Roll back to the old A record on failure.
 6. Owner confirms refresh during actual mobile restriction. Normal-network HTTPS evidence does not establish that gate.
 
-Browser tabs and sign-in must remain open. CDN creation is incomplete and no DNS cutover has happened at this checkpoint.
+Browser tabs and sign-in must remain open. The old single-domain `arc-cert-sub` request is unused; do not delete it during this migration. No subscription DNS cutover has happened at this checkpoint.
 
 Renewal reference: https://yandex.cloud/en/docs/certificate-manager/concepts/challenges
