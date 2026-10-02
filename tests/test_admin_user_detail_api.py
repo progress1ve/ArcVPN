@@ -152,7 +152,6 @@ def test_user_detail_exposes_purchases_and_deduplicated_direct_referrals(
 
 
 def test_temporary_guests_do_not_pollute_customer_list(client, detail_db):
-    detail_db.execute('ALTER TABLE users ADD COLUMN identity_source TEXT')
     detail_db.execute("INSERT INTO users(id,telegram_id,identity_source) VALUES(99,-999,'guest')")
     detail_db.commit()
     response = client.get('/api/admin/users')

@@ -12,6 +12,7 @@ import Layout from '@/components/layout/Layout';
 import AdminPanel from '@/pages/AdminPanel';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AdminUsers from '@/pages/AdminUsers';
+import AdminFriendSubscriptions from '@/pages/AdminFriendSubscriptions';
 import AdminUserDetail from '@/pages/AdminUserDetail';
 import AdminFeedback from '@/pages/AdminFeedback';
 import ReferralNetwork from '@/pages/ReferralNetwork';
@@ -166,6 +167,7 @@ function AdminRoutes() {
           <Route path="/admin" element={<AdminPanel />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/friend-subscriptions" element={<AdminFriendSubscriptions />} />
           <Route path="/admin/users/:id" element={<AdminUserDetail />} />
           <Route path="/admin/feedback" element={<AdminFeedback />} />
           <Route path="/admin/referral-network" element={<ReferralNetwork />} />
