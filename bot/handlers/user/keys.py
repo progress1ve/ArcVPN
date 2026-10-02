@@ -28,6 +28,13 @@ def _subscription_urls(sub_id: str) -> tuple[str, str]:
     subscription_url = f"{base}/sub/{sub_id}"
     return subscription_url, f"{base}/import/{sub_id}"
 
+
+def _reserve_subscription_url(sub_id: str) -> str:
+    import os
+
+    base = os.getenv("SUBSCRIPTION_CDN_RESERVE_URL", "https://cdn-de.arccnet.space")
+    return f"{base.rstrip('/')}/sub/{sub_id}"
+
 @router.message(Command('mykeys'))
 async def cmd_mykeys(message: Message, state: FSMContext):
     """Обработчик команды /mykeys - вызывает логику кнопки 'Мои подписки'."""
@@ -127,7 +134,9 @@ async def show_my_keys(
         text += (
             f'\n\n🔗 <b>Ссылка на подписку</b>\n\n'
             f'<code>{escape_html(subscription_url)}</code>\n\n'
-            '👆 Нажмите на ссылку, чтобы скопировать.'
+            '👆 Нажмите на ссылку, чтобы скопировать.\n\n'
+            'Если основной адрес недоступен, добавьте резервную подписку в Happ или INCY:\n'
+            f'<code>{escape_html(_reserve_subscription_url(sub_id))}</code>'
         )
     if prepend_text:
         text = f"{prepend_text}\n\n{text}"
@@ -341,6 +350,7 @@ async def show_subscription_handler(callback: CallbackQuery):
         return
 
     subscription_url, import_url = _subscription_urls(str(primary["sub_id"]))
+    reserve_url = _reserve_subscription_url(str(primary["sub_id"]))
     builder = InlineKeyboardBuilder()
     builder.row(InlineKeyboardButton(
         text="📲 Импортировать в Happ",
@@ -357,6 +367,8 @@ async def show_subscription_handler(callback: CallbackQuery):
         f'🔗 <b>Ссылка на подписку</b>\n\n'
         f'<code>{escape_html(subscription_url)}</code>\n\n'
         '👆 Нажмите на ссылку, чтобы скопировать.\n\n'
+        'Если основной адрес недоступен, добавьте резервную подписку в Happ или INCY:\n'
+        f'<code>{escape_html(reserve_url)}</code>\n\n'
         "<blockquote>Подписка обновляется автоматически каждый час.</blockquote>"
     )
     await safe_edit_or_send(callback.message, text, reply_markup=builder.as_markup())

@@ -127,6 +127,9 @@ from subscription_pages import render_import_page, render_silent_import_page, re
 # версионируется — лежит в .gitignore) НЕ должен ронять сервис из-за отсутствия
 # какой-либо новой опции. Обязательным остаётся только SUBSCRIPTION_URL.
 SUBSCRIPTION_URL = config.SUBSCRIPTION_URL
+SUBSCRIPTION_CDN_RESERVE_URL = os.getenv(
+    "SUBSCRIPTION_CDN_RESERVE_URL", "https://cdn-de.arccnet.space"
+).rstrip("/")
 WEBAPP_URL = os.getenv("WEBAPP_URL", SUBSCRIPTION_URL).rstrip("/")
 ENABLE_SPLIT_TUNNELING = getattr(config, "ENABLE_SPLIT_TUNNELING", True)
 SPLIT_TUNNELING_DIRECT_IP = getattr(config, "SPLIT_TUNNELING_DIRECT_IP", ["geoip:ru", "geoip:private"])
@@ -3798,6 +3801,7 @@ def api_status():
             "has_sub": bool(sub_id),
             "import_url": _import_url_for(sub_id),
             "sub_url": f"{SUBSCRIPTION_URL}/sub/{sub_id}" if sub_id else None,
+            "reserve_sub_url": f"{SUBSCRIPTION_CDN_RESERVE_URL}/sub/{sub_id}" if sub_id else None,
         })
 
     response = jsonify({

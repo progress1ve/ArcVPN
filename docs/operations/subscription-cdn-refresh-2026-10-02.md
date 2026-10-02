@@ -1,6 +1,12 @@
-# Subscription refresh: direct primary, automatic CDN fallback
+# Subscription access: direct primary and separate CDN reserve
 
-Owner decision (2026-10-02): keep `sub.arccnet.space` as the direct primary and make CDN an **automatic fallback for the same client URL**. The earlier plan to permanently point this hostname at CDN is superseded. No DNS, certificate attachment, subscription URL, UUID, or VPN route has changed.
+Current owner decision: keep the primary URL direct and omit Provider ID. Publish a separate GET-only reserve URL, `https://cdn-de.arccnet.space/sub/<same-existing-id>`, for manual addition in Happ or INCY when the direct host is unreachable. A subscription added through that URL can subsequently refresh through the same CDN route. This is **not automatic switching of one URL**; importing the reserve as a second subscription is a client action. The URL contains a private subscription identifier and must only be shown to its owner. No paid VPN tunnel traffic is sent through CDN by this subscription-only change.
+
+The existing `/sub/<id>` GET handler has a direct recovery path for recognized Happ/INCY clients when a new device lacks an alias; it can register an available device slot without the POST import page. A known device alias already returns its subscription through CDN. A successful real new-device import still needs confirmation on Happ and INCY under the restricted mobile network, including any client identity headers forwarded by CDN. A generic browser GET must not allocate a device slot.
+
+The following analysis records why the previously requested *same-URL automatic fallback* was not implemented.
+
+Superseded request (2026-10-02): keep `sub.arccnet.space` as the direct primary and make CDN an **automatic fallback for the same client URL**. The earlier plan to permanently point this hostname at CDN was also superseded. No DNS, certificate attachment, subscription URL, UUID, or VPN route has changed.
 
 | State | Client URL | Resolution / route | Failure behavior |
 | --- | --- | --- | --- |
@@ -13,6 +19,6 @@ For prompt same-URL failover, the client must always connect to an accessible st
 
 Preparation under the superseded CDN-primary plan remains available: existing CDN resource `bc8r4rihi5cxxmbj3qgs` has caching disabled, forwards cookies, and uses Estonia origin. Estonia Nginx proxies `/sub/` and prepared import routes to Poland without cache; backup `/root/arcvpn-sub-cdn-routes-before.mkj4q0ui`. An additional dual-domain certificate `arc-cert-cdn-sub` (`fpqc3jcvh6utlo7apsju`) was issued but is not attached. Its DNS challenge CNAME records remain in Reg.ru; do not delete certificates or records without lifecycle review. The active VPN certificate, origin group, and XHTTP paths remain unchanged.
 
-Evidence: direct allowed-device GET returned HTTP 200, 50,676 bytes, private/no-store. Invalid ID through the existing CDN hostname returned 404 and private/no-store from the owner's computer. Poland could not establish TCP to two resolved Yandex CDN edge IPs (both 3-second connect timeout); the valid GET never reached Estonia. This is a Poland-to-edge egress limitation, not proof that the edge fails for mobile clients. Valid edge byte parity, real restricted-network refresh, and automatic client recovery are **open**.
+Evidence: the owner's computer retrieved the same allowed device subscription over direct and CDN paths: both HTTP 200, 50,676 bytes, matching SHA-256, and private/no-store. Invalid ID through the existing CDN hostname returned 404 and private/no-store. Poland could not establish TCP to two resolved Yandex CDN edge IPs (both 3-second connect timeout); this Poland-to-edge limitation is not proof that mobile clients cannot reach the CDN. Real restricted-network add/refresh remains **open**.
 
 Current result: the requested combination of **direct client entry, same URL, and prompt automatic fallback during direct-route filtering** has no working implementation with the current DNS/client stack. A delayed DNS failover could be designed separately if the owner accepts its cache delay; it must have an exact route/monitor/rollback table and prove the standby supports every method/path before activation. Preserve original URLs and IDs. Do not route app, billing or device-import POST through this CDN without a verified method contract.
