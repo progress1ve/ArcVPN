@@ -1,0 +1,5 @@
+# Estonia-only LTE alerts evidence — 2026-10-02
+
+Owner explicitly requested Estonia-only scheduled bypass notifications. Removed Finland from worker targets and required native links, added notification host allowlist to discard stale Finland events, aligned quota to three scans. Existing Estonia /api-test and thresholds/cadence preserved. No topology or subscription changes.
+Local: 7 focused tests passed (LatencyLab client/worker and alert state machine). Runtime deployment uses ff-only pull on Poland; oneshot monitor picks new code next invocation, no bot/subscription restart required. Rollback: revert runtime commit. Historical Finland database rows retained.
+Production verified 2026-10-02: runtime commit 9e8bdb4 pushed and ff-only pulled. Manual oneshot completed Result=success / ExecMainStatus=0, nodes=1 online_operators=5 transitions=0. Timer active; bot and subscription service untouched. No Finland probes/events. Existing historical Finland rows retained. Acceptance passed; variant-specific checks remain a separate follow-up.

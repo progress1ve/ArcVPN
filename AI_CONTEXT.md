@@ -1968,3 +1968,6 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 
 ## Subscription reserves and temporary friend access — 2026-10-02
 Owner accepts a separately imported CDN subscription as an optional secondary bot/cabinet action; primary remains direct. Admin may issue shared temporary guest access with chosen term, device count, and total LTE allowance in 15 GiB increments; QR uses existing CDN GET delivery. Guest access expires automatically and only its generated panel identities/tokens are retired. No paid client provider integration required. LTE/CDN online highlighting uses recent isolated LTE identity activity, never cumulative traffic.
+
+## LTE notification scope (2026-10-02)
+Owner requires scheduled bypass failure/recovery notifications only for Estonia; Finland must not generate these Telegram notifications.

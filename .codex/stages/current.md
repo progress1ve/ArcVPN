@@ -11,6 +11,13 @@ Evidence so far: full Python suite 351 passed (one old label assertion aligned w
 
 ## Preserved earlier owner stages
 
+
+# Estonia-only LTE alerts — 2026-10-02
+
+Owner request: scheduled bypass alerts and recoveries only for Estonia; Finland notifications are unwanted.
+Scope: monitoring/lte_operator_worker.py and focused tests. Remove Finland from checks, link prerequisites and notification allowlist. Preserve Estonia path/cadence/three-failure/two-success thresholds and all subscription routes.
+Acceptance: only Estonia probed and recorded; stale Finland alert/recovery events dropped before Telegram initialization; missing Finland link cannot block Estonia checks; focused tests; staged diff; commit/push/production ff-only pull; real worker check and timer state.
+Risk: Estonia legacy /api-test still monitored; fast/reserve redesign outside this small change. Rollback: revert runtime commit. No DNS, routing, database deletion or bot/subscription restart.
 # Current: React admin node operations and traffic usage — 2026-09-30
 
 Active correction of period-dependent admin traffic: `.codex/stages/traffic-period-2026-09-30.md`.

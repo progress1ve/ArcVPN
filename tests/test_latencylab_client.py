@@ -63,7 +63,7 @@ def test_worker_records_each_operator_and_never_alerts_on_missing_result(tmp_pat
 
     class FakeClient:
         def remaining_quota(self):
-            return 100
+            return 3
 
         def operators(self):
             return {"mts", "t2"}
@@ -72,12 +72,22 @@ def test_worker_records_each_operator_and_never_alerts_on_missing_result(tmp_pat
             return {"results": [{"operator": "mts", "ok": target == "yandex.ru"}]}
 
         def vpn_multiscan(self, uri, operators):
+            assert uri == "private-ee"
             return {"results": [{"operator": "mts", "ok": True, "latency_ms": 120}]}
 
     result = asyncio.run(worker.run(client=FakeClient(), links={"/api-test": "private-ee", "/api-fin": "private-fi"}))
-    assert result == {"nodes": 2, "online_operators": 2, "transitions": 0}
+    assert result == {"nodes": 1, "online_operators": 2, "transitions": 0}
     assert not events
     with sqlite3.connect(path) as conn:
-        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results").fetchone()[0] == 10
-        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results WHERE outcome='unknown'").fetchone()[0] == 8
-        assert conn.execute("SELECT count(*) FROM lte_operator_alert_state").fetchone()[0] == 2
+        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results").fetchone()[0] == 5
+        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results WHERE outcome='unknown'").fetchone()[0] == 4
+        assert conn.execute("SELECT count(*) FROM lte_operator_alert_state").fetchone()[0] == 1
+        assert conn.execute("SELECT DISTINCT target_path FROM lte_operator_probe_results").fetchall() == [("/api-test",)]
+
+
+def test_finland_events_are_dropped_before_initializing_telegram():
+    # These incomplete events would fail during message rendering if not filtered.
+    asyncio.run(worker.notify([
+        {"node_host": "151.241.137.174", "type": "alert"},
+        {"node_host": "151.241.137.174", "type": "recovery"},
+    ]))

@@ -1,4 +1,4 @@
-"""Scheduled operator-side VPN checks for the two managed LTE/CDN exits."""
+"""Scheduled operator-side VPN checks for the Estonia LTE/CDN exit."""
 from __future__ import annotations
 
 import asyncio
@@ -15,8 +15,7 @@ from monitoring.lte_operator_alerts import Attempt, record_batch
 LOG = logging.getLogger(__name__)
 KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
-NODES = (("87.251.19.197", "/api-test", "Эстония"),
-         ("151.241.137.174", "/api-fin", "Финляндия"))
+NODES = (("87.251.19.197", "/api-test", "Эстония"),)
 OPERATOR_NAMES = {"tmobile": "Т-Мобайл", "megafon": "МегаФон",
                   "beeline": "Билайн", "mts": "МТС", "t2": "Т2"}
 
@@ -35,14 +34,15 @@ async def owner_links() -> dict[str, str]:
         raise RuntimeError("owner_key_unavailable")
     links = await api._native_remnawave_links(key)
     result = {}
+    required_paths = {path for _host, path, _name in NODES}
     for uri in links:
         parsed = urllib.parse.urlsplit(uri)
         if parsed.scheme != "vless" or parsed.hostname != "cdn-de.arccnet.space":
             continue
         path = urllib.parse.parse_qs(parsed.query).get("path", [None])[0]
-        if path in {"/api-test", "/api-fin"}:
+        if path in required_paths:
             result[path] = api._normalize_native_share_link(uri)
-    if set(result) != {"/api-test", "/api-fin"}:
+    if set(result) != required_paths:
         raise RuntimeError("managed_links_unavailable")
     return result
 
@@ -60,6 +60,8 @@ def outcome(row: dict | None) -> bool | None:
 
 
 async def notify(events: list[dict]) -> None:
+    monitored_hosts = {host for host, _path, _name in NODES}
+    events = [event for event in events if event["node_host"] in monitored_hosts]
     if not events:
         return
     from aiogram import Bot
@@ -89,7 +91,7 @@ async def notify(events: list[dict]) -> None:
 async def run(*, client: Client | None = None, links: dict[str, str] | None = None) -> dict:
     token = KEY_FILE.read_text(encoding="utf-8").strip() if client is None else None
     client = client or Client(token)
-    if client.remaining_quota() < 4:
+    if client.remaining_quota() < 2 + len(NODES):
         raise LatencyLabError("insufficient_free_quota")
     online = client.operators()
     selected = [name for name in OPERATORS if name in online]
