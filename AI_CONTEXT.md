@@ -1964,3 +1964,6 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
 
 ## 2026-09-30 — актуальный список нод в React-админке
 Владелец требует показывать в списке нод только ArcVPN Estonia 1chost (87.251.19.197), ArcVPN Finland 1chost (151.241.137.174) и ArcVPN Moscow Bridge (85.198.101.79). Для Эстонии и Финляндии провайдер — One Cent Host. Старые записи Remnawave скрываются только в интерфейсе; удаление записей или изменение маршрутов этим решением не разрешено. Упомянутые владельцем «мультитесты OTE» означают проверки LTE через мобильных операторов.
+
+## LTE notification scope (2026-10-02)
+Owner requires scheduled bypass failure/recovery notifications only for Estonia; Finland must not generate these Telegram notifications.

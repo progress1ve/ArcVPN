@@ -1,3 +1,9 @@
+# Estonia-only LTE alerts — 2026-10-02
+
+Owner request: scheduled bypass alerts and recoveries only for Estonia; Finland notifications are unwanted.
+Scope: monitoring/lte_operator_worker.py and focused tests. Remove Finland from checks, link prerequisites and notification allowlist. Preserve Estonia path/cadence/three-failure/two-success thresholds and all subscription routes.
+Acceptance: only Estonia probed and recorded; stale Finland alert/recovery events dropped before Telegram initialization; missing Finland link cannot block Estonia checks; focused tests; staged diff; commit/push/production ff-only pull; real worker check and timer state.
+Risk: Estonia legacy /api-test still monitored; fast/reserve redesign outside this small change. Rollback: revert runtime commit. No DNS, routing, database deletion or bot/subscription restart.
 # Current: React admin node operations and traffic usage — 2026-09-30
 
 Active correction of period-dependent admin traffic: `.codex/stages/traffic-period-2026-09-30.md`.
@@ -152,3 +158,4 @@ Reg.ru login and CAPTCHA completed with owner's explicit authorization. New dual
 Further acceptance 2026-10-02: dual-domain cert Issued, both challenges Valid. EE origin route extension applied with backup `/root/arcvpn-sub-cdn-routes-before.mkj4q0ui`; nginx-t and active passed. Real allowed device response direct Poland vs EE origin: HTTP200, 50,676 bytes, equal SHA-256 prefix, same private/no-store header. Import HTML also byte-identical. Existing CDN allowed methods GET/HEAD/OPTIONS; device import POST is a release blocker until enabled and checked. Shared CDN alias/cert remain unchanged. `sub` DNS remains old direct A. Yandex edit tab's unsaved-form confirmation blocks subsequent console UI actions; owner asynchronously asked to dismiss that dialog while all browser sessions stay open. No DNS cutover.
 
 Checkpoint: commits `62bb9f8` (origin route script and contract) and `f095479` (certificate/origin evidence) pushed to main and fast-forward pulled on Poland. EE nginx reload was the only service action; EE nginx and Poland subscription service active. DNS `sub` still resolves `217.60.33.38`; VPN XHTTP origin path returns its expected unauthenticated 404. No profile or URL changed. Cutover acceptance is **deferred**, not passed. Next step: clear the Yandex unsaved-form confirmation, enable and verify POST, attach the issued dual-domain certificate and sub alias, run edge subscription/VPN gates, then switch DNS.
+
