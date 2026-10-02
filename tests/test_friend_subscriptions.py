@@ -15,7 +15,7 @@ def guest_db(monkeypatch):
     conn.row_factory = sqlite3.Row
     conn.executescript("""
         CREATE TABLE users(id INTEGER PRIMARY KEY,telegram_id INTEGER,identity_source TEXT,
-            referral_code TEXT,device_limit INTEGER,lte_quota_gb INTEGER,used_trial INTEGER,
+            referral_code TEXT,device_limit INTEGER,lte_quota_gb INTEGER,used_trial INTEGER,enforce_device_tokens INTEGER,
             lte_cycle_started_at TEXT,lte_cycle_reset_at TEXT,lte_client_uuid TEXT,
             lte_panel_username TEXT,lte_remnawave_user_id TEXT);
         CREATE TABLE vpn_keys(id INTEGER PRIMARY KEY,user_id INTEGER,sub_id TEXT,expires_at TEXT,panel_disabled_at TEXT);
@@ -47,6 +47,7 @@ def test_validation_and_idempotent_identity(guest_db):
     assert created and not again and row['id'] == same['id']
     assert guest_db.execute('SELECT count(*) FROM users').fetchone()[0] == 1
     assert row['device_limit'] == 1
+    assert guest_db.execute('SELECT enforce_device_tokens FROM users').fetchone()[0] == 1
     assert not friends.list_guests()[0]['sub_id']
 
 

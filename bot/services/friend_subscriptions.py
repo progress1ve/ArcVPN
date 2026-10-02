@@ -33,7 +33,7 @@ def reserve_guest(options, actor):
             return dict(existing), False
         synthetic = -(2_000_000_000_000 + secrets.randbelow(899_999_999_999))
         user = conn.execute("""INSERT INTO users(telegram_id,identity_source,referral_code,
-            device_limit,lte_quota_gb,used_trial) VALUES(?,'guest',?,?,?,1)""",
+            device_limit,lte_quota_gb,used_trial,enforce_device_tokens) VALUES(?,'guest',?,?,?,1,1)""",
             (synthetic, secrets.token_urlsafe(8), options['device_limit'], options['lte_quota_gb']))
         expiry = (datetime.now(timezone.utc) + timedelta(days=options['days'])).strftime('%Y-%m-%d %H:%M:%S')
         row = conn.execute("""INSERT INTO friend_subscriptions(request_id,user_id,label,
