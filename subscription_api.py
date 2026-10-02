@@ -1944,7 +1944,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     rendered_profiles = apply_balancers([auto_profile, *visible_main, *fallback_lte_profiles], balancer_policy, member_addresses, key.telegram_id)
     # Owner's client order: Auto, YouTube, then manual locations and bypasses.
     for profile in rendered_profiles:
-        if _subscription_source_name(profile.get("remarks", "")) == "Эстония #1":
+        if _subscription_source_name(profile.get("remarks", "")) == "Эстония":
             profile["remarks"] = "🇪🇪 Эстония"
     youtube_profiles = [profile for profile in rendered_profiles
                         if _subscription_source_name(profile.get("remarks", "")) == "Ютуб без рекламы"]
