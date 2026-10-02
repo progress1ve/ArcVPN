@@ -117,6 +117,16 @@ Owner presentation correction 2026-10-02: YouTube immediately after Auto, before
 
 ## Subscription refresh CDN — 2026-10-02
 
+### Latest owner contract: direct primary, client-side CDN fallback
+
+Owner explicitly requires one visible subscription in Happ and INCY, unchanged primary sub.arccnet.space, normal delivery direct Poland, CDN only after client detects primary failure, no Provider ID, no second imported subscription. The previously proposed permanent CDN entry is rejected by this requirement. Existing CDN /sub/ standby remains prepared; no DNS mutation is needed for a client-held alternate hostname.
+
+Research 2026-10-02: official INCY subscription-format docs explicitly say the fallback list is NOT provided by a subscription header; it comes from Premium configuration settings.fallbackHosts. Client retries on network/timeout/5xx/429 with same path/token, skips fallback on404/410; premium API says hosts are cached on the subscription. Owner has been asked whether the domain has an INCY Premium panel. Happ official app-management docs place fallback-url under Advanced parameters requiring Provider ID. Screenshot saying "put fallback in config" provides neither client version nor a parameter schema and is not a validated implementation contract. Do not add an arbitrary Xray fallback field or claim it downloads a subscription. Fresh import under primary blocking remains unproven because a new client must obtain fallback metadata before its first subscription fetch. No runtime change or deployment until a supported client integration is established; owner-only verification may test a documented candidate without silently enabling Provider ID.
+
+Sources: https://docs.incy.cc/en/subscription-format/#fallback-hosts ; https://docs.incy.cc/en/premium-api/#fallback-domains-fallbackhosts ; https://github.com/HappDev/happ_su/blob/main/dev-docs/app-management.md . Friend handoff outside Git was replaced with a generic example-only template; no real project domains, nodes, IPs, identities or operational history remain.
+
+Owner clarified no paid client-provider features or purchases. INCY Premium integration is therefore excluded: official premium-billing docs describe paid provider plans (https://docs.incy.cc/en/premium-billing/). No supported free per-client primary/CDN subscription failover for both Happ and INCY has been established. Central DNS failover is slower, changes the answer for all clients, and cannot represent per-user/operator restrictions reliably. Preserve direct production delivery and report the missing client mechanism honestly; do not publish guessed fallback headers as functional.
+
 ### Separate GET-only reserve for Happ and INCY
 
 **Rejected by owner after release:** a second imported subscription is unacceptable. Revert the bot/API/Svelte reserve presentation and generated assets. The accepted product goal is one unchanged `sub.arccnet.space` URL for adding and refreshing in both apps, without Provider ID. Do not treat this rejected release as authority for a new topology. Before any DNS/CDN mutation, propose an exact route, client behavior, failure behavior, cost and rollback and obtain the owner's choice.
