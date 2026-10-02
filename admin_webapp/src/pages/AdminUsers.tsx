@@ -75,7 +75,7 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
 
         {/* Status badges - wrap on mobile */}
         <div className="mt-1 flex flex-wrap items-center gap-1.5">
-          {user.lte_online && <span title="Активность отдельного LTE/CDN-профиля за последние 3 минуты по Remnawave" className="rounded-full border border-accent-500/40 bg-accent-500/15 px-2 py-0.5 text-xs font-medium text-accent-400">LTE/CDN · обход</span>}
+          {user.lte_online && <span title="Активность LTE/CDN-учётки за последние 3 минуты, включая фоновые проверки клиента. Не подтверждает переход пользовательского трафика на CDN." className="rounded-full border border-accent-500/40 bg-accent-500/15 px-2 py-0.5 text-xs font-medium text-accent-400">Активность LTE/CDN</span>}
           {user.status !== 'active' && <StatusBadge status={user.status} />}
           {user.has_subscription && user.subscription_status && (
             <span

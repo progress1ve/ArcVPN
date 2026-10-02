@@ -55,40 +55,40 @@ export default function ArcMarketing() {
   const [campaign, setCampaign] = useState({
     name: '',
     code: '',
-    entry_bonus_days: 0,
-    payment_bonus_days: 0,
+    entry_bonus_days: '0',
+    payment_bonus_days: '0',
   });
   const [promocode, setPromocode] = useState({
     code: '',
     discount_type: 'fixed',
-    discount_value: 0,
-    max_uses: 100,
-    duration_days: 30,
+    discount_value: '0',
+    max_uses: '100',
+    duration_days: '30',
   });
   const query = useQuery({ queryKey: ['arc-marketing'], queryFn: getMarketing });
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['arc-marketing'] });
   const createCampaign = useMutation({
-    mutationFn: () => createMarketingCampaign(campaign),
+    mutationFn: () => createMarketingCampaign({ ...campaign, entry_bonus_days: Number(campaign.entry_bonus_days), payment_bonus_days: Number(campaign.payment_bonus_days) }),
     onSuccess: () => {
       notify.success('Реферальная ссылка создана');
       setShowForm(false);
-      setCampaign({ name: '', code: '', entry_bonus_days: 0, payment_bonus_days: 0 });
+      setCampaign({ name: '', code: '', entry_bonus_days: '0', payment_bonus_days: '0' });
       refresh();
     },
     onError: () => notify.error('Не удалось создать ссылку. Проверьте код и название.'),
   });
   const createPromocode = useMutation({
-    mutationFn: () => createMarketingPromocode(promocode),
+    mutationFn: () => createMarketingPromocode({ ...promocode, discount_value: Number(promocode.discount_value), max_uses: Number(promocode.max_uses), duration_days: Number(promocode.duration_days) }),
     onSuccess: () => {
       notify.success('Промокод создан');
       setShowForm(false);
       setPromocode({
         code: '',
         discount_type: 'fixed',
-        discount_value: 0,
-        max_uses: 100,
-        duration_days: 30,
+        discount_value: '0',
+        max_uses: '100',
+        duration_days: '30',
       });
       refresh();
     },
@@ -173,7 +173,7 @@ export default function ArcMarketing() {
                   className="input mt-2"
                   value={campaign.entry_bonus_days}
                   onChange={(e) =>
-                    setCampaign({ ...campaign, entry_bonus_days: Number(e.target.value) })
+                    setCampaign({ ...campaign, entry_bonus_days: e.target.value })
                   }
                 />
               </label>
@@ -186,7 +186,7 @@ export default function ArcMarketing() {
                   className="input mt-2"
                   value={campaign.payment_bonus_days}
                   onChange={(e) =>
-                    setCampaign({ ...campaign, payment_bonus_days: Number(e.target.value) })
+                    setCampaign({ ...campaign, payment_bonus_days: e.target.value })
                   }
                 />
               </label>
@@ -227,7 +227,7 @@ export default function ArcMarketing() {
                   className="input mt-2"
                   value={promocode.discount_value}
                   onChange={(e) =>
-                    setPromocode({ ...promocode, discount_value: Number(e.target.value) })
+                    setPromocode({ ...promocode, discount_value: e.target.value })
                   }
                 />
               </label>
@@ -239,7 +239,7 @@ export default function ArcMarketing() {
                   type="number"
                   className="input mt-2"
                   value={promocode.max_uses}
-                  onChange={(e) => setPromocode({ ...promocode, max_uses: Number(e.target.value) })}
+                  onChange={(e) => setPromocode({ ...promocode, max_uses: e.target.value })}
                 />
               </label>
               <label className="text-sm text-dark-300">
@@ -252,7 +252,7 @@ export default function ArcMarketing() {
                   className="input mt-2"
                   value={promocode.duration_days}
                   onChange={(e) =>
-                    setPromocode({ ...promocode, duration_days: Number(e.target.value) })
+                    setPromocode({ ...promocode, duration_days: e.target.value })
                   }
                 />
               </label>

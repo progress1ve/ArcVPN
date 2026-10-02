@@ -15,8 +15,8 @@ export default function AdminFriendSubscriptions() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [label, setLabel] = useState('');
-  const [days, setDays] = useState(3);
-  const [devices, setDevices] = useState(3);
+  const [days, setDays] = useState('3');
+  const [devices, setDevices] = useState('3');
   const [quota, setQuota] = useState(15);
   const [requestId, setRequestId] = useState(() => crypto.randomUUID());
   const [qr, setQr] = useState<Guest | null>(null);
@@ -32,7 +32,7 @@ export default function AdminFriendSubscriptions() {
   const create = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true); setError(''); setNotice('');
     try {
-      const result = await getJson('/api/admin/friend-subscriptions', { method: 'POST', body: JSON.stringify({ label, days, device_limit: devices, lte_quota_gb: quota, request_id: requestId }) });
+      const result = await getJson('/api/admin/friend-subscriptions', { method: 'POST', body: JSON.stringify({ label, days: Number(days), device_limit: Number(devices), lte_quota_gb: quota, request_id: requestId }) });
       setItems(result.subscriptions);
       const created = result.subscriptions.find((item: Guest) => item.id === result.created_id);
       if (created?.sub_url) { setQr(created); setLabel(''); setRequestId(crypto.randomUUID()); }
@@ -58,8 +58,8 @@ export default function AdminFriendSubscriptions() {
       <h2 className="font-semibold">Создать подписку</h2>
       <label className="block text-sm">Название<input className={field + ' mt-2'} value={label} maxLength={80} required placeholder="Например, друзья — выходные" onChange={e => { setLabel(e.target.value); setRequestId(crypto.randomUUID()); }} disabled={busy} /></label>
       <div className="grid gap-4 sm:grid-cols-3">
-        <label className="text-sm">Срок, дней<input className={field + ' mt-2'} type="number" min={1} max={90} value={days} onChange={e => {setDays(Number(e.target.value));setRequestId(crypto.randomUUID());}} required disabled={busy} /></label>
-        <label className="text-sm">Устройств<input className={field + ' mt-2'} type="number" min={1} max={15} value={devices} onChange={e => {setDevices(Number(e.target.value));setRequestId(crypto.randomUUID());}} required disabled={busy} /></label>
+        <label className="text-sm">Срок, дней<input className={field + ' mt-2'} type="number" min={1} max={90} value={days} onChange={e => {setDays(e.target.value);setRequestId(crypto.randomUUID());}} required disabled={busy} /></label>
+        <label className="text-sm">Устройств<input className={field + ' mt-2'} type="number" min={1} max={15} value={devices} onChange={e => {setDevices(e.target.value);setRequestId(crypto.randomUUID());}} required disabled={busy} /></label>
         <label className="text-sm">Обход LTE/CDN, ГБ<select className={field + ' mt-2'} value={quota} onChange={e => {setQuota(Number(e.target.value));setRequestId(crypto.randomUUID());}} disabled={busy}>{Array.from({ length: 33 }, (_, i) => (i + 1) * 15).map(v => <option key={v} value={v}>{v} ГБ</option>)}</select></label>
       </div>
       <p className="text-sm text-dark-400">Срок начинается сразу. Одну ссылку можно раздать нескольким людям; лимиты устройств и обхода общие для всех.</p>
