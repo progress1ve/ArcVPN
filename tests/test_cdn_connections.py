@@ -47,3 +47,12 @@ def test_untrusted_reports_are_bounded_and_atomic():
 def test_missing_schema_is_unknown_not_false_positive():
     c=sqlite3.connect(':memory:'); c.row_factory=sqlite3.Row
     assert states(c,{1:['test']}) == {}
+
+
+def test_numeric_remnawave_identity_and_double_arrow():
+    c = database()
+    event = line('tcp:sub.arccnet.space:18080').replace('->', '>>').replace('test-user', '123')
+    hashed, kind = classify(event)
+    assert kind == 'probe'
+    ingest(c, '87.251.19.197', {'available': True, 'identities': [{'hash': hashed, 'probe_at': 999}]}, 1000)
+    assert states(c, {42: ['arc_lte_42', 123]}, 1000)[42] == 'probe'

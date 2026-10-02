@@ -25,7 +25,9 @@ def run():
             stat = path.stat()
             identity = (pid, stat.st_ino)
             if identity != last_inode or stat.st_size < offset:
-                offset = 0
+                # Existing records predate this collector session. Never present
+                # historical connection starts as current user activity.
+                offset = stat.st_size
                 gap_until = now + WINDOW
                 last_inode = identity
             # Read at most 4 MiB. Never print raw records or retain them on disk.
@@ -37,6 +39,13 @@ def run():
                     if not line:
                         break
                     if not line.endswith('\n'):
+                        if len(line) == 8193:
+                            # Discard an oversized record rather than blocking
+                            # all subsequent events behind it.
+                            while line and not line.endswith('\n'):
+                                line = stream.readline(8193)
+                            gap_until = now + WINDOW
+                            continue
                         stream.seek(start)
                         break
                     record = classify(line)
