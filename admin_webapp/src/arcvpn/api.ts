@@ -528,6 +528,7 @@ export function userListItem(row: Json): Json {
     online_devices: Number(row.online_devices || 0),
     online_node: row.online_node || null,
     lte_online: row.lte_online ?? null,
+    lte_usage: row.lte_usage ?? 'unknown',
     main_used_gb: asGb(row.main_used_bytes),
     lte_used_gb: asGb(row.lte_used_bytes),
     lte_quota_gb: Number(row.lte_quota_gb || 0),

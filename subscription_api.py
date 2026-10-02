@@ -1791,7 +1791,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     auto_profile = {
         "burstObservatory": {
             "pingConfig": {
-                "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
+                "connectivity": "", "destination": ("http://sub.arccnet.space:18080/generate_204" if get_setting("cdn_connection_probe_live", "0") == "1" else "http://www.gstatic.com/generate_204"),
                 "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
             },
             # Observe only normal nodes. CDN is an emergency fallback, not a
@@ -1881,7 +1881,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         youtube_profile = {
             "burstObservatory": {
                 "pingConfig": {
-                    "connectivity": "", "destination": "http://www.gstatic.com/generate_204",
+                    "connectivity": "", "destination": ("http://sub.arccnet.space:18080/generate_204" if get_setting("cdn_connection_probe_live", "0") == "1" else "http://www.gstatic.com/generate_204"),
                     "httpMethod": "GET", "interval": "10s", "sampling": 6, "timeout": "5s",
                 },
                 "subjectSelector": ["proxy-youtube"],
@@ -4745,6 +4745,25 @@ def api_create_email_trial_payment():
         "confirmation_url": payment["qr_url"], "status": payment["status"], "amount_rub": 10}))
 
 
+@app.route('/api/internal/cdn-connections', methods=['POST'])
+def api_internal_cdn_connections():
+    expected = f"Bearer {NODE_METRICS_TOKEN}" if NODE_METRICS_TOKEN else ""
+    if not expected or not secrets.compare_digest(request.headers.get('Authorization', ''), expected):
+        return _api_error('unauthorized', 401)
+    if (request.content_length or 0) > 256000:
+        return _api_error('report_too_large', 413)
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or payload.get('host') != '87.251.19.197':
+        return _api_error('unknown_node', 400)
+    from monitoring.cdn_connections import ingest
+    try:
+        with get_db() as conn:
+            ingest(conn, payload['host'], payload)
+    except (ValueError, TypeError):
+        return _api_error('invalid_report', 400)
+    return _api_no_store(jsonify({'ok': True}))
+
+
 @app.route('/api/internal/node-metrics', methods=['POST'])
 def api_internal_node_metrics():
     """Receive authenticated host telemetry without depending on x-ui."""
@@ -6140,7 +6159,11 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=3)
         live_by_tg: dict[str, dict[str, Any]] = {}
         live_by_username: dict[str, dict[str, Any]] = {}
+        cdn_identities = {}
         for item in (result or {}).get("users", []):
+            username = str(item.get('username') or '')
+            if re.fullmatch(r'arc_lte_[0-9]+', username):
+                cdn_identities[int(username[8:])] = [username, item.get('uuid'), item.get('id'), item.get('vlessUuid'), item.get('shortUuid')]
             traffic = item.get("userTraffic") or {}
             raw_online_at = traffic.get("onlineAt")
             if not raw_online_at:
@@ -6171,11 +6194,14 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
                 SELECT u.id,u.telegram_id,lower(COALESCE(vk.panel_email,'')) AS panel_email
                 FROM users u LEFT JOIN vpn_keys vk ON vk.user_id=u.id
             """).fetchall()
+        from monitoring.cdn_connections import states
+        with get_db() as conn:
+            cdn_states = states(conn, cdn_identities)
         for row in rows:
             lte_presence = live_by_username.get(f"arc_lte_{row['id']}")
             presence = lte_presence or live_by_tg.get(str(row["telegram_id"])) or live_by_username.get(str(row["panel_email"] or ""))
             if presence:
-                resolved[int(row["id"])] = {**presence, 'lte_online': bool(lte_presence)}
+                resolved[int(row["id"])] = {**presence, 'lte_online': bool(lte_presence), 'lte_usage': cdn_states.get(int(row['id']), 'unknown')}
         _ADMIN_PRESENCE_CACHE = (now, True, resolved)
         return True, resolved
     except Exception:
@@ -6278,7 +6304,8 @@ def api_admin_users():
     if presence_authoritative:
         for row in rows:
             presence = live_presence.get(int(row["id"]))
-            row['lte_online'] = bool(presence and presence.get('lte_online'))
+            row['lte_online'] = bool(presence and presence.get('lte_usage') == 'user')
+            row['lte_usage'] = presence.get('lte_usage', 'unknown') if presence else 'none'
             row["online_devices"] = 1 if presence else 0
             if presence:
                 row["last_online_at"] = presence["online_at"]
@@ -6286,6 +6313,7 @@ def api_admin_users():
     else:
         for row in rows:
             row['lte_online'] = None
+            row['lte_usage'] = 'unknown'
     next_cursor = offset + len(rows) if offset + len(rows) < total else None
     return _api_no_store(jsonify({
         "ok": True, "users": rows, "total": total,
@@ -7389,7 +7417,7 @@ def api_admin_overview():
             "kind": "client_balancer",
             "probe_interval_seconds": 10,
             "probe_samples": 6,
-            "probe_url": "http://www.gstatic.com/generate_204",
+            "probe_url": "http://sub.arccnet.space:18080/generate_204",
             "failover": "Whitenode leastLoad → единый CDN с DE/EE origin failover",
             "selection_observable": False,
             "online_distribution": node_distribution,

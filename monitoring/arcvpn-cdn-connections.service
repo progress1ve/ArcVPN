@@ -1,0 +1,20 @@
+[Unit]
+Description=ArcVPN CDN connection classification without raw log persistence
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+EnvironmentFile=/etc/arcvpn/node-agent.env
+ExecStart=/usr/bin/python3 /usr/local/lib/arcvpn/cdn_connection_agent.py
+Restart=always
+RestartSec=5
+User=root
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target

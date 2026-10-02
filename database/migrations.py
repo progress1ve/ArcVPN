@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 71
+LATEST_VERSION = 72
 
 
 def get_current_version() -> int:
@@ -2635,6 +2635,11 @@ def migration_71(conn: sqlite3.Connection) -> None:
     """)
 
 
+def migration_72(conn):
+    from monitoring.cdn_connections import schema
+    schema(conn)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2707,6 +2712,7 @@ MIGRATIONS = {
     69: migration_69,
     70: migration_70,
     71: migration_71,
+    72: migration_72,
 }
 
 

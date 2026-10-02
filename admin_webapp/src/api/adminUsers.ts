@@ -61,6 +61,7 @@ export interface UserListItemSubscription {
 
 export interface UserListItem {
   lte_online?: boolean | null;
+  lte_usage?: 'user' | 'probe' | 'none' | 'unknown';
   id: number;
   telegram_id: number;
   username: string | null;
