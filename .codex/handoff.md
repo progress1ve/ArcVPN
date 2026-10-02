@@ -194,3 +194,7 @@ POST returned 403. Build and full Python suite (313 passed) are complete.
 ## Owner UI correction — 2026-10-01
 
 Current isolated checkout adds downloaded operator brand SVGs (sources.json), live provider offline/region metadata, CDN terminology, visible back-to-node-list, hides unobserved uptime bins, prioritizes people in Load and shows sanitized TCP port facts in logs instead of empty failed diagnostics. Python suite: 315 passed; React build passed. Broad owner acceptance remains open: balancer/subscription editor, LTE/bridge service creation, original Multitest queue/history and calibrated comfortable-user capacity are not implemented. Provider currently reports only Orel; do not invent regions or restricted-period proof. Primary owner checkout untouched.
+
+## Subscription refresh correction — 2026-10-02
+
+Owner chose direct Poland as primary and CDN as **automatic fallback on the same `sub.arccnet.space` URL**. The preceding CDN-primary cutover plan is superseded. No `sub` DNS change or CDN certificate swap occurred. Reg.ru authoritative A TTL is 86400 seconds, so a DNS switch alone cannot promptly recover clients with cached answers. A valid CDN-path request from Poland timed out before Estonia; actual fallback remains unverified. Existing issued dual-domain certificate and prepared Estonia proxy routes remain unused; do not remove them without lifecycle review. See `docs/operations/subscription-cdn-refresh-2026-10-02.md`. Next: design and accept a same-host failover mechanism with real restricted-network evidence before any DNS/CDN mutation.
