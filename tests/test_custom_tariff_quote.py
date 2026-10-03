@@ -54,7 +54,7 @@ def test_custom_quote_is_monotonic_for_supported_choices():
 
 @pytest.mark.parametrize("months", [1, 3, 6, 12])
 def test_custom_quote_matrix_has_no_price_inversions(months):
-    lte_choices = [0, 15, 30, 45, 75, 115, 175, 225, 500]
+    lte_choices = [0, 5, 10, 15, 30, 45, 75, 115, 175, 225, 500]
     for devices in range(1, 16):
         prices = [api._custom_tariff_quote({"period_months": months}, devices, gb, CATALOG)["price_rub"] for gb in lte_choices]
         assert prices == sorted(prices)
@@ -63,7 +63,7 @@ def test_custom_quote_matrix_has_no_price_inversions(months):
         assert prices == sorted(prices)
 
 
-@pytest.mark.parametrize("devices,lte", [(0, 45), (16, 45), (3, 10), (3, 501), (3, 999)])
+@pytest.mark.parametrize("devices,lte", [(0, 45), (16, 45), (3, 7), (3, 501), (3, 999)])
 def test_custom_quote_rejects_values_outside_the_product_choices(devices, lte):
     with pytest.raises(ValueError, match="invalid_custom_entitlements"):
         api._custom_tariff_quote({"period_months": 3}, devices, lte, CATALOG)
@@ -159,3 +159,11 @@ def test_addon_payment_uses_server_price_table():
     assert response.get_json()["amount_rub"] == 85
     prepare.assert_called_once()
     addon.assert_called_once_with("addon-order", 15, 2)
+
+
+@pytest.mark.parametrize("gb,price", [(5,80),(10,90)])
+@pytest.mark.parametrize("months", [1,3,6,12])
+def test_small_bypass_one_device_monthly_price(gb, price, months):
+    result=api._custom_tariff_quote({'period_months':months},1,gb,CATALOG)
+    assert result['price_rub']==price*months
+    assert result['monthly_rub']==price
