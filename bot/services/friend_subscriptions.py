@@ -1,6 +1,8 @@
 """Admin-only temporary access with durable provisioning and cleanup."""
 import asyncio
 import secrets
+import math
+import time
 from datetime import datetime, timedelta, timezone
 
 from database.connection import get_db
@@ -14,7 +16,11 @@ def validate_options(payload):
     if not label or len(label) > 80:
         raise ValueError('invalid_label')
     values = {}
-    for field, maximum in [('days', 90), ('device_limit', 15), ('lte_quota_gb', 500)]:
+    days = payload.get('days')
+    if isinstance(days, bool) or not isinstance(days, (int, float)) or not math.isfinite(days) or not 0.5 <= days <= 90 or days * 2 != int(days * 2):
+        raise ValueError('invalid_days')
+    values['days'] = days
+    for field, maximum in [('device_limit', 15), ('lte_quota_gb', 500)]:
         value = payload.get(field)
         if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
             raise ValueError('invalid_' + field)
@@ -161,3 +167,49 @@ async def run_friend_cleanup():
         except Exception:
             logging.getLogger(__name__).warning('Temporary access cleanup will retry')
         await asyncio.sleep(60)
+
+
+_GUEST_PRESENCE_CACHE = (0, {})
+
+async def guest_presence(rows):
+    """Panel connection recency, not proof of continuous payload consumption."""
+    global _GUEST_PRESENCE_CACHE
+    from bot.services.panels.factory import create_panel_client
+    now = time.time()
+    if now - _GUEST_PRESENCE_CACHE[0] < 20:
+        observed = _GUEST_PRESENCE_CACHE[1]
+    else:
+        client = create_panel_client(authority_server())
+        observed = {}
+        try:
+            start = 0
+            while start < 10000:
+                result = await client._request('GET', '/api/users', params={'start': start, 'size': 500})
+                users = result.get('users', [])
+                for user in users:
+                    name = str(user.get('username') or '')
+                    if name.startswith(('arc_user_', 'arc_lte_')):
+                        observed[name] = (user.get('userTraffic') or {}).get('onlineAt')
+                start += len(users)
+                if not users or start >= int(result.get('total', start)):
+                    break
+            _GUEST_PRESENCE_CACHE = (now, observed)
+        finally:
+            await client.close()
+    response = {}
+    for row in rows:
+        dates = []
+        for name in (f"arc_user_{row['user_id']}", f"arc_lte_{row['user_id']}"):
+            raw = observed.get(name)
+            if raw:
+                try:
+                    at = datetime.fromisoformat(str(raw).replace('Z', '+00:00'))
+                    if at.tzinfo is None:
+                        at = at.replace(tzinfo=timezone.utc)
+                    dates.append(at)
+                except ValueError:
+                    pass
+        latest = max(dates) if dates else None
+        response[row['id']] = {'online': bool(latest and latest.timestamp() >= now - 180),
+                               'last_activity': latest.isoformat() if latest else None}
+    return response

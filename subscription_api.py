@@ -5800,8 +5800,9 @@ def api_admin_friend_subscriptions():
     if not _admin_authorized('subscriptions.manage'):
         return _api_error('admin_forbidden', 403)
     from bot.services.friend_subscriptions import validate_options, reserve_guest, provision_guest, list_guests
+    created_id = None
     if request.method == 'POST':
-        if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space',
+        if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space', 'https://panel.arccnet.space',
                                                     'http://127.0.0.1:5173', 'http://localhost:5173'}:
             logger.warning('friend_create_origin_rejected origin=%r fetch_site=%r', request.headers.get('Origin', '')[:120], request.headers.get('Sec-Fetch-Site', '')[:30])
             return _api_error('invalid_origin', 403)
@@ -5810,6 +5811,7 @@ def api_admin_friend_subscriptions():
         except (ValueError, TypeError, AttributeError):
             return _api_error('invalid_friend_options', 400)
         row, created = reserve_guest(options, str(_admin_telegram_id() or 'password-session'))
+        created_id = row['id']
         if created:
             try:
                 ASYNC_EXECUTOR.run(provision_guest(row), timeout=90)
@@ -5819,19 +5821,28 @@ def api_admin_friend_subscriptions():
                 target_id=str(row['id']), metadata={'days': options['days'], 'devices': options['device_limit'],
                                                   'lte_quota_gb': options['lte_quota_gb']})
     guests = []
-    for row in list_guests():
+    guest_rows = list_guests()
+    try:
+        from bot.services.friend_subscriptions import guest_presence
+        activity = ASYNC_EXECUTOR.run(guest_presence(guest_rows), timeout=10) if guest_rows else {}
+    except Exception:
+        activity = {}
+    for row in guest_rows:
         active = row['state'] == 'active' and row['expires_at'] > datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
         guests.append({key: row[key] for key in ('id', 'label', 'device_limit', 'lte_quota_gb', 'expires_at', 'state', 'devices_used')})
+        guests[-1].update(activity.get(row['id'], {'online': None, 'last_activity': None}))
+        if not active:
+            guests[-1]['online'] = False
         guests[-1]['sub_url'] = f"{SUBSCRIPTION_CDN_RESERVE_URL}/sub/{row['sub_id']}" if active and row['sub_id'] else None
     return _api_no_store(jsonify({'ok': True, 'subscriptions': guests,
-                                'created_id': row['id'] if request.method == 'POST' else None}))
+                                'created_id': created_id}))
 
 
 @app.route('/api/admin/friend-subscriptions/<int:guest_id>', methods=['DELETE'])
 def api_admin_delete_friend_subscription(guest_id):
     if not _admin_authorized('subscriptions.manage'):
         return _api_error('admin_forbidden', 403)
-    if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space',
+    if request.headers.get('Origin', '') not in {'https://arccnet.space', 'https://www.arccnet.space', 'https://panel.arccnet.space',
                                                 'http://127.0.0.1:5173', 'http://localhost:5173'}:
         return _api_error('invalid_origin', 403)
     with get_db() as conn:

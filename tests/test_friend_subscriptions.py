@@ -38,9 +38,13 @@ def options(**changes):
 
 
 def test_validation_and_idempotent_identity(guest_db):
-    for name, value in [('days', 0), ('device_limit', True), ('lte_quota_gb', 501), ('days', 1.5)]:
+    for name, value in [('days', 0), ('device_limit', True), ('lte_quota_gb', 501), ('days', 0.7)]:
         data = options(); data[name] = value
         with pytest.raises(ValueError): friends.validate_options(data)
+    half = options(); half.update(days=0.5, lte_quota_gb=5)
+    assert friends.validate_options(half)['days'] == 0.5
+    half['lte_quota_gb'] = 10
+    assert friends.validate_options(half)['lte_quota_gb'] == 10
     parsed = friends.validate_options(options())
     row, created = friends.reserve_guest(parsed, 'owner')
     same, again = friends.reserve_guest(parsed, 'owner')
@@ -85,6 +89,8 @@ def test_api_authorization_and_origin(guest_db, monkeypatch):
     monkeypatch.setattr(api, '_admin_authorized', lambda permission: True)
     assert client.post('/api/admin/friend-subscriptions', json=options()).status_code == 403
     assert client.post('/api/admin/friend-subscriptions', json={'days': 1}, headers={'Origin':'https://arccnet.space'}).status_code == 400
+    assert client.post('/api/admin/friend-subscriptions', json={'days': 1}, headers={'Origin':'https://panel.arccnet.space'}).status_code == 400
+    assert client.post('/api/admin/friend-subscriptions', json=options(), headers={'Origin':'https://evil.example'}).status_code == 403
     result = client.get('/api/admin/friend-subscriptions')
     assert result.status_code == 200
     assert 'no-store' in result.headers['Cache-Control']
@@ -133,3 +139,42 @@ def test_successful_provision_preserves_selected_limits_and_exact_expiry(guest_d
     assert friends.list_guests()[0]['state'] == 'active'
     assert guest_db.execute('SELECT expires_at FROM vpn_keys').fetchone()[0] == row['expires_at']
     assert friends.guest_access_allowed('created-token')
+
+
+def test_guest_presence_main_lte_and_stale(monkeypatch):
+    from datetime import datetime, timezone, timedelta
+    import bot.services.panels.factory as factory
+    now = datetime.now(timezone.utc)
+    client = AsyncMock()
+    client._request.return_value = {'total': 3, 'users': [
+        {'username': 'arc_user_1', 'userTraffic': {'onlineAt': (now-timedelta(minutes=5)).isoformat()}},
+        {'username': 'arc_lte_1', 'userTraffic': {'onlineAt': now.isoformat()}},
+        {'username': 'arc_user_2', 'userTraffic': {'onlineAt': (now-timedelta(minutes=5)).isoformat()}},
+    ]}
+    monkeypatch.setattr(friends, '_GUEST_PRESENCE_CACHE', (0, {}))
+    monkeypatch.setattr(friends, 'authority_server', lambda: {})
+    monkeypatch.setattr(factory, 'create_panel_client', lambda server: client)
+    rows = [{'id': 1, 'user_id': 1}, {'id': 2, 'user_id': 2}]
+    result = asyncio.run(friends.guest_presence(rows))
+    assert result[1]['online'] and result[1]['last_activity'] == now.isoformat()
+    assert not result[2]['online'] and result[2]['last_activity']
+    asyncio.run(friends.guest_presence(rows))
+    assert client._request.await_count == 1
+    client.close.assert_awaited_once()
+
+
+def test_created_id_is_new_guest_not_last_list_row(guest_db, monkeypatch):
+    friends.reserve_guest(friends.validate_options(options()), 'owner')
+    monkeypatch.setattr(api, '_admin_authorized', lambda permission: True)
+    monkeypatch.setattr(api, '_admin_telegram_id', lambda: 1)
+    monkeypatch.setattr(api, '_append_admin_audit_best_effort', lambda *a, **k: None)
+    class Executor:
+        def run(self, coroutine, **kwargs):
+            coroutine.close()
+            return {}
+    monkeypatch.setattr(api, 'ASYNC_EXECUTOR', Executor())
+    data = options(); data.update(request_id='22222222-2222-4222-8222-222222222222', days=0.5, lte_quota_gb=5)
+    response = api.app.test_client().post('/api/admin/friend-subscriptions', json=data, headers={'Origin':'https://panel.arccnet.space'})
+    assert response.status_code == 200
+    assert response.json['created_id'] == response.json['subscriptions'][0]['id']
+    assert response.json['created_id'] != response.json['subscriptions'][-1]['id']
