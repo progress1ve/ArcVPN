@@ -7337,6 +7337,15 @@ def api_admin_overview():
                 "node_uuid": node_uuid or None,
                 "node_name": node_names.get(node_uuid, "Узел не определён"),
             })
+        # Count customers, not their independent main/LTE panel identities.
+        online_identity_count = len(online_users)
+        from bot.services.admin_presence import unique_customer_presence
+        with get_db() as conn:
+            presence_customers = [dict(row) for row in conn.execute("""
+                SELECT u.id,u.telegram_id,u.lte_panel_username,k.panel_email
+                FROM users u LEFT JOIN vpn_keys k ON k.user_id=u.id
+            """).fetchall()]
+        online_users = unique_customer_presence(online_users, presence_customers)
         latest_diagnostics = {}
         with get_db() as conn:
             rows = conn.execute("""
@@ -7354,6 +7363,7 @@ def api_admin_overview():
         remnawave = {
             "healthy": True,
             "users": int((remna_users or {}).get("total") or 0),
+            "online_identity_count": online_identity_count,
             "online_users": sorted(online_users, key=lambda item: item["online_at"], reverse=True),
             "detail": "connected",
             "nodes": [{
