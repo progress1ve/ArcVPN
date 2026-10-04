@@ -69,3 +69,24 @@ async def provision_lte_identity(
             ),
         )
     return verified
+
+
+def lte_expiry_patch(identity: dict, panel_user: dict, now: datetime | None = None) -> dict:
+    """Align expiry only; preserve exhausted/disabled access and traffic counters."""
+    now = now or datetime.now(timezone.utc)
+    raw = identity.get("subscription_expires_at")
+    if not raw or identity.get("is_banned") or not panel_user.get("id"):
+        return {}
+    expiry = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+    expiry = expiry.replace(tzinfo=expiry.tzinfo or timezone.utc)
+    current = datetime.fromisoformat(str(panel_user["expireAt"]).replace("Z", "+00:00"))
+    current = current.replace(tzinfo=current.tzinfo or timezone.utc)
+    patch = {}
+    if abs((expiry-current).total_seconds()) >= 1:
+        patch["expireAt"] = _iso_utc(expiry)
+    quota = int(panel_user.get("trafficLimitBytes") or 0)
+    used = int((panel_user.get("userTraffic") or {}).get("usedTrafficBytes") or 0)
+    if (panel_user.get("status") == "EXPIRED" and expiry > now
+            and int(identity.get("lte_quota_gb") or 0) > 0 and quota > used):
+        patch["status"] = "ACTIVE"
+    return {"id": panel_user["id"], **patch} if patch else {}

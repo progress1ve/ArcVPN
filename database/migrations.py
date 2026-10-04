@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 72
+LATEST_VERSION = 73
 
 
 def get_current_version() -> int:
@@ -2640,6 +2640,10 @@ def migration_72(conn):
     schema(conn)
 
 
+def migration_73(conn):
+    _add_column(conn, "payments", "is_custom_tariff INTEGER NOT NULL DEFAULT 0")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2713,6 +2717,7 @@ MIGRATIONS = {
     70: migration_70,
     71: migration_71,
     72: migration_72,
+    73: migration_73,
 }
 
 

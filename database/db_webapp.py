@@ -636,7 +636,8 @@ def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:
 def list_lte_identities() -> list[Dict[str, Any]]:
     with get_db() as conn:
         return [dict(row) for row in conn.execute(
-            """SELECT id user_id, telegram_id, lte_panel_username,
+            """SELECT id user_id, telegram_id, lte_panel_username, is_banned,
+                      (SELECT MAX(expires_at) FROM vpn_keys WHERE user_id=users.id) subscription_expires_at,
                       lte_client_uuid, COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) lte_quota_gb
                FROM users WHERE lte_panel_username IS NOT NULL
                  AND lte_client_uuid IS NOT NULL"""

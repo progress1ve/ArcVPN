@@ -94,7 +94,7 @@ def test_custom_payment_uses_server_quote_and_persists_entitlements():
         api, "create_yookassa_qr_payment", create_payment
     ), patch.object(api.ASYNC_EXECUTOR, "run", side_effect=run), patch.object(
         api, "save_yookassa_payment_id"
-    ):
+    ), patch.object(api, "get_db") as custom_db:
         response = api.app.test_client().post("/api/payments/sbp", json={
             "tariff_id": standard["id"], "devices": 3, "lte_gb": 45,
             "custom": True, "auto_renew": False,
@@ -103,6 +103,7 @@ def test_custom_payment_uses_server_quote_and_persists_entitlements():
     assert response.get_json()["base_amount_rub"] == 399
     assert response.get_json()["custom"] is True
     entitlements.assert_called_once_with("custom-order", 3, 45)
+    assert "is_custom_tariff=1" in custom_db.return_value.__enter__.return_value.execute.call_args[0][0]
 
 
 def test_500_gb_custom_payment_uses_server_quote_and_persists_quota():
@@ -127,7 +128,7 @@ def test_500_gb_custom_payment_uses_server_quote_and_persists_quota():
         api, "create_yookassa_qr_payment", create_payment
     ), patch.object(api.ASYNC_EXECUTOR, "run", side_effect=run), patch.object(
         api, "save_yookassa_payment_id"
-    ):
+    ), patch.object(api, "get_db") as custom_db:
         response = api.app.test_client().post("/api/payments/sbp", json={
             "tariff_id": selected["id"], "devices": 3, "lte_gb": 500,
             "custom": True, "auto_renew": False,
@@ -135,6 +136,7 @@ def test_500_gb_custom_payment_uses_server_quote_and_persists_quota():
     assert response.status_code == 200
     assert response.get_json()["base_amount_rub"] == expected
     entitlements.assert_called_once_with("custom-500-order", 3, 500)
+    assert "is_custom_tariff=1" in custom_db.return_value.__enter__.return_value.execute.call_args[0][0]
 
 
 def test_addon_payment_uses_server_price_table():

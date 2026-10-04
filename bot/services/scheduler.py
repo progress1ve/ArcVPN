@@ -976,6 +976,10 @@ async def reconcile_lte_usage(bot: Optional[Bot] = None) -> dict:
                 user = await client.get_user(identity["lte_panel_username"])
                 if not user or str(user.get("vlessUuid") or "") != str(identity["lte_client_uuid"]):
                     raise RuntimeError("LTE identity mismatch")
+                from bot.services.lte_identity import lte_expiry_patch
+                expiry_patch = lte_expiry_patch(identity, user)
+                if expiry_patch:
+                    await client._request("PATCH", "/api/users", json=expiry_patch)
                 used = int((user.get("userTraffic") or {}).get("usedTrafficBytes") or 0)
                 state = set_lte_usage(int(identity["telegram_id"]), used)
                 quota_bytes = int(state.get("lte_quota_gb") or 0) * 1024**3

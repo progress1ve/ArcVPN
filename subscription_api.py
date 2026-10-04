@@ -4047,6 +4047,9 @@ def api_create_sbp_payment():
                 conn.execute("UPDATE payments SET status='canceled' WHERE order_id=? AND status='pending'",
                              (order["order_id"],))
             return _api_error("offer_not_available", 409)
+    if is_custom:
+        with get_db() as conn:
+            conn.execute("UPDATE payments SET is_custom_tariff=1 WHERE order_id=? AND status='pending'", (order["order_id"],))
     if wants_recurring:
         with get_db() as conn:
             conn.execute("UPDATE payments SET auto_renew_requested=1 WHERE order_id=?", (order["order_id"],))
@@ -6041,7 +6044,7 @@ def api_admin_user_detail(telegram_id: int):
             LEFT JOIN servers s ON s.id=vk.server_id
             WHERE vk.user_id=? ORDER BY vk.expires_at DESC,vk.id DESC""", (user_id,)).fetchall()]
         payments = [dict(row) for row in conn.execute("""SELECT p.order_id,p.payment_type,p.operation_type,
-            p.offer_code,p.status,p.period_days,p.paid_at,t.name AS tariff_name,
+            p.offer_code,p.status,p.period_days,p.paid_at,p.is_custom_tariff,p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,t.name AS tariff_name,
             CASE
               WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN p.amount_cents/100.0
               WHEN p.payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN p.amount_cents
@@ -6050,6 +6053,9 @@ def api_admin_user_detail(telegram_id: int):
             COALESCE(p.amount_stars,0) AS amount_stars
             FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
             WHERE p.user_id=? ORDER BY p.paid_at DESC,p.id DESC LIMIT 100""", (user_id,)).fetchall()]
+        from bot.services.payment_labels import payment_label
+        for payment in payments:
+            payment["tariff_name"] = payment_label(payment)
         devices = [dict(row) for row in conn.execute("""SELECT id,display_name,platform,model,
             COALESCE(is_active,1) AS active,imported_at,last_seen_at,revoked_at
             FROM user_devices WHERE user_id=? ORDER BY COALESCE(last_seen_at,imported_at) DESC LIMIT 50""", (user_id,)).fetchall()]
@@ -6515,13 +6521,18 @@ def api_admin_payments_registry():
     with get_db() as conn:
         total = int(conn.execute(f"SELECT COUNT(*) FROM payments p JOIN users u ON u.id=p.user_id WHERE {where_sql}", params).fetchone()[0])
         rows = [dict(row) for row in conn.execute(f"""
-            SELECT p.id,p.order_id,p.payment_type,p.status,p.paid_at AS created_at,p.paid_at,
+            SELECT p.id,p.order_id,p.payment_type,p.operation_type,p.period_days,p.offer_code,p.is_custom_tariff,
+                   p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,
+                   t.name AS tariff_name,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,p.status,p.paid_at AS created_at,p.paid_at,
                    p.amount_cents,p.amount_stars,{amount_sql} AS amount_rub,
                    u.id AS user_id,u.telegram_id,u.username,u.first_name
-            FROM payments p JOIN users u ON u.id=p.user_id
+            FROM payments p JOIN users u ON u.id=p.user_id LEFT JOIN tariffs t ON t.id=p.tariff_id
             WHERE {where_sql}
             ORDER BY p.paid_at DESC,p.id DESC LIMIT ? OFFSET ?
         """, [*params, per_page, (page - 1) * per_page]).fetchall()]
+        from bot.services.payment_labels import payment_label
+        for payment in rows:
+            payment["tariff_name"] = payment_label(payment)
         stats_rows = [dict(row) for row in conn.execute(f"""
             SELECT lower(COALESCE(p.status,'unknown')) status,
                    lower(COALESCE(p.payment_type,'unknown')) method,COUNT(*) count
@@ -6566,10 +6577,13 @@ def api_admin_sales_stats():
     with get_db() as conn:
         payments = [dict(row) for row in conn.execute(f"""
             SELECT p.id,p.user_id,p.payment_type,p.operation_type,p.status,p.period_days,p.paid_at AS created_at,p.paid_at,
-                   p.tariff_id,COALESCE(t.name,'Без тарифа') tariff_name,{amount_sql} amount_rub
+                   p.tariff_id,p.is_custom_tariff,p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,COALESCE(t.name,'Без тарифа') tariff_name,{amount_sql} amount_rub
             FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
             WHERE {payment_where} ORDER BY p.paid_at,p.id LIMIT 10000
         """, payment_params).fetchall()]
+        from bot.services.payment_labels import payment_label
+        for payment in payments:
+            payment["tariff_name"] = payment_label(payment)
         active_subscriptions = int(conn.execute("SELECT COUNT(*) FROM vpn_keys WHERE expires_at>datetime('now')").fetchone()[0])
         paid_trial_sql = """EXISTS (SELECT 1 FROM payments p WHERE p.user_id=te.user_id
             AND p.status IN ('paid','succeeded') AND p.operation_type IN ('new','renew','upgrade')
@@ -6890,7 +6904,7 @@ def api_admin_overview():
             LIMIT 100
         """).fetchall()]
         recent_payments = [dict(row) for row in conn.execute(f"""
-            SELECT p.order_id, p.status, p.amount_cents, p.payment_type, p.paid_at,
+            SELECT p.order_id, p.status, p.amount_cents, p.payment_type, p.paid_at, p.operation_type,p.period_days,p.offer_code,p.is_custom_tariff,p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,
                    u.telegram_id, u.username, t.name AS tariff_name, t.price_rub AS tariff_price_rub,
                    {rub_amount_sql} AS display_amount_rub,
                    CASE WHEN COALESCE(p.payment_type,'')='crypto' THEN p.amount_cents / 100.0 ELSE 0 END AS display_amount_usd
@@ -6899,6 +6913,9 @@ def api_admin_overview():
             WHERE COALESCE(p.payment_type,'') != 'trial'
             ORDER BY p.id DESC LIMIT 200
         """).fetchall()]
+        from bot.services.payment_labels import payment_label
+        for payment in recent_payments:
+            payment["tariff_name"] = payment_label(payment)
         financials = dict(conn.execute(f"""
             SELECT
               SUM(CASE WHEN p.status IN ('paid','succeeded') THEN {rub_amount_sql} ELSE 0 END) AS lifetime_rub,
