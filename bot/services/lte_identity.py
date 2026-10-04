@@ -79,6 +79,8 @@ def lte_expiry_patch(identity: dict, panel_user: dict, now: datetime | None = No
         return {}
     expiry = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
     expiry = expiry.replace(tzinfo=expiry.tzinfo or timezone.utc)
+    if expiry <= now:
+        return {}
     current = datetime.fromisoformat(str(panel_user["expireAt"]).replace("Z", "+00:00"))
     current = current.replace(tzinfo=current.tzinfo or timezone.utc)
     patch = {}

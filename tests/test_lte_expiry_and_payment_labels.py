@@ -14,6 +14,7 @@ def test_expired_lte_restored_without_resetting_quota_or_uuid():
 def test_never_reactivates_revoked_exhausted_or_expired_access(status,used,quota,banned,expiry):
     patch = lte_expiry_patch({"subscription_expires_at":expiry,"lte_quota_gb":quota,"is_banned":banned}, {"id":"test","expireAt":"2026-09-01T00:00:00Z","status":status,"trafficLimitBytes":500,"userTraffic":{"usedTrafficBytes":used}}, NOW)
     assert "status" not in patch
+    if banned or expiry == "2026-09-01": assert patch == {}
 
 @pytest.mark.parametrize("row,expected", [
  ({"operation_type":"addon_device","addon_device_units":1,"tariff_name":"Стандарт"},"Докупка · 1 устр."),
