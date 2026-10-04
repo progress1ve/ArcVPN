@@ -298,3 +298,18 @@ def test_delete_api_owner_and_origin_guard(db, monkeypatch):
     assert campaigns.detail(c['id'])['status'] == 'draft'
     assert client.delete(url).status_code == 200
     assert client.delete(url).status_code == 409
+
+
+@pytest.mark.parametrize("search", ["myrktt", "@myrktt", " @MYRKTT "])
+def test_recipient_search_accepts_telegram_username_with_at(db, search):
+    from flask import Flask
+    from admin_broadcast_api import register_broadcast_routes
+    with db.get_db() as conn:
+        conn.execute("UPDATE users SET username='myrktt' WHERE id=1")
+        conn.execute("UPDATE users SET username='myrktt_banned' WHERE id=5")
+    app = Flask(__name__)
+    app.config['TESTING'] = True
+    register_broadcast_routes(app, lambda _: True, lambda *a, **k: None, None, SimpleNamespace(ADMIN_IDS=[]))
+    response = app.test_client().get('/api/admin/broadcasts/users', query_string={'search': search})
+    assert response.status_code == 200
+    assert [row['telegram_id'] for row in response.get_json()['users']] == [101]

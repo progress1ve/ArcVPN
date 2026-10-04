@@ -50,7 +50,7 @@ def register_broadcast_routes(app, authorized, audit, executor, config):
     def admin_broadcast_users():
         if (error := denied()) is not None:
             return error
-        search = str(request.args.get('search') or '').strip()[:80]
+        search = str(request.args.get('search') or '').strip().lstrip('@')[:80]
         with get_db() as conn:
             conn.create_function('casefold', 1, lambda value: str(value or '').casefold())
             rows = conn.execute('''SELECT telegram_id,username,first_name FROM users
