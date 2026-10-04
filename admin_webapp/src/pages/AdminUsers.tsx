@@ -58,6 +58,7 @@ function UserRow({ user, onClick, formatAmount }: UserRowProps) {
 
       {/* Info - flex column on mobile, row on desktop */}
       <div className="min-w-0 flex-1">
+        {Number(user.online_devices || 0) === 0 && <p className="mb-1 text-xs text-dark-400">{user.last_activity ? `Последнее подключение: ${new Date(user.last_activity.endsWith('Z') || /[+-]\d\d:\d\d$/.test(user.last_activity) ? user.last_activity : user.last_activity.replace(' ', 'T') + 'Z').toLocaleString('ru-RU')}` : 'Подключений пока нет'}</p>}
         {/* Name and username */}
         <div className="mb-1 flex flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
           <span className="truncate font-medium text-dark-100">{user.full_name}</span>
@@ -305,6 +306,10 @@ export default function AdminUsers() {
           >
             <option value="">{t('admin.users.filters.allStatuses')}</option>
             <option value="online">Сейчас онлайн</option>
+            <option value="dormant_7">Не подключались 7 дней</option>
+            <option value="dormant_30">Не подключались 30 дней</option>
+            <option value="dormant_90">Не подключались 90 дней</option>
+            <option value="never_online">Ещё не подключались</option>
             <option value="active">{t('admin.users.status.active')}</option>
             <option value="inactive">Неактивные</option>
             <option value="blocked">{t('admin.users.status.blocked')}</option>

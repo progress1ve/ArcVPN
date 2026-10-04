@@ -370,7 +370,8 @@ export async function getUsers(params: Record<string, unknown> = {}): Promise<Js
     limit: String(params.limit || 20),
   });
   if (params.search) query.set('q', String(params.search));
-  if (['active', 'inactive', 'online'].includes(String(params.status || ''))) {
+  if (String(params.status || '').startsWith('dormant_') || params.status === 'never_online') query.set('sort', 'oldest_activity');
+  if (['active', 'inactive', 'online', 'dormant_7', 'dormant_30', 'dormant_90', 'never_online'].includes(String(params.status || ''))) {
     query.set('status', String(params.status));
   }
   const sortMap: Record<string, string> = {
@@ -382,7 +383,7 @@ export async function getUsers(params: Record<string, unknown> = {}): Promise<Js
     main_traffic: 'main_usage',
     lte_traffic: 'lte_usage',
   };
-  query.set('sort', sortMap[String(params.sort_by || '')] || 'new');
+  if (!query.has('sort')) query.set('sort', sortMap[String(params.sort_by || '')] || 'new');
   return getJson(`/api/admin/users?${query}`);
 }
 export function getUser(telegramId: number): Promise<Json> {

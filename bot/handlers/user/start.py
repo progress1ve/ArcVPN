@@ -268,6 +268,9 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
     primary_key = get_user_primary_key(user_id)
     (text, welcome_photo) = get_welcome_text(user, is_admin, show_trial_offer=show_trial, primary_key=primary_key)
     args = command.args
+    if args == "help":
+        await show_fallback_help(message)
+        return
     if args and args.startswith('ad_'):
         from database.db_campaigns import attribute_user_to_campaign
         campaign_code = args[3:]
@@ -742,6 +745,11 @@ FAQ_ANSWERS = {
 
 @router.callback_query(F.data == "bot_help")
 async def fallback_help_handler(callback: CallbackQuery):
+    await show_fallback_help(callback.message)
+    await callback.answer()
+
+
+async def show_fallback_help(message: Message):
     from database.requests import get_setting as _get_setting
     support_link = _get_setting("support_channel_link", "https://t.me/ArcVPN_support")
     if not support_link or not support_link.startswith(("http://", "https://")):
@@ -754,11 +762,10 @@ async def fallback_help_handler(callback: CallbackQuery):
     builder.row(InlineKeyboardButton(text="💬 Написать в поддержку", url=support_link, style="primary"))
     builder.row(InlineKeyboardButton(text="🏠 На главную", callback_data="start"))
     await safe_edit_or_send(
-        callback.message,
+        message,
         "💬 <b>Помощь ArcVPN</b>\n\nВыберите тему — ответ откроется прямо здесь.",
         reply_markup=builder.as_markup(),
     )
-    await callback.answer()
 
 
 @router.callback_query(F.data.startswith("bot_faq:"))

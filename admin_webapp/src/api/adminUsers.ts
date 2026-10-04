@@ -470,7 +470,7 @@ export const adminUsersApi = {
       limit?: number;
       search?: string;
       email?: string;
-      status?: 'active' | 'inactive' | 'online' | 'blocked' | 'deleted';
+      status?: 'active' | 'inactive' | 'online' | 'dormant_7' | 'dormant_30' | 'dormant_90' | 'never_online' | 'blocked' | 'deleted';
       subscription_status?: string;
       tariff_id?: string;
       promo_group_id?: number;

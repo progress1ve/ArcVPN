@@ -981,6 +981,13 @@ async def reconcile_lte_usage(bot: Optional[Bot] = None) -> dict:
                 if expiry_patch:
                     await client._request("PATCH", "/api/users", json=expiry_patch)
                 used = int((user.get("userTraffic") or {}).get("usedTrafficBytes") or 0)
+                raw_online = (user.get("userTraffic") or {}).get("onlineAt")
+                if raw_online:
+                    from database.connection import get_db
+                    with get_db() as conn:
+                        conn.execute("""UPDATE vpn_keys SET last_online_at=? WHERE user_id=?
+                            AND (last_online_at IS NULL OR datetime(last_online_at)<datetime(?))""",
+                            (raw_online, identity["user_id"], raw_online))
                 state = set_lte_usage(int(identity["telegram_id"]), used)
                 quota_bytes = int(state.get("lte_quota_gb") or 0) * 1024**3
                 threshold = _lte_notification_threshold(used, quota_bytes)
@@ -1470,6 +1477,8 @@ async def run_traffic_sync_scheduler(bot: Bot) -> None:
         try:
             await process_due_traffic_cycle_resets()
             await reconcile_lte_usage(bot)
+            from bot.services.device_notifications import deliver_device_notifications
+            await deliver_device_notifications(bot)
             await sync_traffic_stats(bot)
             
             # Уведомление и счётчик устройств должны быть практически свежими.

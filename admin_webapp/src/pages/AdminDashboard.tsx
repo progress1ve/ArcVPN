@@ -374,21 +374,13 @@ export default function AdminDashboard() {
               <span className="h-2 w-2 rounded-full bg-success-500"></span>
               {stats?.nodes.online || 0}
             </span>
-            <span className="flex items-center gap-1.5 text-xs text-dark-400">
-              <span className="h-2 w-2 rounded-full bg-error-500"></span>
-              {stats?.nodes.offline || 0}
-            </span>
-            <span className="flex items-center gap-1.5 text-xs text-dark-400">
-              <span className="h-2 w-2 rounded-full bg-dark-500"></span>
-              {stats?.nodes.disabled || 0}
-            </span>
           </div>
         </div>
 
-        {stats?.nodes.nodes && stats.nodes.nodes.length > 0 ? (
+        {stats?.nodes.nodes && stats.nodes.nodes.filter(n => n.is_connected && !n.is_disabled).length > 0 ? (
           <>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {(showAllNodes ? stats.nodes.nodes : stats.nodes.nodes.slice(0, 3)).map((node) => (
+              {(showAllNodes ? stats.nodes.nodes.filter(n => n.is_connected && !n.is_disabled) : stats.nodes.nodes.filter(n => n.is_connected && !n.is_disabled).slice(0, 3)).map((node) => (
                 <NodeCard
                   key={node.uuid}
                   node={node}
@@ -399,7 +391,7 @@ export default function AdminDashboard() {
                 />
               ))}
             </div>
-            {stats.nodes.nodes.length > 3 && (
+            {stats.nodes.nodes.filter(n => n.is_connected && !n.is_disabled).length > 3 && (
               <button
                 onClick={() => setShowAllNodes(!showAllNodes)}
                 className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-dark-700/50 px-4 py-3 text-dark-300 transition-colors hover:bg-dark-700 hover:text-dark-100"
@@ -410,8 +402,8 @@ export default function AdminDashboard() {
                   <ChevronDownIcon />
                 </span>
                 {showAllNodes
-                  ? t('adminDashboard.nodes.hide', { count: stats.nodes.nodes.length - 3 })
-                  : t('adminDashboard.nodes.showMore', { count: stats.nodes.nodes.length - 3 })}
+                  ? t('adminDashboard.nodes.hide', { count: stats.nodes.nodes.filter(n => n.is_connected && !n.is_disabled).length - 3 })
+                  : t('adminDashboard.nodes.showMore', { count: stats.nodes.nodes.filter(n => n.is_connected && !n.is_disabled).length - 3 })}
               </button>
             )}
           </>

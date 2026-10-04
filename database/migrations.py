@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 73
+LATEST_VERSION = 74
 
 
 def get_current_version() -> int:
@@ -2644,6 +2644,21 @@ def migration_73(conn):
     _add_column(conn, "payments", "is_custom_tariff INTEGER NOT NULL DEFAULT 0")
 
 
+def migration_74(conn):
+    # Empty queue: existing devices are deliberately not backfilled.
+    conn.execute("""CREATE TABLE device_connection_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL REFERENCES users(id),
+        device_id INTEGER NOT NULL REFERENCES user_devices(id),
+        display_name TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        sent_at TEXT,
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        next_attempt_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+    conn.execute("CREATE UNIQUE INDEX idx_device_notice_pending ON device_connection_notifications(device_id) WHERE sent_at IS NULL")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2718,6 +2733,7 @@ MIGRATIONS = {
     71: migration_71,
     72: migration_72,
     73: migration_73,
+    74: migration_74,
 }
 
 

@@ -6,6 +6,16 @@ import pytest
 import subscription_api as api
 from database import db_campaigns
 
+def test_dormant_filter_separates_recent_never_and_live(client, detail_db, monkeypatch):
+    detail_db.execute("UPDATE vpn_keys SET last_online_at=datetime('now','-8 days') WHERE user_id=1")
+    detail_db.execute("UPDATE vpn_keys SET last_online_at=datetime('now','-2 days') WHERE user_id=2")
+    response = client.get('/api/admin/users?status=dormant_7&sort=oldest_activity')
+    assert response.status_code == 200
+    assert [row['id'] for row in response.get_json()['users']] == [1]
+    assert [row['id'] for row in client.get('/api/admin/users?status=never_online').get_json()['users']] == [3]
+    monkeypatch.setattr(api, '_admin_live_presence', lambda: (True, {1: {'online_at':'2030-01-01'}}))
+    assert client.get('/api/admin/users?status=dormant_7').get_json()['users'] == []
+
 
 @pytest.fixture
 def client(monkeypatch):

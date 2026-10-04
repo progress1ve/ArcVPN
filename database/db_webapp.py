@@ -77,7 +77,7 @@ def register_import_device(
         if not owner:
             return False
         existing = conn.execute(
-            "SELECT device_sub_id FROM user_devices WHERE user_id = ? AND device_token_hash = ?",
+            "SELECT device_sub_id,is_active FROM user_devices WHERE user_id = ? AND device_token_hash = ?",
             (owner["user_id"], token_hash),
         ).fetchone()
         device_sub_id = (str(existing["device_sub_id"] or "") if existing else "") or secrets.token_urlsafe(24)
@@ -107,6 +107,10 @@ def register_import_device(
                 display_name, browser or None, screen_size or None, device_sub_id,
             ),
         )
+        if not existing or existing["is_active"] == 0:
+            device = conn.execute("SELECT id FROM user_devices WHERE user_id=? AND device_token_hash=?", (owner["user_id"], token_hash)).fetchone()
+            conn.execute("""INSERT OR IGNORE INTO device_connection_notifications(user_id,device_id,display_name)
+                VALUES(?,?,?)""", (owner["user_id"], device["id"], display_name or model or platform or "Новое устройство"))
         return device_sub_id
 
 

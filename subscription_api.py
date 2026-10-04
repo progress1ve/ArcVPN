@@ -1214,7 +1214,7 @@ def _build_plain_text_subscription(
         f"#profile-update-interval: {PROFILE_UPDATE_INTERVAL_HOURS}",
         "#hide-settings: 1",
         f"#subscription-userinfo: {userinfo_header}",
-        f"#support-url: {SUPPORT_URL}",
+        f"#support-url: {_subscription_support_url()}",
         f"#profile-web-page-url: {PROFILE_WEB_PAGE_URL}",
     ]
     # Информационный блок (как у конкурентов — подсказки для пользователей)
@@ -2163,7 +2163,7 @@ def _response_from_prepared(
     response.headers["hide-settings"] = "1"
     response.headers["profile-title"] = f"base64:{encoded_profile_title}"
     response.headers["announce"] = f"base64:{prepared.announce_base64}"
-    response.headers["support-url"] = SUPPORT_URL
+    response.headers["support-url"] = _subscription_support_url()
     response.headers["profile-web-page-url"] = PROFILE_WEB_PAGE_URL
     response.headers["Subscription-Userinfo"] = prepared.userinfo_header
     response.headers["subscription-always-hwid-enable"] = "1"
@@ -3284,6 +3284,11 @@ def import_to_happ(sub_id: str):
 # (если задан) имеет приоритет — на случай оффлайна/проблем с сетью при старте.
 _BOT_USERNAME_CACHE: Optional[str] = None
 _BOT_USERNAME_LOCK = threading.Lock()
+
+
+def _subscription_support_url() -> str:
+    username = _get_bot_username()
+    return f"https://t.me/{username}?start=help" if username else SUPPORT_URL
 
 
 def _get_bot_username() -> str:
@@ -6277,6 +6282,17 @@ def api_admin_users():
                 where.append("0=1")
         else:
             where.append("online_devices>0")
+    elif status in {"dormant_7", "dormant_30", "dormant_90", "never_online"}:
+        if status == "never_online":
+            where.append("last_online_at IS NULL")
+        else:
+            days = int(status.split("_")[1])
+            where.append("datetime(last_online_at)<=datetime('now',?)")
+            params.append(f"-{days} days")
+        if live_presence:
+            placeholders = ",".join("?" for _ in live_presence)
+            where.append(f"id NOT IN ({placeholders})")
+            params.extend(live_presence)
     elif status != "all":
         return _api_error("invalid_status", 400)
     if usage == "main":
@@ -6296,6 +6312,7 @@ def api_admin_users():
         "expiry": "expires_at ASC,id DESC",
         "main_usage": "main_used_bytes DESC,id DESC",
         "lte_usage": "lte_used_bytes DESC,id DESC",
+        "oldest_activity": "last_online_at ASC,id DESC",
     }.get(sort)
     if not order_sql:
         return _api_error("invalid_sort", 400)
