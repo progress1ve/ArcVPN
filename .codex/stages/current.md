@@ -1,2 +1,4 @@
 # Unique online customers
 Economy. Owner reports inflated online counter. Verified27onlinepanelidentities/~17accounts,10duplicatedmain+LTE. Countknownlocalcustomers once byTelegramID/username,retainrawidentitycountdiagnostic;3minuteactivitywindowunchanged. No browser perowner. Acceptance regression main/LTE/multiplekeys/missingTG/unmatched identity;publicoverviewcount agreesuniquerows;tests anddeployffpullrestartsubscription. PriorLTErepair evidencehandoff.
+
+Passed:7focusedtests,publicHTTPSoverview20016uniquecustomers/29identities;no duplicateknownaccounts. c6f3b97pushed/pulledPolandff-only,subscriptionrestartactive,botactive. InitialimmediateHTTP502duringstartup,retry200. No browserperowner. Rollbackrevertc6f3b97;noidentity/UUID/routeschanged.
