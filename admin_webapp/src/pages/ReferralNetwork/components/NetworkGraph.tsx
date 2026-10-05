@@ -462,7 +462,8 @@ export function NetworkGraph({ data, className, compact = false }: NetworkGraphP
               let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
               graphRef.current.forEachNode((_key,attrs)=>{minX=Math.min(minX,attrs.x);maxX=Math.max(maxX,attrs.x);minY=Math.min(minY,attrs.y);maxY=Math.max(maxY,attrs.y);});
               const cx=(minX+maxX)/2,cy=(minY+maxY)/2;
-              const radius=Math.max(60,(maxX-minX)*1.5,(maxY-minY)*1.5);
+              const margin=graph.order===2?6:1.5;
+              const radius=Math.max(graph.order===2?160:60,(maxX-minX)*margin,(maxY-minY)*margin);
               sigmaRef.current.setCustomBBox({x:[cx-radius,cx+radius],y:[cy-radius,cy+radius]});
               sigmaRef.current.refresh();
             }
