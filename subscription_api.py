@@ -3823,7 +3823,7 @@ def api_status():
 
 
 CUSTOM_DEVICE_CHOICES = frozenset(range(1, 16))
-CUSTOM_LTE_CHOICES_GB = frozenset({0, 5, 10, 15, 30, 45, 75, 115, 175, 225, 500})
+CUSTOM_LTE_CHOICES_GB = frozenset({0, 15, 30, 45, 75, 115, 175, 225, 500})
 CUSTOM_PERIOD_CHOICES = frozenset({1, 3, 6, 12})
 CUSTOM_TARIFF_PREMIUM_PERCENT = 8
 CUSTOM_BYPASS_MIN_MONTHLY_RUB = 100
@@ -3890,10 +3890,6 @@ def _custom_tariff_quote(
             price = min(price, anchors["standard"] - 1)
         if devices <= 8 and lte_gb <= 115:
             price = min(price, anchors["family"] - 1)
-    if devices == 1 and lte_gb in {5, 10}:
-        price = (80 if lte_gb == 5 else 90) * period
-    elif devices == 1 and lte_gb == 0:
-        price = min(price, 80 * period)
     return {
         "period_months": period,
         "device_limit": devices,

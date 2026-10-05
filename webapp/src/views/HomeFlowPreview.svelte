@@ -729,7 +729,7 @@
     purchaseCustom = true
     customMonths = Number(selectedPlan?.period_months || 3)
     customDevices = Number(selectedPlan?.device_limit || 3)
-    customLteGb = [0, 5, 10, 15, 30, 45, 75, 115, 175, 225, 500].includes(Number(selectedPlan?.lte_quota_gb))
+    customLteGb = [0, 15, 30, 45, 75, 115, 175, 225, 500].includes(Number(selectedPlan?.lte_quota_gb))
       ? Number(selectedPlan?.lte_quota_gb) : 45
     clearCustomQuote()
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -785,8 +785,6 @@
     if (Number(lteGb) > 0) customPrice = Math.max(customPrice, 100 * Number(months))
     if (Number(devices) <= 3 && Number(lteGb) <= 45) customPrice = Math.min(customPrice, prices.standard - 1)
     if (Number(devices) <= 8 && Number(lteGb) <= 115) customPrice = Math.min(customPrice, prices.family - 1)
-    if (Number(devices) === 1 && [5,10].includes(Number(lteGb))) customPrice = (Number(lteGb) === 5 ? 80 : 90) * Number(months)
-    else if (Number(devices) === 1 && Number(lteGb) === 0) customPrice = Math.min(customPrice, 80 * Number(months))
     return customPrice
   }
 
@@ -1095,7 +1093,7 @@
               <div class="custom-control">
                 <header><span>Обход глушилок</span><strong>{customLteGb ? `${customLteGb} ГБ` : 'Не нужен'}</strong></header>
                 <div class="custom-options traffic" role="group" aria-label="Трафик обхода глушилок">
-                  {#each [0,5,10,15,30,45,75,115,175,225,500] as gb}<button class:active={customLteGb===gb} aria-pressed={customLteGb===gb} on:click={() => setCustomLte(gb)}>{gb ? `${gb} ГБ` : '0 ГБ'}</button>{/each}
+                  {#each [0,15,30,45,75,115,175,225,500] as gb}<button class:active={customLteGb===gb} aria-pressed={customLteGb===gb} on:click={() => setCustomLte(gb)}>{gb ? `${gb} ГБ` : '0 ГБ'}</button>{/each}
                 </div>
                 <small>Основной трафик остаётся безлимитным на любом варианте.</small>
               </div>

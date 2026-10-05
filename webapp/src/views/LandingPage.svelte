@@ -68,8 +68,6 @@
     if (lte > 0) price = Math.max(price, 100 * months)
     if (devicesCount <= 3 && lte <= 45) price = Math.min(price, prices.standard - 1)
     if (devicesCount <= 8 && lte <= 115) price = Math.min(price, prices.family - 1)
-    if (devicesCount === 1 && [5,10].includes(lte)) price = (lte === 5 ? 80 : 90) * months
-    else if (devicesCount === 1 && lte === 0) price = Math.min(price, 80 * months)
     return price
   }
   async function loadQuote(months, devicesCount, lte) {
@@ -259,7 +257,7 @@
         <div class="custom-controls">
           <label><span>Срок</span><div>{#each [1,3,6,12] as month}<button class:active={customMonths === month} on:click={() => customMonths = month}>{month}</button>{/each}</div></label>
           <label><span>Устройства <b>{customDevices}</b></span><input aria-label={`Устройства ${customDevices}`} type="range" min="1" max="15" bind:value={customDevices} /></label>
-          <label class="bypass-choice"><span>Обход</span><div>{#each [0,5,10,15,30,45,75,115,175,225,500] as gb}<button class:active={customLte === gb} aria-pressed={customLte === gb} on:click={() => customLte = gb}>{gb || '—'}</button>{/each}</div></label>
+          <label class="bypass-choice"><span>Обход</span><div>{#each [0,15,30,45,75,115,175,225,500] as gb}<button class:active={customLte === gb} aria-pressed={customLte === gb} on:click={() => customLte = gb}>{gb || '—'}</button>{/each}</div></label>
         </div>
         <div class="custom-total">
           <small class="custom-label">Ваша цена</small>
