@@ -1,5 +1,6 @@
 """Install only the dedicated partner virtual host on the existing Poland control plane."""
 import argparse
+import configparser
 import subprocess
 from pathlib import Path
 
@@ -39,9 +40,21 @@ def main():
 """)
             run(["nginx", "-t"])
             run(["systemctl", "reload", "nginx"])
-            run(["certbot", "certonly", "--webroot", "-w", "/var/www/html",
-                 "-d", "partners.arccnet.space", "--non-interactive", "--agree-tos",
-                 "--register-unsafely-without-email"])
+            # Reuse the existing control-plane account; multiple ACME accounts
+            # on this host otherwise make non-interactive issuance ambiguous.
+            renewal = configparser.ConfigParser()
+            renewal.read("/etc/letsencrypt/renewal/sub.arccnet.space.conf")
+            account = renewal.get("renewalparams", "account", fallback="")
+            server = renewal.get("renewalparams", "server", fallback="")
+            args = ["certbot", "certonly", "--webroot", "-w", "/var/www/html",
+                    "-d", "partners.arccnet.space", "--non-interactive", "--agree-tos"]
+            if account:
+                args += ["--account", account]
+            else:
+                args += ["--register-unsafely-without-email"]
+            if server:
+                args += ["--server", server]
+            run(args)
         TARGET.write_text(MARKER + source.read_text())
         run(["nginx", "-t"])
         run(["systemctl", "reload", "nginx"])
