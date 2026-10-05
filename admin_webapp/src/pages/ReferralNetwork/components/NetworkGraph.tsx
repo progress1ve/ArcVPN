@@ -334,6 +334,8 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
       hiddenNodesRef.current = computeHiddenNodes(graph, initialFilters);
 
       const sigma = new Sigma(graph, container, {
+        // SPA navigation can briefly detach the canvas before effect cleanup.
+        allowInvalidContainer: true,
         renderEdgeLabels: false,
         labelDensity: 0.12,
         labelRenderedSizeThreshold: 14,
@@ -449,7 +451,7 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
             clampOutlierPositions(graphRef.current);
           }
 
-          if (sigmaRef.current) {
+          if (sigmaRef.current && container.isConnected && container.offsetWidth > 0 && container.offsetHeight > 0) {
             sigmaRef.current.resize();
             sigmaRef.current.getCamera().animatedReset({ duration: 400 });
           }
@@ -512,7 +514,7 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
     if (!container) return;
 
     const observer = new ResizeObserver(() => {
-      if (sigmaRef.current) {
+      if (sigmaRef.current && container.isConnected && container.offsetWidth > 0 && container.offsetHeight > 0) {
         sigmaRef.current.resize();
       }
     });
