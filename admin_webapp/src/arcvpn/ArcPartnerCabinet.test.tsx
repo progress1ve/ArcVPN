@@ -43,8 +43,10 @@ it('uses partner session for login, source filters, pagination and revocation wi
   expect(screen.getByText('C-opaque')).toBeTruthy();
   expect((screen.queryByLabelText('Пароль') as HTMLInputElement | null)).toBeNull();
   fireEvent.change(screen.getByLabelText('Ссылка'), { target: { value: '7' } });
+  fireEvent.input(screen.getByLabelText('С даты'), { target: { value: '2026-10-05' } });
   fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
   await waitFor(() => expect(urls[urls.length - 1]).toContain('source=7'));
+  expect(urls[urls.length - 1]).toContain('from=2026-10-05');
   await waitFor(() => expect((screen.getByRole('button', { name: 'Далее' }) as HTMLButtonElement).disabled).toBe(false));
   fireEvent.click(screen.getByRole('button', { name: 'Далее' }));
   await screen.findByText('Страница 2');
