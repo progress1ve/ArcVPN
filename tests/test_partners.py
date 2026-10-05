@@ -403,3 +403,75 @@ def test_more_than_500_clients_are_accessible_without_data_leak(partner_db):
     assert not db.report(q,"arcvpnnbot",{"page":"2"})["clients"]
     with pytest.raises(ValueError,match="invalid_page"):
         db.report(p,"arcvpnnbot",{"page":"0"})
+
+
+def test_partner_purchase_description_uses_recorded_period_and_addon_quantities(partner_db):
+    p, _ = partner_db
+    bind(p)
+    with connection.get_db() as conn:
+        for column in ("period_days INTEGER", "addon_device_units INTEGER", "addon_lte_gb INTEGER"):
+            conn.execute("ALTER TABLE payments ADD COLUMN " + column)
+        conn.execute("INSERT INTO tariffs(id,duration_days,name) VALUES(1,90,'Личный')")
+    purchase()
+    purchase(operation="addon_combined", order="addon", provider="addon-provider", amount=20000)
+    with connection.get_db() as conn:
+        conn.execute("UPDATE payments SET tariff_id=1,period_days=30 WHERE order_id='order-1'")
+        conn.execute("UPDATE payments SET addon_device_units=2,addon_lte_gb=15 WHERE order_id='addon'")
+    report = db.report(p,"fixture",{})
+    descriptions = {row["purchase_kind"]: row["purchase_description"] for row in report["purchases"]}
+    assert descriptions["new"] == "Личный · 30 дней"  # persisted order term, not today's 90-day tariff
+    assert descriptions["addon_combined"] == "Устройства: +2 · Трафик: +15 ГБ"
+    assert report["stats"]["revenue_cents"] == 29900
+    assert report["stats"]["avg_purchase_cents"] == 14950
+    assert report["stats"]["repeat_clients"] == 1
+    assert sum(row["revenue_cents"] for row in report["series"]) == 29900
+
+
+def test_conversion_uses_registration_cohort_not_unrelated_payment_period(partner_db):
+    p, _ = partner_db
+    source = db.assign_source(p,"campaign",1,"owner")
+    with connection.get_db() as conn:
+        for user_id, bound_at in ((1,"2026-01-05 10:00:00"),(2,"2026-02-05 10:00:00")):
+            conn.execute("""INSERT INTO partner_clients(user_id,partner_id,source_id,public_id,rate_bps,binding_kind,bound_at)
+                VALUES(?,?,?, ?,3000,'new',?)""", (user_id,p,source,"C-test-"+str(user_id),bound_at))
+    purchase()
+    january = db.report(p,"fixture",{"from":"2026-01-01","to":"2026-01-31"})
+    assert january["stats"]["purchases"] == 0
+    assert january["stats"]["clients"] == january["stats"]["cohort_paying_clients"] == 1
+    assert january["stats"]["conversion_percent"] == 100
+    february = db.report(p,"fixture",{"from":"2026-02-01","to":"2026-02-28"})
+    assert february["stats"]["conversion_percent"] == 0
+
+
+def test_network_only_owned_nodes_and_owned_referrer_edges_and_net_earned(partner_db):
+    p, q = partner_db
+    bind(p)
+    bind(q,4,2)
+    with connection.get_db() as conn:
+        db.bind_new_client(conn,2,"campaign",1)
+        db.bind_new_client(conn,3,"campaign",1)
+        conn.execute("UPDATE users SET referred_by=4 WHERE id=2")
+    purchase()
+    db.post_entry(p,body(kind="adjustment",amount=-500),"owner")
+    report = db.report(p,"fixture",{})
+    with connection.get_db() as conn:
+        by_id = {row["user_id"]:row["public_id"] for row in conn.execute("SELECT * FROM partner_clients")}
+    nodes = {row["client"]:row for row in report["network"]}
+    assert by_id[4] not in nodes
+    assert nodes[by_id[2]]["parent"] is None
+    assert nodes[by_id[3]]["parent"] == by_id[1]
+    assert not any("user_id" in row or "referrer_id" in row or "username" in row for row in nodes.values())
+    assert report["balance"]["earned"] == 2470
+    assert report["balance"]["paid"] == 0
+
+
+def test_network_limit_disclosed_without_truncating_totals(partner_db):
+    p, _ = partner_db
+    db.assign_source(p,"campaign",1,"owner")
+    with connection.get_db() as conn:
+        for user_id in range(1000,3001):
+            conn.execute("INSERT INTO users(id) VALUES(?)", (user_id,))
+            db.bind_new_client(conn,user_id,"campaign",1)
+    report = db.report(p,"fixture",{})
+    assert len(report["network"]) == 2000 and report["network_truncated"]
+    assert report["stats"]["clients"] == 2001

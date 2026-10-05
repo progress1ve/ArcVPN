@@ -406,6 +406,17 @@ def report(partner_id, bot_username, filters, admin=False):
             FROM partner_ledger l WHERE """ + purchase_where, purchase_params).fetchone())
         client_where, client_params = conditions("c", "bound_at")
         count["clients"] = conn.execute("SELECT COUNT(*) FROM partner_clients c WHERE " + client_where, client_params).fetchone()[0]
+        cohort_paid = conn.execute("""SELECT COUNT(*) FROM partner_clients c WHERE """ + client_where + """
+            AND EXISTS(SELECT 1 FROM partner_ledger l WHERE l.partner_id=c.partner_id
+                AND l.user_id=c.user_id AND l.kind='accrual')""", client_params).fetchone()[0]
+        count["cohort_paying_clients"] = cohort_paid
+        count["conversion_percent"] = round(100 * cohort_paid / count["clients"], 2) if count["clients"] else 0
+        count["revenue_cents"] = conn.execute("SELECT COALESCE(SUM(l.purchase_cents),0) FROM partner_ledger l WHERE " + purchase_where, purchase_params).fetchone()[0]
+        count["avg_purchase_cents"] = (count["revenue_cents"] + count["purchases"] // 2) // count["purchases"] if count["purchases"] else 0
+        count["repeat_clients"] = conn.execute("SELECT COUNT(*) FROM (SELECT l.user_id FROM partner_ledger l WHERE " + purchase_where + " GROUP BY l.user_id HAVING COUNT(*)>1)", purchase_params).fetchone()[0]
+        series = [dict(row) for row in conn.execute("""SELECT date(l.purchase_at,'+3 hours') AS day,
+            COUNT(*) AS purchases,SUM(l.purchase_cents) AS revenue_cents,SUM(l.amount_cents) AS reward_cents
+            FROM partner_ledger l WHERE """ + purchase_where + " GROUP BY day ORDER BY day", purchase_params)]
         clients = []
         names = {row["id"]: row["name"] for row in sources}
         for row in conn.execute("""SELECT c.public_id AS client,c.source_id,c.bound_at,c.rate_bps,
@@ -423,6 +434,37 @@ def report(partner_id, bot_username, filters, admin=False):
         join = " FROM partner_ledger l LEFT JOIN partner_clients c ON c.user_id=l.user_id AND c.partner_id=l.partner_id WHERE "
         purchases = [dict(row) for row in conn.execute("SELECT " + fields + join + purchase_where +
                     " ORDER BY l.purchase_at DESC,l.id DESC LIMIT 501 OFFSET ?", [*purchase_params, offset])]
+        purchase_ids = [purchase["id"] for purchase in purchases]
+        purchase_details = {row["ledger_id"]: dict(row) for row in conn.execute("""SELECT p.*,l.id AS ledger_id,
+            t.name AS partner_tariff_name FROM partner_ledger l JOIN payments p ON p.id=l.payment_id
+            LEFT JOIN tariffs t ON t.id=p.tariff_id WHERE l.partner_id=? AND l.id IN (""" +
+            ",".join("?" for _ in purchase_ids) + ")", [partner_id, *purchase_ids])} if purchase_ids else {}
+        for purchase in purchases:
+            details = purchase_details.get(purchase["id"], {})
+            kind = purchase["purchase_kind"]
+            description = []
+            if kind in {"new", "renew", "upgrade"}:
+                if details.get("partner_tariff_name"):
+                    description.append(details["partner_tariff_name"])
+                if details.get("period_days"):
+                    description.append(str(details["period_days"]) + " дней")
+            devices = details.get("addon_device_units") or (details.get("addon_units") if details.get("addon_kind") == "device" else 0)
+            traffic = details.get("addon_lte_gb") or (details.get("addon_units") if details.get("addon_kind") == "lte" else 0)
+            if devices:
+                description.append("Устройства: +" + str(devices))
+            if traffic:
+                description.append("Трафик: +" + str(traffic) + " ГБ")
+            purchase["purchase_description"] = " · ".join(description) or None
+        network_rows = [dict(row) for row in conn.execute("""SELECT c.user_id,c.public_id AS client,
+            c.source_id,c.bound_at,u.referred_by AS referrer_id,
+            (SELECT COUNT(*) FROM partner_ledger l WHERE l.partner_id=c.partner_id AND l.user_id=c.user_id AND l.kind='accrual') AS purchases,
+            (SELECT COALESCE(SUM(l.purchase_cents),0) FROM partner_ledger l WHERE l.partner_id=c.partner_id AND l.user_id=c.user_id AND l.kind='accrual') AS spent_cents
+            FROM partner_clients c JOIN users u ON u.id=c.user_id WHERE """ + client_where +
+            " ORDER BY c.bound_at DESC,c.user_id DESC LIMIT 2001", client_params)]
+        visible = {row["user_id"]: row["client"] for row in network_rows[:2000]}
+        network = [{"client": row["client"], "source_id": row["source_id"], "bound_at": row["bound_at"],
+                    "parent": visible.get(row["referrer_id"]) if row["referrer_id"] != row["user_id"] else None,
+                    "purchases": row["purchases"], "spent_cents": row["spent_cents"]} for row in network_rows[:2000]]
         journal_where, journal_params = conditions("l", "occurred_at", with_source=False)
         if source:
             journal_where += " AND (l.source_id=? OR l.source_id IS NULL)"
@@ -440,6 +482,8 @@ def report(partner_id, bot_username, filters, admin=False):
             "has_more": {"clients":len(clients)>500,"purchases":len(purchases)>500,
                          "journal":len(journal)>500,"payouts":len(payouts)>500},
             "truncated": any(len(rows) > 500 for rows in (clients, purchases, journal, payouts))}
+        result["balance"]["earned"] = result["balance"]["accrued"] + result["balance"]["adjustments"]
+        result.update(series=series, network=network, network_truncated=len(network_rows)>2000)
         if admin:
             history = [dict(row) for row in conn.execute("SELECT * FROM partner_events WHERE partner_id=? ORDER BY id DESC LIMIT 501 OFFSET ?", (partner_id,offset))]
             for row in history:

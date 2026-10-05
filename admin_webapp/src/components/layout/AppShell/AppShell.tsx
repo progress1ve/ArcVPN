@@ -41,6 +41,7 @@ import {
 import { MobileBottomNav } from './MobileBottomNav';
 import { isMobileNavScreen, mobileNavItems } from './mobileNavRoutes';
 import { AppHeader } from './AppHeader';
+import { ShellHeader } from './ShellHeader';
 import { useBackgroundConsumer } from '@/components/backgrounds/BackgroundHost';
 
 interface AppShellProps {
@@ -169,12 +170,11 @@ export function AppShell({ children }: AppShellProps) {
       <PromptDialogHost />
 
       {/* Desktop Header */}
-      <header className="fixed inset-x-0 top-0 z-50 hidden border-b border-dark-800/50 bg-dark-950/95 lg:block">
+      <ShellHeader>
         {/* 3-зонный grid: лого | капсула | действия. Колонки 1fr_auto_1fr держат
             капсулу строго по центру вьюпорта НЕЗАВИСИМО от ширины лого/действий,
             а действия — у правого края. Поэтому ничего не «скачет» при переходах
             (в т.ч. в админку): смена ширины в одной зоне не двигает другие. */}
-        <div className="mx-auto grid h-14 max-w-[1600px] grid-cols-[1fr_auto_1fr] items-center gap-4 px-6">
           {/* Logo */}
           <Link
             to={location.pathname.startsWith('/admin') ? '/admin' : '/'}
@@ -248,8 +248,7 @@ export function AppShell({ children }: AppShellProps) {
               <LogoutIcon className="h-5 w-5" />
             </button>
           </div>
-        </div>
-      </header>
+      </ShellHeader>
 
       {/* Mobile Header */}
       <AppHeader

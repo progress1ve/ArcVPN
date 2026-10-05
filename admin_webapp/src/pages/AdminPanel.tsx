@@ -7,6 +7,7 @@ import { statsApi, type SystemInfo, type DashboardStats } from '@/api/admin';
 import { useAnimatedNumber } from '@/hooks/useAnimatedNumber';
 import { useTelegramSDK } from '@/hooks/useTelegramSDK';
 import { cn } from '@/lib/utils';
+import { AdminNavSection } from '@/components/admin/AdminNavSection';
 import {
   ArrowUpIcon,
   BroadcastIcon,
@@ -549,21 +550,7 @@ const GlassCard = memo(function GlassCard({ section, index, searchTerm }: GlassC
   if (visibleItems.length === 0) return null;
 
   return (
-    <div className="group/card relative overflow-hidden rounded-2xl border border-dark-700/50 bg-dark-800/30 backdrop-blur-xl transition-colors duration-200 hover:border-dark-600/80 light:border-champagne-300/50 light:bg-champagne-100/40 light:hover:border-champagne-400/60">
-      {/* Header */}
-      <div className="flex items-center gap-2.5 border-b border-dark-700/30 px-3.5 py-2.5 light:border-champagne-300/30">
-        <div
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg"
-          style={{ background: section.gradient }}
-        >
-          <span className="text-xs font-bold text-dark-50" aria-hidden="true">
-            {visibleItems.length}
-          </span>
-        </div>
-        <h2 className="truncate text-[13px] font-semibold text-dark-100 light:text-champagne-900">
-          {t(section.titleKey)}
-        </h2>
-      </div>
+    <AdminNavSection title={t(section.titleKey)} count={visibleItems.length} gradient={section.gradient}>
 
       {/* Items */}
       <div className="flex flex-col gap-px p-1.5">
@@ -600,7 +587,7 @@ const GlassCard = memo(function GlassCard({ section, index, searchTerm }: GlassC
           </Link>
         ))}
       </div>
-    </div>
+    </AdminNavSection>
   );
 });
 

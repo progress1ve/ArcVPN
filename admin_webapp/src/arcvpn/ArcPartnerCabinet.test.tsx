@@ -17,9 +17,10 @@ it('uses partner session for login, source filters, pagination and revocation wi
     const page = Number(new URL(url, 'https://partners.arccnet.space').searchParams.get('page'));
     return { ok: true, json: async () => ({
       partner: { name: 'Partner fixture' }, sources: [{ id: 7, name: 'Assigned link', url: 'https://t.me/fixture?start=link', active: true, enabled: true }],
-      balance: { accrued: 2970, adjustments: 0, paid: 1000, available: 1970, debt: 0 },
-      stats: { clients: 1, paying_clients: 1, purchases: 1, renewals: 0 },
-      purchases: [{ id: 1, client: 'C-opaque', purchase_at: '2026-10-05 10:00:00', purchase_kind: 'new', purchase_cents: 9900, rate_bps: 3000, amount_cents: 2970 }],
+      balance: { earned: 2970, accrued: 2970, adjustments: 0, paid: 1000, available: 1970, debt: 0 },
+      stats: { clients: 1, paying_clients: 1, purchases: 1, renewals: 0, cohort_paying_clients: 1, conversion_percent: 100, revenue_cents: 9900, avg_purchase_cents: 9900, repeat_clients: 0 },
+      network: [], series: [], network_truncated: false,
+      purchases: [{ id: 1, client: 'C-opaque', purchase_at: '2026-10-05 10:00:00', purchase_kind: 'new', purchase_description: 'Личный · 30 дней', purchase_cents: 9900, rate_bps: 3000, amount_cents: 2970 }],
       clients: [], journal: [], payouts: [], page, has_more: { purchases: page === 1, clients: false, journal: false, payouts: false },
     }) };
   });
@@ -29,7 +30,15 @@ it('uses partner session for login, source filters, pagination and revocation wi
   fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'partner-fixture' } });
   fireEvent.change(screen.getByLabelText('Пароль'), { target: { value: 'fixture-only-password' } });
   fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
-  await screen.findByRole('heading', { name: 'Partner fixture' });
+  await screen.findByRole('heading', { name: 'Партнёрская панель' });
+  expect(screen.getByText('Заработано за всё время')).toBeTruthy();
+  expect(screen.queryByText('Начислено')).toBeNull();
+  expect(screen.queryByText('Корректировки')).toBeNull();
+  expect(screen.queryByText('Журнал')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Покупки' }));
+  await screen.findByRole('heading', { name: 'Покупки' });
+  await waitFor(() => expect((screen.getByRole('button', { name: 'Применить' }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.getByText('Личный · 30 дней')).toBeTruthy();
   expect(screen.getByText('C-opaque')).toBeTruthy();
   expect((screen.queryByLabelText('Пароль') as HTMLInputElement | null)).toBeNull();
   fireEvent.change(screen.getByLabelText('Ссылка'), { target: { value: '7' } });
