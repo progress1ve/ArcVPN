@@ -26,3 +26,11 @@ def test_cleanup_candidates_excludes_paid_active_recent_and_admin_users():
         conn, created_before="2026-01-01", excluded_telegram_ids=[105]
     )
     assert [row["telegram_id"] for row in rows] == [101]
+    conn.executescript("""
+        CREATE TABLE partner_clients(user_id INTEGER);
+        CREATE TABLE partner_sources(kind TEXT,target_id INTEGER);
+        INSERT INTO partner_clients VALUES(1);
+        INSERT INTO users VALUES (6,106,'link-owner','2024-01-01',0);
+        INSERT INTO partner_sources VALUES('referral',6);
+    """)
+    assert cleanup_candidates(conn,created_before="2026-01-01",excluded_telegram_ids=[105]) == []

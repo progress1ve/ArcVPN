@@ -7,6 +7,7 @@ export default defineConfig({
   base: '/app/',
   plugins: [svelte()],
   build: {
+    rollupOptions: { input: { main: 'index.html', partner: 'partner.html' } },
     outDir: '../webapp_dist',
     emptyOutDir: true,
     target: 'es2018',

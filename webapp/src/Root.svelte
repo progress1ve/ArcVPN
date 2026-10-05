@@ -8,7 +8,10 @@
     try {
       const isLanding = location.pathname === '/'
         || (import.meta.env.DEV && new URLSearchParams(location.search).has('landing'))
-      const module = isLanding
+      const isPartner = location.hostname === 'partners.arccnet.space' || location.pathname.startsWith('/partner')
+      const module = isPartner
+        ? await import('./views/PartnerCabinet.svelte')
+        : isLanding
         ? await import('./views/LandingPage.svelte')
         : await import('./App.svelte')
       Page = module.default

@@ -583,6 +583,28 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         logger.warning("Ордер не найден: %s", order_id)
         return False, "⚠️ Ордер не найден. Обратитесь в поддержку.", None
 
+    from database.db_partners import needs_verified_amount
+    if needs_verified_amount(order_id):
+        # Covers bot confirmation, reconciliation and recurring charges, including
+        # paths which previously checked only status and kept legacy RUB units.
+        from decimal import Decimal, InvalidOperation
+        from database.db_payments import record_yookassa_amount
+        details = await get_yookassa_payment_details(order['yookassa_payment_id'])
+        if details.get('status') != 'succeeded':
+            return False, "Оплата ещё не подтверждена.", order
+        provider_amount = details.get('amount') or {}
+        if provider_amount.get('currency') != 'RUB':
+            return False, "Валюта оплаты требует проверки поддержки.", order
+        try:
+            exact_cents = Decimal(str(provider_amount.get('value'))) * 100
+            if not exact_cents.is_finite() or exact_cents != exact_cents.to_integral_value() or exact_cents <= 0:
+                raise ValueError()
+        except (InvalidOperation, ValueError, TypeError):
+            return False, "Сумма оплаты требует проверки поддержки.", order
+        if not record_yookassa_amount(order_id, int(exact_cents), currency="RUB"):
+            return False, "Сумма оплаты не сохранена.", order
+        order = _reload_order(order_id) or order
+
     fulfillment_status = order.get('fulfillment_status')
     if order.get('status') == 'paid' and fulfillment_status in {'applied', 'manual_review'}:
         # A manual-review renewal may already have extended the database before

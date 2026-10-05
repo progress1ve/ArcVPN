@@ -84,6 +84,11 @@ def attribute_user_to_campaign(
             INSERT OR IGNORE INTO user_campaign_attribution(user_id,campaign_id)
             VALUES(?,?)
         """, (int(user_id), int(campaign["id"])))
+        if cursor.rowcount > 0 and conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE name='partners' AND type='table'"
+        ).fetchone():
+            from .db_partners import bind_new_client
+            bind_new_client(conn, int(user_id), "campaign", int(campaign["id"]))
         return cursor.rowcount > 0, dict(campaign)
 
 

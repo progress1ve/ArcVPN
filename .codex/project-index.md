@@ -1,7 +1,8 @@
 # ArcVPN project index
 
 - Bot runtime: `bot/`
-- Admin web/API: `subscription_api.py`, `webapp/src/views/AdminConsole.svelte`, and `webapp/src/views/admin/`
+- Admin web/API: `subscription_api.py`, `admin_webapp/src/arcvpn/ArcAdminRoot.tsx` (current dedicated React admin); `webapp/src/views/AdminConsole.svelte` remains legacy Svelte.
+- Partner cabinet/accounting: `partner_api.py`, `database/db_partners.py`, `webapp/src/views/PartnerCabinet.svelte`, `admin_webapp/src/arcvpn/ArcPartners.tsx`; operator guide `docs/operations/partner-cabinet.md`.
 - Subscription delivery: `subscription_api.py`
 - Remnawave integration: search `bot/services/` and `scripts/` for `remnawave`
 - Tests: `tests/`

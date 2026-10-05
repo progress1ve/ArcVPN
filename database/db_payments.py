@@ -112,15 +112,19 @@ def save_yookassa_payment_id(order_id: str, yookassa_payment_id: str) -> bool:
         return success
 
 
-def record_yookassa_amount(order_id: str, amount_cents: int) -> bool:
+def record_yookassa_amount(order_id: str, amount_cents: int, *, currency: Optional[str] = None) -> bool:
     """Persist only an amount verified by YooKassa's API."""
-    if amount_cents <= 0:
+    if amount_cents <= 0 or currency not in {None, "RUB"}:
         return False
     with get_db() as conn:
         cursor = conn.execute(
             "UPDATE payments SET amount_cents=? WHERE order_id=? AND yookassa_payment_id IS NOT NULL AND yookassa_payment_id!=''",
             (int(amount_cents), order_id),
         )
+        if currency == "RUB" and cursor.rowcount and conn.execute("SELECT 1 FROM sqlite_master WHERE name='partners' AND type='table'").fetchone():
+            conn.execute("UPDATE payments SET partner_verified_cents=? WHERE order_id=?", (int(amount_cents), order_id))
+            from .db_partners import accrue_order
+            accrue_order(conn, order_id)
         return cursor.rowcount > 0
 
 def find_order_by_yookassa_id(yookassa_payment_id: str) -> Optional[Dict[str, Any]]:
@@ -523,6 +527,9 @@ def complete_order(order_id: str) -> bool:
         success = cursor.rowcount > 0
         if success:
             logger.info(f"Order {order_id} завершён (paid)")
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='partners' AND type='table'").fetchone():
+                from .db_partners import accrue_order
+                accrue_order(conn, order_id)
         return success
 
 def update_order_tariff(order_id: str, tariff_id: int, payment_type: Optional[str] = None) -> bool:
@@ -663,6 +670,11 @@ def update_order_fulfillment(
                 fulfillment_status,
                 increment_attempt_count,
             )
+            if fulfillment_status == 'applied' and conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE name='partners' AND type='table'"
+            ).fetchone():
+                from .db_partners import accrue_order
+                accrue_order(conn, order_id)
         return success
 
 

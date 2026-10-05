@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 74
+LATEST_VERSION = 75
 
 
 def get_current_version() -> int:
@@ -2659,6 +2659,15 @@ def migration_74(conn):
     conn.execute("CREATE UNIQUE INDEX idx_device_notice_pending ON device_connection_notifications(device_id) WHERE sent_at IS NULL")
 
 
+def migration_75(conn):
+    """Partner access and independent money journal; no historical backfill."""
+    from .db_partners import migrate
+    if not conn.in_transaction:
+        conn.execute("BEGIN IMMEDIATE")
+    _add_column(conn, "payments", "partner_verified_cents INTEGER")
+    migrate(conn)
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2734,6 +2743,7 @@ MIGRATIONS = {
     72: migration_72,
     73: migration_73,
     74: migration_74,
+    75: migration_75,
 }
 
 

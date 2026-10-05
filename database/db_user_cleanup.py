@@ -13,6 +13,10 @@ def cleanup_candidates(conn: sqlite3.Connection, *, created_before: str, exclude
     """Return eligible users without exposing referral/subscription tokens."""
     excluded = tuple(int(value) for value in excluded_telegram_ids)
     excluded_clause = ""
+    partner_clause = ""
+    if conn.execute("SELECT 1 FROM sqlite_master WHERE name='partner_clients' AND type='table'").fetchone():
+        partner_clause = """AND NOT EXISTS(SELECT 1 FROM partner_clients pc WHERE pc.user_id=u.id)
+            AND NOT EXISTS(SELECT 1 FROM partner_sources ps WHERE ps.kind='referral' AND ps.target_id=u.id)"""
     if excluded:
         placeholders = ",".join("?" for _ in excluded)
         excluded_clause = f"AND u.telegram_id NOT IN ({placeholders})"
@@ -22,6 +26,7 @@ def cleanup_candidates(conn: sqlite3.Connection, *, created_before: str, exclude
         FROM users u
         WHERE u.created_at < ?
           {excluded_clause}
+          {partner_clause}
           AND NOT EXISTS (
               SELECT 1 FROM payments p WHERE p.user_id = u.id
                 AND p.status = 'paid' AND COALESCE(p.payment_type, '') != 'trial'

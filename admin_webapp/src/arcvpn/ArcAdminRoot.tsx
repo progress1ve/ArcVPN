@@ -26,6 +26,7 @@ import ArcNodeDetail from '@/pages/ArcNodeDetail';
 import AdminRemnawaveSquadDetail from '@/pages/AdminRemnawaveSquadDetail';
 import AdminSquads from '@/pages/AdminSquads';
 import ArcMarketing from './ArcMarketing';
+import ArcPartners from './ArcPartners';
 import ArcBroadcasts from './ArcBroadcasts';
 import { useAuthStore } from '@/store/auth';
 import { usePermissionStore } from '@/store/permissions';
@@ -50,6 +51,7 @@ const permissions = [
   'campaigns:manage',
   'promocodes:read',
   'promocodes:manage',
+  'partners:read',
 ];
 
 try {
@@ -77,7 +79,7 @@ function seedSession(role = 'owner') {
     } as never,
   });
   usePermissionStore.setState({
-    permissions: role === 'owner' ? [...permissions, 'broadcasts:read'] : permissions,
+    permissions: role === 'owner' ? [...permissions, 'broadcasts:read'] : permissions.filter(p => p !== 'partners:read'),
     roles: [role],
     roleLevel: 999,
     isLoaded: true,
@@ -172,6 +174,7 @@ function AdminRoutes() {
           <Route path="/admin/feedback" element={<AdminFeedback />} />
           <Route path="/admin/referral-network" element={<ReferralNetwork />} />
           <Route path="/admin/marketing" element={<ArcMarketing />} />
+          <Route path="/admin/partners" element={<ArcPartners />} />
           <Route path="/admin/broadcasts" element={<ArcBroadcasts />} />
           <Route path="/admin/payments" element={<AdminPayments />} />
           <Route path="/admin/sales-stats" element={<AdminSalesStats />} />

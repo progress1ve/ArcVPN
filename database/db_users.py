@@ -482,6 +482,9 @@ def set_user_referrer(user_id: int, referrer_id: int) -> bool:
         )
         success = cursor.rowcount > 0
         if success:
+            if conn.execute("SELECT 1 FROM sqlite_master WHERE name='partners' AND type='table'").fetchone():
+                from .db_partners import bind_new_client
+                bind_new_client(conn, user_id, "referral", referrer_id)
             logger.info(f"Пользователь {user_id} привязан к рефереру {referrer_id}")
         return success
 

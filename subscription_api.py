@@ -4138,7 +4138,8 @@ def api_yookassa_webhook():
             )
         except (InvalidOperation, TypeError, ValueError):
             return _api_error("invalid_provider_amount", 409)
-        if not record_yookassa_amount(order["order_id"], provider_amount_cents):
+        if not record_yookassa_amount(order["order_id"], provider_amount_cents,
+                                      currency=(payment_details.get("amount") or {}).get("currency")):
             return _api_error("payment_amount_not_recorded", 409)
         order = find_order_by_order_id(order["order_id"]) or order
         if order.get("offer_code") == "email_paid_trial":
@@ -4216,7 +4217,8 @@ def api_sbp_payment_status(order_id: str):
                 )
             except (InvalidOperation, TypeError, ValueError):
                 return _api_error("invalid_provider_amount", 409)
-            if not record_yookassa_amount(order_id, provider_amount_cents):
+            if not record_yookassa_amount(order_id, provider_amount_cents,
+                                          currency=(payment_details.get("amount") or {}).get("currency")):
                 return _api_error("payment_amount_not_recorded", 409)
             order = find_order_by_order_id(order_id) or order
             if order.get("offer_code") == "email_paid_trial":
@@ -7748,6 +7750,7 @@ def sitemap_xml():
 @app.route('/app')
 @app.route('/app/')
 @app.route('/app/<path:path>')
+@app.route('/partner')
 def webapp(path: str = ""):
     """
     Раздаёт собранный Svelte SPA из webapp_dist/.
@@ -7765,11 +7768,12 @@ def webapp(path: str = ""):
         candidate = os.path.join(WEBAPP_DIST_DIR, path)
         if os.path.isfile(candidate):
             return send_from_directory(WEBAPP_DIST_DIR, path)
-    index_path = os.path.join(WEBAPP_DIST_DIR, "index.html")
+    entry = "partner.html" if request.path == "/partner" else "index.html"
+    index_path = os.path.join(WEBAPP_DIST_DIR, entry)
     if not os.path.isfile(index_path):
         return Response("Mini App не собран (webapp_dist отсутствует)", status=404,
                         mimetype="text/plain")
-    return send_from_directory(WEBAPP_DIST_DIR, "index.html")
+    return send_from_directory(WEBAPP_DIST_DIR, entry)
 
 
 @app.route('/admin')
@@ -7791,6 +7795,10 @@ def admin_webapp(path: str = ""):
         response = send_from_directory(ADMIN_WEBAPP_DIST_DIR, "index.html")
     response.headers["X-Robots-Tag"] = "noindex, nofollow"
     return response
+
+
+from partner_api import register_partner_api
+register_partner_api(app, _admin_authorized, _admin_access_context, _get_bot_username)
 
 
 if __name__ == '__main__':
