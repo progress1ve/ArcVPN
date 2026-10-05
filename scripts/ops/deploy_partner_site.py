@@ -43,7 +43,10 @@ def main():
             # Reuse the existing control-plane account; multiple ACME accounts
             # on this host otherwise make non-interactive issuance ambiguous.
             renewal = configparser.ConfigParser()
-            renewal.read("/etc/letsencrypt/renewal/sub.arccnet.space.conf")
+            renewal_path = Path("/etc/letsencrypt/renewal/sub.arccnet.space.conf")
+            # Certbot's ConfigObj format also has keys before its first section.
+            if renewal_path.exists():
+                renewal.read_string("[certificate]\n" + renewal_path.read_text())
             account = renewal.get("renewalparams", "account", fallback="")
             server = renewal.get("renewalparams", "server", fallback="")
             args = ["certbot", "certonly", "--webroot", "-w", "/var/www/html",
