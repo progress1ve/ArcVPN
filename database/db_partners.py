@@ -401,6 +401,17 @@ def report(partner_id, bot_username, filters, admin=False):
             return sql, params
         purchase_where, purchase_params = conditions("l", "purchase_at")
         purchase_where += " AND l.kind='accrual'"
+        kind, search = str(filters.get("kind") or ""), str(filters.get("search") or "").strip()
+        if kind and kind not in {"new", "renew", "upgrade", "addon_device", "addon_lte", "addon_combined"}:
+            raise ValueError("invalid_kind")
+        if len(search) > 64:
+            raise ValueError("invalid_search")
+        if kind:
+            purchase_where += " AND l.purchase_kind=?"
+            purchase_params.append(kind)
+        if search:
+            purchase_where += " AND EXISTS(SELECT 1 FROM partner_clients sc WHERE sc.user_id=l.user_id AND sc.partner_id=l.partner_id AND sc.public_id LIKE ?)"
+            purchase_params.append("%" + search + "%")
         count = dict(conn.execute("""SELECT COUNT(*) AS purchases,COUNT(DISTINCT l.user_id) AS paying_clients,
             COALESCE(SUM(CASE WHEN l.purchase_kind='renew' THEN 1 ELSE 0 END),0) AS renewals
             FROM partner_ledger l WHERE """ + purchase_where, purchase_params).fetchone())
@@ -412,8 +423,21 @@ def report(partner_id, bot_username, filters, admin=False):
         count["cohort_paying_clients"] = cohort_paid
         count["conversion_percent"] = round(100 * cohort_paid / count["clients"], 2) if count["clients"] else 0
         count["revenue_cents"] = conn.execute("SELECT COALESCE(SUM(l.purchase_cents),0) FROM partner_ledger l WHERE " + purchase_where, purchase_params).fetchone()[0]
+        count["reward_cents"] = conn.execute("SELECT COALESCE(SUM(l.amount_cents),0) FROM partner_ledger l WHERE " + purchase_where, purchase_params).fetchone()[0]
         count["avg_purchase_cents"] = (count["revenue_cents"] + count["purchases"] // 2) // count["purchases"] if count["purchases"] else 0
         count["repeat_clients"] = conn.execute("SELECT COUNT(*) FROM (SELECT l.user_id FROM partner_ledger l WHERE " + purchase_where + " GROUP BY l.user_id HAVING COUNT(*)>1)", purchase_params).fetchone()[0]
+        status_sql = """SELECT
+            SUM(CASE WHEN subscription_end>datetime('now') AND is_trial THEN 1 ELSE 0 END) AS trials,
+            SUM(CASE WHEN subscription_end>datetime('now') AND NOT is_trial THEN 1 ELSE 0 END) AS paid,
+            SUM(CASE WHEN subscription_end<=datetime('now') THEN 1 ELSE 0 END) AS expired,
+            SUM(CASE WHEN subscription_end IS NULL THEN 1 ELSE 0 END) AS without_subscription
+            FROM (SELECT (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=c.user_id) AS subscription_end,
+                EXISTS(SELECT 1 FROM trial_entitlements te JOIN vpn_keys tvk ON tvk.id=te.vpn_key_id
+                    WHERE tvk.user_id=c.user_id AND te.status='active' AND tvk.expires_at=(
+                        SELECT MAX(vk2.expires_at) FROM vpn_keys vk2 WHERE vk2.user_id=c.user_id)) AS is_trial
+                FROM partner_clients c WHERE """ + client_where + ")"
+        count.update({key: value or 0 for key, value in dict(conn.execute(status_sql, client_params).fetchone()).items()})
+        client_series = [dict(row) for row in conn.execute("SELECT date(c.bound_at,'+3 hours') AS day,COUNT(*) AS clients FROM partner_clients c WHERE " + client_where + " GROUP BY day ORDER BY day", client_params)]
         series = [dict(row) for row in conn.execute("""SELECT date(l.purchase_at,'+3 hours') AS day,
             COUNT(*) AS purchases,SUM(l.purchase_cents) AS revenue_cents,SUM(l.amount_cents) AS reward_cents
             FROM partner_ledger l WHERE """ + purchase_where + " GROUP BY day ORDER BY day", purchase_params)]
@@ -479,18 +503,21 @@ def report(partner_id, bot_username, filters, admin=False):
         journal = [dict(row) for row in conn.execute("SELECT " + fields + join + journal_where +
                     " ORDER BY l.occurred_at DESC,l.id DESC LIMIT 501 OFFSET ?", [*journal_params, offset])]
         payout_where, payout_params = conditions("l", "occurred_at", with_source=False)
+        payout_where += """ AND (l.kind='payout' OR l.kind='reversal' AND EXISTS(
+            SELECT 1 FROM partner_ledger r WHERE r.id=l.related_id AND r.kind='payout'))"""
+        payout_stats = dict(conn.execute("""SELECT COUNT(CASE WHEN l.kind='payout' THEN 1 END) AS count,
+            -COALESCE(SUM(l.amount_cents),0) AS paid_cents FROM partner_ledger l WHERE """ +
+            payout_where, payout_params).fetchone())
         payouts = [dict(row) for row in conn.execute("SELECT " + fields + join + payout_where +
-            """ AND (l.kind='payout' OR l.kind='reversal' AND EXISTS(
-                SELECT 1 FROM partner_ledger r WHERE r.id=l.related_id AND r.kind='payout'))
-                ORDER BY l.occurred_at DESC,l.id DESC LIMIT 501 OFFSET ?""", [*payout_params, offset])]
+            " ORDER BY l.occurred_at DESC,l.id DESC LIMIT 501 OFFSET ?", [*payout_params, offset])]
         result = {"partner": partner if admin else {"name": partner["name"]}, "sources": sources, "balance": balance(conn, partner_id),
             "stats": count, "clients": clients[:500], "purchases": purchases[:500], "journal": journal[:500],
-            "payouts": payouts[:500], "page":page,
+            "payouts": payouts[:500], "payout_stats": payout_stats, "page":page,
             "has_more": {"clients":len(clients)>500,"purchases":len(purchases)>500,
                          "journal":len(journal)>500,"payouts":len(payouts)>500},
             "truncated": any(len(rows) > 500 for rows in (clients, purchases, journal, payouts))}
         result["balance"]["earned"] = result["balance"]["accrued"] + result["balance"]["adjustments"]
-        result.update(series=series, network=network, network_truncated=len(network_rows)>2000)
+        result.update(series=series, client_series=client_series, network=network, network_truncated=len(network_rows)>2000)
         if admin:
             history = [dict(row) for row in conn.execute("SELECT * FROM partner_events WHERE partner_id=? ORDER BY id DESC LIMIT 501 OFFSET ?", (partner_id,offset))]
             for row in history:

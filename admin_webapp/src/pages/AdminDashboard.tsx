@@ -1,3 +1,4 @@
+import { AcquisitionStats } from '@/components/admin/AcquisitionStats';
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { backTo } from '@/components/admin';
@@ -322,6 +323,8 @@ export default function AdminDashboard() {
           {t('adminDashboard.refresh')}
         </button>
       </div>
+
+      <AcquisitionStats />
 
       {/* Main Stats Grid */}
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">

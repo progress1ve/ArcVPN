@@ -18,6 +18,7 @@ import { setSigmaInstance } from '../sigmaGlobals';
 interface NetworkGraphProps {
   data: NetworkGraphData;
   className?: string;
+  compact?: boolean;
 }
 
 /**
@@ -281,7 +282,7 @@ function clampOutlierPositions(graph: Graph): void {
   });
 }
 
-export function NetworkGraph({ data, className }: NetworkGraphProps) {
+export function NetworkGraph({ data, className, compact = false }: NetworkGraphProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const sigmaRef = useRef<Sigma | null>(null);
   const graphRef = useRef<Graph | null>(null);
@@ -328,6 +329,8 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
       }
 
       const graph = buildFullGraph(data);
+      const small = compact && graph.order <= 20;
+      if (small) graph.forEachNode((key, attributes) => { if (attributes.nodeType === 'user') graph.setNodeAttribute(key, 'size', Math.max(9, attributes.size || 0)); });
       graphRef.current = graph;
 
       const initialFilters = useReferralNetworkStore.getState().filters;
@@ -338,7 +341,7 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
         allowInvalidContainer: true,
         renderEdgeLabels: false,
         labelDensity: 0.12,
-        labelRenderedSizeThreshold: 14,
+        labelRenderedSizeThreshold: small ? 0 : 14,
         zIndex: true,
         defaultEdgeColor: '#ffffff06',
         defaultNodeColor: NODE_COLORS.regular,
@@ -423,7 +426,8 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
       sigmaRef.current = sigma;
       setSigmaInstance(sigma);
 
-      if (graph.order > 0) {
+      if (small) { let radius = 80; graph.forEachNode((_key, attrs) => { radius = Math.max(radius, Math.abs(attrs.x) * 1.4, Math.abs(attrs.y) * 1.4); }); sigma.setCustomBBox({ x: [-radius, radius], y: [-radius, radius] }); sigma.refresh(); }
+      if (graph.order > 0 && !small) {
         const inferred = inferSettings(graph);
         const supervisor = new FA2LayoutSupervisor(graph, {
           settings: {
@@ -507,7 +511,7 @@ export function NetworkGraph({ data, className }: NetworkGraphProps) {
       setHoveredNode(null);
       setHighlightedNodes(new Set());
     };
-  }, [data, setSelectedNode, setHoveredNode, setHighlightedNodes, killFA2]);
+  }, [data, compact, setSelectedNode, setHoveredNode, setHighlightedNodes, killFA2]);
 
   useEffect(() => {
     const container = containerRef.current;

@@ -496,3 +496,42 @@ def test_network_subscription_colors_are_owned_and_never_expose_keys(partner_db)
         conn.execute("DELETE FROM trial_entitlements")
         conn.execute("UPDATE vpn_keys SET expires_at='2000-01-01 00:00:00' WHERE user_id=1")
     assert db.report(p, "fixture", {})["network"][0]["subscription_status"] == "paid_expired"
+
+
+def test_trial_paid_counts_are_cohort_scoped_not_graph_capped(partner_db):
+    p,q=partner_db
+    bind(p,1);bind(q,2,2)
+    with connection.get_db() as conn:
+        conn.execute("INSERT INTO vpn_keys VALUES(1,1,'2099-01-01 00:00:00','private-own')")
+        conn.execute("INSERT INTO vpn_keys VALUES(2,2,'2099-01-01 00:00:00','private-other')")
+        conn.execute("INSERT INTO trial_entitlements VALUES(1,'active')")
+    report=db.report(p,'fixture',{})
+    assert report['stats']['trials']==1 and report['stats']['paid']==0
+    assert sum(row['clients'] for row in report['client_series'])==1
+    assert db.report(p,'fixture',{'from':'2099-01-01'})['stats']['trials']==0
+    with connection.get_db() as conn:conn.execute("DELETE FROM trial_entitlements")
+    assert db.report(p,'fixture',{})['stats']['paid']==1
+
+
+def test_purchase_search_and_kind_are_scoped_and_validated(partner_db):
+    p,_=partner_db
+    bind(p,1)
+    with pytest.raises(ValueError,match='invalid_kind'):db.report(p,'fixture',{'kind':'bogus'})
+    with pytest.raises(ValueError,match='invalid_search'):db.report(p,'fixture',{'search':'x'*65})
+    assert db.report(p,'fixture',{'search':"' OR 1=1 --"})['purchases']==[]
+
+
+def test_payout_totals_are_period_scoped_and_independent_of_pages(partner_db):
+    p,q=partner_db
+    with connection.get_db() as conn:
+        for i in range(501):
+            conn.execute("INSERT INTO partner_ledger(partner_id,kind,amount_cents,operation_key,request_hash,actor,occurred_at) VALUES(?,'payout',-100,?,'fixture','owner','2026-10-01 00:00:00')",(p,'page-payout-'+str(i)))
+        first=conn.execute("SELECT MIN(id) FROM partner_ledger WHERE partner_id=?",(p,)).fetchone()[0]
+        conn.execute("INSERT INTO partner_ledger(partner_id,kind,amount_cents,related_id,operation_key,request_hash,actor,occurred_at) VALUES(?,'reversal',100,?,'page-cancel','fixture','owner','2026-10-02 00:00:00')",(p,first))
+        conn.execute("INSERT INTO partner_ledger(partner_id,kind,amount_cents,operation_key,request_hash,actor,occurred_at) VALUES(?,'payout',-900,'foreign-payout','fixture','owner','2026-10-01 00:00:00')",(q,))
+    filters={'from':'2026-10-01','to':'2026-10-31'}
+    report=db.report(p,'fixture',filters)
+    assert len(report['payouts'])==500 and report['has_more']['payouts']
+    assert report['payout_stats']=={'count':501,'paid_cents':50000}
+    assert db.report(p,'fixture',{**filters,'page':'2'})['payout_stats']==report['payout_stats']
+    assert db.report(p,'fixture',{'from':'2026-11-01'})['payout_stats']=={'count':0,'paid_cents':0}

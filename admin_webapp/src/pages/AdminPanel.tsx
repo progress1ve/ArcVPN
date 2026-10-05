@@ -550,7 +550,7 @@ const GlassCard = memo(function GlassCard({ section, index, searchTerm }: GlassC
   if (visibleItems.length === 0) return null;
 
   return (
-    <AdminNavSection title={t(section.titleKey)} count={visibleItems.length} gradient={section.gradient}>
+    <AdminNavSection title={t(section.titleKey)} count={index+1} gradient={section.gradient}>
 
       {/* Items */}
       <div className="flex flex-col gap-px p-1.5">

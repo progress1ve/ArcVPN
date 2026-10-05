@@ -15,7 +15,7 @@ export function partnerGraph(nodes: PartnerNode[], sources: Source[]): NetworkGr
   nodes.forEach(node => { if (node.parent && ids.has(node.parent)) children.set(node.parent, (children.get(node.parent) || 0) + 1); });
   const sourceIds = new Set(sources.map(source => source.id));
   const users = nodes.map(node => ({
-    id: ids.get(node.client)!, tg_id: null, username: null, email: null, display_name: node.client, is_partner: false,
+    id: ids.get(node.client)!, tg_id: null, username: null, email: null, display_name: `Клиент ${ids.get(node.client)}`, is_partner: false,
     referrer_id: node.parent ? ids.get(node.parent) || null : null, campaign_id: sourceIds.has(node.source_id) ? node.source_id : null,
     direct_referrals: children.get(node.client) || 0, total_branch_users: 0, branch_revenue_kopeks: 0,
     personal_revenue_kopeks: node.spent_cents, personal_spent_kopeks: node.spent_cents,
@@ -52,7 +52,7 @@ export default function PartnerNetwork({ nodes, sources, truncated }: { nodes: P
   return <section className="relative min-h-0 flex-1">
     {truncated && <p role="status" className="absolute left-4 top-14 z-30 max-w-sm rounded-xl bg-dark-900/95 p-3 text-xs text-warning-400">На графе показаны первые 2 000 клиентов. Используйте фильтр ссылки и периода или полный список клиентов.</p>}
     <div id="referral-network-container" className="absolute inset-0 overflow-hidden bg-[#0a0a0f]">
-      {webgl && (nodes.length || sources.length) ? <Suspense fallback={<p className="p-5 text-sm text-dark-400">Загружаем сеть…</p>}><NetworkGraph data={graph} className="h-full w-full" /><NetworkControls className="absolute bottom-4 left-1/2 -translate-x-1/2" /><NetworkLegend className="absolute bottom-4 right-4 hidden lg:block" /></Suspense> : <p className="p-5 text-sm text-dark-400">{!nodes.length ? 'Привлечённых клиентов за этот период нет.' : 'Граф недоступен на этом устройстве. Клиенты доступны в списке ниже.'}</p>}
+      {webgl && (nodes.length || sources.length) ? <Suspense fallback={<p className="p-5 text-sm text-dark-400">Загружаем сеть…</p>}><NetworkGraph compact data={graph} className="h-full w-full" /><NetworkControls className="absolute bottom-4 left-1/2 -translate-x-1/2" /><NetworkLegend className="absolute bottom-4 right-4 hidden lg:block" /></Suspense> : <p className="p-5 text-sm text-dark-400">{!nodes.length ? 'Привлечённых клиентов за этот период нет.' : 'Граф недоступен на этом устройстве. Клиенты доступны в списке ниже.'}</p>}
       <div className="absolute bottom-20 left-4 grid grid-cols-2 gap-x-5 gap-y-3 rounded-xl border border-dark-700/50 bg-dark-900/80 p-3 text-xs backdrop-blur-md sm:bottom-4"><div><p className="text-dark-400">Клиентов</p><p className="mt-1 text-lg font-semibold">{nodes.length}</p></div><div><p className="text-dark-400">Оплатили</p><p className="mt-1 text-lg font-semibold">{nodes.filter(item => item.purchases > 0).length}</p></div><div><p className="text-dark-400">Ссылок</p><p className="mt-1 text-lg font-semibold">{sources.length}</p></div><div><p className="text-dark-400">Покупки</p><p className="mt-1 text-lg font-semibold">{nodes.reduce((sum, item) => sum + item.purchases, 0)}</p></div></div>
       {(node || source) && <div className="absolute right-3 top-16 z-20 max-w-xs rounded-xl border border-dark-700 bg-dark-900 p-4 text-sm"><b>{node?.client || source?.name}</b>{node && <p className="mt-2 text-dark-400">Покупок: {node.purchases} · Оплачено: {(node.spent_cents / 100).toLocaleString('ru-RU')} ₽</p>}</div>}
     </div>

@@ -6371,6 +6371,22 @@ def api_admin_users():
     }))
 
 
+@app.route('/api/admin/acquisition', methods=['GET'])
+def api_admin_acquisition():
+    if not _admin_authorized("overview.read"):
+        return _api_error("admin_forbidden", 403)
+    from database.db_acquisition import acquisition_report
+    now = datetime.now(timezone.utc) + timedelta(hours=3)
+    start = request.args.get("from", now.strftime('%Y-%m-01'))
+    end = request.args.get("to", now.strftime('%Y-%m-%d'))
+    try:
+        with get_db() as conn:
+            report = acquisition_report(conn, start, end)
+    except ValueError:
+        return _api_error("invalid_period", 400)
+    return _api_no_store(jsonify(ok=True, **report))
+
+
 @app.route('/api/admin/referral-network', methods=['GET'])
 def api_admin_referral_network():
     """Return real referral edges without subscription URLs or UUIDs."""
@@ -7045,13 +7061,14 @@ def api_admin_overview():
             acquisition[period] = dict(conn.execute("""
                 SELECT
                   COUNT(DISTINCT CASE WHEN u.referred_by IS NOT NULL OR EXISTS(
-                    SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id
+                    SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id AND rs.level=1
                   ) THEN u.id END) AS referral_arrivals,
-                  COUNT(DISTINCT CASE WHEN EXISTS(
-                    SELECT 1 FROM user_campaign_attribution a WHERE a.user_id=u.id
-                  ) THEN u.id END) AS campaign_arrivals,
                   COUNT(DISTINCT CASE WHEN u.referred_by IS NULL
-                    AND NOT EXISTS(SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id)
+                    AND NOT EXISTS(SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id AND rs.level=1)
+                    AND EXISTS(SELECT 1 FROM user_campaign_attribution a WHERE a.user_id=u.id)
+                    THEN u.id END) AS campaign_arrivals,
+                  COUNT(DISTINCT CASE WHEN u.referred_by IS NULL
+                    AND NOT EXISTS(SELECT 1 FROM referral_stats rs WHERE rs.referral_id=u.id AND rs.level=1)
                     AND NOT EXISTS(SELECT 1 FROM user_campaign_attribution a WHERE a.user_id=u.id)
                     THEN u.id END) AS direct_arrivals
                 FROM users u WHERE u.created_at>=datetime('now',?)

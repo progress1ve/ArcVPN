@@ -38,11 +38,14 @@ it('uses partner session for login, source filters, pagination and revocation wi
   expect(screen.queryByText('Журнал')).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Покупки' }));
   await screen.findByRole('heading', { name: 'Покупки' });
-  await waitFor(() => expect((screen.getByRole('button', { name: 'Применить' }) as HTMLButtonElement).disabled).toBe(false));
+  expect(screen.queryByRole('button', {name:'Обновить'})).toBeNull();
+  expect(screen.queryByText('Partner fixture')).toBeNull();
+  expect(screen.queryByText('Заработано за всё время')).toBeNull();
   expect(screen.getByText('Личный · 30 дней')).toBeTruthy();
   expect(screen.getByText('C-opaque')).toBeTruthy();
   expect((screen.queryByLabelText('Пароль') as HTMLInputElement | null)).toBeNull();
   fireEvent.change(screen.getByLabelText('Ссылка'), { target: { value: '7' } });
+  fireEvent.click(screen.getByRole('button',{name:'Период'}));
   fireEvent.input(screen.getByLabelText('С даты'), { target: { value: '2026-10-05' } });
   fireEvent.click(screen.getByRole('button', { name: 'Применить' }));
   await waitFor(() => expect(urls[urls.length - 1]).toContain('source=7'));
@@ -54,7 +57,7 @@ it('uses partner session for login, source filters, pagination and revocation wi
   expect(urls[urls.length - 1]).toContain('page=2');
   expect(urls.every(url => url.startsWith('/api/partners/'))).toBe(true);
   authenticated = false;
-  fireEvent.click(screen.getByRole('button', { name: 'Обновить' }));
+  fireEvent.click(screen.getByRole('button', { name: '7 дней' }));
   await screen.findByRole('heading', { name: 'Вход в ArcVPN' });
   expect(screen.queryByText('C-opaque')).toBeNull();
   expect(screen.getByRole('alert').textContent).toContain('Сессия завершилась');
