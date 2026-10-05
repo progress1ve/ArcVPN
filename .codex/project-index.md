@@ -20,3 +20,5 @@
   latest results: `docs/operations/multitest-2026-09-29.md`.
 
 - Partner admin-derived UI: shared AdminNavSection/ShellHeader; admin_webapp/src/arcvpn/PartnerNetwork.tsx adapts opaque scoped nodes to existing admin NetworkGraph; backend db_partners.report handles descriptions/cohort conversion/daily series.
+
+- Partner operational views: admin_webapp/src/arcvpn/PartnerContent.tsx; shared PeriodPicker.tsx; admin AcquisitionStats.tsx and database/db_acquisition.py provide exclusive direct/referral/campaign registrations.
