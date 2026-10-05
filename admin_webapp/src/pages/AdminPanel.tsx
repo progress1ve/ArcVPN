@@ -595,6 +595,8 @@ const GlassCard = memo(function GlassCard({ section, index, searchTerm }: GlassC
 
 export default function AdminPanel() {
   const { t } = useTranslation();
+  const hasPermission = usePermissionStore((state) => state.hasPermission);
+  const permissions = usePermissionStore((state) => state.permissions);
   const [search, setSearch] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
   const { safeAreaInset, contentSafeAreaInset } = useTelegramSDK();
@@ -640,14 +642,13 @@ export default function AdminPanel() {
 
   // Track which sections have matching items (keeps original section refs for memo stability)
   const visibleSectionIds = useMemo(() => {
-    if (!search.trim()) return null; // null = show all
     const lower = search.toLowerCase();
     return new Set(
       sections
-        .filter((s) => s.items.some((item) => t(item.name).toLowerCase().includes(lower)))
+        .filter((s) => s.items.some((item) => hasPermission(item.permission) && (!lower || t(item.name).toLowerCase().includes(lower))))
         .map((s) => s.id),
     );
-  }, [search, t]);
+  }, [search, t, hasPermission, permissions]);
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
