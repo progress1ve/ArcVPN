@@ -1,3 +1,4 @@
+import {SectionHeading} from '@/components/admin/SectionHeading';
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router';
 import { backTo } from '@/components/admin';
@@ -10,7 +11,6 @@ import type { PendingPayment, PaginatedResponse } from '../types';
 import { usePlatform } from '../platform/hooks/usePlatform';
 import { StatCard } from '@/components/stats';
 import {
-  BackIcon,
   SearchIcon,
   CalendarIcon,
   RefreshIcon,
@@ -175,21 +175,7 @@ export default function AdminPayments() {
     <div className="animate-fade-in space-y-6">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-3">
-          {/* Show back button only on web, not in Telegram Mini App */}
-          {!capabilities.hasBackButton && (
-            <button
-              onClick={() => navigate('/admin')}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-dark-700 bg-dark-800 transition-colors hover:border-dark-600"
-            >
-              <BackIcon />
-            </button>
-          )}
-          <div>
-            <h1 className="text-xl font-bold text-dark-100">{t('admin.payments.title')}</h1>
-            <p className="text-sm text-dark-400">{t('admin.payments.description')}</p>
-          </div>
-        </div>
+        <SectionHeading title={t('admin.payments.title')} description={t('admin.payments.description')} onBack={capabilities.hasBackButton?undefined:()=>navigate('/admin')}/>
         <button onClick={() => refetch()} className="btn-secondary flex items-center gap-2">
           <RefreshIcon className="h-4 w-4" />
           {t('common.refresh')}

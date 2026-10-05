@@ -33,6 +33,7 @@ it('uses partner session for login, source filters, pagination and revocation wi
   fireEvent.click(screen.getByRole('button', { name: 'Войти' }));
   await screen.findByRole('heading', { name: 'Партнёрская панель' });
   expect(screen.getByText('Заработано за всё время')).toBeTruthy();
+  expect(screen.queryByRole('button',{name:'Клиенты'})).toBeNull();
   expect(screen.queryByText('Начислено')).toBeNull();
   expect(screen.queryByText('Корректировки')).toBeNull();
   expect(screen.queryByText('Журнал')).toBeNull();

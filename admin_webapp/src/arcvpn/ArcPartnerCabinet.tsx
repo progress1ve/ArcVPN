@@ -1,10 +1,11 @@
+import {SectionHeading} from '@/components/admin/SectionHeading';
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from 'react';
 import { HashRouter, useLocation, useNavigate } from 'react-router';
 import { AdminNavSection } from '@/components/admin/AdminNavSection';
 import { ShellHeader } from '@/components/layout/AppShell/ShellHeader';
 import { RenderBackground } from '@/components/backgrounds/BackgroundCanvas';
 import { DEFAULT_ANIMATION_CONFIG } from '@/components/ui/backgrounds/types';
-import { ChartBarIcon, CreditCardIcon, UsersIcon, ShareIcon, MegaphoneIcon, WalletIcon, BackIcon, LogoutIcon } from '@/components/icons';
+import { ChartBarIcon, CreditCardIcon, ShareIcon, MegaphoneIcon, WalletIcon, LogoutIcon } from '@/components/icons';
 import type { PartnerNode } from './PartnerNetwork';
 const PartnerNetwork = lazy(() => import('./PartnerNetwork'));
 
@@ -40,7 +41,7 @@ export const stamp = (value: string) => value ? new Date(value.includes('T') ? v
 export const labels: Record<string, string> = { new: 'Покупка', renew: 'Продление', upgrade: 'Смена тарифа', addon_device: 'Устройства', addon_lte: 'Трафик', addon_combined: 'Устройства и трафик', accrual: 'Начисление', adjustment: 'Корректировка', refund: 'Возврат', reversal: 'Отмена', payout: 'Ручная выплата' };
 const sections = [
   { title: 'Аналитика', gradient: 'linear-gradient(135deg, #34d399, #3b82f6)', items: [['statistics', 'Статистика', ChartBarIcon], ['purchases', 'Покупки', CreditCardIcon], ['payouts', 'Выплаты', WalletIcon]] },
-  { title: 'Маркетинг', gradient: 'linear-gradient(135deg, #93c5fd, #3b82f6)', items: [['links', 'Реферальные ссылки', MegaphoneIcon], ['clients', 'Клиенты', UsersIcon], ['network', 'Реферальная сеть', ShareIcon]] },
+  { title: 'Маркетинг', gradient: 'linear-gradient(135deg, #93c5fd, #3b82f6)', items: [['links', 'Реферальные ссылки', MegaphoneIcon], ['network', 'Реферальная сеть', ShareIcon]] },
 ] as const;
 const screenNames: Record<Screen, string> = { home: 'Партнёрская панель', statistics: 'Статистика', purchases: 'Покупки', clients: 'Клиенты', payouts: 'Выплаты', links: 'Реферальные ссылки', network: 'Реферальная сеть' };
 const messages: Record<string, string> = { invalid_credentials: 'Неверный логин или пароль либо доступ отозван.', login_rate_limited: 'Слишком много попыток. Повторите через 15 минут.', unauthorized: 'Сессия завершилась. Войдите снова.' };
@@ -130,7 +131,7 @@ function PartnerPanel() {
     <ShellHeader className="sticky inset-x-0 top-0 z-50 border-b border-dark-800/50 bg-dark-950/95">
       <a href="#/" onClick={e=>{e.preventDefault();go('home');}} className="flex items-center gap-2.5 justify-self-start" aria-label="ArcVPN — главная"><ArcVpnLogo className="h-7 w-7 text-white" /><span className="text-base font-semibold">ArcVPN</span></a>
       <span className="hidden text-xs text-dark-500 sm:block">Партнёрский кабинет</span>
-      <div className="col-start-3 justify-self-end">{data && <Button variant="ghost" size="icon" aria-label="Выйти" disabled={busy} onClick={() => void signOut()}><LogoutIcon className="h-5 w-5" /></Button>}</div>
+      <div className="col-start-3 justify-self-end">{data && <button className="rounded-xl border border-dark-700/50 bg-dark-800/50 p-2 text-dark-400 transition-colors duration-200 hover:bg-dark-700 hover:text-accent-400 disabled:opacity-50" title="Выйти" aria-label="Выйти" disabled={busy} onClick={() => void signOut()}><LogoutIcon className="h-5 w-5" /></button>}</div>
     </ShellHeader>
     {!data ? <main className="mx-auto flex min-h-[75dvh] max-w-md items-center px-4 py-8">
       {loading ? <p role="status" className="w-full text-center text-dark-400">Проверяем сессию…</p> : <form className={panel + ' w-full space-y-5'} onSubmit={signIn}>
@@ -141,7 +142,7 @@ function PartnerPanel() {
         <Button type="submit" fullWidth loading={busy} disabled={!login || !password}>Войти</Button>
       </form>}
     </main> : <main className={screen === 'network' ? 'fixed inset-x-0 bottom-0 top-14 flex flex-col bg-dark-950' : 'mx-auto max-w-6xl space-y-6 px-4 py-6 sm:px-6'} aria-busy={loading}>
-      <div className={screen === 'network' ? 'flex items-center gap-3 border-b border-dark-800 px-4 py-3' : 'flex items-center gap-3'}>{screen !== 'home' && <button className="btn-secondary flex h-12 w-12 shrink-0 items-center justify-center" aria-label="Назад в панель" onClick={()=>go('home')}><BackIcon className="h-5 w-5"/></button>}<div><h1 className={screen==='network'?'text-xl font-bold':'text-2xl font-bold sm:text-3xl'}>{screenNames[screen]}</h1><p className="mt-1 text-sm text-dark-400">{screen==='home'?data.partner.name:screen==='purchases'?'Подтверждённые покупки и ваш доход':screen==='payouts'?'Переводы, выполненные владельцем':screen==='statistics'?'Клиенты, подписки и продажи':screen==='network'?'Ваша сеть клиентов':'Ваши ссылки и закреплённые клиенты'}</p></div></div>
+      <div className={screen==='network'?'border-b border-dark-800 px-4 py-3':''}><SectionHeading title={screenNames[screen]} backLabel="Назад в панель" onBack={screen==='home'?undefined:()=>go('home')} description={screen==='home'?data.partner.name:screen==='purchases'?'Подтверждённые покупки и ваш доход':screen==='payouts'?'Переводы, выполненные владельцем':screen==='statistics'?'Клиенты, подписки и продажи':screen==='network'?'Ваша сеть клиентов':'Ваши ссылки и закреплённые клиенты'}/></div>
       {error && <p role="alert" className="rounded-xl border border-error-500/30 bg-error-500/10 p-4 text-sm text-error-400">{error}</p>}
       {screen === 'home' && <>
         <section className="grid gap-3 sm:grid-cols-3" aria-label="Доход партнёра за всё время"><StatCard label="Заработано за всё время" value={money(data.balance.earned)} icon={<WalletIcon/>}/><StatCard label="Выплачено" value={money(data.balance.paid)} icon={<CreditCardIcon/>}/><StatCard label="К выплате" value={money(data.balance.available)} tone="success" icon={<WalletIcon/>}/></section>
