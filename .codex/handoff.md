@@ -1,3 +1,5 @@
+2026-10-05 economy. c2e6ecbremoved5/10GBcustomerconstructorchoicesfromlanding/cabinet/APIand80/90specialpricingincludingrelated0GBcap. Alreadyboughtsubscriptions/friend5/10optionsunchanged. Rebasedonto9b80223partnerchatpreserved.79quote+partnertestsPASS,SveltebuildPASSexistingwarnings,no browserowner. Polandffpullsubscriptionrestartactive;publicquote5/10HTTP400,15HTTP200price104(currentcatalog).
+
 # ArcVPN handoff — partner operational redesign, 2026-10-05
 
 token-mode: economy; no subagents authorized. Primary dirty owner checkout untouched; active clean worktree C:/Users/babay/.codex/worktrees/partner-cabinet/YadrenoVPN-main, branch codex/partner-cabinet.
