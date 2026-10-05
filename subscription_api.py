@@ -676,6 +676,7 @@ PROFILE_WEB_PAGE_URL = getattr(config, "PROFILE_WEB_PAGE_URL", "https://t.me/arc
 # деплой на сервер был обычным git pull — Node на сервере не нужен).
 WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "webapp_dist")
 ADMIN_WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "admin_webapp_dist")
+PARTNER_WEBAPP_DIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "partner_webapp_dist")
 BOT_TOKEN = getattr(config, "BOT_TOKEN", "")
 ADMIN_CONSOLE_PASSWORD = os.getenv("ADMIN_CONSOLE_PASSWORD", "")
 ADMIN_CONSOLE_COOKIE = "arcvpn_admin"
@@ -7750,7 +7751,6 @@ def sitemap_xml():
 @app.route('/app')
 @app.route('/app/')
 @app.route('/app/<path:path>')
-@app.route('/partner')
 def webapp(path: str = ""):
     """
     Раздаёт собранный Svelte SPA из webapp_dist/.
@@ -7768,12 +7768,27 @@ def webapp(path: str = ""):
         candidate = os.path.join(WEBAPP_DIST_DIR, path)
         if os.path.isfile(candidate):
             return send_from_directory(WEBAPP_DIST_DIR, path)
-    entry = "partner.html" if request.path == "/partner" else "index.html"
+    entry = "index.html"
     index_path = os.path.join(WEBAPP_DIST_DIR, entry)
     if not os.path.isfile(index_path):
         return Response("Mini App не собран (webapp_dist отсутствует)", status=404,
                         mimetype="text/plain")
     return send_from_directory(WEBAPP_DIST_DIR, entry)
+
+
+@app.route('/partner')
+def partner_webapp():
+    """Independent React entry built from the existing admin frontend project."""
+    response = send_from_directory(PARTNER_WEBAPP_DIST_DIR, "partner.html")
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
+@app.route('/partner-assets/assets/<path:path>')
+def partner_webapp_assets(path: str):
+    # Assets only: no SPA fallback or access to admin/customer files.
+    return send_from_directory(os.path.join(PARTNER_WEBAPP_DIST_DIR, "assets"), path)
 
 
 @app.route('/admin')

@@ -1,5 +1,10 @@
-# Active stage: partner cabinet — 2026-10-05
+# Active stage: partner cabinet React frontend — 2026-10-05
 
 token-mode: economy; persists until user switches.
-Acceptance, financial clarifications, verification and deployment evidence: [partner-cabinet.md](partner-cabinet.md).
-Previous completed online/device-notice stage preserved in online-notices-2026-10-04.md.
+Owner approved replacing the partner Svelte frontend with the actual React admin frontend. Use admin project's dependencies, global theme, ArcVpnLogo, StatCard and Button components. Preserve /partner URL and all existing login, source/copy, filters, summaries, clients, purchases, ledger, payouts and pagination behavior. Separate entry point without admin routes/session bootstrap; existing API and accounting remain authoritative.
+Components: admin_webapp React partner entry/build; dedicated partner_webapp_dist; Flask static routes; partner nginx asset allowlist; remove previous Svelte partner entry/component. Customer Svelte application remains unchanged in stack.
+Acceptance: React TypeScript/build passes; admin and customer builds pass; API isolation/session/financial regression checks pass; generated partner HTML/assets served over HTTPS; only partner endpoints accessible on partner host. Mobile/tablet/desktop/wide layout uses existing responsive admin components, horizontally scrolling tables, wrapping links and filters. Loading, errors, empty states, keyboard focus and reduced-motion supported. Browser acceptance explicitly waived by owner; no browser checks.
+Risk/rollback: asset URL and cache transitions; deploy HTML and assets together, nginx reload and subscription service restart only. Revert frontend/routes/nginx together without altering partner accounts, ledger or subscriptions. No schema/data migration.
+Previous implementation evidence: [partner-cabinet.md](partner-cabinet.md). Verification/deployment pending.
+
+Local evidence: 53 focused Python tests pass (partner accounting/auth/isolation, admin access, independent static entry and asset traversal/missing paths). React jsdom integration passes login, source filters, pagination and revoked-session cleanup with actual shared UI components. TypeScript and React partner/admin builds pass; customer Svelte build passes. Compiled partner assets contain no /api/admin or /api/cabinet endpoints/admin auth bootstrap. Private production SQLite/identity snapshot created before frontend deployment. Browser QA deferred by explicit owner instruction.

@@ -1,7 +1,7 @@
 # Партнёрский кабинет ArcVPN
 
 Кабинет: https://partners.arccnet.space/partner. Управление: https://panel.arccnet.space/admin/partners.
-Оба используют существующий польский control plane и SQLite. Кабинет — Svelte; действующая отдельная админка — React.
+Оба используют существующий польский control plane и SQLite. Кабинет и действующая админка — React, из одного frontend-проекта admin_webapp, с общими компонентами и стилями. Партнёрский вход и сборка отделены от админских.
 
 ## Начало работы
 

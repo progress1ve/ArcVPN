@@ -9,7 +9,9 @@ export default defineConfig(({ mode }) => {
   // Переменные из .env и из окружения сборки (Docker передаёт их через ENV);
   // окружение сильнее файла — как и у самого Vite.
   const env = { ...loadEnv(mode, __dirname, 'VITE_'), ...process.env };
+  const partner = mode === 'partner';
   return {
+    publicDir: partner ? false : 'public',
     plugins: [
       react(),
       brandingHtml({
@@ -27,7 +29,7 @@ export default defineConfig(({ mode }) => {
     },
     // Base path - use '/' for standalone Docker deployment
     // Change to '/cabinet/' if serving from a sub-path
-    base: '/admin/',
+    base: partner ? '/partner-assets/' : '/admin/',
     server: {
       port: 5173,
       host: true,
@@ -48,11 +50,12 @@ export default defineConfig(({ mode }) => {
       },
     },
     build: {
-      outDir: '../admin_webapp_dist',
+      outDir: partner ? '../partner_webapp_dist' : '../admin_webapp_dist',
       emptyOutDir: true,
       sourcemap: false,
       chunkSizeWarningLimit: 550,
       rollupOptions: {
+        input: partner ? path.resolve(__dirname, 'partner.html') : path.resolve(__dirname, 'index.html'),
         output: {
           manualChunks(id) {
             if (!id.includes('node_modules')) return;
