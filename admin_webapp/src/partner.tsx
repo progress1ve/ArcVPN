@@ -5,6 +5,7 @@ import { PlatformContext } from '@/platform/PlatformContext';
 import { createWebAdapter } from '@/platform/adapters/WebAdapter';
 import ArcPartnerCabinet from './arcvpn/ArcPartnerCabinet';
 import './styles/globals.css';
+import './styles/partner-fonts.css';
 import { i18nReady } from './i18n';
 
 // Reuse admin UI primitives with the web adapter, without admin auth or routes.

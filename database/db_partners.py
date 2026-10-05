@@ -457,12 +457,19 @@ def report(partner_id, bot_username, filters, admin=False):
             purchase["purchase_description"] = " · ".join(description) or None
         network_rows = [dict(row) for row in conn.execute("""SELECT c.user_id,c.public_id AS client,
             c.source_id,c.bound_at,u.referred_by AS referrer_id,
+            (SELECT MAX(vk.expires_at) FROM vpn_keys vk WHERE vk.user_id=c.user_id) AS subscription_end,
+            EXISTS(SELECT 1 FROM trial_entitlements te JOIN vpn_keys tvk ON tvk.id=te.vpn_key_id
+                WHERE tvk.user_id=c.user_id AND te.status='active'
+                AND tvk.expires_at=(SELECT MAX(vk2.expires_at) FROM vpn_keys vk2 WHERE vk2.user_id=c.user_id)) AS subscription_is_trial,
             (SELECT COUNT(*) FROM partner_ledger l WHERE l.partner_id=c.partner_id AND l.user_id=c.user_id AND l.kind='accrual') AS purchases,
             (SELECT COALESCE(SUM(l.purchase_cents),0) FROM partner_ledger l WHERE l.partner_id=c.partner_id AND l.user_id=c.user_id AND l.kind='accrual') AS spent_cents
             FROM partner_clients c JOIN users u ON u.id=c.user_id WHERE """ + client_where +
             " ORDER BY c.bound_at DESC,c.user_id DESC LIMIT 2001", client_params)]
         visible = {row["user_id"]: row["client"] for row in network_rows[:2000]}
-        network = [{"client": row["client"], "source_id": row["source_id"], "bound_at": row["bound_at"],
+        now_sql = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        network = [{"subscription_status": (("trial_" if row["subscription_is_trial"] else "paid_") +
+                    ("active" if str(row["subscription_end"]) > now_sql else "expired"))
+                    if row["subscription_end"] else None, "client": row["client"], "source_id": row["source_id"], "bound_at": row["bound_at"],
                     "parent": visible.get(row["referrer_id"]) if row["referrer_id"] != row["user_id"] else None,
                     "purchases": row["purchases"], "spent_cents": row["spent_cents"]} for row in network_rows[:2000]]
         journal_where, journal_params = conditions("l", "occurred_at", with_source=False)

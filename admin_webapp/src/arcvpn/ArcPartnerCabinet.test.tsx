@@ -25,6 +25,7 @@ it('uses partner session for login, source filters, pagination and revocation wi
     }) };
   });
   vi.stubGlobal('fetch', fetchMock);
+  vi.stubGlobal('matchMedia', () => ({ matches: true }));
   render(<PlatformContext.Provider value={createWebAdapter()}><ArcPartnerCabinet /></PlatformContext.Provider>);
   await screen.findByRole('heading', { name: 'Вход в ArcVPN' });
   fireEvent.change(screen.getByLabelText('Логин'), { target: { value: 'partner-fixture' } });

@@ -2,7 +2,8 @@ import { lazy, Suspense, useEffect, useRef, useState, type FormEvent, type React
 import { HashRouter, useLocation, useNavigate } from 'react-router';
 import { AdminNavSection } from '@/components/admin/AdminNavSection';
 import { ShellHeader } from '@/components/layout/AppShell/ShellHeader';
-import AuroraBackground from '@/components/ui/backgrounds/aurora-background';
+import { RenderBackground } from '@/components/backgrounds/BackgroundCanvas';
+import { DEFAULT_ANIMATION_CONFIG } from '@/components/ui/backgrounds/types';
 import { ChartBarIcon, CreditCardIcon, UsersIcon, ShareIcon, MegaphoneIcon, WalletIcon, BackIcon, LogoutIcon } from '@/components/icons';
 import type { PartnerNode } from './PartnerNetwork';
 const PartnerNetwork = lazy(() => import('./PartnerNetwork'));
@@ -126,10 +127,10 @@ function PartnerPanel() {
 
   function go(next: Screen) { navigate(next === 'home' ? '/' : '/' + next); if (next === 'home') { setFilters(emptyFilters); setDraft(emptyFilters); void load(emptyFilters, 1); } else void load(filters, 1); }
   const dateFilters = data && !['home', 'links'].includes(screen);
-  return <div className="relative isolate min-h-dvh bg-dark-950 text-dark-100">
-    <div className="pointer-events-none fixed inset-0 -z-10 bg-dark-950"><div className="absolute inset-0 opacity-30 motion-reduce:hidden"><AuroraBackground settings={{ firstColor: '#64748b', secondColor: '#94a3b8', thirdColor: '#334155', speed: 'slow' }} /></div></div>
+  return <div className="relative min-h-dvh text-dark-100">
+    <RenderBackground config={DEFAULT_ANIMATION_CONFIG} />
     <ShellHeader className="sticky inset-x-0 top-0 z-50 border-b border-dark-800/50 bg-dark-950/95">
-      <a href="#/" className="flex items-center gap-2.5 justify-self-start" aria-label="ArcVPN — главная"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-dark-800"><ArcVpnLogo className="h-6 w-6 text-white" /></span><span className="text-base font-semibold">ArcVPN</span></a>
+      <a href="#/" className="flex items-center gap-2.5 justify-self-start" aria-label="ArcVPN — главная"><ArcVpnLogo className="h-7 w-7 text-white" /><span className="text-base font-semibold">ArcVPN</span></a>
       <span className="hidden text-xs text-dark-500 sm:block">Партнёрский кабинет</span>
       <div className="justify-self-end">{data && <Button variant="ghost" size="icon" aria-label="Выйти" disabled={busy} onClick={() => void signOut()}><LogoutIcon className="h-5 w-5" /></Button>}</div>
     </ShellHeader>
@@ -141,23 +142,21 @@ function PartnerPanel() {
         {error && <p role="alert" className="rounded-xl bg-error-500/10 p-3 text-sm text-error-400">{error}</p>}
         <Button type="submit" fullWidth loading={busy} disabled={!login || !password}>Войти</Button>
       </form>}
-    </main> : <main className="mx-auto max-w-6xl space-y-5 px-4 py-5 sm:px-6 sm:py-6" aria-busy={loading}>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-3">{screen !== 'home' && <Button variant="secondary" size="icon" aria-label="Назад в панель" onClick={() => go('home')}><BackIcon className="h-5 w-5" /></Button>}<div><h1 className="text-lg font-semibold">{screenNames[screen]}</h1><p className="mt-1 text-xs text-dark-400">{data.partner.name}</p></div></div><Button variant="secondary" size="sm" loading={loading} disabled={busy} onClick={() => void load()}>Обновить</Button></div>
+    </main> : <main className={screen === 'network' ? 'fixed inset-x-0 bottom-0 top-14 flex flex-col bg-dark-950' : 'mx-auto max-w-6xl space-y-4 px-4 py-6 sm:px-10 sm:py-8'} aria-busy={loading}>
+      <div className={screen === 'network' ? 'flex flex-wrap items-center justify-between gap-3 border-b border-dark-800 px-4 py-3' : 'flex flex-wrap items-center justify-between gap-3'}><div className="flex min-w-0 items-center gap-3">{screen !== 'home' && <Button variant="secondary" size="icon" aria-label="Назад в панель" onClick={() => go('home')}><BackIcon className="h-5 w-5" /></Button>}<div><h1 className="text-lg font-semibold">{screenNames[screen]}</h1><p className="mt-1 text-xs text-dark-400">{data.partner.name}</p></div></div><Button variant="secondary" size="sm" loading={loading} disabled={busy} onClick={() => void load()}>Обновить</Button></div>
       {error && <p role="alert" className="rounded-xl border border-error-500/30 bg-error-500/10 p-4 text-sm text-error-400">{error}</p>}
-      <section className="grid gap-3 sm:grid-cols-3" aria-label="Доход партнёра за всё время">
-        <StatCard label="Заработано за всё время" value={money(data.balance.earned)} icon={<WalletIcon />} />
-        <StatCard label="Выплачено" value={money(data.balance.paid)} icon={<CreditCardIcon />} />
-        <StatCard label="К выплате" value={money(data.balance.available)} icon={<WalletIcon />} tone="success" />
-      </section>
+      {screen !== 'network' && <section className="grid grid-cols-3 gap-2" aria-label="Доход партнёра за всё время">
+        {[['Заработано за всё время', data.balance.earned, WalletIcon], ['Выплачено', data.balance.paid, CreditCardIcon], ['К выплате', data.balance.available, WalletIcon]].map(([label, amount, Icon]) => { const ChipIcon = Icon as typeof WalletIcon; return <div key={String(label)} className="flex min-w-0 items-center gap-2.5 rounded-xl border border-dark-700/50 bg-dark-800/30 px-3 py-2.5 backdrop-blur-xl"><span className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-success-500/20 bg-success-500/10 text-success-400 sm:flex"><ChipIcon className="h-4 w-4" /></span><div className="min-w-0"><p className="text-sm font-semibold tabular-nums sm:text-base">{money(Number(amount))}</p><p className="mt-0.5 text-[10px] leading-4 text-dark-400 sm:text-xs">{String(label)}</p></div></div>; })}
+      </section>}
       {screen === 'home' && <>
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><StatCard label="Привлечено клиентов" value={data.stats.clients} /><StatCard label="Оплативших клиентов" value={data.stats.cohort_paying_clients} /><StatCard label="Конверсия в оплату" value={data.stats.conversion_percent + '%'} /><StatCard label="Покупки" value={data.stats.purchases} /></div>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">{[['Привлечено клиентов', data.stats.clients], ['Оплативших клиентов', data.stats.cohort_paying_clients], ['Конверсия в оплату', data.stats.conversion_percent + '%'], ['Покупки', data.stats.purchases]].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-dark-700/50 bg-dark-800/30 px-3 py-2.5 backdrop-blur-xl"><p className="text-sm font-semibold tabular-nums">{value}</p><p className="mt-0.5 text-[10px] text-dark-400 sm:text-xs">{label}</p></div>)}</div>
         <div className="grid gap-4 sm:grid-cols-2">{sections.map(section => <AdminNavSection key={section.title} title={section.title} count={section.items.length} gradient={section.gradient}><div className="flex flex-col gap-px p-1.5">{section.items.map(([value, name, Icon]) => <button key={value} className="group/item flex items-center gap-2.5 rounded-xl border border-transparent px-2 py-2 text-left transition-colors hover:border-dark-600/50 hover:bg-dark-700/30 focus-visible:outline focus-visible:outline-accent-500" onClick={() => go(value)}><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border border-dark-700/40 bg-dark-800/40 text-accent-400"><Icon className="h-[13px] w-[13px]" /></span><span className="text-xs font-medium text-dark-200">{name}</span></button>)}</div></AdminNavSection>)}</div>
       </>}
-      {dateFilters && <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto] lg:items-end" onSubmit={e => { e.preventDefault(); setFilters(draft); void load(draft, 1); }}>
+      {dateFilters && <form className={screen === 'network' ? 'flex flex-wrap items-end gap-2 border-b border-dark-800 px-4 py-2 [&_label]:flex-1 [&_label]:min-w-28 [&_label_span]:sr-only [&_input]:min-h-9 [&_select]:min-h-9' : 'grid gap-3 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_auto] lg:items-end'} onSubmit={e => { e.preventDefault(); setFilters(draft); void load(draft, 1); }}>
         <label className="space-y-2 text-xs text-dark-300"><span>Ссылка</span><select className={field} value={draft.source} onChange={e => setDraft({ ...draft, source: e.target.value })}><option value="">Все ссылки</option>{data.sources.map(link => <option key={link.id} value={link.id}>{link.name}</option>)}</select></label>
         <label className="space-y-2 text-xs text-dark-300"><span>С даты</span><input className={field} type="date" value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })} /></label>
         <label className="space-y-2 text-xs text-dark-300"><span>По дату</span><input className={field} type="date" value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })} /></label>
-        <Button type="submit" disabled={loading || busy}>Применить</Button>
+        <Button type="submit" size="sm" disabled={loading || busy}>Применить</Button>
       </form>}
       {screen === 'statistics' && <>
         <p className="text-xs text-dark-400">Конверсия: доля привлечённых за выбранный период клиентов с подтверждённой покупкой, участвующей в вознаграждении. Оплаты учитываются по текущий момент. Выручка и покупки ниже — по дате оплаты, время московское.</p>

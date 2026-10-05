@@ -16,6 +16,8 @@ def partner_db(tmp_path, monkeypatch):
     with connection.get_db() as conn:
         conn.executescript("""
             CREATE TABLE users(id INTEGER PRIMARY KEY,username TEXT,first_name TEXT,referral_code TEXT,referred_by INTEGER);
+            CREATE TABLE vpn_keys(id INTEGER PRIMARY KEY,user_id INTEGER,expires_at TEXT,uuid TEXT);
+            CREATE TABLE trial_entitlements(vpn_key_id INTEGER,status TEXT);
             CREATE TABLE ad_campaigns(id INTEGER PRIMARY KEY,name TEXT,code TEXT,is_active INTEGER DEFAULT 1);
             CREATE TABLE user_campaign_attribution(user_id INTEGER PRIMARY KEY,campaign_id INTEGER,attributed_at TEXT DEFAULT CURRENT_TIMESTAMP);
             CREATE TABLE tariffs(id INTEGER PRIMARY KEY,duration_days INTEGER,name TEXT);
@@ -475,3 +477,22 @@ def test_network_limit_disclosed_without_truncating_totals(partner_db):
     report = db.report(p,"fixture",{})
     assert len(report["network"]) == 2000 and report["network_truncated"]
     assert report["stats"]["clients"] == 2001
+
+
+def test_network_subscription_colors_are_owned_and_never_expose_keys(partner_db):
+    p, q = partner_db
+    bind(p, 1)
+    bind(q, 2, 2)
+    with connection.get_db() as conn:
+        conn.execute("INSERT INTO vpn_keys VALUES(1,1,'2099-01-01 00:00:00','private-own-key')")
+        conn.execute("INSERT INTO vpn_keys VALUES(2,2,'2099-01-01 00:00:00','private-foreign-key')")
+        conn.execute("INSERT INTO trial_entitlements VALUES(1,'active')")
+    report = db.report(p, "fixture", {})
+    assert len(report["network"]) == 1
+    assert report["network"][0]["subscription_status"] == "trial_active"
+    assert "private-" not in json.dumps(report)
+    assert "subscription_end" not in report["network"][0]
+    with connection.get_db() as conn:
+        conn.execute("DELETE FROM trial_entitlements")
+        conn.execute("UPDATE vpn_keys SET expires_at='2000-01-01 00:00:00' WHERE user_id=1")
+    assert db.report(p, "fixture", {})["network"][0]["subscription_status"] == "paid_expired"
