@@ -275,9 +275,9 @@ FINLAND_REALITY_PUBLIC_KEY = "PAG_2hc5of2fpL4HJmsIRRdAHhLrn1rIchUfW-t00zs"
 # Replacement FI passed Reality, CDN and both reciprocal Moscow tunnel gates.
 FINLAND_BRIDGE_READY = True
 TEMPORARY_LOCATION_ALIASES = (
-    ("🇵🇱 Польша", "Финляндия"),
-    ("🇳🇱 Нидерланды", "Финляндия"),
-    ("🇸🇪 Швеция", "Эстония"),
+    ("🇵🇱 Польша", "Швеция"),
+    ("🇳🇱 Нидерланды", "Швеция"),
+    ("🇩🇪 Германия", "Швеция"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
 
@@ -324,7 +324,7 @@ def _subscription_source_name(name: str) -> str:
     normalized = normalized.replace("Франция", "Канада")
     normalized = normalized.replace("(LTE, трафик ×10)", "(LTE)")
     normalized = re.sub(r"\s*⚡\s*", " ", normalized)
-    if any(country in normalized for country in ("Финляндия", "Эстония")):
+    if any(country in normalized for country in ("Финляндия", "Эстония", "Швеция")):
         normalized = re.sub(r"\s*#\s*1\s*$", "", normalized)
     return re.sub(r"\s+", " ", normalized).strip()
 
@@ -344,7 +344,7 @@ def _profile_country_flag(name: str) -> str:
     if "Обход глушилок" in value or "LTE" in value:
         return "🇪🇺"
     for marker, flag in (
-        ("Финляндия", "🇫🇮"), ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Албания", "🇦🇱"), ("Германия", "🇩🇪"),
+        ("Швеция", "🇸🇪"), ("Финляндия", "🇫🇮"), ("Нидерланды", "🇳🇱"), ("Эстония", "🇪🇪"), ("Албания", "🇦🇱"), ("Германия", "🇩🇪"),
         ("Франция", "🇫🇷"), ("Канада", "🇨🇦"), ("Польша", "🇵🇱"),
         ("Швеция", "🇸🇪"), ("Ютуб без рекламы", "🇷🇺"),
         ("Обход глушилок", "🇷🇺"),
@@ -433,7 +433,7 @@ def _subscription_display_name(name: str) -> str:
         number = number_match.group(1) if number_match else "1"
         return f"\U0001f1ea\U0001f1fa Обход глушилок #{number}"
     value = re.sub(r"\s*⚡\s*", " ", value).strip()
-    if any(country in value for country in ("Финляндия", "Эстония", "Нидерланды", "Албания", "Германия")):
+    if any(country in value for country in ("Финляндия", "Швеция", "Эстония", "Нидерланды", "Албания", "Германия")):
         value = re.sub(r"\s*#\s*1\s*$", "", value).strip()
     if "Финляндия" in value:
         return _safe_profile_display_name(value, value)
@@ -445,7 +445,9 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
     result: list[tuple[tuple[int, int, str], str]] = []
     for link in links:
         endpoint = (urllib.parse.urlsplit(link).hostname or "").lower()
-        if endpoint in RETIRED_GERMANY_ENDPOINTS:
+        if endpoint in RETIRED_GERMANY_ENDPOINTS or endpoint in {"fin.arccnet.space", "151.241.137.174"}:
+            continue
+        if urllib.parse.parse_qs(urllib.parse.urlsplit(link).query).get("path") == ["/api-fin"]:
             continue
         if urllib.parse.urlsplit(link).scheme.lower() in {"hysteria", "hysteria2", "hy2"}:
             continue
@@ -523,7 +525,7 @@ def _with_temporary_location_aliases(links: list[str]) -> list[str]:
         name = _catalog_source_name(name)
         if _is_lte_subscription_link(link) or "Ютуб без рекламы" in name:
             continue
-        for country in ("Германия", "Эстония", "Финляндия"):
+        for country in ("Швеция", "Эстония"):
             if country in name and country not in sources:
                 sources[country] = link.rsplit("#", 1)[0]
     aliases = [
@@ -546,7 +548,7 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     )
     if "Ютуб без рекламы" in name:
         country_order = 5
-    elif "Финляндия" in name and not _is_lte_subscription_link(link):
+    elif "Швеция" in name and not _is_lte_subscription_link(link):
         country_order = 6
     elif "Эстония" in name:
         country_order = 10
@@ -585,6 +587,7 @@ def _normalize_customer_profile_label(link: str) -> str:
         return link
     name = name.replace("Франция", "Канада")
     countries = (
+        ("Швеция", "🇸🇪"),
         ("Финляндия", "🇫🇮"),
         ("Нидерланды", "🇳🇱"),
         ("Эстония", "🇪🇪"),
@@ -610,9 +613,10 @@ def _with_youtube_without_ads_alias(links: list[str]) -> list[str]:
     if any("Ютуб без рекламы" in urllib.parse.unquote(item.rsplit("#", 1)[-1]) for item in links):
         return links
     source = next((
-        item for item in links
+        item for item in sorted(links, key=lambda link: next((index for index, country in
+            enumerate(("Швеция", "Германия", "Эстония")) if country in urllib.parse.unquote(link.rsplit("#", 1)[-1])), 99))
         if urllib.parse.urlsplit(item).scheme.lower() == "vless"
-        and "Германия" in urllib.parse.unquote(item.rsplit("#", 1)[-1])
+        and any(country in urllib.parse.unquote(item.rsplit("#", 1)[-1]) for country in ("Швеция", "Германия", "Эстония"))
     ), None)
     if not source:
         return links
@@ -1665,7 +1669,7 @@ def _select_autoselect_country(key: ActiveKeyRecord, countries: set[str]) -> str
 
 
 def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
-    """Return Happ JSON with Finland/Estonia peers and observed backups."""
+    """Return Happ JSON with Sweden/Estonia peers and observed backups."""
     links = sorted(
         _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
@@ -1745,7 +1749,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                     country = (
                         "de" if any(part in name for part in ("Германия", "Germany"))
                         else "ee" if any(part in name for part in ("Эстония", "Estonia"))
-                        else "fi" if "Финляндия" in name
+                        else "se" if "Швеция" in name
                         else None
                     )
                     if country and country not in auto_country_outbounds:
@@ -1757,11 +1761,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     for index, item in enumerate(youtube_outbounds, start=1):
         item["tag"] = f"proxy-youtube-{index}"
 
-    # Finland and Estonia are routine peers. Germany is an observed reserve;
+    # Sweden and Estonia are routine peers. Germany is an observed reserve;
     # the existing CDN remains the final emergency path.
     auto_failover = "ee" in auto_country_outbounds and "de" in auto_country_outbounds
     if auto_country_outbounds:
-        primary_nodes = [auto_country_outbounds[country] for country in ("fi", "ee")
+        primary_nodes = [auto_country_outbounds[country] for country in ("se", "ee")
                          if country in auto_country_outbounds]
         if not primary_nodes:
             primary_nodes = [auto_country_outbounds["de"]]
@@ -1797,7 +1801,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             },
             # Observe only normal nodes. CDN is an emergency fallback, not a
             # low-latency competitor in routine AutoSelect decisions.
-            "subjectSelector": ["proxy-main" if "fi" in auto_country_outbounds else "proxy-main-1", "proxy-reserve-de"] if auto_failover else ["proxy-main"],
+            "subjectSelector": ["proxy-main" if "se" in auto_country_outbounds else "proxy-main-1", "proxy-reserve-de"] if auto_failover else ["proxy-main"],
         },
         "dns": _client_dns_config(key),
         "inbounds": _json_local_inbounds(key),
@@ -1813,7 +1817,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         "routing": {
             "balancers": [{
                 "fallbackTag": "proxy-stage-2" if auto_failover else "proxy-back-1" if lte_outbounds else "direct",
-                "selector": ["proxy-main"] if "fi" in auto_country_outbounds or not auto_failover else ["proxy-main-1"],
+                "selector": ["proxy-main"] if "se" in auto_country_outbounds or not auto_failover else ["proxy-main-1"],
                 "strategy": {
                     # The loopback fallback re-enters routing for Germany
                     # and then CDN after all routine peers fail.
@@ -1918,12 +1922,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         youtube_profiles.append(youtube_profile)
     visible_main = [
         *youtube_profiles,
-        *visible_country("Финляндия"),
+        *visible_country("Швеция"),
         *visible_country("Эстония"),
         *visible_country("Германия"),
         *visible_country("Польша"),
         *visible_country("Нидерланды"),
-        *visible_country("Швеция"),
     ]
     if _catalog_overrides():
         visible_main.sort(key=lambda profile: _subscription_inbound_order(_catalog_source_name(str(profile.get("remarks") or ""))))
@@ -1943,11 +1946,13 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     member_addresses = {}
     for country, outbound in auto_country_outbounds.items():
         peers = (outbound.get("settings") or {}).get("vnext") or []
-        if country in {"fi", "ee"} and peers:
+        if country in {"se", "ee"} and peers:
             member_addresses[country] = {str(peers[0].get("address") or "").lower()}
     rendered_profiles = apply_balancers([auto_profile, *visible_main, *fallback_lte_profiles], balancer_policy, member_addresses, key.telegram_id)
     # Owner's client order: Auto, YouTube, then manual locations and bypasses.
     for profile in rendered_profiles:
+        if _subscription_source_name(profile.get("remarks", "")) == "Швеция":
+            profile["remarks"] = "🇸🇪 Швеция"
         if _subscription_source_name(profile.get("remarks", "")) == "Эстония":
             profile["remarks"] = "🇪🇪 Эстония"
     youtube_profiles = [profile for profile in rendered_profiles
@@ -5487,7 +5492,7 @@ def api_admin_subscription_balancers():
                     identifier = kind if kind != "bypass" else f"bypass-{bypass_index}"
                     strategy = (balancers[0].get("strategy") or {}).get("type", "leastLoad")
                     effective_defaults.append({"id":identifier,"kind":kind,"name":name,
-                        "members":["fi","ee"],"weights":{"fi":1,"ee":1},
+                        "members":["se","ee"],"weights":{"se":61,"ee":39},
                         "strategy":strategy,"fallback":"existing"})
             except Exception:
                 return _api_error("rendered_structure_unavailable",503)

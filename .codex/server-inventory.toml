@@ -1,5 +1,15 @@
 version = 1
 
+[[servers]]
+alias = "se-hostup"
+role = "vpn-node"
+location = "Sweden"
+host = "136.148.220.228"
+public_domain = "se.arccnet.space"
+ssh_user = "root"
+credential_alias = "se-hostup"
+status = "staged"
+
 # Non-secret topology only. Credential aliases map to the local DPAPI vault.
 [[servers]]
 alias = "fi-1chost"

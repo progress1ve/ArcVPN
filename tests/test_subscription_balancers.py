@@ -5,7 +5,7 @@ from monitoring.subscription_balancers import apply, defaults, digest, validate
 
 def template(name="Автовыбор"):
     return {"remarks": name, "routing": {"rules": [], "balancers": [{"tag": "balancer_main", "selector": ["proxy-main"], "fallbackTag": "proxy-back-1", "strategy": {"type": "leastLoad", "settings": {}}}]},
-            "outbounds": [{"tag": "proxy-main-1", "settings": {"vnext": [{"address": "151.241.137.174", "users": [{"id": "private-identity"}]}]}},
+            "outbounds": [{"tag": "proxy-main-1", "settings": {"vnext": [{"address": "136.148.220.228", "users": [{"id": "private-identity"}]}]}},
                           {"tag": "proxy-main-2", "settings": {"vnext": [{"address": "87.251.19.197"}]}}]}
 
 
@@ -15,10 +15,10 @@ def test_no_policy_preserves_legacy_subscription():
 
 
 def test_policy_preserves_credentials_and_manual_locations():
-    original = [template(), {"remarks": "Финляндия"}]
+    original = [template(), {"remarks": "Швеция"}]
     saved = copy.deepcopy(original)
     policy = defaults()[:1]
-    policy[0].update(name="Мой выбор", members=["fi"], fallback="block", weights={"fi": 4})
+    policy[0].update(strategy="leastLoad", name="Мой выбор", members=["se"], fallback="block", weights={"se": 4})
     result = apply(original, validate(policy))
     assert original == saved
     assert result[0]["remarks"] == "Мой выбор"
@@ -27,17 +27,37 @@ def test_policy_preserves_credentials_and_manual_locations():
     assert balancer["selector"] == ["proxy-main-1"]
     assert balancer["fallbackTag"] == "block"
     assert balancer["strategy"]["settings"]["costs"][0]["value"] == .25
-    assert result[-1] == {"remarks": "Финляндия"}
+    assert result[-1] == {"remarks": "Швеция"}
 
 
 def test_missing_selected_node_fails_closed():
     source = template()
     source["outbounds"] = source["outbounds"][:1]
     result = apply([source], defaults()[:1])
-    assert result[0]["routing"]["balancers"][0]["fallbackTag"] == "block"
+    assert result[0]["routing"]["balancers"][-1]["fallbackTag"] == "block"
 
 
-@pytest.mark.parametrize("field,value", [("strategy", "shell"), ("members", []), ("members", ["unknown"]), ("weights", {"fi": -1}), ("name", "\ninvalid")])
+def test_weighted_connections_use_exact_tickets_and_health_aware_reserves():
+    source = template()
+    source['burstObservatory'] = {'subjectSelector': ['proxy-main']}
+    rendered = apply([source], validate(defaults()[:1]))[0]
+    tickets = [o for o in rendered['outbounds'] if o['tag'].startswith('weighted-ticket-')]
+    assert len(tickets) == 100
+    assert sum(o['settings']['inboundTag'] == 'weighted-preferred-0' for o in tickets) == 61
+    assert sum(o['settings']['inboundTag'] == 'weighted-preferred-1' for o in tickets) == 39
+    assert rendered['burstObservatory'] == source['burstObservatory']
+    assert rendered['routing']['balancers'][0]['tag'] == 'balancer_main'
+    assert all(b['strategy']['type'] == 'leastPing' for b in rendered['routing']['balancers'][1:])
+    assert {b['fallbackTag'] for b in rendered['routing']['balancers'] if '-reserve-' in b['tag']} == {'proxy-back-1'}
+
+
+def test_finland_cannot_be_published_as_a_balancer_member():
+    policy = defaults()[:1]
+    policy[0]['members'] = ['fi', 'ee']
+    with pytest.raises(ValueError):validate(policy)
+
+
+@pytest.mark.parametrize("field,value", [("strategy", "shell"), ("members", []), ("members", ["unknown"]), ("weights", {"se": -1}), ("name", "\ninvalid")])
 def test_invalid_policies_rejected(field, value):
     policy = defaults()[:1]
     policy[0][field] = value
@@ -54,7 +74,7 @@ def test_preview_digest_changes_when_route_changes():
 
 def test_weighted_users_are_sticky_and_keep_the_other_node_as_reserve():
     policy=defaults()[:1]
-    policy[0].update(strategy='weightedUsers',weights={'fi':3,'ee':1})
+    policy[0].update(strategy='weightedUsers',weights={'se':3,'ee':1})
     counts={'proxy-main-1':0,'proxy-main-2':0}
     for user in range(1000):
         result=apply([template()],policy,user_id=user)[0]
@@ -103,21 +123,21 @@ def test_renamed_locations_keep_balancer_identity_and_aliases(monkeypatch):
     import json
     import urllib.parse
     from subscription_api import ActiveKeyRecord
-    overrides={'Финляндия':{'display_name':'Мой север','enabled':1,'include_in_auto':1,'sort_order':0},
+    overrides={'Швеция':{'display_name':'Мой север','enabled':1,'include_in_auto':1,'sort_order':0},
                'Эстония':{'display_name':'Мой запад','enabled':1,'include_in_auto':1,'sort_order':1}}
     monkeypatch.setattr(api,'_catalog_overrides',lambda:overrides)
     monkeypatch.setattr(api,'get_setting',lambda key,default=None:default)
     monkeypatch.setattr(api,'FINLAND_BRIDGE_READY',True)
     key=ActiveKeyRecord(1,1,'test','2099-01-01',0,0,'test',1)
     links='\n'.join(f'vless://11111111-1111-1111-1111-111111111111@{host}:443?security=none&type=tcp#{urllib.parse.quote(name)}'
-                    for host,name in [('fi.example','Финляндия'),('ee.example','Эстония')])
+                    for host,name in [('se.example','Швеция'),('ee.example','Эстония')])
     profiles=json.loads(api._build_happ_json_subscription(key,links))
     names=[p['remarks'] for p in profiles]
-    assert '🇫🇮 Мой север' in names and '🇪🇪 Мой запад' in names
-    assert names.index('🇫🇮 Мой север')<names.index('🇪🇪 Мой запад')
+    assert '🇸🇪 Мой север' in names and '🇪🇪 Мой запад' in names
+    assert names.index('🇸🇪 Мой север')<names.index('🇪🇪 Мой запад')
     peers=[o for o in profiles[0]['outbounds'] if o['tag'].startswith('proxy-main-')]
     assert len(peers)==2
-    assert {o['settings']['vnext'][0]['address'] for o in peers}=={'fi.example','ee.example'}
+    assert {o['settings']['vnext'][0]['address'] for o in peers}=={'se.example','ee.example'}
 
 
 def test_best_bypass_is_not_left_as_a_duplicate_manual_location():

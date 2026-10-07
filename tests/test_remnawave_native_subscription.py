@@ -124,7 +124,7 @@ def test_happ_json_never_keeps_retired_finland_as_hidden_outbound(monkeypatch):
 def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
     links = [
         "vless://id@ee.arccnet.space:443?security=reality#%F0%9F%87%AA%F0%9F%87%AA%20%D0%AD%D1%81%D1%82%D0%BE%D0%BD%D0%B8%D1%8F",
-        "vless://id@fin.arccnet.space:443?security=reality#" + urllib.parse.quote("🇫🇮 Финляндия"),
+        "vless://id@se.arccnet.space:443?security=reality#" + urllib.parse.quote("🇸🇪 Швеция"),
     ]
 
     result = sorted(api._with_temporary_location_aliases(links), key=api._subscription_link_order)
@@ -132,29 +132,27 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
     hosts = [urllib.parse.urlsplit(link).hostname for link in result]
 
     assert names == [
-        "🇫🇮 Финляндия", "🇪🇪 Эстония", "🇵🇱 Польша",
-        "🇳🇱 Нидерланды",
-        "🇸🇪 Швеция",
+        "🇸🇪 Швеция", "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды",
     ]
     assert hosts == [
-        "fin.arccnet.space", "ee.arccnet.space", "fin.arccnet.space", "fin.arccnet.space", "ee.arccnet.space",
+        "se.arccnet.space", "ee.arccnet.space", "se.arccnet.space", "se.arccnet.space", "se.arccnet.space",
     ]
 
 
-def test_real_finland_replaces_alias_and_is_a_main_peer(monkeypatch):
+def test_real_sweden_replaces_alias_and_is_a_main_peer(monkeypatch):
     monkeypatch.setattr(api, "_catalog_overrides", lambda: {})
     monkeypatch.setattr(api, "FINLAND_BRIDGE_READY", True)
     links = "\n".join([
-        f"vless://test@fin.arccnet.space:443?security=reality&pbk={api.FINLAND_REALITY_PUBLIC_KEY}#Финляндия%20%231",
+        f"vless://test@se.arccnet.space:443?security=reality&pbk={api.FINLAND_REALITY_PUBLIC_KEY}#Швеция%20%231",
         "vless://test@ee.arccnet.space:443?security=reality#Эстония%20%231",
         "vless://test@de.arccnet.space:443?security=reality#Германия%20%231",
     ])
     profiles = json.loads(api._build_happ_json_subscription(_key(), links))
     names = [p['remarks'] for p in profiles]
-    assert names[2] == '🇫🇮 Финляндия'
+    assert names[2] == '🇸🇪 Швеция'
     auto = profiles[0]
     mains = [o for o in auto['outbounds'] if o['tag'].startswith('proxy-main-')]
-    assert {o['settings']['vnext'][0]['address'] for o in mains} == {'fin.arccnet.space', 'ee.arccnet.space'}
+    assert {o['settings']['vnext'][0]['address'] for o in mains} == {'se.arccnet.space', 'ee.arccnet.space'}
     assert auto['routing']['balancers'][0]['strategy']['settings']['expected'] == 2
 
 

@@ -3,8 +3,8 @@ import copy
 import hashlib
 import json
 
-STRATEGIES = {"leastLoad", "leastPing", "roundRobin", "random", "weightedUsers"}
-NODES = {"fi": {"151.241.137.174", "fin.arccnet.space", "fin.arcnet.space"},
+STRATEGIES = {"leastLoad", "leastPing", "roundRobin", "random", "weightedUsers", "weightedConnections"}
+NODES = {"se": {"136.148.220.228", "se.arccnet.space"},
          "ee": {"87.251.19.197", "ee.arccnet.space", "est.arccnet.space"}}
 
 
@@ -51,8 +51,8 @@ def digest(policy):
 def defaults():
     specs = [('auto','auto','Автовыбор | Самый быстрый'),('youtube','youtube','Ютуб без рекламы')]
     specs += [('bypass-'+str(i),'bypass','Лучший обход' if i==1 else 'Обход глушилок #'+str(i)) for i in range(1,6)]
-    return [{'id':identifier,'kind':kind,'name':name,'members':['fi','ee'],
-             'weights':{'fi':1,'ee':1},'strategy':'leastLoad','fallback':'existing'}
+    return [{'id':identifier,'kind':kind,'name':name,'members':['se','ee'],
+             'weights':{'se':61,'ee':39},'strategy':'weightedConnections','fallback':'existing'}
             for identifier,kind,name in specs]
 
 
@@ -100,7 +100,16 @@ def apply(profiles, policy, addresses=None, user_id=None):
         if item["fallback"] == "block" or len(selected) != len(item["members"]):
             primary["fallbackTag"] = "block"
         settings = copy.deepcopy(primary.get("strategy", {}).get("settings", {}))
-        if item["strategy"] == "weightedUsers" and selected:
+        if item["strategy"] == "weightedConnections" and selected:
+            from monitoring.weighted_connections import configure
+            fallback = primary.get("fallbackTag", "block")
+            if fallback in tags.values():
+                fallback = "block"
+            configure(profile, primary, [(tags[node], item["weights"][node])
+                                          for node in item["members"] if node in tags], fallback)
+            output.append(profile)
+            continue
+        elif item["strategy"] == "weightedUsers" and selected:
             available = [node for node in item["members"] if node in tags]
             total = sum(item["weights"][node] for node in available)
             slot = int(hashlib.sha256(f"{user_id}:{item['id']}".encode()).hexdigest(),16) % total
