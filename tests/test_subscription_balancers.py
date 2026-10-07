@@ -143,7 +143,7 @@ def test_renamed_locations_keep_balancer_identity_and_aliases(monkeypatch):
 def test_best_bypass_is_not_left_as_a_duplicate_manual_location():
     source={'remarks':'Лучший обход','outbounds':[], 'routing':{'balancers':[{'selector':[],'strategy':{'type':'leastLoad'}}]}}
     result=apply([source],defaults())
-    assert len(result)==5
+    assert len(result)==8
     assert all('balancers' in p['routing'] for p in result)
 
 

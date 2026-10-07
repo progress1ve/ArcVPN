@@ -35,7 +35,7 @@ def apply(profiles, reserve_names=()):
                              'extra':{**padding,'xmux':{'maxConcurrency':1,'maxConnections':0}}},
         }
         name = profile.get('remarks','')
-        secondary = bool(re.search(r'Обход глушилок\s*#[45](?:\s|$)',name)) or name in reserve_names
+        secondary = bool(re.search(r'Обход глушилок\s*#[4-8](?:\s|$)',name)) or name in reserve_names
         additions = [fast, {'tag':'cdn-stage','protocol':'loopback',
                              'settings':{'inboundTag':'cdn-stage'}}]
         if secondary:

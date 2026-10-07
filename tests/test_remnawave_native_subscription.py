@@ -169,8 +169,11 @@ def test_weighted_flags_and_last_finland_alias_preserve_physical_peers(monkeypat
     profiles = json.loads(api._build_happ_json_subscription(_key(), links))
     assert profiles[0]['remarks'] == '🇸🇴 Автовыбор | Самый быстрый'
     assert profiles[1]['remarks'] == '🇷🇺 Ютуб без рекламы'
-    assert profiles[-1]['remarks'] == '🇫🇮 Финляндия'
-    assert profiles[-1]['outbounds'][0]['settings']['vnext'][0]['address'] == '87.251.19.197'
+    names = [profile['remarks'] for profile in profiles]
+    finland = profiles[names.index('🇫🇮 Финляндия')]
+    assert names.index('🇫🇮 Финляндия') + 1 == names.index('🇪🇺 Лучший обход')
+    assert names[-3:] == ['🇪🇺 Обход глушилок #6', '🇪🇺 Обход глушилок #7', '🇪🇺 Обход глушилок #8']
+    assert finland['outbounds'][0]['settings']['vnext'][0]['address'] == '87.251.19.197'
     assert all(p['remarks'].startswith('🇪🇺') for p in profiles if 'обход' in p['remarks'].lower())
     for profile in profiles:
         if profile['routing'].get('balancers'):

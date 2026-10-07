@@ -316,7 +316,7 @@ def _subscription_source_name(name: str) -> str:
     if "Обход глушилок" in normalized or "LTE" in normalized:
         number_match = re.search(r"#\s*([1-9][0-9]*)", normalized)
         number = number_match.group(1) if number_match else "1"
-        if number in {"4", "5"}:
+        if number in {"4", "5", "6", "7", "8"}:
             return f"Обход глушилок #{number}"
         return f"Обход глушилок (LTE) #{number}"
     # The former wCloud France pair was physically replaced by Canada. Keep
@@ -504,7 +504,7 @@ def _expand_lte_profile_links(links: list[str]) -> list[str]:
     if not sources:
         return main
     expanded = []
-    for index in range(5):
+    for index in range(8):
         source = sources[index % len(sources)].rsplit("#", 1)[0]
         label = BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
         expanded.append(source + "#" + urllib.parse.quote(label, safe=""))
@@ -1934,7 +1934,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         visible_main.sort(key=lambda profile: _subscription_inbound_order(_catalog_source_name(str(profile.get("remarks") or ""))))
     fallback_lte_profiles = []
     if lte_outbounds:
-        for index in range(5):
+        for index in range(8):
             profile = copy.deepcopy(auto_profile)
             profile["remarks"] = (
                 BEST_BYPASS_DISPLAY_NAME if index == 0 else f"🇪🇺 Обход глушилок #{index + 1}"
@@ -1965,11 +1965,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     if get_setting("cdn_ordered_fallbacks_live", "0") == "1":
         from monitoring.cdn_fallbacks import apply as apply_cdn_fallbacks
         reserve_names = [item['name'] for item in balancer_policy
-                         if item.get('id') in {'bypass-4', 'bypass-5'}]
+                         if item.get('id') in {'bypass-4', 'bypass-5', 'bypass-6', 'bypass-7', 'bypass-8'}]
         rendered_profiles = apply_cdn_fallbacks(rendered_profiles, reserve_names)
-    finland_aliases = [profile for profile in rendered_profiles
-                      if _catalog_source_name(str(profile.get("remarks") or "")) == "Финляндия"]
-    rendered_profiles = [profile for profile in rendered_profiles if profile not in finland_aliases] + finland_aliases
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,
