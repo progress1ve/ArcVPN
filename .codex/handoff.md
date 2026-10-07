@@ -35,3 +35,5 @@ stability and physical Happ gates remain open. Temporary canary revoked.
 Next: client refresh/real Kazan check; Sweden CDN is a separate future stage.
 Owner-dirty primary checkout preserved; runtime changes in managed sweden-node
 worktree. Mode economy.
+
+2026-10-07 Sweden CDN production:4096/7 XMUX then24000/10 GET header fallback;#3/#4 standalone those variants;#6 standalone65536/60-75 header (GETbody fails CDN);#7 standalone32768/10 header. Public links/UUIDs/order retained; SE61/EE39 unchanged. Stage current.md records gates.

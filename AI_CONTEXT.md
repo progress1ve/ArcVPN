@@ -1999,3 +1999,6 @@ Partner follow-up visual contract, 2026-10-05: owner removed Clients from partne
   Estonia and stays outside balancers. Public subscription IDs and UUIDs preserved.
 - Sweden YouTube uses the existing Moscow egress bridge. CDN on Sweden is later;
   existing Estonia CDN paths continue now. Physical Finland retained for rollback.
+
+
+2026-10-07 owner CDN choice: Sweden shared origin; ordered4096/7 XMUX then24000/10 headerGET fallback. Standalone bypass#3=4096/7,#4=24000/10,#6=65536/60-75 headerGET,#7=32768/10 headerGET; preserve links, authorization and ordinarySE61/EE39. GETbody65536 failed actualCDN despite working raworigin, so useheader.

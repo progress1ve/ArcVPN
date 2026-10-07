@@ -143,13 +143,14 @@ class HappFallbackBalancerTests(unittest.TestCase):
             ["cdn-de.arccnet.space"],
         )
         profiles = json.loads(built)
-        self.assertEqual(len(profiles), 8)
-        self.assertEqual([item["remarks"] for item in profiles[-5:]], [
+        self.assertEqual(len(profiles), 11)
+        self.assertEqual([item["remarks"] for item in profiles[-8:]], [
             "🇪🇺 Лучший обход", "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
+            "🇪🇺 Обход глушилок #6", "🇪🇺 Обход глушилок #7", "🇪🇺 Обход глушилок #8",
         ])
         self.assertEqual(profiles[0]["remarks"], "Автовыбор | Самый быстрый")
-        for bypass in profiles[-5:]:
+        for bypass in profiles[-8:]:
             bypass_outbounds = {item["tag"]: item for item in bypass["outbounds"]}
             self.assertNotIn("LOOPBACK_TO_BACK", bypass_outbounds)
             self.assertEqual(bypass["routing"]["balancers"][0]["tag"], "balancer_main")
@@ -168,8 +169,8 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
 
-        self.assertEqual(profiles[-5]["remarks"], "🇪🇺 Лучший обход")
-        for profile in profiles[-5:]:
+        self.assertEqual(profiles[-8]["remarks"], "🇪🇺 Лучший обход")
+        for profile in profiles[-8:]:
             outbounds = {item["tag"]: item for item in profile["outbounds"]}
             self.assertNotIn("proxy", outbounds)
             self.assertIn("proxy-back-1", outbounds)
