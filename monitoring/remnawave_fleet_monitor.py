@@ -30,7 +30,7 @@ def tcp_ports(node: dict) -> list[int]:
         # the CDN/nginx edge. Probing their internal port on the public node IP
         # produces a false outage. LTE health is exposed separately by the
         # admin edge model and its CDN/origin checks.
-        if any(marker in transport for marker in ("hysteria", "udp", "quic", "xhttp")):
+        if any(marker in transport for marker in ("hysteria", "udp", "quic", "xhttp", "splithttp")):
             continue
         try:
             port = int(inbound.get("port"))
@@ -38,7 +38,7 @@ def tcp_ports(node: dict) -> list[int]:
             continue
         # These bridge listeners admit only their peer nodes, not the public
         # control-plane probe. Their rejection is not a customer-port outage.
-        if node.get('address') in {'87.251.19.197','151.241.137.174','85.198.101.79'} and port in {2443,2444,10443}:
+        if node.get('address') in {'87.251.19.197','136.148.220.228','85.198.101.79'} and port in {2443,2444,10443}:
             continue
         if 1 <= port <= 65535:
             result.append(port)
@@ -62,7 +62,7 @@ def main() -> int:
         if node.get("isDisabled"):
             continue
         host = str(node.get("address") or "").strip()
-        if host not in {'87.251.19.197','151.241.137.174','85.198.101.79'}:
+        if host not in {'87.251.19.197','136.148.220.228','85.198.101.79'}:
             continue
         ports = tcp_ports(node)
         diagnostic = run(host, ports) if ports else {

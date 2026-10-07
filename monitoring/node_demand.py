@@ -2,7 +2,7 @@
 import math
 from datetime import datetime
 
-HOSTS = {'87.251.19.197', '151.241.137.174'}
+HOSTS = {'87.251.19.197', '136.148.220.228'}
 
 def schema(conn):
     conn.execute('''CREATE TABLE IF NOT EXISTS node_demand_samples(

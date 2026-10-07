@@ -519,7 +519,7 @@ function NodesTab({
 }: NodesTabProps) {
   const { t } = useTranslation();
   const canManage = usePermissionStore((s) => s.hasPermission('remnawave:write'));
-  const currentHosts = new Set(['87.251.19.197', '151.241.137.174']);
+  const currentHosts = new Set(['87.251.19.197', '136.148.220.228']);
   const visibleNodes = nodes.filter((node) => currentHosts.has(node.address));
   const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });
   const documentedNodes = (registry?.nodes || []) as Array<{ host: string; alias: string; role: string; location?: string; status?: string }>;
@@ -630,7 +630,7 @@ function NodesTab({
               key={node.uuid}
               node={node}
               registryState={documentedNodes.find((server) => server.host === node.address)?.status}
-              providerName={node.address === '87.251.19.197' || node.address === '151.241.137.174' ? 'One Cent Host' : providerByUuid[node.uuid]}
+              providerName={node.address === '136.148.220.228' ? 'HostUp' : node.address === '87.251.19.197' ? 'One Cent Host' : providerByUuid[node.uuid]}
               realtime={realtimeByUuid[node.uuid]}
               onAction={onAction}
               isLoading={isActionLoading}

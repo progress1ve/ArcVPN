@@ -3,7 +3,7 @@ import pytest
 from monitoring.cdn_connections import classify, identity_hash, schema, ingest, states
 
 
-def line(destination, tag='EE_OWNER_DIRECT_XHTTP'):
+def line(destination, tag='SE_CDN_TEST_4096'):
     return f'2026/10/02 12:00:00 from 127.0.0.1:1 accepted {destination} [{tag} -> DIRECT] email: test-user'
 
 
@@ -23,13 +23,13 @@ def database():
 
 def test_fresh_probe_only_real_legacy_and_stale_report():
     c = database(); h = identity_hash('test-user'); ids = {1: ['test-user']}; now = 1000
-    ingest(c, '87.251.19.197', {'available':True,'identities':[{'hash':h,'probe_at':999}]}, now)
+    ingest(c, '136.148.220.228', {'available':True,'identities':[{'hash':h,'probe_at':999}]}, now)
     assert states(c, ids, now)[1] == 'probe'
-    ingest(c, '87.251.19.197', {'available':True,'identities':[{'hash':h,'user_at':999}]}, now)
+    ingest(c, '136.148.220.228', {'available':True,'identities':[{'hash':h,'user_at':999}]}, now)
     assert states(c, ids, now)[1] == 'user'
     assert states(c, ids, now+200)[1] == 'unknown'
     c.execute('DELETE FROM cdn_connection_activity')
-    ingest(c, '87.251.19.197', {'available':True,'identities':[{'hash':h,'legacy_at':999,'probe_at':999}]}, now)
+    ingest(c, '136.148.220.228', {'available':True,'identities':[{'hash':h,'legacy_at':999,'probe_at':999}]}, now)
     assert states(c, ids, now)[1] == 'unknown'
     assert states(c, {2:['absent']}, now)[2] == 'none'
     c.execute('DELETE FROM cdn_connection_reports')
@@ -40,7 +40,7 @@ def test_untrusted_reports_are_bounded_and_atomic():
     c=database()
     for payload in [{'available':1,'identities':[]}, {'available':True,'identities':[{'hash':'secret'}]},
                     {'available':True,'identities':[{'hash':'a'*64,'user_at':float('nan')}]}]:
-        with pytest.raises(ValueError): ingest(c,'87.251.19.197',payload,1000)
+        with pytest.raises(ValueError): ingest(c,'136.148.220.228',payload,1000)
     assert c.execute('SELECT count(*) FROM cdn_connection_reports').fetchone()[0] == 0
 
 
@@ -54,5 +54,5 @@ def test_numeric_remnawave_identity_and_double_arrow():
     event = line('tcp:sub.arccnet.space:18080').replace('->', '>>').replace('test-user', '123')
     hashed, kind = classify(event)
     assert kind == 'probe'
-    ingest(c, '87.251.19.197', {'available': True, 'identities': [{'hash': hashed, 'probe_at': 999}]}, 1000)
+    ingest(c, '136.148.220.228', {'available': True, 'identities': [{'hash': hashed, 'probe_at': 999}]}, 1000)
     assert states(c, {42: ['arc_lte_42', 123]}, 1000)[42] == 'probe'

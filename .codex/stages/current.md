@@ -1,3 +1,10 @@
+# Sweden admin monitoring — 2026-10-07
+Scope: current fleet Sweden + Estonia; Sweden telemetry, capacity, benchmark agent and public-port diagnostics; CDN classification/operator probes on Sweden four delivered XHTTP variants only. Ordinary Estonia diagnostics remain.
+Acceptance: admin lists Sweden/HostUp; ordinary EE detail has no CDN tab; SE detail shows four CDN variants and current measurements; no public probe of loopback/peer-only ports; operator worker derives existing owner identity without logging it. Existing subscription delivery, URLs, UUIDs and historical measurements preserved.
+Components: subscription_api.py, monitoring agents/fleet/operator worker, React admin, node systemd units. Route: operators -> existing CDN host -> Sweden nginx -> existing four loopback XHTTP inbounds. Metrics -> Poland direct API. No customer topology change.
+Risk: absent telemetry must remain unknown; old EE collector disabled only after SE collector enrollment. Rollback: previous Git runtime and monitoring units; historical DB rows retained. No heavy benchmark queued.
+Evidence: pending.
+
 # Sweden CDN publication — 2026-10-07
 Owner authorizes production publication, superseding private-tests-only boundary.
 | Profile | Client host / CDN / group | Origin / backup | Host/SNI | Path / inbound | Multiplier | URL impact | Failure / rollback |

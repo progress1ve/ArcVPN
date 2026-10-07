@@ -90,6 +90,7 @@ type Capacity = {
   warnings: string[];
 };
 type Period = '15m' | '1h' | '6h' | '24h' | '7d';
+const cdnVariants: Record<string,string> = {"/api-se-test-4096":"4096/7 + XMUX", "/api-se-test-24000":"24000/10", "/api-se-65536":"65536/60–75", "/api-se-32768":"32768/10"};
 type NodeTab = 'overview' | 'metrics' | 'services' | 'logs' | 'performance' | 'availability';
 const nodeTabs = [
   { key: 'overview', label: 'Обзор', icon: HeartbeatIcon },
@@ -225,7 +226,7 @@ export default function ArcNodeDetail() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (import.meta.env.DEV) return;
+    if (import.meta.env.DEV || host !== "136.148.220.228") return;
     let active = true;
     getJson('/api/admin/nodes/operator-network-status').then((data) => {
       if (active) setOperatorNetwork(data as typeof operatorNetwork);
@@ -257,7 +258,7 @@ export default function ArcNodeDetail() {
           })),
         })
       : getJson(`/api/admin/nodes/metrics?host=${encodeURIComponent(host)}&range=${period}`);
-    const operatorRequest = import.meta.env.DEV
+    const operatorRequest = import.meta.env.DEV || host !== "136.148.220.228"
       ? Promise.resolve({ results: [] })
       : getJson(`/api/admin/nodes/operator-probes?host=${encodeURIComponent(host)}`);
     const registryRequest = import.meta.env.DEV
@@ -341,7 +342,7 @@ export default function ArcNodeDetail() {
     setOperatorRunMessage('Запускаем проверку…');
     try {
       await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
-      setOperatorRunMessage('Проверяем все доступные сети и обе LTE-ноды…');
+      setOperatorRunMessage('Проверяем доступные сети и четыре CDN-профиля Швеции…');
       setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : '';
@@ -442,7 +443,7 @@ export default function ArcNodeDetail() {
           </h1>
           <p className="mt-2 text-sm text-dark-400">
             {server?.location || documented?.location || node?.country_code || 'Расположение не подтверждено'} ·{' '}
-            {server?.provider || (['87.251.19.197', '151.241.137.174'].includes(host) ? 'One Cent Host' : 'Провайдер не указан')} · {host}
+            {server?.provider || (host === '136.148.220.228' ? 'HostUp' : host === '87.251.19.197' ? 'One Cent Host' : 'Провайдер не указан')} · {host}
           </p>
         </div>
       </div>
@@ -467,7 +468,7 @@ export default function ArcNodeDetail() {
         {nodeTabs
           .filter(
             (item) =>
-              (item.key !== 'availability' || (isLte && operatorProbes.length > 0)) &&
+              (item.key !== 'availability' || isLte) &&
               (item.key !== 'logs' || events.length > 0),
           )
           .map((item) => (
@@ -833,7 +834,7 @@ export default function ArcNodeDetail() {
               </div>
               {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
-                Один автоматический запуск проверяет VPN-ключ во всех доступных сетях утром, днём и вечером.
+                Один запуск проверяет четыре CDN-профиля Швеции во всех доступных сетях.
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
               <p className="mt-2 text-xs text-dark-400">
@@ -842,9 +843,10 @@ export default function ArcNodeDetail() {
               </p>
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {Object.entries(operatorNames).map(([code, name]) => {
-                  const latestProbe = operatorProbes.find((probe) => probe.operator === code);
+                  const latest = Object.keys(cdnVariants).map(path => operatorProbes.find(probe => probe.operator === code && probe.target_path === path));
+                  const latestProbe = latest.find(p => p?.outcome === 'failed') || latest.find(p => p?.outcome === 'unknown') || latest[0];
                   const operatorOffline = operatorNetwork?.operators.find((item) => item.id === code)?.online === false;
-                  const tunnel = latestProbe?.test_kind === 'client_tunnel';
+                  const tunnel = latest.every(p => p?.test_kind === 'client_tunnel');
                   return (
                     <article
                       key={code}
@@ -866,6 +868,9 @@ export default function ArcNodeDetail() {
                             : 'Нет проверки VPN-ключа'
                           : 'Нет проверок'}
                       </strong>
+                      <dl className="mt-3 space-y-1 text-xs">
+                        {Object.entries(cdnVariants).map(([path,label],i) => <div key={path} className="flex justify-between gap-2"><dt className="text-dark-400">{label}</dt><dd className={latest[i]?.outcome === 'ok' ? 'text-success-400' : latest[i]?.outcome === 'failed' ? 'text-error-400' : 'text-dark-400'}>{latest[i]?.outcome === 'ok' ? 'Успех' : latest[i]?.outcome === 'failed' ? 'Сбой' : 'Нет данных'}</dd></div>)}
+                      </dl>
                       <p className="mt-1 text-xs text-dark-400">
                         {operatorOffline ? 'Проверка недоступна у провайдера' : latestProbe
                           ? 'VPN-ключ · условия ограничений не подтверждены'
@@ -886,6 +891,7 @@ export default function ArcNodeDetail() {
                       <tr>
                         <th className="py-2">Время</th>
                         <th>Оператор</th>
+                        <th>CDN-профиль</th>
                         <th>Результат</th>
                       </tr>
                     </thead>
@@ -897,6 +903,7 @@ export default function ArcNodeDetail() {
                         >
                           <td className="py-2">{operatorTime(probe.checked_at)}</td>
                           <td>{operatorNames[probe.operator] || probe.operator}</td>
+                          <td className="px-2 whitespace-nowrap">{cdnVariants[probe.target_path] || probe.target_path}</td>
                           <td>
                             {probe.outcome === 'ok'
                               ? 'Успех'

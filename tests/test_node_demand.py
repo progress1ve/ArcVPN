@@ -17,7 +17,7 @@ def test_average_is_user_time_weighted_and_needs_history():
 
 def test_collector_converts_bytes_and_ignores_disconnected():
     c=sqlite3.connect(':memory:');schema(c)
-    nodes=[{'address':'151.241.137.174','isConnected':True,'usersOnline':3,'system':{'stats':{'interface':{'txBytesPerSec':100}}}}]
+    nodes=[{'address':'136.148.220.228','isConnected':True,'usersOnline':3,'system':{'stats':{'interface':{'txBytesPerSec':100}}}}]
     record(c,nodes)
     assert c.execute('SELECT users,tx_bps FROM node_demand_samples').fetchone()==(3,800)
     nodes[0]['isConnected']=False

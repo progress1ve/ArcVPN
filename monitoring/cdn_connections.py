@@ -22,7 +22,7 @@ def classify(line):
         return None
     destination, detour, email = match.groups()
     inbound = re.split(r'\s*(?:->|>>)\s*', detour)[0]
-    if inbound not in {'EE_1CHOST_LTE_XHTTP', 'EE_OWNER_DIRECT_XHTTP', 'EE_CDN_RESERVE_XHTTP'}:
+    if inbound not in {'SE_CDN_TEST_4096', 'SE_CDN_TEST_24000', 'SE_CDN_BODY_65536', 'SE_CDN_HEADER_32768'}:
         return None
     kind = 'probe' if destination in PROBE_TARGETS else 'legacy' if destination in LEGACY_TARGETS else 'user'
     return identity_hash(email), kind
@@ -64,8 +64,8 @@ def ingest(conn, host, payload, now=None):
 def states(conn, identities, now=None):
     now = time.time() if now is None else now
     try:
-        report = conn.execute("SELECT * FROM cdn_connection_reports WHERE host='87.251.19.197'").fetchone()
-        rows = conn.execute("SELECT * FROM cdn_connection_activity WHERE host='87.251.19.197'").fetchall()
+        report = conn.execute("SELECT * FROM cdn_connection_reports WHERE host='136.148.220.228'").fetchone()
+        rows = conn.execute("SELECT * FROM cdn_connection_activity WHERE host='136.148.220.228'").fetchall()
     except sqlite3.OperationalError:
         return {}
     byhash = {r['identity_hash']: r for r in rows}

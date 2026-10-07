@@ -1,4 +1,4 @@
-"""Scheduled operator-side VPN checks for the Estonia LTE/CDN exit."""
+"""Scheduled operator-side VPN checks for the four delivered Sweden CDN variants."""
 from __future__ import annotations
 
 import asyncio
@@ -15,7 +15,23 @@ from monitoring.lte_operator_alerts import Attempt, record_batch
 LOG = logging.getLogger(__name__)
 KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
-NODES = (("87.251.19.197", "/api-test", "Эстония"),)
+from monitoring.cdn_fallbacks import VARIANTS, settings
+NODES = tuple(("136.148.220.228", v["path"], f"Швеция {size}/{v['interval']}")
+              for size, v in VARIANTS.items())
+
+
+def variant_links(uri):
+    """Reuse the native user's credentials; replace only transport settings."""
+    parsed = urllib.parse.urlsplit(uri)
+    query = dict(urllib.parse.parse_qsl(parsed.query))
+    result = {}
+    import json
+    for size, variant in VARIANTS.items():
+        q = {**query, "type":"xhttp", "security":"tls", "sni":"cdn-de.arccnet.space",
+             "host":"cdn-de.arccnet.space", "fp":"firefox", "alpn":"h2,http/1.1",
+             "path":variant['path'], "mode":"packet-up", "extra":json.dumps(settings(size), separators=(',',':'))}
+        result[variant['path']] = urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(q)))
+    return result
 OPERATOR_NAMES = {"tmobile": "Т-Мобайл", "megafon": "МегаФон",
                   "beeline": "Билайн", "mts": "МТС", "t2": "Т2"}
 
@@ -33,18 +49,11 @@ async def owner_links() -> dict[str, str]:
     if key is None:
         raise RuntimeError("owner_key_unavailable")
     links = await api._native_remnawave_links(key)
-    result = {}
-    required_paths = {path for _host, path, _name in NODES}
     for uri in links:
         parsed = urllib.parse.urlsplit(uri)
-        if parsed.scheme != "vless" or parsed.hostname != "cdn-de.arccnet.space":
-            continue
-        path = urllib.parse.parse_qs(parsed.query).get("path", [None])[0]
-        if path in required_paths:
-            result[path] = api._normalize_native_share_link(uri)
-    if set(result) != required_paths:
-        raise RuntimeError("managed_links_unavailable")
-    return result
+        if parsed.scheme == "vless" and parsed.hostname == "cdn-de.arccnet.space":
+            return variant_links(api._normalize_native_share_link(uri))
+    raise RuntimeError("managed_links_unavailable")
 
 
 def rows_by_operator(result: dict) -> dict[str, dict]:
@@ -69,7 +78,7 @@ async def notify(events: list[dict]) -> None:
     bot = Bot(token=config.BOT_TOKEN)
     try:
         for event in events:
-            node = next((name for host, path, name in NODES if host == event["node_host"]), event["node_host"])
+            node = next((name for host, path, name in NODES if host == event["node_host"] and path == event.get("target_path")), event["node_host"])
             operator = OPERATOR_NAMES.get(event["operator"], event["operator"])
             if event["type"] == "alert":
                 message = (f"🚨 LTE-подключение недоступно\nНода: {node}\nОператор: {operator}\n"

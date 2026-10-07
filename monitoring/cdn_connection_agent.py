@@ -10,7 +10,7 @@ from cdn_connections import classify, WINDOW
 
 
 def run():
-    endpoint = 'https://sub.arccnet.space/api/internal/cdn-connections'
+    endpoint = 'https://arccnet.space/api/internal/cdn-connections'
     token = os.environ['ARCVPN_METRICS_TOKEN']
     activity = {}
     offset = 0

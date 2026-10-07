@@ -58,6 +58,7 @@ def main():
     parser.add_argument("--node-host", required=True)
     parser.add_argument("--node-fingerprint", required=True)
     parser.add_argument("--node-name", required=True)
+    parser.add_argument("--cdn-collector", action="store_true")
     args = parser.parse_args()
     control_password = os.environ.pop("ARCVPN_CONTROL_PASSWORD", "")
     node_password = os.environ.pop("ARCVPN_NODE_PASSWORD", "")
@@ -75,6 +76,14 @@ def main():
         "/etc/systemd/system/arcvpn-node-agent.service": (root / "monitoring/arcvpn-node-agent.service").read_bytes().replace(b"\r\n", b"\n"),
         "/etc/systemd/system/arcvpn-node-agent.timer": (root / "monitoring/arcvpn-node-agent.timer").read_bytes().replace(b"\r\n", b"\n"),
     }
+    if args.cdn_collector:
+        if args.node_host != "136.148.220.228":
+            raise RuntimeError("CDN origin must be Sweden")
+        files.update({
+            "/usr/local/lib/arcvpn/cdn_connection_agent.py": (root / "monitoring/cdn_connection_agent.py").read_bytes().replace(b"\r\n", b"\n"),
+            "/usr/local/lib/arcvpn/cdn_connections.py": (root / "monitoring/cdn_connections.py").read_bytes().replace(b"\r\n", b"\n"),
+            "/etc/systemd/system/arcvpn-cdn-connections.service": (root / "monitoring/arcvpn-cdn-connections.service").read_bytes().replace(b"\r\n", b"\n"),
+        })
     env = (
         f"ARCVPN_METRICS_TOKEN={token}\n"
         f"ARCVPN_NODE_HOST={args.node_host}\n"
@@ -88,6 +97,8 @@ def main():
                 put_private(sftp, contents, destination, 0o755 if destination.endswith(".py") else 0o644)
             put_private(sftp, env, "/etc/arcvpn/node-agent.env", 0o600)
         run(node, "systemctl daemon-reload && systemctl enable --now arcvpn-node-agent.timer && systemctl start arcvpn-node-agent.service", timeout=90)
+        if args.cdn_collector:
+            run(node, "systemctl enable --now arcvpn-cdn-connections.service")
         result = run(node, "systemctl is-active arcvpn-node-agent.timer && systemctl show arcvpn-node-agent.service -p Result --value")
         print(result.decode().strip())
 

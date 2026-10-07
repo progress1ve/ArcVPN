@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 STATE_PATH = Path(os.getenv("ARCVPN_NODE_STATE", "/var/lib/arcvpn-node-agent/state.json"))
-ENDPOINT = os.getenv("ARCVPN_METRICS_URL", "https://sub.arccnet.space/api/internal/node-metrics")
+ENDPOINT = os.getenv("ARCVPN_METRICS_URL", "https://arccnet.space/api/internal/node-metrics")
 TOKEN = os.getenv("ARCVPN_METRICS_TOKEN", "")
 PUBLIC_HOST = os.getenv("ARCVPN_NODE_HOST", "")
 NODE_NAME = os.getenv("ARCVPN_NODE_NAME", socket.gethostname())
@@ -155,6 +155,14 @@ def collect():
     }), encoding="utf-8")
     disk = shutil.disk_usage("/")
     xui_active = _service_active("x-ui.service")
+    try:
+        remna_active = subprocess.run(
+            ["docker", "inspect", "--format", "{{.State.Running}}", "remnanode"],
+            capture_output=True, text=True, timeout=3, check=False,
+        ).stdout.strip() == "true"
+    except (OSError, subprocess.SubprocessError):
+        remna_active = False
+    core_active = xui_active or remna_active
     hysteria_active = _service_active("arcvpn-hysteria.service") or _service_active("hysteria-server.service")
     return {
         "host": PUBLIC_HOST,
@@ -170,7 +178,7 @@ def collect():
         "uptime_seconds": int(float(_read("/proc/uptime", "0").split()[0])),
         "xui_active": xui_active,
         "hysteria_active": hysteria_active,
-        "xray_state": "running" if xui_active else "unknown",
+        "xray_state": "running" if core_active else "unknown",
         "boot_id": _read("/proc/sys/kernel/random/boot_id"),
         **probe,
     }

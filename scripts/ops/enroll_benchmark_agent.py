@@ -13,7 +13,7 @@ def main():
     for name in ('control-host','control-fingerprint','node-host','node-fingerprint'):
         parser.add_argument('--'+name,required=True)
     args = parser.parse_args()
-    if args.node_host not in {'87.251.19.197','151.241.137.174','85.198.101.79'}:
+    if args.node_host not in {'87.251.19.197','136.148.220.228','85.198.101.79'}:
         raise SystemExit('Unknown active node')
     token = secrets.token_urlsafe(48)
     digest = hashlib.sha256(token.encode()).hexdigest()

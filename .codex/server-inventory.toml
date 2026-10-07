@@ -18,7 +18,7 @@ location = "Finland"
 host = "151.241.137.174"
 ssh_user = "root"
 credential_alias = "fi-replacement"
-status = "active; Reality/CDN/reciprocal Moscow gates passed 2026-09-29"
+status = "retired from delivery; retained for rollback 2026-10-07"
 
 [[servers]]
 alias = "pl-control"

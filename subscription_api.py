@@ -651,6 +651,7 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # from the code, while the behaviour itself stays enabled by default.
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
+    "136.148.220.228": {"provider": "HostUp", "location": "Швеция"},
     "151.241.137.174": {"provider": "1chost", "location": "Финляндия"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
@@ -4771,7 +4772,7 @@ def api_internal_cdn_connections():
     if (request.content_length or 0) > 256000:
         return _api_error('report_too_large', 413)
     payload = request.get_json(silent=True)
-    if not isinstance(payload, dict) or payload.get('host') != '87.251.19.197':
+    if not isinstance(payload, dict) or payload.get('host') != '136.148.220.228':
         return _api_error('unknown_node', 400)
     from monitoring.cdn_connections import ingest
     try:
@@ -4806,7 +4807,7 @@ def api_internal_node_metrics():
 
     xui_active = bool(payload.get("xui_active"))
     xray_state = _clean_text(payload.get("xray_state"), 32) or ("running" if xui_active else "unknown")
-    state = "healthy" if xui_active else "degraded"
+    state = "healthy" if xui_active or xray_state == "running" else "degraded"
     with get_db() as conn:
         server = conn.execute("SELECT id FROM servers WHERE host=?", (host,)).fetchone()
         server_id = int(server["id"]) if server else None
@@ -4920,13 +4921,8 @@ def api_admin_diagnostics_run():
         if not node:
             return _api_error("unknown_node", 404)
         host = _clean_text(node.get("address"), 255)
-        ports = sorted({
-            int(item.get("port")) for item in ((node.get("configProfile") or {}).get("activeInbounds") or [])
-            if str(item.get("port") or "").isdigit()
-            and 1 <= int(item.get("port")) <= 65535
-            and not any(marker in " ".join(str(item.get(key) or "") for key in ("network", "type", "protocol", "tag")).lower()
-                        for marker in ("hysteria", "udp", "quic"))
-        })
+        from monitoring.remnawave_fleet_monitor import tcp_ports
+        ports = tcp_ports(node)
         completed = subprocess.run(
             [os.sys.executable, os.path.join(os.path.dirname(__file__), "monitoring", "deep_node_diagnostics.py"),
              "--host", host, "--ports", ",".join(map(str, ports))],
@@ -4989,6 +4985,8 @@ def api_admin_lte_availability():
     host = _clean_text(request.args.get("host"), 255).strip().lower()
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
         return _api_error("invalid_lte_host", 400)
+    if host != "136.148.220.228":
+        return _api_no_store(jsonify({"ok": True, "host": host, "operators": [], "results": []}))
     try:
         with get_db() as conn:
             rows = conn.execute("""
@@ -7185,6 +7183,14 @@ def api_admin_overview():
                 WHERE s.sampled_at >= datetime('now','-3 minutes')
             """).fetchall()
         by_host = {str(row["host"]): dict(row) for row in latest_agents}
+        # RemnaNode-only hosts have no legacy 3x-ui server row. Expose their
+        # independent measurements without inventing an account or capacity.
+        if "136.148.220.228" in by_host and not any(str(s.get("host")) == "136.148.220.228" for s in server_stats):
+            agent = by_host["136.148.220.228"]
+            server_stats.append({"id": None, "host": "136.148.220.228", "name": "ArcVPN Sweden HostUp",
+                                 "is_active": agent.get("state") == "healthy", "telemetry_available": True,
+                                 "xray_state": agent.get("xray_state") or "unknown", "source": "independent node agent",
+                                 **NODE_INVENTORY["136.148.220.228"]})
         for server in server_stats:
             agent = by_host.get(str(server.get("host") or ""))
             if not agent:
@@ -7447,48 +7453,8 @@ def api_admin_overview():
             if str(node.get("address") or "") not in RETIRED_GERMANY_ENDPOINTS
             and str(node.get("address") or "") not in RETIRED_NETHERLANDS_ENDPOINTS
         ]
-        lte_specs = (
-            {
-                "id": "lte-fi", "name": "Финляндия LTE", "country_code": "FI",
-                "origin_host": "151.241.137.174", "origin_domain": "fin.arccnet.space", "inbound_marker": "FI",
-                "public_host": "cdn-de.arccnet.space", "path": "/api-fin",
-                "profile_name": BEST_BYPASS_DISPLAY_NAME,
-            },
-            {
-                "id": "lte-ee", "name": "Эстония LTE", "country_code": "EE",
-                "origin_host": "87.251.19.197", "origin_domain": "ee.arccnet.space", "inbound_marker": "EE",
-                "public_host": "cdn-de.arccnet.space", "path": "/api-test",
-                "profile_name": BEST_BYPASS_DISPLAY_NAME,
-            },
-        )
-        lte_edges = []
-        for spec in lte_specs:
-            parent = next(
-                (node for node in remnawave["nodes"]
-                 if node.get("address") in {spec["origin_host"], spec["origin_domain"]}),
-                None,
-            )
-            inbound = next(
-                (item for item in (parent or {}).get("inbounds", [])
-                 if spec["inbound_marker"] in str(item.get("tag") or "").upper()
-                 and "LTE" in str(item.get("tag") or "").upper()
-                 and str(item.get("network") or "").lower() in {"xhttp", "splithttp"}),
-                None,
-            )
-            lte_edges.append({
-                **spec,
-                "origin": (parent or {}).get("address"),
-                "node_uuid": (parent or {}).get("uuid"),
-                "connected": bool((parent or {}).get("connected")),
-                "inbound_active": inbound is not None,
-                "network": (inbound or {}).get("network") or "xhttp",
-                "port": (inbound or {}).get("port") or 10001,
-                "traffic_factor": 1,
-                "users_online": int((parent or {}).get("users_online") or 0),
-                "traffic_used_gb": float((parent or {}).get("traffic_used_gb") or 0),
-                "diagnostic": (parent or {}).get("diagnostic"),
-                "healthy": bool((parent or {}).get("connected") and not (parent or {}).get("disabled") and inbound is not None),
-            })
+        from monitoring.admin_node_topology import cdn_edges, connection_schemes
+        lte_edges = cdn_edges(remnawave["nodes"])
         remnawave["lte_edges"] = lte_edges
         node_distribution: Dict[str, int] = {}
         for presence in online_users:
@@ -7501,34 +7467,7 @@ def api_admin_overview():
         for node in remnawave.get("nodes", []):
             node["reported_sessions_online"] = int(node.get("users_online") or 0)
             node["users_online"] = int(node_distribution.get(str(node.get("name") or ""), 0))
-        remnawave["connection_schemes"] = [{
-            "id": "auto",
-            "name": "🇪🇺 Автовыбор | Самый быстрый",
-            "kind": "client_balancer",
-            "probe_interval_seconds": 10,
-            "probe_samples": 6,
-            "probe_url": "http://sub.arccnet.space:18080/generate_204",
-            "failover": "Whitenode leastLoad → единый CDN с DE/EE origin failover",
-            "selection_observable": False,
-            "online_distribution": node_distribution,
-            "members": [
-                {"name": node.get("name") or node.get("address"), "online": int(node.get("usersOnline") or 0), "connected": bool(node.get("isConnected"))}
-                for node in (remna_nodes or []) if not bool(node.get("isDisabled"))
-            ],
-        }, *[{
-            "id": f"fallback-{number}",
-            "name": BEST_BYPASS_DISPLAY_NAME if number == 1 else f"🇪🇺 Обход глушилок #{number}",
-            "kind": "client_cdn_fallback", "traffic_factor": 1,
-            "active_only_as_fallback": True,
-            "strategy": "Burst Observatory + leastLoad + CDN fallbackTag",
-            "origins": [edge["public_host"] for edge in lte_edges],
-            "healthy": any(edge["healthy"] for edge in lte_edges),
-        } for number in range(1, 6)], *[{
-            "id": edge["id"], "name": edge["profile_name"], "kind": "direct_cdn",
-            "public_host": edge["public_host"], "origin": edge["origin"],
-            "traffic_factor": edge["traffic_factor"], "active_only_as_fallback": False,
-            "healthy": edge["healthy"],
-        } for edge in lte_edges]]
+        remnawave["connection_schemes"] = connection_schemes(remnawave["nodes"], node_distribution, lte_edges)
     except Exception as exc:
         remnawave["detail"] = type(exc).__name__
         logger.exception("Admin Remnawave telemetry failed")
