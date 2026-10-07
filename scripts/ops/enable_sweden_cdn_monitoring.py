@@ -22,4 +22,26 @@ async def main():
         print('Sweden RAM logging enabled; inbound identities preserved')
     finally: await c.close()
 
-if __name__ == '__main__': asyncio.run(main())
+async def retire_estonia_access_log():
+    """The retired collector must not leave an unbounded RAM log behind."""
+    c=RemnawaveClient({**remnawave_authority_config(), 'panel_write_mode':'production'})
+    try:
+        ps=await c._request('GET','/api/config-profiles')
+        ps=ps.get('configProfiles',[]) if isinstance(ps,dict) else ps
+        p=next(p for p in ps if p['name']=='ArcVPN Estonia 1chost')
+        cfg=copy.deepcopy(p['config'])
+        if cfg.get('log',{}).get('access') != '/dev/shm/arcvpn-access.log':
+            print('Estonia collector log already disabled'); return
+        with os.fdopen(os.open('/root/ArcVPN/.secrets/estonia-admin-monitoring-before.json',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as f:
+            json.dump(p,f)
+        cfg['log']['access']='none'
+        updated=await c._request('PATCH','/api/config-profiles',json={'uuid':p['uuid'],'config':cfg})
+        assert {i['tag']:i['uuid'] for i in p['inbounds']} == {i['tag']:i['uuid'] for i in updated['inbounds']}
+        print('Estonia collector log disabled; inbound identities preserved')
+    finally: await c.close()
+
+async def setup():
+    await main()
+    await retire_estonia_access_log()
+
+if __name__ == '__main__': asyncio.run(setup())

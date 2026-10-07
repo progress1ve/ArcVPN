@@ -1,4 +1,4 @@
-"""Scheduled operator-side VPN checks for the four delivered Sweden CDN variants."""
+"""Scheduled operator-side VPN checks for the Sweden CDN 24000/10 variant."""
 from __future__ import annotations
 
 import asyncio
@@ -17,7 +17,7 @@ KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
 from monitoring.cdn_fallbacks import VARIANTS, settings
 NODES = tuple(("136.148.220.228", v["path"], f"Швеция {size}/{v['interval']}")
-              for size, v in VARIANTS.items())
+              for size, v in VARIANTS.items() if size == 24000)
 
 
 def variant_links(uri):
@@ -117,7 +117,7 @@ async def run(*, client: Client | None = None, links: dict[str, str] | None = No
     events = []
     batch_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     # Complete external probes before opening a database write transaction.
-    # Four variants can take minutes; API telemetry must remain writable.
+    # External probes can take minutes; API telemetry must remain writable.
     attempts = []
     for host, path, _name in NODES:
         try:

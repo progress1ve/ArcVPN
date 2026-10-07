@@ -90,7 +90,7 @@ type Capacity = {
   warnings: string[];
 };
 type Period = '15m' | '1h' | '6h' | '24h' | '7d';
-const cdnVariants: Record<string,string> = {"/api-se-test-4096":"4096/7 + XMUX", "/api-se-test-24000":"24000/10", "/api-se-65536":"65536/60–75", "/api-se-32768":"32768/10"};
+const cdnVariants: Record<string,string> = {"/api-se-test-24000":"24000/10"};
 type NodeTab = 'overview' | 'metrics' | 'services' | 'logs' | 'performance' | 'availability';
 const nodeTabs = [
   { key: 'overview', label: 'Обзор', icon: HeartbeatIcon },
@@ -342,7 +342,7 @@ export default function ArcNodeDetail() {
     setOperatorRunMessage('Запускаем проверку…');
     try {
       await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
-      setOperatorRunMessage('Проверяем доступные сети и четыре CDN-профиля Швеции…');
+      setOperatorRunMessage('Проверяем CDN Швеции 24000/10 в доступных сетях…');
       setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : '';
@@ -834,7 +834,7 @@ export default function ArcNodeDetail() {
               </div>
               {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
-                Один запуск проверяет четыре CDN-профиля Швеции во всех доступных сетях.
+                Один запуск проверяет CDN Швеции 24000/10 во всех доступных сетях.
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
               <p className="mt-2 text-xs text-dark-400">

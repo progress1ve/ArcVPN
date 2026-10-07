@@ -43,3 +43,8 @@ def test_estonia_has_no_current_cdn_probes(monkeypatch):
     monkeypatch.setattr(api,'_admin_authorized',lambda _:True)
     r=api.app.test_client().get('/api/admin/nodes/operator-probes?host='+ESTONIA)
     assert r.status_code==200 and r.get_json()['results']==[]
+
+
+def test_only_24000_operator_checks_are_scheduled():
+    from monitoring.lte_operator_worker import NODES
+    assert NODES == ((SWEDEN, '/api-se-test-24000', 'Швеция 24000/10'),)

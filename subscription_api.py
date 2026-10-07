@@ -4994,7 +4994,7 @@ def api_admin_lte_availability():
                        allowed_control_ok,blocked_control_ok,region,
                        outcome,rtt_ms,reason,provider,checked_at
                 FROM lte_operator_probe_results
-                WHERE node_host=? AND checked_at >= datetime('now','-30 days')
+                WHERE node_host=? AND target_path='/api-se-test-24000' AND checked_at >= datetime('now','-30 days')
                 ORDER BY checked_at DESC LIMIT 1000
             """, (host,)).fetchall()
         return _api_no_store(jsonify({"ok": True, "host": host,

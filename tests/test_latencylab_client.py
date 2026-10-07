@@ -80,12 +80,12 @@ def test_worker_records_each_operator_and_never_alerts_on_missing_result(tmp_pat
             return {"results": [{"operator": "mts", "ok": True, "latency_ms": 120}]}
 
     result = asyncio.run(worker.run(client=FakeClient(), links={p:"private-se" for _,p,_ in worker.NODES}))
-    assert result == {"nodes": 4, "online_operators": 2, "transitions": 0}
+    assert result == {"nodes": 1, "online_operators": 2, "transitions": 0}
     assert not events
     with sqlite3.connect(path) as conn:
-        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results").fetchone()[0] == 20
-        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results WHERE outcome='unknown'").fetchone()[0] == 16
-        assert conn.execute("SELECT count(*) FROM lte_operator_alert_state").fetchone()[0] == 4
+        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results").fetchone()[0] == 5
+        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results WHERE outcome='unknown'").fetchone()[0] == 4
+        assert conn.execute("SELECT count(*) FROM lte_operator_alert_state").fetchone()[0] == 1
         assert {r[0] for r in conn.execute("SELECT DISTINCT target_path FROM lte_operator_probe_results")} == {p for _,p,_ in worker.NODES}
 
 

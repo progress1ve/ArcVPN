@@ -16,7 +16,7 @@ export default function ArcFleetOverview(){
   setCapacity(jobs.slice(1,3).map(r=>r.status==='fulfilled'?r.value as Capacity:null));
   // Unknown/offline provider probes do not establish a node outage.
   const recent=jobs.slice(3).flatMap(r=>{if(r.status!=='fulfilled')return [];const seen=new Set<string>();return ((r.value as {results?:{operator:string;target_path:string;outcome:string;checked_at:string}[]}).results||[]).filter(p=>{const key=`${p.operator}:${p.target_path}`;if(seen.has(key))return false;seen.add(key);return Date.now()-Date.parse(p.checked_at.replace(' ','T')+'Z')<86400000;});});
-  setHealth(recent.some(p=>p.outcome==='failed')?'Есть неуспешные проверки':['/api-se-test-4096','/api-se-test-24000','/api-se-65536','/api-se-32768'].every(path=>recent.filter(p=>p.target_path===path&&p.outcome==='ok').length>=4)?`VPN работает${recent.some(p=>p.outcome==='unknown')?' · есть недоступные пробы':''}`:'Нет свежих подтверждённых проверок');
+  setHealth(recent.some(p=>p.outcome==='failed')?'Есть неуспешные проверки':['/api-se-test-24000'].every(path=>recent.filter(p=>p.target_path===path&&p.outcome==='ok').length>=4)?`VPN работает${recent.some(p=>p.outcome==='unknown')?' · есть недоступные пробы':''}`:'Нет свежих подтверждённых проверок');
  };load();const timer=setInterval(load,60000);
  Promise.allSettled([read<Traffic>('/api/admin/traffic/period?period=7&limit=10'),read<Traffic>('/api/admin/traffic/period?period=30&limit=10'),read<{main:number;lte:number}>('/api/admin/traffic/retained-total')]).then(r=>{if(!live)return;setTraffic(r.slice(0,2).map(x=>x.status==='fulfilled'?x.value as Traffic:null));if(r[2].status==='fulfilled')setTotal(r[2].value as {main:number;lte:number});});
  return()=>{live=false;clearInterval(timer);};},[]);
