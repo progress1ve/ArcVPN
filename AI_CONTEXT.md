@@ -1990,3 +1990,12 @@ Owner authorized live browser comparison with the React admin. Shared admin pres
 Owner latest decision separates direct entries, user referrals and advertising links. Moscow registration-date counters use exclusive first-level referral > campaign > direct precedence for mixed old attribution. Partner UI uses actual admin Payments presentation, immediate current-month statistics/presets, scoped active trial/paid states and daily charts; identity/lifetime summary home-only, no Refresh button, automatic visible-page polling. Partner small network stays centered with explicit bounds and Sigma refresh; admin section numbers follow visible cards without gaps. Money, approved future-only client binding and existing subscriptions remain unchanged. Runtime c4a89e8 and numbering d3ce8a8 deployed through normal workflow; live invariants/private snapshot matched, no production test transactions.
 
 Partner follow-up visual contract, 2026-10-05: owner removed Clients from partner Marketing menu and requires actual admin header/button and graph styles. AdminPayments and partner now share pure SectionHeading (20px title,40px back), logout styling copied from admin shell. Native graph sizes/colors/label threshold and FA2 retained; small scoped camera bounds and diagonal singleton seed prevent stretched isolated branches without adding unauthorized nodes. Frontend-only afa239c/5cefa6b deployed and live compared; money/client/subscription invariants unchanged.
+
+## Owner product decisions — Sweden replacement (2026-10-07)
+- Real Sweden HostUp replaces physical Finland in routine balancing: SE61/EE39
+  connection-selection weights with healthy-peer fallback, not fixed byte shares.
+- Order: 🇸🇴 Auto, 🇷🇺 YouTube, 🇸🇪 Sweden, 🇪🇪 Estonia, DE/PL/NL aliases,
+  🇫🇮 Finland alias before 🇪🇺 bypasses #1–#8. DE/PL/NL physically exit Sweden; FI exits
+  Estonia and stays outside balancers. Public subscription IDs and UUIDs preserved.
+- Sweden YouTube uses the existing Moscow egress bridge. CDN on Sweden is later;
+  existing Estonia CDN paths continue now. Physical Finland retained for rollback.

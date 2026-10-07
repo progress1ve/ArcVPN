@@ -17,3 +17,21 @@ Public partner47/admin38 JS/CSS/fonts HTTP200, entries/health200. Authenticated 
 
 Residual limits: live partner has1 trial client and no eligible purchase/payout, so populated money views rely on isolated fixtures/tests. 2000-node cap disclosed, client/purchase/payout tables paginated500 and totals computed before caps. Existing admin chunk-size warning remains. Guide docs/operations/partner-cabinet.md; exact stage evidence .codex/stages/current.md. Follow-up frontend5 plus final2 relevant tests passed, both builds/typecheck passed;4 viewport follow-up screenshots followup-production-*.jpg. Native title/back geometry compared live, network zoom/reset passed, Clients absent on home. All47/38 assets200 after final5cefa6b pull; frontend-only follow-up did not restart services or mutate DB.
 
+
+## 2026-10-07 Sweden replacement
+Production runtime 9a8517f: real HostUp Sweden se.arccnet.space / 136.148.220.228,
+Remnawave3.4.1, own local TLS decoy and Reality key; UFW API only Poland,
+SS only Moscow, fail2ban SSH5/3600s, bounded container logs. BBR/fq pre-existing.
+Physical Finland removed from all delivered profiles and balancing paths;
+retained infrastructure for rollback. SE61/EE39 weighted connections with
+health-aware peer fallback on client and Moscow bridge; proportions are not bytes.
+YouTube SE/EE -> Moscow. Aliases DE/PL/NL -> SE; FI alias -> EE before Best Bypass, manual only.
+Order starts Somalia-flag Auto, RU-flag YouTube, Sweden, Estonia; eight EU bypasses; flags
+restored. Existing URLs/UUIDs unchanged. Rollback snapshots remain remote-only.
+Evidence .codex/stages/sweden-migration.md; full suite453 passed before final catalogue edits; latest one focused case passed;
+all generated syntax and seven fresh customer tunnels passed, Moscow both exits.
+Additional concurrent Cloudflare100-request stress timed out; throughput/peak-hour
+stability and physical Happ gates remain open. Temporary canary revoked.
+Next: client refresh/real Kazan check; Sweden CDN is a separate future stage.
+Owner-dirty primary checkout preserved; runtime changes in managed sweden-node
+worktree. Mode economy.

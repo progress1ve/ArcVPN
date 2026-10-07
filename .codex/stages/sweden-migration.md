@@ -12,7 +12,7 @@ SS2443 only Moscow; SSH22/HTTP80/Reality443 public; fail2ban SSH5 attempts/3600s
 Own node-generated Reality key, certificate, root-only compose/state, bounded logs.
 
 Visible order: Auto, YouTube, Sweden, Estonia, Germany, Poland, Netherlands,
-existing bypass profiles, final Finland display alias on Estonia. Owner subsequently
+Finland display alias on Estonia, then eight bypass profiles. Owner subsequently
 requested Somalia flag for AutoSelect, Russia for YouTube and EU for bypasses.
 Retired physical Finland /api-fin excluded from delivery and
 all generated balancers; existing Estonia CDN paths remain until separate CDN
@@ -46,3 +46,9 @@ snapshot sweden-catalog-before.json; restore old Moscow profile, squads, host
 flags and narrowly affected DB settings/catalog, disable Sweden, revert runtime
 commit and restart subscription service. Never expose snapshots or private keys.
 Keep FI service/credentials during rollback window. No unrelated owner files staged.
+
+Final runtime9a8517f: owner moved FI alias immediately before Best Bypass and
+added #6/7/8. One focused check passed; actual served Happ JSON HTTP200 has16
+profiles with all flags/order correct and #6/7/8 configs exactly equal #5 except
+remarks. No extra stress/full-suite rerun for this catalogue-only adjustment.
+Temporary canary revoked/test squad removed; service healthy.

@@ -8,7 +8,7 @@ host = "136.148.220.228"
 public_domain = "se.arccnet.space"
 ssh_user = "root"
 credential_alias = "se-hostup"
-status = "staged"
+status = "active"
 
 # Non-secret topology only. Credential aliases map to the local DPAPI vault.
 [[servers]]
