@@ -116,29 +116,34 @@ async def run(*, client: Client | None = None, links: dict[str, str] | None = No
             controls[label] = {}
     events = []
     batch_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    with sqlite3.connect(str(DB_PATH)) as conn:
+    # Complete external probes before opening a database write transaction.
+    # Four variants can take minutes; API telemetry must remain writable.
+    attempts = []
+    for host, path, _name in NODES:
+        try:
+            rows = rows_by_operator(client.vpn_multiscan(links[path], selected))
+        except LatencyLabError:
+            rows = {}
+        for operator in OPERATORS:
+            row = rows.get(operator)
+            reason = ("operator_offline" if operator not in online else
+                      "provider_result_missing" if row is None else None)
+            latency = row.get("latency_ms") if row else None
+            attempt = Attempt(
+                operator={"tmobile": "t_mobile"}.get(operator, operator),
+                target_path=path, test_kind="client_tunnel", provider="latencylab",
+                region="Орёл", allowed_control_ok=outcome(controls["allowed"].get(operator)),
+                blocked_control_ok=outcome(controls["blocked"].get(operator)),
+                target_ok=outcome(row),
+                rtt_ms=latency if isinstance(latency, (int, float)) and 0 <= latency < 1_000_000 else None,
+                reason=reason)
+            attempts.append((host, attempt))
+    with sqlite3.connect(str(DB_PATH), timeout=30) as conn:
         conn.row_factory = sqlite3.Row
-        for host, path, _name in NODES:
-            try:
-                rows = rows_by_operator(client.vpn_multiscan(links[path], selected))
-            except LatencyLabError:
-                rows = {}
-            for operator in OPERATORS:
-                row = rows.get(operator)
-                reason = ("operator_offline" if operator not in online else
-                          "provider_result_missing" if row is None else None)
-                latency = row.get("latency_ms") if row else None
-                attempt = Attempt(
-                    operator={"tmobile": "t_mobile"}.get(operator, operator),
-                    target_path=path, test_kind="client_tunnel", provider="latencylab",
-                    region="Орёл", allowed_control_ok=outcome(controls["allowed"].get(operator)),
-                    blocked_control_ok=outcome(controls["blocked"].get(operator)),
-                    target_ok=outcome(row),
-                    rtt_ms=latency if isinstance(latency, (int, float)) and 0 <= latency < 1_000_000 else None,
-                    reason=reason)
-                event = record_batch(conn, batch_id, host, [attempt])
-                if event:
-                    events.append(event)
+        for host, attempt in attempts:
+            event = record_batch(conn, batch_id, host, [attempt])
+            if event:
+                events.append(event)
         conn.commit()
     await notify(events)
     return {"nodes": len(NODES), "online_operators": len(selected), "transitions": len(events)}

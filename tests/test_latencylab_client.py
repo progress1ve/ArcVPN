@@ -73,6 +73,10 @@ def test_worker_records_each_operator_and_never_alerts_on_missing_result(tmp_pat
 
         def vpn_multiscan(self, uri, operators):
             assert uri == "private-se"
+            # A concurrent telemetry write must remain possible throughout probes.
+            with sqlite3.connect(path, timeout=0) as concurrent:
+                concurrent.execute("CREATE TABLE IF NOT EXISTS concurrent_metrics(value INTEGER)")
+                concurrent.execute("INSERT INTO concurrent_metrics VALUES(1)")
             return {"results": [{"operator": "mts", "ok": True, "latency_ms": 120}]}
 
     result = asyncio.run(worker.run(client=FakeClient(), links={p:"private-se" for _,p,_ in worker.NODES}))
