@@ -154,4 +154,4 @@ def test_publication_preserves_interleaved_manual_location():
     policy=[defaults()[0],defaults()[2]]
     result=apply([auto,manual,bypass],policy)
     assert result[1]['remarks']=='FI'
-    assert result[2]['remarks']=='Лучший обход'
+    assert result[2]['remarks']=='🇪🇺 Лучший обход'

@@ -12,7 +12,9 @@ SS2443 only Moscow; SSH22/HTTP80/Reality443 public; fail2ban SSH5 attempts/3600s
 Own node-generated Reality key, certificate, root-only compose/state, bounded logs.
 
 Visible order: Auto, YouTube, Sweden, Estonia, Germany, Poland, Netherlands,
-existing bypass profiles. Retired Finland /api-fin excluded from delivery and
+existing bypass profiles, final Finland display alias on Estonia. Owner subsequently
+requested Somalia flag for AutoSelect, Russia for YouTube and EU for bypasses.
+Retired physical Finland /api-fin excluded from delivery and
 all generated balancers; existing Estonia CDN paths remain until separate CDN
 stage. No new Sweden CDN configured. Finland infrastructure retained for rollback.
 
@@ -26,6 +28,18 @@ Evidence before promotion: agent connected node3.4.1/core26.7.28; direct Reality
 and actual YouTube HTTP204 passed. Runtime Xray weighting canary 500 connections:
 282SE/218EE, zero failures; SE-down switched to EE; both-down blocked. Targeted
 Python tests 45 passed. Physical Happ/device and peak-hour gates remain open.
+
+Runtime 8c7efb1 deployed by fast-forward pull; subscription service restarted.
+Twelve fresh generated profiles passed Xray syntax with existing geodata.
+All seven ordinary/generated primary profiles passed actual general and YouTube
+HTTP204 using owner-authorized freshly generated configs. Moscow reciprocal
+20-request canary reached both SE18 and EE2, no FI. Additional concurrent
+100-request Cloudflare trace stress encountered a timeout; it is not evidence
+of stable throughput or exact per-session proportions. Full Python suite453 passed
+(Windows checkout vendor-script CRLF normalized locally for hash verification;
+no vendor change included in runtime commit). DB identities hash unchanged.
+Root-only panel/catalog rollback snapshots retained remotely. SE/EE/RU agents,
+subscription/bot/nginx active; public /app200. CDN transfer remains deferred.
 
 Rollback: remote root-only panel snapshot sweden-migration-before.json and catalog
 snapshot sweden-catalog-before.json; restore old Moscow profile, squads, host

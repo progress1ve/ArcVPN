@@ -146,7 +146,7 @@ async def main(mode):
                     ('Ютуб без рекламы','Ютуб без рекламы',0,1,1),('Швеция','Швеция',1,1,1),
                     ('Эстония #1','Эстония',2,1,1),('Эстония','Эстония',2,1,1),('Эстония #2','Эстония #2',20,0,0),
                     ('Германия','Германия',3,1,0),('Польша','Польша',4,1,0),('Нидерланды','Нидерланды',5,1,0),
-                    ('Финляндия','Финляндия',99,0,0)]:
+                    ('Финляндия','Финляндия',999,1,0)]:
                     db.execute('INSERT INTO subscription_profile_overrides(source_name,display_name,sort_order,enabled,include_in_auto) VALUES(?,?,?,?,?) '
                         'ON CONFLICT(source_name) DO UPDATE SET display_name=excluded.display_name,sort_order=excluded.sort_order,enabled=excluded.enabled,include_in_auto=excluded.include_in_auto',
                         (source,label,position,enabled,auto))

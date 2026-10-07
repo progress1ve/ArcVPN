@@ -78,6 +78,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
             "🇪🇺 Лучший обход",
             "🇪🇺 Обход глушилок #2", "🇪🇺 Обход глушилок #3",
             "🇪🇺 Обход глушилок #4", "🇪🇺 Обход глушилок #5",
+            "🇫🇮 Финляндия",
         ])
         youtube = profiles[1]
         self.assertEqual(youtube["routing"]["balancers"][0]["tag"], "balancer_youtube")

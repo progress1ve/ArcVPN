@@ -49,8 +49,8 @@ def digest(policy):
 
 
 def defaults():
-    specs = [('auto','auto','Автовыбор | Самый быстрый'),('youtube','youtube','Ютуб без рекламы')]
-    specs += [('bypass-'+str(i),'bypass','Лучший обход' if i==1 else 'Обход глушилок #'+str(i)) for i in range(1,6)]
+    specs = [('auto','auto','🇸🇴 Автовыбор | Самый быстрый'),('youtube','youtube','🇷🇺 Ютуб без рекламы')]
+    specs += [('bypass-'+str(i),'bypass','🇪🇺 Лучший обход' if i==1 else '🇪🇺 Обход глушилок #'+str(i)) for i in range(1,6)]
     return [{'id':identifier,'kind':kind,'name':name,'members':['se','ee'],
              'weights':{'se':61,'ee':39},'strategy':'weightedConnections','fallback':'existing'}
             for identifier,kind,name in specs]

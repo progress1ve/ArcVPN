@@ -132,10 +132,10 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
     hosts = [urllib.parse.urlsplit(link).hostname for link in result]
 
     assert names == [
-        "🇸🇪 Швеция", "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды",
+        "🇸🇪 Швеция", "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды", "🇫🇮 Финляндия",
     ]
     assert hosts == [
-        "se.arccnet.space", "ee.arccnet.space", "se.arccnet.space", "se.arccnet.space", "se.arccnet.space",
+        "se.arccnet.space", "ee.arccnet.space", "se.arccnet.space", "se.arccnet.space", "se.arccnet.space", "ee.arccnet.space",
     ]
 
 
@@ -154,6 +154,28 @@ def test_real_sweden_replaces_alias_and_is_a_main_peer(monkeypatch):
     mains = [o for o in auto['outbounds'] if o['tag'].startswith('proxy-main-')]
     assert {o['settings']['vnext'][0]['address'] for o in mains} == {'se.arccnet.space', 'ee.arccnet.space'}
     assert auto['routing']['balancers'][0]['strategy']['settings']['expected'] == 2
+
+
+def test_weighted_flags_and_last_finland_alias_preserve_physical_peers(monkeypatch):
+    from monitoring.subscription_balancers import defaults
+    monkeypatch.setattr(api, '_catalog_overrides', lambda: {})
+    policy = json.dumps(defaults())
+    monkeypatch.setattr(api, 'get_setting', lambda key, default=None: policy if key == 'subscription_balancers_live' else default)
+    links = '\n'.join([
+        'vless://test@se.arccnet.space:443?security=reality#Швеция%20%231',
+        'vless://test@87.251.19.197:443?security=reality#Эстония%20%231',
+        'vless://test@cdn-de.arccnet.space:443?security=tls&type=xhttp&path=%2Fapi-test#Лучший%20обход',
+    ])
+    profiles = json.loads(api._build_happ_json_subscription(_key(), links))
+    assert profiles[0]['remarks'] == '🇸🇴 Автовыбор | Самый быстрый'
+    assert profiles[1]['remarks'] == '🇷🇺 Ютуб без рекламы'
+    assert profiles[-1]['remarks'] == '🇫🇮 Финляндия'
+    assert profiles[-1]['outbounds'][0]['settings']['vnext'][0]['address'] == '87.251.19.197'
+    assert all(p['remarks'].startswith('🇪🇺') for p in profiles if 'обход' in p['remarks'].lower())
+    for profile in profiles:
+        if profile['routing'].get('balancers'):
+            real = [o for o in profile['outbounds'] if o.get('tag','').startswith(('proxy-main-', 'proxy-youtube-'))]
+            assert len(real) == 2
 
 
 def test_retired_canada_france_and_netherlands_are_not_in_published_catalog():

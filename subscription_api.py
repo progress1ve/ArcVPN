@@ -278,6 +278,7 @@ TEMPORARY_LOCATION_ALIASES = (
     ("🇵🇱 Польша", "Швеция"),
     ("🇳🇱 Нидерланды", "Швеция"),
     ("🇩🇪 Германия", "Швеция"),
+    ("🇫🇮 Финляндия", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
 
@@ -1927,6 +1928,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *visible_country("Германия"),
         *visible_country("Польша"),
         *visible_country("Нидерланды"),
+        *visible_country("Финляндия"),
     ]
     if _catalog_overrides():
         visible_main.sort(key=lambda profile: _subscription_inbound_order(_catalog_source_name(str(profile.get("remarks") or ""))))
@@ -1965,6 +1967,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         reserve_names = [item['name'] for item in balancer_policy
                          if item.get('id') in {'bypass-4', 'bypass-5'}]
         rendered_profiles = apply_cdn_fallbacks(rendered_profiles, reserve_names)
+    finland_aliases = [profile for profile in rendered_profiles
+                      if _catalog_source_name(str(profile.get("remarks") or "")) == "Финляндия"]
+    rendered_profiles = [profile for profile in rendered_profiles if profile not in finland_aliases] + finland_aliases
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,
