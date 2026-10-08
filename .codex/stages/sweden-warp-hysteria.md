@@ -1,11 +1,11 @@
 # Sweden WARP + Hysteria2 profiles вЂ” 2026-10-08
 
-Owner-authorized scope: insert after Finland: рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РЅРµР№СЂРѕСЃРµС‚РµР№), then рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РёРіСЂрџЋ®). Existing profiles, subscription URLs, UUIDs, quotas, SE61/EE39 and CDN fallbacks unchanged. Manual profiles excluded from Auto/YouTube/bypass balancers.
+Owner-authorized scope: insert after Finland: 🇸🇪 Нейросети 🤖, then 🇸🇪 Игровой сервер 🎮. Existing profiles, subscription URLs, UUIDs, quotas, SE61/EE39 and CDN fallbacks unchanged. Manual profiles excluded from Auto/YouTube/bypass balancers.
 
 | Visible profile | Client endpoint / SNI | Transport / server route | CDN | Multiplier | Failure | Rollback |
 | --- | --- | --- | --- | --- | --- | --- |
-| рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РЅРµР№СЂРѕСЃРµС‚РµР№) | se.arccnet.space:8444 / existing SE Reality SNI | Separate VLESS Reality inbound -> localhost WARP SOCKS40000; private/bittorrent blocked, unsupported UDP blocked | none | 1 | fail closed if WARP unavailable; no ordinary exit fallback | hide new Host and restore private profile snapshot |
-| рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РёРіСЂрџЋ®) | se.arccnet.space:443 UDP / se.arccnet.space | Hysteria2 with own existing SE certificate -> Sweden DIRECT; private/bittorrent blocked | none | 1 | unavailable if UDP blocked, existing manual alternatives remain | hide new Host and restore profile snapshot |
+| 🇸🇪 Нейросети 🤖 | se.arccnet.space:8444 / existing SE Reality SNI | Separate VLESS Reality inbound -> localhost WARP SOCKS40000; private/bittorrent blocked, unsupported UDP blocked | none | 1 | fail closed if WARP unavailable; no ordinary exit fallback | hide new Host and restore private profile snapshot |
+| 🇸🇪 Игровой сервер 🎮 | se.arccnet.space:443 UDP / se.arccnet.space | Hysteria2 with own existing SE certificate -> Sweden DIRECT; private/bittorrent blocked | none | 1 | unavailable if UDP blocked, existing manual alternatives remain | hide new Host and restore profile snapshot |
 
 Components: Sweden WARP package in proxy mode; RemnaNode certificate mount; existing profile/node/ordinary squad plus two new hidden Hosts; subscription_api.py naming/order/transport inclusion. Stage route follows owner's explicitly requested WARP/Hysteria choices and names. No invented destination or replacement of ordinary Sweden.
 Acceptance before publish: WARP cloudflare trace says warp=on; server syntax/listeners/firewall and preserved existing inbound IDs; hidden canary authorized; real Reality/WARP HTTPS and real Hysteria HTTPS plus tunneled UDP; generated customer JSON syntax and native links names/order; canary cleanup. Physical owner Happ/game latency remains separately observable.

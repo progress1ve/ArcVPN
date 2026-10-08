@@ -108,8 +108,8 @@ async def main(action):
             'activeConfigProfileUuid':p['uuid'],'activeInbounds':list(dict.fromkeys(active+wanted))}})
         host_ids=[]
         for tag,remark,port,sni,security,alpn in [
-                (WARP,'рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РЅРµР№СЂРѕСЃРµС‚РµР№)',8444,DOMAIN,'DEFAULT',None),
-                (HY2,'рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РёРіСЂрџЋ®)',443,DOMAIN,'TLS','h3')]:
+                (WARP,'🇸🇪 Нейросети 🤖',8444,DOMAIN,'DEFAULT',None),
+                (HY2,'🇸🇪 Игровой сервер 🎮',443,DOMAIN,'TLS','h3')]:
             h=await c._request('POST','/api/hosts',json={
                 'address':DOMAIN,'port':port,'path':'','host':'','sni':sni,
                 'fingerprint':'firefox','allowInsecure':False,'isDisabled':True,'isHidden':False,
