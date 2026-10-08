@@ -24,7 +24,7 @@ async def main(action):
         if action=='cleanup':
             state=json.loads(STATE.read_text())
             user=await c._request('GET','/api/users/by-username/arc-se-special-canary')
-            await c._request('DELETE','/api/users/'+user['uuid'])
+            await c._request('DELETE','/api/users/'+str(user['id']))
             print('Private Sweden special canary revoked');return
         if action=='publish':
             state=json.loads(STATE.read_text())
