@@ -281,6 +281,17 @@ TEMPORARY_LOCATION_ALIASES = (
     ("🇫🇮 Финляндия", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
+SWEDEN_AI_NAME = "Швеция (Для нейросетей)"
+SWEDEN_GAMES_NAME = "Швеция (Для игр🎮)"
+SWEDEN_SPECIAL_NAMES = (SWEDEN_AI_NAME, SWEDEN_GAMES_NAME)
+
+
+def _allowed_customer_transport(link: str) -> bool:
+    parsed = urllib.parse.urlsplit(link)
+    if parsed.scheme.lower() not in {"hysteria", "hysteria2", "hy2"}:
+        return True
+    name = _subscription_source_name(urllib.parse.unquote(parsed.fragment))
+    return name == SWEDEN_GAMES_NAME and parsed.hostname in {"se.arccnet.space", "136.148.220.228"} and (parsed.port or 443) == 443
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -365,6 +376,10 @@ def _safe_profile_display_name(custom_name: str, source_name: str) -> str:
 def _subscription_protocol_label(source_name: str) -> str:
     """Human-readable transport, kept separate from the editable remark."""
     value = _subscription_source_name(source_name)
+    if value == SWEDEN_GAMES_NAME:
+        return "Hysteria2 · QUIC · TLS"
+    if value == SWEDEN_AI_NAME:
+        return "VLESS · TCP · Reality · WARP"
     if BEST_BYPASS_NAME in value or "Обход глушилок" in value or "LTE" in value:
         return "VLESS · XHTTP · TLS · CDN"
     if re.search(r"#\s*(?:2|4)$", value):
@@ -450,7 +465,7 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
             continue
         if urllib.parse.parse_qs(urllib.parse.urlsplit(link).query).get("path") == ["/api-fin"]:
             continue
-        if urllib.parse.urlsplit(link).scheme.lower() in {"hysteria", "hysteria2", "hy2"}:
+        if not _allowed_customer_transport(link):
             continue
         if "#" not in link:
             result.append((_subscription_link_order(link), link))
@@ -524,7 +539,7 @@ def _with_temporary_location_aliases(links: list[str]) -> list[str]:
             continue
         name = urllib.parse.unquote(link.rsplit("#", 1)[-1]) if "#" in link else ""
         name = _catalog_source_name(name)
-        if _is_lte_subscription_link(link) or "Ютуб без рекламы" in name:
+        if _is_lte_subscription_link(link) or "Ютуб без рекламы" in name or name in SWEDEN_SPECIAL_NAMES:
             continue
         for country in ("Швеция", "Эстония"):
             if country in name and country not in sources:
@@ -547,7 +562,11 @@ def _subscription_link_order(link: str) -> tuple[int, int, str]:
     protocol_order = int(number_match.group(1)) if number_match else (
         1 if urllib.parse.urlsplit(link).scheme.lower() == "vless" else 99
     )
-    if "Ютуб без рекламы" in name:
+    if _catalog_source_name(name) == SWEDEN_AI_NAME:
+        country_order = 24
+    elif _catalog_source_name(name) == SWEDEN_GAMES_NAME:
+        country_order = 25
+    elif "Ютуб без рекламы" in name:
         country_order = 5
     elif "Швеция" in name and not _is_lte_subscription_link(link):
         country_order = 6
@@ -584,6 +603,8 @@ def _normalize_customer_profile_label(link: str) -> str:
         return link
     payload, encoded_name = link.rsplit("#", 1)
     name = urllib.parse.unquote(encoded_name)
+    if _subscription_source_name(name) in SWEDEN_SPECIAL_NAMES:
+        return payload + "#" + urllib.parse.quote(_safe_profile_display_name(name, name), safe="")
     if "Ютуб без рекламы" in name or BEST_BYPASS_NAME in name or "Обход глушилок" in name:
         return link
     name = name.replace("Франция", "Канада")
@@ -617,6 +638,7 @@ def _with_youtube_without_ads_alias(links: list[str]) -> list[str]:
         item for item in sorted(links, key=lambda link: next((index for index, country in
             enumerate(("Швеция", "Германия", "Эстония")) if country in urllib.parse.unquote(link.rsplit("#", 1)[-1])), 99))
         if urllib.parse.urlsplit(item).scheme.lower() == "vless"
+        and _catalog_source_name(urllib.parse.unquote(item.rsplit("#",1)[-1])) not in SWEDEN_SPECIAL_NAMES
         and any(country in urllib.parse.unquote(item.rsplit("#", 1)[-1]) for country in ("Швеция", "Германия", "Эстония"))
     ), None)
     if not source:
@@ -1676,7 +1698,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         _with_temporary_location_aliases(_expand_lte_profile_links(_apply_subscription_catalog([
             item.strip() for item in links_text.splitlines()
             if item.strip()
-            and urllib.parse.urlsplit(item.strip()).scheme.lower() not in {"hysteria", "hysteria2", "hy2"}
+            and _allowed_customer_transport(item.strip())
         ]))),
         key=_subscription_link_order,
     )
@@ -1697,7 +1719,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         override = _catalog_overrides().get(source_name)
         visible_individually = not override or bool(override["enabled"])
         temporary_alias = _catalog_source_name(name) in {_subscription_source_name(label) for label in TEMPORARY_LOCATION_ALIAS_NAMES}
-        include_in_auto = (not override or bool(override.get("include_in_auto", 1))) and not temporary_alias
+        include_in_auto = (not override or bool(override.get("include_in_auto", 1))) and not temporary_alias and source_name not in SWEDEN_SPECIAL_NAMES
         if "Финляндия" in name and not FINLAND_BRIDGE_READY:
             include_in_auto = False
         display_name = (
@@ -1874,6 +1896,7 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             profile for profile in normal_profiles
             if any(alias in _catalog_source_name(str(profile.get("remarks") or "")) for alias in aliases)
             and "Ютуб без рекламы" not in str(profile.get("remarks") or "")
+            and _catalog_source_name(str(profile.get("remarks") or "")) not in SWEDEN_SPECIAL_NAMES
         ]
         protocol_rank = {"vless": 0, "hysteria": 1}
         return sorted(
@@ -1930,6 +1953,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *visible_country("Польша"),
         *visible_country("Нидерланды"),
         *visible_country("Финляндия"),
+        *[p for special in SWEDEN_SPECIAL_NAMES for p in normal_profiles
+          if _catalog_source_name(str(p.get("remarks") or "")) == special],
     ]
     if _catalog_overrides():
         visible_main.sort(key=lambda profile: _subscription_inbound_order(_catalog_source_name(str(profile.get("remarks") or ""))))
@@ -5540,7 +5565,7 @@ def api_admin_subscription_catalog():
     # editable. A catalog override never creates a Remnawave Host/inbound.
     defaults = [
         _subscription_source_name(name)
-        for name in [*SUBSCRIPTION_INBOUND_ORDER, "Финляндия", *TEMPORARY_LOCATION_ALIAS_NAMES]
+        for name in [*SUBSCRIPTION_INBOUND_ORDER, "Финляндия", *TEMPORARY_LOCATION_ALIAS_NAMES, *SWEDEN_SPECIAL_NAMES]
     ]
     allowed_sources = set(defaults)
     if request.method == "PATCH":
