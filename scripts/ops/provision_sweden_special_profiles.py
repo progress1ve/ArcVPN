@@ -42,6 +42,28 @@ async def main(action):
         p=next(p for p in ps if p['name']=='ArcVPN Sweden HostUp')
         n=next(n for n in ns if n['address']=='136.148.220.228')
         ordinary=next(s for s in ss if s['name']=='ArcVPN Staging')
+        if action=='recover':
+            ids={i['tag']:i['uuid'] for i in p['inbounds']}
+            wanted=[ids[t] for t in (WARP,HY2)]
+            warp=next(i for i in p['config']['inbounds'] if i['tag']==WARP)
+            host_ids=[h['uuid'] for h in hs if h.get('inbound',{}).get('configProfileInboundUuid') in wanted]
+            assert len(host_ids)==2
+            squad=next(s for s in ss if s['name']=='ArcVPN Sweden Special Canary')
+            user=await c._request('GET','/api/users/by-username/arc-se-special-canary')
+            r=warp['streamSettings']['realitySettings']
+            private=base64.urlsafe_b64decode(r['privateKey']+'=')
+            public=base64.urlsafe_b64encode(X25519PrivateKey.from_private_bytes(private).public_key().public_bytes(Encoding.Raw,PublicFormat.Raw)).decode().rstrip('=')
+            warp_out={'tag':'proxy','protocol':'vless','settings':{'vnext':[{
+                'address':DOMAIN,'port':8444,'users':[{'id':user['vlessUuid'],'encryption':'none','flow':'xtls-rprx-vision'}]}]},
+                'streamSettings':{'network':'raw','security':'reality','realitySettings':{
+                    'serverName':DOMAIN,'fingerprint':'firefox','publicKey':public,'shortId':r['shortIds'][0]}}}
+            hy_out={'tag':'proxy','protocol':'hysteria','settings':{'address':DOMAIN,'port':443,'version':2},
+                'streamSettings':{'network':'hysteria','security':'tls','hysteriaSettings':{'version':2,'auth':user['vlessUuid']},
+                    'finalmask':{'quicParams':{'congestion':'bbr','debug':False}},
+                    'tlsSettings':{'serverName':DOMAIN,'alpn':['h3'],'fingerprint':'firefox'}}}
+            save(STATE,{'node_uuid':n['uuid'],'profile_uuid':p['uuid'],'inbound_ids':wanted,'host_ids':host_ids,
+                'squad_uuid':squad['uuid'],'user_id':user['id'],'outbounds':[warp_out,hy_out]})
+            print('Prepared objects recovered without duplicate creation');return
         save(ROOT/'sweden-special-before.json',{'profile':p,'node':n,'ordinary_squad':ordinary})
         cfg=copy.deepcopy(p['config'])
         source=next(i for i in cfg['inbounds'] if i['tag']=='SE_HOSTUP_VLESS_TCP')
@@ -96,7 +118,7 @@ async def main(action):
             'streamSettings':{'network':'raw','security':'reality','realitySettings':{
                 'serverName':DOMAIN,'fingerprint':'firefox','publicKey':public,'shortId':r['shortIds'][0]}}}
         hy_out={'tag':'proxy','protocol':'hysteria','settings':{'address':DOMAIN,'port':443,'version':2},
-            'streamSettings':{'network':'hysteria','security':'tls','hysteriaSettings':{'version':2,'auth':user['hysteria2Password']},
+            'streamSettings':{'network':'hysteria','security':'tls','hysteriaSettings':{'version':2,'auth':user['vlessUuid']},
                 'finalmask':{'quicParams':{'congestion':'bbr','debug':False}},
                 'tlsSettings':{'serverName':DOMAIN,'alpn':['h3'],'fingerprint':'firefox'}}}
         save(STATE,{'node_uuid':n['uuid'],'profile_uuid':p['uuid'],'inbound_ids':wanted,'host_ids':host_ids,
@@ -105,5 +127,5 @@ async def main(action):
     finally:await c.close()
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','publish','cleanup'])
+    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','recover','publish','cleanup'])
     asyncio.run(main(parser.parse_args().action))

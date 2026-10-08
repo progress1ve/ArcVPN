@@ -25,8 +25,8 @@ def main():
         lines[i:i]=[indent+'volumes:',indent+'  - /etc/letsencrypt:/etc/letsencrypt:ro']
         with os.fdopen(os.open('/root/arcvpn-sweden-compose-before-special.yml',os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w') as f:f.write(text)
         compose.write_text('\n'.join(lines)+'\n')
-        run(['docker','compose','-f',str(compose),'config','--quiet'])
-        run(['docker','compose','-f',str(compose),'up','-d','--no-deps','remnanode'])
+    run(['docker','compose','-f',str(compose),'config','--quiet'])
+    run(['docker','compose','-f',str(compose),'up','-d','--no-deps','remnanode'])
     run(['docker','exec','remnanode','test','-r','/etc/letsencrypt/live/se.arccnet.space/privkey.pem'])
     run(['ufw','allow','8444/tcp'])
     run(['ufw','allow','443/udp'])
