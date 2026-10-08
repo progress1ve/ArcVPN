@@ -26,6 +26,16 @@ async def main(action):
             user=await c._request('GET','/api/users/by-username/arc-se-special-canary')
             await c._request('DELETE','/api/users/'+str(user['id']))
             print('Private Sweden special canary revoked');return
+        if action=='rename':
+            hosts=items(await c._request('GET','/api/hosts'),'hosts')
+            state=json.loads(STATE.read_text())
+            selected=[h for h in hosts if h['uuid'] in state['host_ids']]
+            assert len(selected)==2
+            for h in selected:
+                name='🇸🇪 Нейросети 🤖' if h['port']==8444 else '🇸🇪 Игровой сервер 🎮'
+                await c._request('PATCH','/api/hosts',json={'uuid':h['uuid'],'remark':name})
+                print(name)
+            return
         if action=='publish':
             state=json.loads(STATE.read_text())
             ss=items(await c._request('GET','/api/internal-squads'),'internalSquads')
@@ -98,8 +108,8 @@ async def main(action):
             'activeConfigProfileUuid':p['uuid'],'activeInbounds':list(dict.fromkeys(active+wanted))}})
         host_ids=[]
         for tag,remark,port,sni,security,alpn in [
-                (WARP,'🇸🇪 Швеция (Для нейросетей)',8444,DOMAIN,'DEFAULT',None),
-                (HY2,'🇸🇪 Швеция (Для игр🎮)',443,DOMAIN,'TLS','h3')]:
+                (WARP,'рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РЅРµР№СЂРѕСЃРµС‚РµР№)',8444,DOMAIN,'DEFAULT',None),
+                (HY2,'рџ‡ёрџ‡Є РЁРІРµС†РёСЏ (Р”Р»СЏ РёРіСЂрџЋ®)',443,DOMAIN,'TLS','h3')]:
             h=await c._request('POST','/api/hosts',json={
                 'address':DOMAIN,'port':port,'path':'','host':'','sni':sni,
                 'fingerprint':'firefox','allowInsecure':False,'isDisabled':True,'isHidden':False,
@@ -128,5 +138,5 @@ async def main(action):
     finally:await c.close()
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','recover','publish','cleanup'])
+    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','recover','publish','cleanup','rename'])
     asyncio.run(main(parser.parse_args().action))

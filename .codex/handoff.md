@@ -1,10 +1,12 @@
+2026-10-08 profile labels renamed to 🇸🇪 Нейросети 🤖 and 🇸🇪 Игровой сервер 🎮, after Finland in same order. Transport/routes/identities unchanged; focused naming/order tests2 passed.
+
 2026-10-08 economy. Sweden special profiles published after Finland: Swedish-flag AI Reality8444 -> WARP localproxy40000; Games Hysteria2 UDP443 -> Sweden DIRECT. Both excluded Auto/YouTube/bypass balancers. Real tunneled WARP HTTPS warp=on loc=SE ARN, Hysteria HTTPS and UDP DNS passed. Valid TLS certificate read-only mounted. 28 permitted customer HTTP catalogs exact order verified (27 full18, one restricted10); three existing device-policy denial catalogs preserved. Repeated fleet audit hit rate limits; do not repeat without need. Previous48 focused tests passed. Existing subscription URLs/user UUIDs/weights/CDN routes preserved. Runtime d8df1f1/0eb0d0c; canary cleanup follow-up. Rollback: hide new Hosts and restore remote root-only snapshot. No rollback used. Physical Happ/game latency unmeasured; WARP addresses may face individual AI-service restrictions. No subagents. Primary owner dirt untouched.
 
 2026-10-07 economy. Ookla download failure investigation pending owner network/app/testserver. Prior nginx64KB/keepalive/4096 fix remains active. Real owner-only fastCDN download fromEstonia25MB200complete~216Mbps;PolandCDNconnecttimesout. No productionruntimechanges;notfixed/reproduced. Evidence .codex/stages/current.md.
 
 2026-10-05 economy. c2e6ecbremoved5/10GBcustomerconstructorchoicesfromlanding/cabinet/APIand80/90specialpricingincludingrelated0GBcap. Alreadyboughtsubscriptions/friend5/10optionsunchanged. Rebasedonto9b80223partnerchatpreserved.79quote+partnertestsPASS,SveltebuildPASSexistingwarnings,no browserowner. Polandffpullsubscriptionrestartactive;publicquote5/10HTTP400,15HTTP200price104(currentcatalog).
 
-# ArcVPN handoff вЂ” partner operational redesign, 2026-10-05
+# ArcVPN handoff РІР‚вЂќ partner operational redesign, 2026-10-05
 
 token-mode: economy; no subagents authorized. Primary dirty owner checkout untouched; active clean worktree C:/Users/babay/.codex/worktrees/partner-cabinet/YadrenoVPN-main, branch codex/partner-cabinet.
 Production Poland217.60.33.38 /root/ArcVPN runtime5cefa6b (operational redesign c4a89e8, visible numbering d3ce8a8, native headings/graph afa239c). Normal commit/push/fast-forward deployed. Only subscription restarted for reporting/API; frontend/docs pulls need no restart. Subscription/bot/nginx active. Partner https://partners.arccnet.space/partner; owner https://panel.arccnet.space/admin/partners.

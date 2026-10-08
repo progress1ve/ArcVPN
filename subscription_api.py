@@ -281,8 +281,8 @@ TEMPORARY_LOCATION_ALIASES = (
     ("🇫🇮 Финляндия", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
-SWEDEN_AI_NAME = "Швеция (Для нейросетей)"
-SWEDEN_GAMES_NAME = "Швеция (Для игр🎮)"
+SWEDEN_AI_NAME = "Нейросети 🤖"
+SWEDEN_GAMES_NAME = "Игровой сервер 🎮"
 SWEDEN_SPECIAL_NAMES = (SWEDEN_AI_NAME, SWEDEN_GAMES_NAME)
 
 
@@ -351,6 +351,8 @@ _SUBSCRIPTION_INBOUND_ORDER_INDEX = {
 
 def _profile_country_flag(name: str) -> str:
     value = str(name or "")
+    if _subscription_source_name(value) in SWEDEN_SPECIAL_NAMES:
+        return "🇸🇪"
     if BEST_BYPASS_NAME in value:
         return ""
     if "Обход глушилок" in value or "LTE" in value:
