@@ -1,29 +1,5 @@
-2026-10-08 profile labels renamed to 🇸🇪 Нейросети 🤖 and 🇸🇪 Игровой сервер 🎮, after Finland in same order. Transport/routes/identities unchanged; focused naming/order tests2 passed.
-
-# Sweden special profiles вЂ” 2026-10-08
-2026-10-08 economy. Sweden special profiles published after Finland: Swedish-flag AI Reality8444 -> WARP localproxy40000; Games Hysteria2 UDP443 -> Sweden DIRECT. Both excluded Auto/YouTube/bypass balancers. Real tunneled WARP HTTPS warp=on loc=SE ARN, Hysteria HTTPS and UDP DNS passed. Valid TLS certificate read-only mounted. 28 permitted customer HTTP catalogs exact order verified (27 full18, one restricted10); three existing device-policy denial catalogs preserved. Repeated fleet audit hit rate limits; do not repeat without need. Previous48 focused tests passed. Existing subscription URLs/user UUIDs/weights/CDN routes preserved. Runtime d8df1f1/0eb0d0c; canary cleanup follow-up. Rollback: hide new Hosts and restore remote root-only snapshot. No rollback used. Physical Happ/game latency unmeasured; WARP addresses may face individual AI-service restrictions. No subagents. Primary owner dirt untouched.
-Full accepted contract: .codex/stages/sweden-warp-hysteria.md. Next step: owner updates subscription and tries profiles.
-
-# Sweden admin monitoring вЂ” 2026-10-07
-Scope: current fleet Sweden + Estonia; Sweden telemetry, capacity, benchmark agent and public-port diagnostics; CDN operator probes on Sweden 24000/10 only (latest owner instruction); connection-start classification remains current Sweden customer presence. Ordinary Estonia diagnostics remain.
-Acceptance: admin lists Sweden/HostUp; ordinary EE detail has no CDN tab; SE detail shows only 24000/10 operator results and current measurements; no public probe of loopback/peer-only ports; operator worker derives existing owner identity without logging it and keeps external polling outside database write transactions. Existing subscription delivery, URLs, UUIDs and historical measurements preserved.
-Components: subscription_api.py, monitoring agents/fleet/operator worker, React admin, node systemd units. Route: operators -> existing CDN host -> Sweden nginx -> existing four loopback XHTTP inbounds. Metrics -> Poland direct API. No customer topology change.
-Risk: absent telemetry must remain unknown; old EE collector disabled only after SE collector enrollment. Rollback: previous Git runtime and monitoring units; historical DB rows retained. No heavy benchmark queued.
-Evidence: pending.
-
-# Sweden CDN publication вЂ” 2026-10-07
-Owner authorizes production publication, superseding private-tests-only boundary.
-| Profile | Client host / CDN / group | Origin / backup | Host/SNI | Path / inbound | Multiplier | URL impact | Failure / rollback |
-|---|---|---|---|---|---|---|---|
-| Auto, Best Bypass, #2,#5,#8 | cdn-de.arccnet.space / existing / ee-origin | Sweden136.148.220.228 / none | same | /api-se-test-4096 10012 then /api-se-test-24000 10013 |1|none|SE61/EE39 then CDN4096/7 XMUX then CDN24000/10 then block; revert runtime/panel snapshot|
-| #3 | same | same | same | /api-se-test-4096 10012 |1|none|XHTTP4096/7 XMUX only, no balancer; same rollback|
-| #4 | same | same | same | /api-se-test-24000 10013 |1|none|XHTTP24000/10 GET header only; same rollback|
-| #6 | same | same | same | /api-se-65536 10014 |1|none|XHTTP65536/60вЂ“75 GET header; body variant failed CDN but passed origin; header variant passed 1MiB upload; same rollback|
-| #7 | same | same | same | /api-se-32768 10015 |1|none|XHTTP32768/10 GET header only; same rollback|
-| Subscription/import and old imported CDN | existing host/resource/group | Sweden forwarding to Poland for subscription / Estonia for old paths | correct upstream Host | /sub,/import,/api/device/import,opaque-ID; /api-test,/api-ee-direct,/api-ee-reserve |1 or n/a|none|preserve refresh and previously issued clients; origin config snapshot rollback|
-Acceptance: four real CDN tunnels from Moscow and generated owner profiles; local focused tests/syntax; stable UUIDs/URLs/order; commit/push/ff-pull, subscription-only restart, service/public checks. No repeated throughput suite. Physical Happ and Kazan throttling owner gate; Poland CDN regional timeout remains. Server/Remnawave necessary additions authorized as part production publication. Ordinary locations/YouTube/RUbridge remain61/39.
-
-Prepublication evidence:26 focused tests passed;16 generated configs Xray syntax passed;four real test CDN tunnels from Moscow passed. Body65536/60-75 raw origin204 but CDNtimeout; same requested size/interval switched to header, get and1MiB upload204. Existing node inbound IDs preserved and allfour authorized for existing LTE squad. Nginx syntax passes, old-path proxy Estonia and uncached subscription proxy Poland retained.
-Four generated customer profiles #3/#4/#6/#7 passed actual CDN HTTP204 from Moscow with existing customer LTE authorization; standalone routing gate passed.
-Published runtime c8aa336: commit/push then Poland ff-only pull, subscription restarted only; bot/subscription/nginx active. Actual served owner JSON HTTP200 with16 profiles confirms four standalone routes and two orderedfallbacks. Public app200. CDN subscription refresh initially failed502 due TLS chain depth; nginx depth3 repair in progress. No throughput claims; physical Happ/Kazan gate pending. No existing URLs/userUUIDs rotated. Old CDNrouting Estonia compatibility retained.
-TLS upstream repair: depth3 matches Estonia baseline; certificate verification stays on. After nginx reload CDN subscription from Moscow HTTP200/16 profiles, private/no-store/no-cache confirmed.
+# WARP DNS repair — 2026-10-08
+Scope: restore DNS for existing AI profile, same se.arccnet.space:8444 / Reality / WARP exit / multiplier1; no CDN, subscription URL or identity change. Existing UDP53 hits BLOCK, reproduced client DNS timeout; Google/Gemini/Wikipedia HTTPS200 through actual VLESS/WARP connection.
+Repair: only WARP inbound UDP53 -> DNS outbound rewriting to TCP1.1.1.1:53 chained through WARP SOCKS40000. Other UDP still blocked; Hysteria/ordinary routes unchanged. This restores intended profile behavior within owner repair request.
+Acceptance: actual client UDP DNS google.com response, Google/Gemini/Wikipedia HTTPS, WARP exit still on; inbound identity unchanged. Rollback: root-only sweden-warp-before-dns-fix.json profile snapshot.
+Evidence pending. No subagents; economy.

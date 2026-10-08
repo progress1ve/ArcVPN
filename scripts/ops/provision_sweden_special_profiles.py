@@ -21,6 +21,25 @@ def save(path,data):
 async def main(action):
     c=RemnawaveClient({**remnawave_authority_config(),'panel_write_mode':'production'})
     try:
+        if action=='fix-dns':
+            profiles=items(await c._request('GET','/api/config-profiles'),'configProfiles')
+            profile=next(p for p in profiles if p['name']=='ArcVPN Sweden HostUp')
+            cfg=copy.deepcopy(profile['config'])
+            snapshot=ROOT/'sweden-warp-before-dns-fix.json'
+            if not snapshot.exists():save(snapshot,profile)
+            tag='WARP_DNS_TCP'
+            if not any(o['tag']==tag for o in cfg['outbounds']):
+                cfg['outbounds'].append({'tag':tag,'protocol':'dns',
+                    'settings':{'rewriteNetwork':'tcp','rewriteAddress':'1.1.1.1','rewritePort':53},
+                    'proxySettings':{'tag':'WARP'}})
+            rule={'type':'field','inboundTag':[WARP],'network':'udp','port':'53','outboundTag':tag}
+            if rule not in cfg['routing']['rules']:
+                index=next(i for i,r in enumerate(cfg['routing']['rules'])
+                    if r.get('inboundTag')==[WARP] and r.get('network')=='udp')
+                cfg['routing']['rules'].insert(index,rule)
+            updated=await c._request('PATCH','/api/config-profiles',json={'uuid':profile['uuid'],'config':cfg})
+            assert {i['tag']:i['uuid'] for i in updated['inbounds']}=={i['tag']:i['uuid'] for i in profile['inbounds']}
+            print('WARP DNS UDP53 translated to TCP through WARP; inbound identities preserved');return
         if action=='cleanup':
             state=json.loads(STATE.read_text())
             user=await c._request('GET','/api/users/by-username/arc-se-special-canary')
@@ -138,5 +157,5 @@ async def main(action):
     finally:await c.close()
 
 if __name__=='__main__':
-    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','recover','publish','cleanup','rename'])
+    parser=argparse.ArgumentParser();parser.add_argument('action',choices=['prepare','recover','publish','cleanup','rename','fix-dns'])
     asyncio.run(main(parser.parse_args().action))
