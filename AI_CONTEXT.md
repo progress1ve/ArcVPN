@@ -2002,3 +2002,5 @@ Partner follow-up visual contract, 2026-10-05: owner removed Clients from partne
 
 
 2026-10-07 owner CDN choice: Sweden shared origin; ordered4096/7 XMUX then24000/10 headerGET fallback. Standalone bypass#3=4096/7,#4=24000/10,#6=65536/60-75 headerGET,#7=32768/10 headerGET; preserve links, authorization and ordinarySE61/EE39. GETbody65536 failed actualCDN despite working raworigin, so useheader.
+
+2026-10-08: Manual Sweden AI WARP Reality8444 and Games Hysteria2 UDP443 follow Finland alias, with Swedish flags, excluded from balancing. Existing endpoints, UUIDs, SE61/EE39 and CDN routes preserved.
