@@ -30,8 +30,9 @@ async def main(action):
             tag='WARP_DNS_TCP'
             if not any(o['tag']==tag for o in cfg['outbounds']):
                 cfg['outbounds'].append({'tag':tag,'protocol':'dns',
-                    'settings':{'rewriteNetwork':'tcp','rewriteAddress':'1.1.1.1','rewritePort':53},
+                    'settings':{'rewriteNetwork':'tcp','rewriteAddress':'1.1.1.1','rewritePort':53,'rules':[{'action':'direct'}]},
                     'proxySettings':{'tag':'WARP'}})
+            next(o for o in cfg['outbounds'] if o['tag']==tag)['settings']['rules']=[{'action':'direct'}]
             rule={'type':'field','inboundTag':[WARP],'network':'udp','port':'53','outboundTag':tag}
             if rule not in cfg['routing']['rules']:
                 index=next(i for i,r in enumerate(cfg['routing']['rules'])
