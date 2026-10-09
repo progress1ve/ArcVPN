@@ -2006,3 +2006,5 @@ Partner follow-up visual contract, 2026-10-05: owner removed Clients from partne
 2026-10-08: Manual Sweden AI WARP Reality8444 and Games Hysteria2 UDP443 follow Finland alias, with Swedish flags, excluded from balancing. Existing endpoints, UUIDs, SE61/EE39 and CDN routes preserved.
 
 2026-10-08: AI WARP profile UDP DNS53 now relayed as TCP DNS through WARP; other UDP blocked. Preserve this exception when rebuilding profile: blanket UDP blocking breaks name resolution.
+
+2026-10-09 owner returned Finland server: remove physical Finland nodes/disabled Hosts and Finland Estonia alias from admin/subscriptions. No further server access; active inventory removed. Swedish AI/Games now follow Netherlands; weights/routes/UUIDs/URLs unchanged. Focused48 tests passed; panel retirement script saves root-only snapshot.

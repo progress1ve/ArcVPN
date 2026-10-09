@@ -132,10 +132,10 @@ def test_temporary_location_aliases_reuse_physical_endpoints_in_exact_order():
     hosts = [urllib.parse.urlsplit(link).hostname for link in result]
 
     assert names == [
-        "🇸🇪 Швеция", "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды", "🇫🇮 Финляндия",
+        "🇸🇪 Швеция", "🇪🇪 Эстония", "🇩🇪 Германия", "🇵🇱 Польша", "🇳🇱 Нидерланды",
     ]
     assert hosts == [
-        "se.arccnet.space", "ee.arccnet.space", "se.arccnet.space", "se.arccnet.space", "se.arccnet.space", "ee.arccnet.space",
+        "se.arccnet.space", "ee.arccnet.space", "se.arccnet.space", "se.arccnet.space", "se.arccnet.space",
     ]
 
 
@@ -170,10 +170,8 @@ def test_weighted_flags_and_last_finland_alias_preserve_physical_peers(monkeypat
     assert profiles[0]['remarks'] == '🇸🇴 Автовыбор | Самый быстрый'
     assert profiles[1]['remarks'] == '🇷🇺 Ютуб без рекламы'
     names = [profile['remarks'] for profile in profiles]
-    finland = profiles[names.index('🇫🇮 Финляндия')]
-    assert names.index('🇫🇮 Финляндия') + 1 == names.index('🇪🇺 Лучший обход')
+    assert '🇫🇮 Финляндия' not in names
     assert names[-3:] == ['🇪🇺 Обход глушилок #6', '🇪🇺 Обход глушилок #7', '🇪🇺 Обход глушилок #8']
-    assert finland['outbounds'][0]['settings']['vnext'][0]['address'] == '87.251.19.197'
     assert all(p['remarks'].startswith('🇪🇺') for p in profiles if 'обход' in p['remarks'].lower())
     for profile in profiles:
         if profile['routing'].get('balancers'):

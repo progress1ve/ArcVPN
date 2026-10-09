@@ -278,7 +278,6 @@ TEMPORARY_LOCATION_ALIASES = (
     ("🇵🇱 Польша", "Швеция"),
     ("🇳🇱 Нидерланды", "Швеция"),
     ("🇩🇪 Германия", "Швеция"),
-    ("🇫🇮 Финляндия", "Эстония"),
 )
 TEMPORARY_LOCATION_ALIAS_NAMES = frozenset(name for name, _ in TEMPORARY_LOCATION_ALIASES)
 SWEDEN_AI_NAME = "Нейросети 🤖"
@@ -474,6 +473,8 @@ def _apply_subscription_catalog(links: Iterable[str]) -> list[str]:
             continue
         raw_name = urllib.parse.unquote(link.rsplit("#", 1)[-1])
         source_name = _catalog_source_name(raw_name)
+        if "Финляндия" in raw_name or "Finland" in raw_name:
+            continue
         normalized_link = urllib.parse.unquote(link).lower()
         endpoint = (urllib.parse.urlsplit(link).hostname or "").lower()
         if endpoint == "fin.arccnet.space" and urllib.parse.parse_qs(
@@ -676,7 +677,6 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "136.148.220.228": {"provider": "HostUp", "location": "Швеция"},
-    "151.241.137.174": {"provider": "1chost", "location": "Финляндия"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
     "87.251.19.197": {"provider": "1chost", "location": "Эстония"},
@@ -1954,7 +1954,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         *visible_country("Германия"),
         *visible_country("Польша"),
         *visible_country("Нидерланды"),
-        *visible_country("Финляндия"),
         *[p for special in SWEDEN_SPECIAL_NAMES for p in normal_profiles
           if _catalog_source_name(str(p.get("remarks") or "")) == special],
     ]
@@ -5567,7 +5566,7 @@ def api_admin_subscription_catalog():
     # editable. A catalog override never creates a Remnawave Host/inbound.
     defaults = [
         _subscription_source_name(name)
-        for name in [*SUBSCRIPTION_INBOUND_ORDER, "Финляндия", *TEMPORARY_LOCATION_ALIAS_NAMES, *SWEDEN_SPECIAL_NAMES]
+        for name in [*SUBSCRIPTION_INBOUND_ORDER, *TEMPORARY_LOCATION_ALIAS_NAMES, *SWEDEN_SPECIAL_NAMES]
     ]
     allowed_sources = set(defaults)
     if request.method == "PATCH":

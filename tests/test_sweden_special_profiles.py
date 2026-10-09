@@ -15,7 +15,7 @@ def test_manual_special_names_order_and_balancer_exclusion(monkeypatch):
     monkeypatch.setattr(api,'_catalog_overrides',lambda:{})
     prepared=api._build_happ_json_subscription(_key(),'\n'.join(links()))
     profiles=json.loads(prepared);names=[p['remarks'] for p in profiles]
-    i=names.index('🇫🇮 Финляндия')
+    i=names.index('🇳🇱 Нидерланды')
     assert names[i+1:i+3]==['🇸🇪 '+n for n in api.SWEDEN_SPECIAL_NAMES]
     special=profiles[i+1:i+3]
     assert special[0]['outbounds'][0]['settings']['vnext'][0]['port']==8444
