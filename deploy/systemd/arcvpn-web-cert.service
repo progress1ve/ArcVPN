@@ -1,0 +1,6 @@
+[Unit]
+Description=Renew main public website certificate on Moscow after DNS cutover
+After=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/lib/arcvpn-web-cert-renew.py

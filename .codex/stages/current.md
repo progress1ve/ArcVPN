@@ -1,6 +1,6 @@
-# Finland retirement — 2026-10-09
-Owner returned server and explicitly requests removal from admin/subscription; no future use.
-Accepted route: remove Finland Estonia alias; SE/EE ordinary and Swedish AI/Games unchanged. No client hostname/UUID/subscription URL changes. Remove old Finland Remna nodes and already-disabled Hosts; root-only remote rollback snapshot. Remove Finland active inventory. No access to returned server.
-Acceptance: no Finland node/Host in panel, no Finland name/address in generated subscription, existing SE/EE balancers remain; focused tests. No subagents.
-
-Verified production c12aa29 on 2026-10-09: removed3 Finland Remna nodes and4 disabled Hosts; actual native customer JSON17 profiles contains no Finland label/IP and retains Sweden AI/Games. Subscription/bot active;48 focused tests passed. Returned server never contacted. GitHub connector published identical reviewed local tree5593926730f6e8818c244d0e9375be736f9a30ea after local Git HTTPS failed; root-only panel snapshot retained. No rollback used.
+# Main website Moscow edge — 2026-10-09
+Owner requests primary arccnet.space from Moscow without ru redirect, usable with/without VPN. Actual linked existing domain arccnet.space; typed arknet.space clarification pending, existing identity used for preparation.
+Route accepted by request: arccnet.space A->85.198.101.79; TLS/HTML/app assets/vendor/fonts locally Moscow, API/subscription requests -> pinned Poland217.60.33.38 with verified TLS SNIarccnet.space. No CDN or subscription URL/UUID change; ru gateway remains. Local static failure404; API returns upstream errors without hiding them.
+Root-only TLS transfer via pinned SSH, no keys local/output. Valid current certificate reused then Moscow certbot renewal after DNS change. DNS REG.RU account unavailable, owner action pending; prepare and verify before asking record change.
+Frontend same Svelte/visuals, build from exact checkout, official compressed fonts hosted locally; Telegram SDK only loaded in Telegram launch context. No subagents; economy.
+Acceptance: Moscow resolve-pinned HTTPS200 correct certificate; local static/gzip/cache and no critical foreign-resource requests; existing API response; browser4 viewports; normal public DNS routing after A change; owner noVPN/mobile remains observation if not reproducible. Rollback: existing public DNS Poland and remove new standalone nginx vhost; preserve old static releases.

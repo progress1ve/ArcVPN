@@ -20,13 +20,13 @@
     <link rel="apple-touch-icon" href="/app/arc-logo-new.webp" />
     <link rel="manifest" href="/app/site.webmanifest" />
     <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"Organization","name":"ArcVPN","url":"https://arccnet.space/"},{"@type":"WebSite","name":"ArcVPN","url":"https://arccnet.space/"},{"@type":"SoftwareApplication","name":"ArcVPN","alternateName":"Арк ВПН","applicationCategory":"SecurityApplication","operatingSystem":"Android, iOS, Windows, Linux","url":"https://arccnet.space/"}]}</script>
-    <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
-      rel="stylesheet"
-    />
+    <script>
+      // Normal browser landing does not load the Telegram SDK.
+      if (/[#?&]tgWebAppData=/.test(location.hash + location.search)) {
+        document.write('<script src="https://telegram.org/js/telegram-web-app.js"><\/script>');
+      }
+    </script>
+    <link rel="stylesheet" href="/app/vendor/fonts.css" />
   </head>
   <body>
     <div id="app"></div>
