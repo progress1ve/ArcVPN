@@ -20,8 +20,10 @@ def main():
   release='/var/www/arcvpn-site/releases/'+revision
   run(ru,'install -d -m 700 /etc/arcvpn-web-tls && install -d -m 755 '+release+'/app')
   with ru.open_sftp() as s:
-   put_private(s,cert,'/etc/arcvpn-web-tls/fullchain.pem',0o644)
-   put_private(s,key,'/etc/arcvpn-web-tls/privkey.pem',0o600)
+   try:s.stat('/etc/arcvpn-web-tls/fullchain.pem')
+   except FileNotFoundError:
+    put_private(s,cert,'/etc/arcvpn-web-tls/fullchain.pem',0o644)
+    put_private(s,key,'/etc/arcvpn-web-tls/privkey.pem',0o600)
    put_private(s,archive,'/root/arcvpn-web-dist.tgz',0o600)
    put_private(s,config,'/etc/nginx/conf.d/arcvpn-public-moscow.conf',0o644)
    for dest,data in helpers.items():put_private(s,data,dest,0o700 if dest.startswith('/usr/local/lib/') else 0o644)

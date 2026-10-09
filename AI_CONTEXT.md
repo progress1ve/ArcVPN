@@ -2008,3 +2008,5 @@ Partner follow-up visual contract, 2026-10-05: owner removed Clients from partne
 2026-10-08: AI WARP profile UDP DNS53 now relayed as TCP DNS through WARP; other UDP blocked. Preserve this exception when rebuilding profile: blanket UDP blocking breaks name resolution.
 
 2026-10-09 owner returned Finland server: remove physical Finland nodes/disabled Hosts and Finland Estonia alias from admin/subscriptions. No further server access; active inventory removed. Swedish AI/Games now follow Netherlands; weights/routes/UUIDs/URLs unchanged. Focused48 tests passed; panel retirement script saves root-only snapshot.
+
+2026-10-09: Main website prepared on Moscow with local static/fonts and same-domain API proxy to Poland verified via sub.arccnet.space TLS SNI. DNS apex switch to85.198.101.79 pending owner REG.RU access. Keep Moscow static deployment synchronized after frontend releases; own TLS renewal gated on correct DNS.
