@@ -2798,7 +2798,9 @@
   .addon-grid button.active span { color:inherit; }
   .addons-screen .total-row { font-size:15px; }
   .addons-screen .total-row small { font-size:14px; color:#c2ccd9; }
+  .screen.support-screen { margin-inline:auto; }
   @media(min-width:900px) {
+    main .screen.support-screen { display:flex; flex-direction:column; justify-content:center; width:min(calc(100% - 64px),760px); min-height:100dvh; padding:32px 24px 112px; zoom:1; }
     .purchase-screen .plan-card { min-height:174px; padding:18px 14px; }
     .custom-builder { grid-template-columns:repeat(2,minmax(0,1fr)); }
     .custom-builder .custom-control:nth-child(3),.custom-builder .custom-quote { grid-column:1 / -1; }
