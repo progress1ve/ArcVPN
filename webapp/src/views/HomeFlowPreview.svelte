@@ -1,12 +1,12 @@
 <script>
-  import { onDestroy, onMount } from 'svelte'
-  import { fade, fly } from 'svelte/transition'
+  import { onDestroy, onMount, tick } from 'svelte'
+  import { fade, fly, slide } from 'svelte/transition'
   import { cubicOut } from 'svelte/easing'
   import QRCode from 'qrcode'
   import { encryptLink as encryptIncyLink } from '@incy/link-encoder/sync'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
-  import { copyText } from '../lib/ui.js'
+  import { copyText, toastMsg } from '../lib/ui.js'
   import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createAddonPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
@@ -32,11 +32,12 @@
     ['Не открывается нужный сайт или приложение', 'Переключитесь на профиль «с обходом глушилок» и перезапустите приложение. Напишите нам название сервиса, если он всё ещё недоступен.'],
     ['Как управлять автопродлением?', 'Откройте Настройки → Оплата и автопродление. Там можно проверить сохранённый способ оплаты и отключить следующее списание.'],
   ]
-  const quickSupportQuestions = [
-    'Как настроить обход блокировок?',
-    'Не подключается к серверу',
-    'Проблема с оплатой/подпиской',
-    'Низкая скорость интернета',
+  const supportTopics = [
+    { title: 'VPN не подключается', hint: 'Помощь с подключением', draft: 'Здравствуйте! VPN не подключается, пользоваться им не получается. Пожалуйста, помогите восстановить подключение.' },
+    { title: 'Не открывается сайт или приложение', hint: 'Проблема с доступом', draft: 'Здравствуйте! При включённом VPN не открывается нужный сайт или приложение. Помогите разобраться и подобрать рабочий профиль.' },
+    { title: 'Оплата и подписка', hint: 'Подписка не активировалась', draft: 'Здравствуйте! После оплаты подписка не активировалась. Пожалуйста, проверьте платёж и помогите восстановить доступ.' },
+    { title: 'VPN постоянно отключается', hint: 'Нестабильное соединение', draft: 'Здравствуйте! VPN постоянно отключается, соединение нестабильное. Пожалуйста, помогите найти причину и настроить стабильное подключение.' },
+    { title: 'Низкая скорость', hint: 'Медленно загружаются страницы', draft: 'Здравствуйте! С VPN очень низкая скорость: страницы и приложения загружаются медленно. Пожалуйста, помогите проверить соединение и подобрать подходящую локацию.' },
   ]
   const appCatalog = {
     happ: {
@@ -104,9 +105,71 @@
   let supportChatOpen = false
   let supportMessages = []
   let supportInput = ''
+  let supportTopicOpen = false
+  let supportTopicTrigger
+  let supportTopicPlacement = { left:16, bottom:120, maxHeight:500 }
+  let supportComposer
+  function composerSize(node) {
+    const resize = () => {
+      node.style.height = '0px'
+      const limit = Math.min(220, Math.max(96, window.innerHeight * .28))
+      const height = node.scrollHeight
+      node.style.height = `${Math.min(height, limit)}px`
+      node.style.overflowY = height > limit ? 'auto' : 'hidden'
+    }
+    resize()
+    window.addEventListener('resize', resize)
+    return { update: resize, destroy: () => window.removeEventListener('resize', resize) }
+  }
   let supportBusy = false
   let supportError = ''
+  let supportSendFailed = false
   let supportPoll = null
+  let supportHistory
+  let supportLoading = false
+  let supportAiEnabled = false
+  let supportAiPending = false
+  let supportFetchBusy = false
+  let supportLastPoll = 0
+  let reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  let motionPreference
+  const syncMotion = (event) => reducedMotion = event.matches
+  function positionSupportTopics() {
+    if (!supportTopicTrigger) return
+    const trigger = supportTopicTrigger.getBoundingClientRect()
+    const width = Math.min(428, innerWidth - 32)
+    supportTopicPlacement = { left:Math.min(Math.max(16,trigger.left),innerWidth-width-16), bottom:innerHeight-trigger.top+12, maxHeight:Math.max(120,trigger.top-28) }
+  }
+  function openSupportTopics() {
+    positionSupportTopics()
+    supportTopicOpen = true
+  }
+  function topicExpand(node, { duration = 280 }) {
+    const from = supportTopicTrigger.getBoundingClientRect()
+    const to = node.getBoundingClientRect()
+    const dx = from.left + from.width / 2 - to.left - to.width / 2
+    const dy = from.top + from.height / 2 - to.top - to.height / 2
+    const sx = from.width / to.width, sy = from.height / to.height
+    return { duration, easing:cubicOut, css:(t,u) => `transform-origin:50% 50%;transform:translate(${dx*u}px,${dy*u}px) scale(${sx+(1-sx)*t},${sy+(1-sy)*t});opacity:${t};` }
+  }
+  function dialogFocus(node, close) {
+    const previous = document.activeElement
+    const scrollStyle = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const controls = () => [...node.querySelectorAll('button:not(:disabled),a[href],input:not(:disabled),textarea:not(:disabled),[tabindex="0"]')].filter(element => element.getClientRects().length)
+    tick().then(() => controls()[0]?.focus({ preventScroll:true }))
+    const handleKey = (event) => {
+      if (event.key === 'Escape') { event.preventDefault(); previous?.focus({preventScroll:true}); close(); return }
+      if (event.key !== 'Tab') return
+      const items = controls()
+      const first = items[0], last = items.at(-1)
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus() }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus() }
+    }
+    node.addEventListener('keydown', handleKey)
+    return { destroy() { node.removeEventListener('keydown',handleKey); document.body.style.overflow=scrollStyle; if (previous?.isConnected && (node.contains(document.activeElement) || document.activeElement === document.body)) previous.focus({preventScroll:true}) } }
+  }
+  $: screenKey = addonsOpen ? 'addons' : purchaseOpen ? `purchase-${purchaseCustom}` : connectOpen ? `connect-${connectStage}` : `${active}-${settingsPage}-${supportChatOpen}`
   let purchaseOpen = false
   let addonsOpen = false
   let addonBusy = ''
@@ -227,6 +290,7 @@
 
   function handleNativeBack() {
     haptic('light')
+    if (supportTopicOpen) { supportTopicOpen = false; return }
     if (paymentMethodOpen) { paymentMethodOpen = false; return }
     if (addonsOpen) { addonsOpen = false; return }
     if (connectOpen) {
@@ -889,26 +953,43 @@
   }
 
   async function loadSupportMessages() {
+    if (supportFetchBusy) return
+    supportFetchBusy = true
+    supportLastPoll = Date.now()
+    const followLatest = !supportMessages.length || !supportHistory || supportHistory.scrollHeight - supportHistory.scrollTop - supportHistory.clientHeight < 80
     try {
       const after = supportMessages.at(-1)?.id || 0
       const result = await fetchSupportMessages(after)
+      supportAiEnabled = Boolean(result.ai?.enabled)
+      supportAiPending = Boolean(result.ai?.pending)
       const incoming = result.messages || []
       const known = new Set(supportMessages.map((item) => item.id))
       supportMessages = [...supportMessages, ...incoming.filter((item) => !known.has(item.id))]
-      supportError = ''
-    } catch (_) { supportError = 'Не удалось обновить диалог.' }
+      if (!supportSendFailed) supportError = ''
+      if (incoming.length && followLatest) await scrollChatToLatest()
+    } catch (_) { if (!supportSendFailed) supportError = 'Не удалось обновить диалог.' }
+    finally { supportFetchBusy = false }
+  }
+
+  async function scrollChatToLatest() {
+    await tick()
+    supportHistory?.scrollTo({ top: supportHistory.scrollHeight, behavior: reducedMotion ? 'instant' : 'smooth' })
   }
 
   function openSupport() {
     haptic('light')
     active = 'support'
     supportChatOpen = true
-    loadSupportMessages()
+    supportLoading = true
+    loadSupportMessages().finally(() => supportLoading = false)
     clearInterval(supportPoll)
-    supportPoll = setInterval(loadSupportMessages, 5000)
+    supportPoll = setInterval(() => {
+      if (document.visibilityState === 'visible' && (supportAiPending || Date.now() - supportLastPoll >= 5000)) loadSupportMessages()
+    }, 1000)
   }
 
   function closeSupportChat() {
+    supportTopicOpen = false
     supportChatOpen = false
     clearInterval(supportPoll)
     supportPoll = null
@@ -921,19 +1002,28 @@
     if (!body || supportBusy) return
     supportBusy = true
     supportError = ''
+    supportSendFailed = false
     try {
       const result = await sendSupportMessage(body)
+      supportAiEnabled = Boolean(result.ai?.enabled)
+      supportAiPending = Boolean(result.ai?.pending)
       supportMessages = [...supportMessages, result.message]
       supportInput = ''
+      supportLastPoll = 0
+      await scrollChatToLatest()
       haptic('light')
     } catch (error) {
+      supportSendFailed = true
       supportError = error.reason === 'try_later' ? 'Слишком много сообщений. Подождите минуту.' : 'Сообщение не отправлено. Попробуйте ещё раз.'
     } finally { supportBusy = false }
   }
 
-  function sendQuickSupportQuestion(text) {
+  async function chooseSupportTopic(topic) {
     selectionHaptic()
-    submitSupportMessage(text)
+    supportInput = (supportInput.trim() ? `${supportInput.trim()}\n\n${topic.draft}` : topic.draft).slice(0,2000)
+    supportTopicOpen = false
+    await tick()
+    supportComposer?.focus({ preventScroll:true })
   }
 
   onDestroy(() => {
@@ -942,6 +1032,7 @@
     window.removeEventListener('focus', handlePaymentResume)
     document.removeEventListener('visibilitychange', handlePaymentResume)
     setNativeBackHandler(null)
+    motionPreference?.removeEventListener('change', syncMotion)
   })
 
   function handlePaymentResume() {
@@ -955,12 +1046,15 @@
   }
 
   function productDescription(plan) {
-    if (plan?.product_code === 'economy') return 'Основной трафик: безлимит · Обход глушилок: нет · 2 устройства'
-    if (plan?.product_code === 'family') return 'Основной трафик: безлимит · Обход глушилок: 115 ГБ · до 8 устройств'
-    return 'Основной трафик: безлимит · Обход глушилок: 45 ГБ · 3 устройства'
+    const code = plan?.product_code || selectedProduct
+    const quota = plan?.lte_quota_gb ?? (code === 'economy' ? 0 : code === 'family' ? 115 : 45)
+    const devices = plan?.device_limit ?? (code === 'economy' ? 2 : code === 'family' ? 8 : 3)
+    return [['Основной трафик', 'Безлимит'], ['Обход глушилок', quota ? `${quota} ГБ` : 'Не включён'], ['Устройства', `До ${devices}`]]
   }
 
   onMount(() => {
+    motionPreference = window.matchMedia('(prefers-reduced-motion: reduce)')
+    motionPreference.addEventListener('change', syncMotion)
     paidTrialDismissed = localStorage.getItem('arcvpn-paid-trial-dismissed') === '1'
     try {
       const pendingEmail = JSON.parse(localStorage.getItem('arcvpn-email-flow') || 'null')
@@ -1033,6 +1127,8 @@
   })
 </script>
 
+<svelte:window on:resize={positionSupportTopics} />
+
 <div class="flow-preview" class:login-mode={$status.error === 'unauthorized'}>
   <div class="aurora" aria-hidden="true">
     <i class="aurora-blob blob-one"></i>
@@ -1040,37 +1136,34 @@
     <i class="aurora-blob blob-three"></i>
   </div>
   <div class="grain" aria-hidden="true"></div>
-  {#if !purchaseOpen && !addonsOpen && (supportChatOpen || settingsPage !== 'main')}
-    <button class="desktop-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
-      <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
+  {#if !purchaseOpen && !addonsOpen && !supportChatOpen && settingsPage !== 'main'}
+    <button class="desktop-back system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
+      <ArcIcon name="back" size={20} weight="bold" />
     </button>
   {/if}
 
-  {#key active}
-    <main in:fly={{ y: 14, duration: 260, easing: cubicOut }} out:fade={{ duration: 90 }}>
+  {#key screenKey}
+    <main in:fly={{ y: reducedMotion ? 0 : 10, duration: reducedMotion ? 0 : 240, easing: cubicOut }}>
       {#if addonsOpen}
         <section class="screen purchase-screen addons-screen" aria-label="Докупка">
-          <button class="purchase-back" aria-label="Назад" on:click={() => addonsOpen=false}><ArcIcon name="back" size={20} weight="bold" /><span>Назад</span></button>
-          <header class="purchase-head"><div><h1>Докупка</h1><span>Можно выбрать устройства, трафик обхода или всё вместе.</span></div></header>
+          <header class="purchase-toolbar"><button class="purchase-back system-back" aria-label="Назад" on:click={() => addonsOpen=false}><ArcIcon name="back" size={20} weight="bold" /></button><h1>Трафик и устройства</h1></header>
           <section class="addon-block"><h2>Трафик на обход глушилок</h2><div class="addon-grid">
             {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
               <button class:active={addonLteGb===pack[0]} aria-pressed={addonLteGb===pack[0]} disabled={Boolean(addonBusy)} on:click={() => addonLteGb=addonLteGb===pack[0]?0:pack[0]}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
             {/each}
           </div><small>Докупленные ГБ действуют до следующего сброса трафика.</small></section>
           <section class="addon-block"><h2>Устройства</h2><div class="device-stepper"><button aria-label="Уменьшить количество устройств" disabled={addonDevices<=0||Boolean(addonBusy)} on:click={() => addonDevices--}>−</button><strong>{addonDevices}</strong><button aria-label="Увеличить количество устройств" disabled={addonDevices>=addonDeviceMax||Boolean(addonBusy)} on:click={() => addonDevices++}>+</button></div><small>25 ₽ за устройство · максимум 15 устройств в подписке.</small></section>
-          <section class="purchase-total"><div class="total-row"><span>Выбрано</span><small>{addonLteGb ? `${addonLteGb} ГБ` : 'без трафика'} · {addonDevices} устр.</small></div><button disabled={!addonTotalRub||Boolean(addonBusy)} on:click={addonPurchaseAction}><span>{paymentState==='awaiting'?'Открыть оплату снова':'Выбрать способ оплаты'}</span><strong>{rub(addonTotalRub)}</strong></button></section>
+          <section class="purchase-total"><div class="total-row"><span>Выбрано</span><small>{addonLteGb ? `${addonLteGb} ГБ` : 'без трафика'} · {addonDevices} устр.</small></div><button disabled={!addonTotalRub||Boolean(addonBusy)} on:click={addonPurchaseAction}><span>{paymentState==='awaiting'?'Открыть оплату снова':addonTotalRub?'Выбрать способ оплаты':'Выберите трафик или устройство'}</span>{#if addonTotalRub}<strong>{rub(addonTotalRub)}</strong>{/if}</button></section>
           {#if paymentMessage}<p class="purchase-error" role="status">{paymentMessage}</p>{/if}
           {#if paymentMethodOpen}
-            <div class="payment-method-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор способа оплаты" on:click={closePaymentBackdrop} on:keydown={paymentBackdropKey} transition:fade={{duration:140}}><section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="addon-payment-title" transition:fly={{y:28,duration:220,easing:cubicOut}}><header><h2 id="addon-payment-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header><div class="payment-options"><button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{#if selectedPaymentMethod==='sbp'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button><button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Мир, Visa и Mastercard</small></span><em>{#if selectedPaymentMethod==='card'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button></div><button class="method-confirm" disabled={Boolean(addonBusy)} on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':'картой'} · {rub(addonTotalRub)}</button></section></div>
+            <div class="payment-method-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор способа оплаты" on:click={closePaymentBackdrop} on:keydown={paymentBackdropKey} transition:fade={{duration: reducedMotion ? 0 : 140}}><section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="addon-payment-title" use:dialogFocus={() => paymentMethodOpen=false} transition:fly={{y:28,duration: reducedMotion ? 0 : 220,easing:cubicOut}}><header><h2 id="addon-payment-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header><div class="payment-options"><button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{#if selectedPaymentMethod==='sbp'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button><button class:active={selectedPaymentMethod==='card'} on:click={() => selectedPaymentMethod='card'}><i><svg class="pay-symbol card" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="7" width="24" height="18" rx="5"/><path d="M4 13h24M9 20h7"/></svg></i><span><b>Картой</b><small>Мир, Visa и Mastercard</small></span><em>{#if selectedPaymentMethod==='card'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button></div><button class="method-confirm" disabled={Boolean(addonBusy)} on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':'картой'} · {rub(addonTotalRub)}</button></section></div>
           {/if}
         </section>
       {:else if purchaseOpen}
         <section class="screen purchase-screen" aria-label="Покупка подписки">
-          <button class="purchase-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}>
-            <ArcIcon name="back" size={20} weight="bold" /><span>Назад</span>
-          </button>
-          <header class="purchase-head native-back-head">
-            <div><h1>{purchaseCustom ? 'Соберите свой тариф' : 'Выберите свой ритм подключения'}</h1><span>{purchaseCustom ? 'Платите только за нужные устройства и запас обходного трафика.' : 'Срок, устройства и запас трафика — в одной подписке.'}</span></div>
+          <header class="purchase-toolbar">
+            <button class="purchase-back system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button>
+            <h1>{purchaseCustom ? 'Свой тариф' : 'Подписка'}</h1>
           </header>
 
           {#if purchaseCustom}
@@ -1088,7 +1181,7 @@
                   <input aria-label="Количество устройств" type="range" min="1" max="15" step="1" bind:value={customDevices} on:change={() => setCustomDevices(customDevices)} />
                   <button aria-label="Увеличить количество устройств" disabled={customDevices>=15} on:click={() => setCustomDevices(Number(customDevices)+1)}>+</button>
                 </div>
-                <small>Одновременно можно подключить до {customDevices} {customDevices === 1 ? 'устройства' : 'устройств'}.</small>
+                <small>До {customDevices} {customDevices === 1 ? 'устройства' : 'устройств'} одновременно.</small>
               </div>
               <div class="custom-control">
                 <header><span>Обход глушилок</span><strong>{customLteGb ? `${customLteGb} ГБ` : 'Не нужен'}</strong></header>
@@ -1097,19 +1190,24 @@
                 </div>
                 <small>Основной трафик остаётся безлимитным на любом варианте.</small>
               </div>
-              <div class="custom-quote" aria-live="polite"><span>Ваш тариф<small>{customMonths} мес. · {customDevices} устр. · {customLteGb} ГБ обхода</small>{#if customMonths > 1 && customSavingsRub > 0}<small class="custom-saving">Выгода {rub(customSavingsRub)}</small>{/if}</span><strong>{#if customMonths > 1 && customSavingsRub > 0}<del>{rub(customComparisonRub)}</del>{/if}{rub(customBaseRub)}<small>{rub(Math.round(customBaseRub/customMonths))} / мес</small></strong></div>
+              <div class="custom-quote" aria-live="polite"><div class="custom-summary"><span>Ваш тариф</span><dl><div><dt>Срок</dt><dd>{customMonths} мес.</dd></div><div><dt>Устройства</dt><dd>{customDevices}</dd></div><div><dt>Обход</dt><dd>{customLteGb} ГБ</dd></div></dl>{#if customMonths > 1 && customSavingsRub > 0}<small class="custom-saving">Выгода {rub(customSavingsRub)}</small>{/if}</div><div class="custom-price">{#if customMonths > 1 && customSavingsRub > 0}<del>{rub(customComparisonRub)}</del>{/if}<strong>{rub(customBaseRub)}</strong><small>{rub(Math.round(customBaseRub/customMonths))} / мес</small></div></div>
             </section>
           {:else}
+            <nav class="product-switch" aria-label="Выбор тарифа">
+              {#each [['economy','Эконом'],['standard','Стандарт'],['family','Семейный']] as product}
+                <button class:active={selectedProduct===product[0]} aria-pressed={selectedProduct===product[0]} on:click={()=>chooseProduct(product[0])}>{product[1]}</button>
+              {/each}
+            </nav>
             {#if plans.length}
               <div class="plan-viewport">
                 <button class="plan-arrow previous" aria-label="Предыдущий период" disabled={productPlans.findIndex((plan) => plan.id === selectedPlanId) <= 0} on:click={() => movePlan(-1)}><ArcIcon name="back" size={22} weight="bold" /></button>
                 <div class="plan-strip" bind:this={planStrip} aria-label="Выбор тарифа">
                   {#each productPlans as plan, planIndex}
-                    <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
-                      <span>{planPeriod(plan)}</span>
-                      {#if planBadge(plan)}<em>{planBadge(plan)}</em>{/if}
-                      <strong>{rub(planMonthly(plan))} <b>/ мес</b></strong>
-                      <small>{planPeriod(plan)} · всего {rub(plan.price_rub)}</small>
+                    <button class="plan-card" data-plan-index={planIndex} class:active={selectedPlanId === plan.id} aria-pressed={selectedPlanId === plan.id} on:click={() => choosePlan(plan.id)}>
+                      <span class="plan-term">{planPeriod(plan)}</span>
+                      <em class="plan-badge" class:empty={!planBadge(plan)} aria-hidden={!planBadge(plan)}>{planBadge(plan) || " "}</em>
+                      <strong><span class="plan-money">{rub(planMonthly(plan))}</span><b>/ мес</b></strong>
+                      <small>Всего <span class="plan-money">{rub(plan.price_rub)}</span></small>
                       {#if selectedPlanId === plan.id}<i><ArcIcon name="check" size={15} weight="bold" /></i>{/if}
                     </button>
                   {/each}
@@ -1121,23 +1219,16 @@
             {/if}
 
             <section class="purchase-config plan-summary" aria-live="polite">
-              <div class="config-copy"><h2>{productTitle(selectedProduct)}</h2><p>{productDescription(selectedPlan)}</p></div>
+              <div class="config-copy">{#key selectedPlanId}<dl class="plan-composition" in:fly={{y:reducedMotion?0:5,duration:reducedMotion?0:180}}>{#each productDescription(selectedPlan) as row}<div><dt>{row[0]}</dt><dd>{row[1]}</dd></div>{/each}</dl>{/key}</div>
             </section>
 
-            <nav class="product-switch" aria-label="Выбор тарифа">
-              {#each [['economy','Эконом'],['standard','Стандарт'],['family','Семейный']] as product}
-                <button class:active={selectedProduct===product[0]} aria-pressed={selectedProduct===product[0]} on:click={()=>chooseProduct(product[0])}>{product[1]}</button>
-              {/each}
-            </nav>
+            <nav class="purchase-utilities" aria-label="Другие варианты">
             <button class="custom-tariff-open" on:click={openCustomTariff}><ArcIcon name="settings" size={18} weight="duotone" /><span>Создать свой тариф</span><ArcIcon name="arrow" size={17} weight="bold" /></button>
             {#if primary?.is_active}<button class="custom-tariff-open" on:click={() => { addonsOpen=true; purchaseOpen=false; window.scrollTo({top:0,behavior:'instant'}) }}><ArcIcon name="wallet" size={18} weight="duotone" /><span>Докупить трафик или устройства</span><ArcIcon name="arrow" size={17} weight="bold" /></button>{/if}
+            </nav>
           {/if}
 
           <section class="purchase-total">
-            <div class="total-row"><span><ArcIcon name="calendar" size={18} weight="duotone" />{purchaseCustom ? `${purchaseMonths} мес. · свой тариф` : selectedPlan ? planPeriod(selectedPlan) : 'Тариф'}</span><small>{rub(purchaseBaseRub)}</small></div>
-            <div class="total-row"><span><ArcIcon name="devices" size={18} weight="duotone" />{purchaseDevices} {purchaseDevices === 3 ? 'устройства' : 'устройств'}</span><small>включено</small></div>
-            <div class="total-row"><span><ArcIcon name="lte" size={19} />Основной трафик: безлимит</span><small>включено</small></div>
-            <div class="total-row"><span><ArcIcon name="lte" size={19} />Обход глушилок: {purchaseLteGb ? `${purchaseLteGb} ГБ` : 'нет'}</span><small>{purchaseLteGb ? 'включено' : '—'}</small></div>
             {#if paymentState !== 'idle'}
               <div class="payment-state" class:success={paymentState === 'success'} class:canceled={paymentState === 'canceled'} class:review={paymentState === 'review'} role="status" aria-live="polite">
                 <span class="payment-state-icon">
@@ -1158,12 +1249,11 @@
             </button>
             {#if paymentOrderId && paymentState === 'awaiting'}<button class="payment-check" disabled={paymentChecking} on:click={() => checkPayment(false)}>Проверить сейчас</button>{/if}
             {#if paymentState === 'idle' && paymentMessage}<p class="purchase-error" role="alert">{paymentMessage}</p>{/if}
-            <p>{rub(purchaseMonthlyRub)} в месяц · настройки сохранятся для выбранной подписки</p>
           </section>
 
           {#if paymentMethodOpen}
-            <div class="payment-method-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор способа оплаты" on:click={closePaymentBackdrop} on:keydown={paymentBackdropKey} transition:fade={{duration:140}}>
-              <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" transition:fly={{y:28,duration:220,easing:cubicOut}}>
+            <div class="payment-method-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор способа оплаты" on:click={closePaymentBackdrop} on:keydown={paymentBackdropKey} transition:fade={{duration: reducedMotion ? 0 : 140}}>
+              <section class="payment-method-sheet" role="dialog" aria-modal="true" aria-labelledby="payment-method-title" use:dialogFocus={() => paymentMethodOpen=false} transition:fly={{y:28,duration: reducedMotion ? 0 : 220,easing:cubicOut}}>
                 <header><h2 id="payment-method-title">Способ оплаты</h2><button aria-label="Закрыть" on:click={() => paymentMethodOpen=false}>×</button></header>
                 <div class="payment-options">
                   <button class:active={selectedPaymentMethod==='sbp'} on:click={() => selectedPaymentMethod='sbp'}><i><img class="pay-symbol sbp" src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /></i><span><b>СБП</b><small>Через приложение вашего банка</small></span><em>{#if selectedPaymentMethod==='sbp'}<ArcIcon name="check" size={15} weight="bold" />{/if}</em></button>
@@ -1181,7 +1271,7 @@
       {:else if connectOpen}
         <section class="screen connect-page" aria-label="Подключение VPN">
           <header class="connect-page-head">
-            <button class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /><span>Назад</span></button>
+            <button class="system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button>
             <div>
               <h1>{connectStage === 'device' ? 'Выберите устройство' : connectStage === 'app' ? 'Какое приложение?' : 'Добавьте ArcVPN'}</h1>
               <p>{connectStage === 'device' ? 'Ссылка уже готова — осталось выбрать платформу.' : connectStage === 'app' ? 'Выберите приложение, которое подходит под ваши задачи.' : `Завершите настройку в ${currentConnectApp.label}.`}</p>
@@ -1329,27 +1419,24 @@
         </section>
 
       {:else if active === 'friends'}
-        <section class="screen inner-screen" aria-label="Друзья">
-          <header class="section-head referral-page-head"><h1>Реферальная<br />программа.</h1></header>
-
+        <section class="screen inner-screen referral-screen" aria-label="Друзья">
           <article class="referral-hero">
-            <img class="referral-gift-art" src={`${asset}/referral-gift-phone-v4.png`} alt="Подарок вылетает из телефона" />
+            <div class="referral-art"><img class="referral-gift-art" src={`${asset}/referral-gift-phone-v4.png`} alt="" /></div>
             <div class="referral-copy">
-              <h2>Приглашайте друзей</h2>
+              <h1>Приглашайте друзей</h1>
               <p>+{referralEntryBonus} дней за первый вход друга · +{referralBonus} дней после первой покупки вам и другу</p>
             </div>
           </article>
 
           <div class="metric-grid">
-            <article><span>Приглашено</span><strong>{ref.total_invited ?? 0}</strong><small>друзей</small></article>
-            <article><span>Получено</span><strong>{ref.earned_days ?? 0}</strong><small>дней</small></article>
+            <article in:fly={{y:reducedMotion?0:10,delay:reducedMotion?0:70,duration:reducedMotion?0:260}}><span>Приглашено</span><strong>{ref.total_invited ?? 0}</strong><small>друзей</small></article>
+            <article in:fly={{y:reducedMotion?0:10,delay:reducedMotion?0:120,duration:reducedMotion?0:260}}><span>Получено</span><strong>{ref.earned_days ?? 0}</strong><small>дней</small></article>
           </div>
-
           <section class="content-block">
             <div class="block-title"><div><span>Ваша ссылка</span><small>Скопируйте её и отправьте другу</small></div><ArcIcon name="link" size={21} weight="duotone" /></div>
             <div class="link-switch" class:telegram={referralLinkType === 'telegram'} aria-label="Вид реферальной ссылки">
-              <button class:active={referralLinkType === 'site'} on:click={() => (referralLinkType = 'site')}>Для сайта</button>
-              <button class:active={referralLinkType === 'telegram'} on:click={() => (referralLinkType = 'telegram')}>Для Telegram</button>
+              <button class:active={referralLinkType === 'site'} aria-pressed={referralLinkType === 'site'} on:click={() => (referralLinkType = 'site')}>Для сайта</button>
+              <button class:active={referralLinkType === 'telegram'} aria-pressed={referralLinkType === 'telegram'} on:click={() => (referralLinkType = 'telegram')}>Для Telegram</button>
             </div>
             <button class="referral-link" disabled={!currentReferralLink} on:click={() => copyText(currentReferralLink, 'Реферальная ссылка скопирована')}><span>{currentReferralLink || 'Ссылка загружается…'}</span><i><ArcIcon name="copy" size={19} weight="bold" /></i></button>
             <button class="qr-referral" disabled={!currentReferralLink} on:click={openReferralQr}><ArcIcon name="qr" size={19} weight="bold" />Показать QR-код</button>
@@ -1357,31 +1444,40 @@
         </section>
 
       {:else if active === 'support'}
-        <section class="screen inner-screen" class:chat-screen={supportChatOpen} aria-label="Поддержка">
+        <section class="screen inner-screen" class:chat-screen={supportChatOpen} class:support-screen={!supportChatOpen} aria-label="Поддержка">
           {#if supportChatOpen}
-            <header class="section-head subpage-head chat-head native-back-head"><div><h1>Чат с менеджером</h1></div></header>
-            <section class="support-chat" aria-live="polite">
-              {#if !supportMessages.length}<div class="chat-row incoming"><span class="care-avatar"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></span><div class="chat-welcome"><b>Поддержка ArcVPN</b><span>Здравствуйте 👋 Опишите вопрос. Менеджер ответит здесь, а бот пришлёт уведомление.</span></div></div>{/if}
-              {#each supportTimeline as message}
+            <header class="chat-toolbar">
+              <button class="system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={closeSupportChat}><ArcIcon name="back" size={20} weight="bold" /></button>
+              <div><h1>Поддержка ArcVPN</h1><p>{supportAiEnabled ? 'ИИ помогает сразу · менеджер тоже видит диалог' : 'Менеджер ответит в этом чате'}</p></div>
+            </header>
+            <section class="support-chat" bind:this={supportHistory} role="log" aria-label="История диалога" aria-live="polite" aria-relevant="additions text">
+              {#if supportLoading && !supportMessages.length}<p class="chat-placeholder" role="status">Загружаем диалог…</p>
+              {:else if !supportMessages.length && !supportError}<div class="chat-empty"><ArcIcon name="chat" size={28} weight="duotone" /><h2>Чем можем помочь?</h2><p>Опишите вопрос или выберите тему ниже.<br />Ответ появится здесь.</p></div>{/if}
+              {#each supportTimeline as message (message.id)}
                 {#if message.showDay}<div class="chat-day"><span>{message.dayLabel}</span></div>{/if}
-                <div class:mine={message.sender === 'user'} class:incoming={message.sender !== 'user'} class="chat-row">
-                  {#if message.sender !== 'user'}<span class="care-avatar"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="Arc Care" /></span>{/if}
-                  <article class:mine={message.sender === 'user'} class="chat-message">{#if message.sender !== 'user'}<b>Поддержка ArcVPN</b>{/if}<p>{message.body}</p><small>{chatTime(message.created_at)}</small></article>
+                <div class:mine={message.sender === 'user'} class:incoming={message.sender !== 'user'} class="chat-row" in:fly={{ y: reducedMotion ? 0 : 6, duration: reducedMotion ? 0 : 180 }}>
+                  <article class:mine={message.sender === 'user'} class="chat-message">{#if message.sender !== 'user'}<b>{message.is_ai ? 'ИИ-помощник ArcVPN' : 'Поддержка ArcVPN'}</b>{/if}<p>{message.body}</p><small>{chatTime(message.created_at)}</small></article>
                 </div>
               {/each}
-              {#if supportError}<p class="chat-error">{supportError}</p>{/if}
+              {#if supportError}<div class="chat-error" role="alert"><p>{supportError}</p><button disabled={supportBusy} on:click={() => supportSendFailed ? submitSupportMessage() : loadSupportMessages()}>Повторить</button></div>{/if}
+              {#if supportAiPending}<div class="chat-typing" role="status" aria-live="polite"><span aria-hidden="true"><i></i><i></i><i></i></span>ИИ готовит ответ</div>{/if}
             </section>
             <div class="chat-input-zone">
-              <div class="chat-quick" aria-label="Быстрые вопросы">
-                {#each quickSupportQuestions as question}<button disabled={supportBusy} on:click={() => sendQuickSupportQuestion(question)}>{question}</button>{/each}
-              </div>
+              <button class="chat-topic-trigger" bind:this={supportTopicTrigger} aria-haspopup="dialog" aria-expanded={supportTopicOpen} aria-controls="support-topics" disabled={supportBusy} on:click={openSupportTopics}><ArcIcon name="chat" size={17} />{supportInput.trim() ? 'Добавить шаблон' : 'Выбрать тему'}<ArcIcon name="caret" size={14} /></button>
               <form class="chat-compose" on:submit|preventDefault={submitSupportMessage}>
-                <textarea rows="1" maxlength="2000" bind:value={supportInput} placeholder="Опишите свой вопрос" aria-label="Сообщение поддержке"></textarea>
+                <textarea rows="1" maxlength="2000" bind:this={supportComposer} bind:value={supportInput} use:composerSize={supportInput} placeholder="Напишите сообщение…" aria-label="Сообщение поддержке"></textarea>
                 <button aria-label="Отправить" disabled={supportBusy || !supportInput.trim()}><ArcIcon name="send" size={19} weight="bold" /></button>
               </form>
             </div>
+            {#if supportTopicOpen}
+              <div class="support-topic-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор темы" on:click={() => supportTopicOpen = false} on:keydown={(event) => { if (event.key === 'Escape' || event.key === 'Enter') supportTopicOpen = false }} transition:fade={{duration:reducedMotion?0:140}}></div>
+              <section id="support-topics" class="support-topic-panel" style:left={`${supportTopicPlacement.left}px`} style:bottom={`${supportTopicPlacement.bottom}px`} style:max-height={`${supportTopicPlacement.maxHeight}px`} role="dialog" aria-modal="true" aria-labelledby="support-topics-title" use:dialogFocus={() => supportTopicOpen=false} transition:topicExpand={{duration:reducedMotion?0:280}}>
+                <header><div><h2 id="support-topics-title">С чем помочь?</h2><p>Готовое сообщение появится в поле ввода.</p></div><button aria-label="Закрыть выбор темы" on:click={() => supportTopicOpen=false}><ArcIcon name="close" size={19}/></button></header>
+                <div class="support-topic-list">{#each supportTopics as topic}<button on:click={() => chooseSupportTopic(topic)}><span><b>{topic.title}</b><small>{topic.hint}</small></span><ArcIcon name="arrow" size={17}/></button>{/each}</div>
+              </section>
+            {/if}
           {:else}
-            <header class="section-head"><h1>Помощь без<br />лишних кругов.</h1></header>
+            <header class="section-head"><h1>Поддержка</h1></header>
 
             <article class="support-hero">
               <div><span>Живой чат</span><h2>Мы рядом</h2><p>Напишите менеджеру — история обращения сохранится.</p><button on:click={openSupport}><ArcIcon name="chat" size={19} weight="duotone" />Перейти в чат</button></div>
@@ -1391,9 +1487,9 @@
             <section class="faq-section">
               <div class="section-label"><span>Частые вопросы</span><small>{faqs.length} ответа</small></div>
               {#each faqs as faq, i}
-                <button class="faq" class:open={openFaq === i} on:click={() => toggleFaq(i)}>
+                <button class="faq" class:open={openFaq === i} aria-expanded={openFaq === i} aria-controls={`support-answer-${i}`} on:click={() => toggleFaq(i)}>
                   <span class="faq-number">{i + 1}</span>
-                  <span class="faq-copy"><b>{faq[0]}</b>{#if openFaq === i}<small>{faq[1]}</small>{/if}</span>
+                  <span class="faq-copy"><b>{faq[0]}</b>{#if openFaq === i}<small id={`support-answer-${i}`} transition:slide={{duration: reducedMotion ? 0 : 200}}>{faq[1]}</small>{/if}</span>
                   <i><ArcIcon name="caret" size={18} weight="bold" /></i>
                 </button>
               {/each}
@@ -1512,8 +1608,8 @@
   {/key}
 
   {#if account?.identity_source === 'email' && ['available','pending','created'].includes(account?.paid_trial_offer) && !primary?.is_active && !paymentOrderId && !paidTrialDismissed}
-    <div class="paid-trial-backdrop" transition:fade={{duration:160}}>
-      <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" transition:fly={{y:24,duration:220,easing:cubicOut}}>
+    <div class="paid-trial-backdrop" transition:fade={{duration: reducedMotion ? 0 : 160}}>
+      <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" transition:fly={{y:24,duration: reducedMotion ? 0 : 220,easing:cubicOut}}>
         <span class="paid-trial-kicker">ПРЕДЛОЖЕНИЕ ДЛЯ НОВОГО АККАУНТА</span>
         <h2 id="paid-trial-title">Попробуйте ArcVPN за 10 ₽</h2>
         <p>Standard на 7 дней: основной трафик безлимитный, обход глушилок — 5 ГБ, до 3 устройств.</p>
@@ -1531,8 +1627,8 @@
   {/if}
 
   {#if logoutConfirmOpen}
-    <div class="logout-backdrop" transition:fade={{duration:150}}>
-      <section class="logout-dialog" role="dialog" aria-modal="true" aria-labelledby="logout-title" transition:fly={{y:18,duration:200,easing:cubicOut}}>
+    <div class="logout-backdrop" transition:fade={{duration: reducedMotion ? 0 : 150}}>
+      <section class="logout-dialog" role="dialog" aria-modal="true" aria-labelledby="logout-title" transition:fly={{y:18,duration: reducedMotion ? 0 : 200,easing:cubicOut}}>
         <i><ArcIcon name="logout" size={24} weight="bold" /></i>
         <h2 id="logout-title">Выйти из аккаунта?</h2>
         <p>Вы уверены, что хотите выйти из аккаунта ArcVPN на этом устройстве?</p>
@@ -1542,9 +1638,9 @@
   {/if}
 
   {#if referralQrOpen}
-    <div class="qr-backdrop" role="presentation" transition:fade={{duration:150}}>
+    <div class="qr-backdrop" role="presentation" transition:fade={{duration: reducedMotion ? 0 : 150}}>
       <button class="qr-dismiss" aria-label="Закрыть QR-код" on:click={() => referralQrOpen=false}></button>
-      <section class="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title" transition:fly={{y:18,duration:200,easing:cubicOut}}>
+      <section class="qr-dialog" role="dialog" aria-modal="true" aria-labelledby="qr-title" use:dialogFocus={() => referralQrOpen=false} transition:fly={{y:18,duration: reducedMotion ? 0 : 200,easing:cubicOut}}>
         <button class="qr-close" aria-label="Закрыть" on:click={() => referralQrOpen=false}>×</button>
         <h2 id="qr-title">Ваш QR-код</h2>
         <p>Друг отсканирует его и откроет вашу персональную ссылку ArcVPN.</p>
@@ -1554,7 +1650,7 @@
     </div>
   {/if}
 
-  {#if $status.loaded && $status.error !== 'unauthorized' && !purchaseOpen && !addonsOpen && !connectOpen}<div class="dock">
+  {#if $status.loaded && $status.error !== 'unauthorized' && !purchaseOpen && !addonsOpen && !connectOpen && !supportChatOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
       <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
     </div>
@@ -1566,6 +1662,7 @@
       {/each}
     </nav>
   </div>{/if}
+  {#if $toastMsg}<div class="copy-toast" class:without-dock={purchaseOpen || addonsOpen || connectOpen || supportChatOpen} role="status" aria-live="polite" aria-atomic="true" transition:fly={{y:reducedMotion?0:10,duration:reducedMotion?0:220,easing:cubicOut}}><i><ArcIcon name="check" size={18} weight="bold" /></i><span>{$toastMsg}</span></div>{/if}
 </div>
 
 <style>
@@ -1624,13 +1721,7 @@
   .referral-hero, .support-hero { position: relative; min-height: 190px; overflow: hidden; margin-top: 28px; padding: 23px; border: 1px solid rgba(146,200,242,.16); border-radius: 28px; background: linear-gradient(135deg,rgba(42,115,179,.22),rgba(7,13,23,.82) 58%); box-shadow: inset 0 1px 0 rgba(255,255,255,.05); }
   .referral-hero::before, .support-hero::before { content: ''; position: absolute; right: -45px; bottom: -60px; width: 240px; height: 240px; border-radius: 50%; background: radial-gradient(circle,rgba(92,187,241,.22),rgba(35,105,171,.08) 48%,transparent 70%); filter: blur(10px); }
   .referral-copy { position: relative; z-index: 2; max-width: 190px; }
-  .referral-copy > span, .support-hero > div > span { color: #91a5b8; font-size: 10.5px; font-weight: 700; }
-  .referral-copy h2 { max-width: 145px; margin: 7px 0 0; font-size: 24px; line-height: 1; letter-spacing: -.045em; }
-  .referral-copy strong { display: block; margin-top: 10px; font-size: 35px; line-height: 1; letter-spacing: -.055em; }
-  .referral-rewards { display: flex; align-items: stretch; gap: 8px; margin-top: 12px; }
-  .referral-rewards strong { min-width: 78px; margin: 0; padding: 10px 11px; border-radius: 16px; background: rgba(151,210,250,.1); font-size: 27px; letter-spacing: -.045em; }
-  .referral-rewards strong:last-child { background: rgba(151,210,250,.17); }
-  .referral-rewards small { display: block; max-width: 68px; margin-top: 5px; color: #c6d8e7; font-size: 8.5px; font-weight: 700; line-height: 1.2; letter-spacing: 0; }
+  .support-hero > div > span { color: #91a5b8; font-size: 10.5px; font-weight: 700; }
   .referral-copy p { max-width: 150px; margin: 8px 0 0; color: #9eacbb; font-size: 11px; line-height: 1.45; }
   .referral-hero img.referral-gift-art { position: absolute; right: -24px; bottom: -18px; width: 205px; height: 205px; object-fit: contain; filter: drop-shadow(0 0 18px rgba(87,180,237,.2)); animation: referralFloat 4.6s ease-in-out infinite; }
   @keyframes referralFloat { 0%,100% { transform: translate3d(0,2px,0) rotate(-1deg); } 50% { transform: translate3d(0,-9px,0) rotate(1.5deg); } }
@@ -1650,15 +1741,7 @@
   .referral-link { width: 100%; min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 10px 0 16px; border: 1px solid var(--border); border-radius: 18px; background: rgba(8,15,26,.82); color: #b5c1ce; }
   .referral-link span { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
   .referral-link i { width: 40px; height: 40px; display: grid; flex: none; place-items: center; border-radius: 13px; color: #0a1a28; background: #75c6f3; }
-  .share-referral { width: 100%; min-height: 48px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 9px; border: 1px solid rgba(105,190,244,.44); border-radius: 16px; color: #83cff9; background: rgba(10,26,43,.38); font-size: 11.5px; font-weight: 800; }
   .qr-referral { width:100%; min-height:46px; display:flex; align-items:center; justify-content:center; gap:8px; margin-top:12px; border:0; color:#dceefb; background:transparent; font-size:11.5px; font-weight:800; }
-  .steps { margin-top: 20px; padding: 4px 16px; border: 1px solid var(--border); border-radius: 22px; background: rgba(7,13,23,.62); }
-  .steps > div { display: flex; align-items: center; gap: 12px; padding: 13px 0; }
-  .steps > div + div { border-top: 1px solid rgba(255,255,255,.06); }
-  .steps i { width: 26px; height: 26px; display: grid; flex: none; place-items: center; border-radius: 9px; color: #9edbff; background: rgba(80,174,232,.13); font-size: 10px; font-style: normal; font-weight: 800; }
-  .steps span { display: flex; flex-direction: column; }
-  .steps b { font-size: 11.5px; }
-  .steps small { margin-top: 2px; color: var(--faint); font-size: 9.5px; }
   .support-hero { min-height: 205px; }
   .support-hero > div { position: relative; z-index: 2; max-width: 205px; }
   .support-hero h2 { margin: 7px 0 0; font-size: 27px; letter-spacing: -.04em; }
@@ -1695,38 +1778,10 @@
   .setting-row em { color: #6fc3f2; font-size: 10px; font-style: normal; font-weight: 800; }
   .setting-row em.connected { width: 27px; height: 27px; display: grid; place-items: center; border-radius: 10px; color: #092216; background: #71d5a4; }
   button:disabled { cursor: default; opacity: .55; }
-
-  .connect-overlay { position: fixed; z-index: 50; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-top: var(--safe-top-flow); }
-  .connect-backdrop { position: absolute; inset: 0; border-radius: 0; background: rgba(0,3,8,.66); backdrop-filter: blur(8px); }
-  .connect-sheet { position: relative; width: min(100%,480px); max-height: calc(100dvh - var(--safe-top-flow) - 12px); overflow-y: auto; padding: 10px 20px calc(24px + var(--safe-bottom-flow)); border: 1px solid rgba(164,210,249,.16); border-bottom: 0; border-radius: 30px 30px 0 0; background: linear-gradient(155deg,rgba(18,35,55,.98),rgba(4,9,17,.99) 42%); box-shadow: 0 -30px 90px rgba(0,0,0,.56),inset 0 1px 0 rgba(255,255,255,.06); }
-  .connect-sheet::before { content: ''; display: block; width: 40px; height: 4px; margin: 0 auto 14px; border-radius: 99px; background: rgba(177,207,233,.24); }
-  .connect-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-  .connect-head h2 { margin: 5px 0 0; font-size: 24px; line-height: 1.1; letter-spacing: -.045em; }
-  .connect-head > button { width: 44px; height: 44px; display: grid; flex: none; place-items: center; border: 1px solid var(--border); border-radius: 15px; color: #8f9caf; background: rgba(255,255,255,.035); }
-  .connect-note { max-width: 300px; margin: 12px 0 20px; color: #8c9bad; font-size: 11px; line-height: 1.5; }
-  .device-grid { display: grid; gap: 9px; }
-  .device-grid > button { position: relative; min-height: 68px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; border: 1px solid var(--border); border-radius: 19px; color: #a6b3c2; background: rgba(5,11,20,.52); text-align: left; }
-  .device-grid > button.active { color: #f6f9fc; border-color: rgba(108,192,241,.44); background: linear-gradient(135deg,rgba(86,171,226,.14),rgba(8,17,29,.7)); box-shadow: inset 0 1px 0 rgba(255,255,255,.04); }
-  .device-grid i { width: 42px; height: 42px; display: grid; flex: none; place-items: center; border-radius: 14px; color: #8dccf2; background: rgba(76,163,218,.1); }
-  .device-grid span { font-size: 12px; font-weight: 800; }
-  .device-grid em { width: 26px; height: 26px; display: grid; place-items: center; margin-left: auto; border-radius: 9px; color: #07141f; background: #83cef7; }
-  .sheet-primary, .sheet-secondary { width: 100%; min-height: 52px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 18px; border-radius: 17px; font-size: 12px; font-weight: 800; }
-  .sheet-primary { color: #06121e; background: linear-gradient(128deg,#b6e7ff,#69bff0); box-shadow: inset 0 1px 0 rgba(255,255,255,.68),0 18px 42px -26px rgba(74,169,230,.86); }
-  .sheet-secondary { color: #8ecff5; border: 1px solid rgba(105,190,244,.36); background: rgba(10,28,46,.3); }
-  .sheet-back { min-height: 44px; display: inline-flex; align-items: center; gap: 7px; margin: 10px 0 13px; color: #8e9bad; font-size: 10.5px; font-weight: 800; }
   .empty-connect { display: flex; align-items: center; flex-direction: column; padding: 25px 20px; border: 1px solid var(--border); border-radius: 22px; background: rgba(5,11,20,.5); text-align: center; }
   .empty-connect > :global(.arc-icon) { width: 48px; height: 48px; border-radius: 16px; color: #8fcff4; background: rgba(80,174,232,.11); }
   .empty-connect h3 { margin: 13px 0 6px; font-size: 15px; }
   .empty-connect p { max-width: 290px; margin: 0; color: #8291a3; font-size: 10.5px; line-height: 1.5; }
-  .guide-card { display: grid; grid-template-columns: 28px minmax(0,1fr) auto; align-items: center; gap: 10px; min-height: 84px; padding: 13px; border: 1px solid var(--border); border-radius: 20px; background: rgba(5,11,20,.54); }
-  .guide-card + .guide-card { margin-top: 9px; }
-  .guide-card > i { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 10px; color: #91d3f8; background: rgba(80,174,232,.12); font-size: 10px; font-style: normal; font-weight: 800; }
-  .guide-card > div { min-width: 0; display: flex; flex-direction: column; }
-  .guide-card b { font-size: 11px; }
-  .guide-card small { margin-top: 3px; color: #748397; font-size: 9px; line-height: 1.35; }
-  .guide-card > button { min-height: 44px; display: flex; align-items: center; gap: 4px; padding: 0 11px; border-radius: 13px; color: #07141f; background: #7ac8f3; font-size: 9px; font-weight: 800; }
-  .connect-success { display: flex; align-items: flex-start; gap: 8px; margin: 14px 2px 0; color: #738296; font-size: 9.5px; line-height: 1.45; }
-  .connect-success :global(.arc-icon) { margin-top: 1px; color: #74d2a4; }
 
   .dock { position: fixed; z-index: 20; left: 50%; bottom: calc(var(--safe-bottom-flow) + 12px); width: min(100%,460px); padding: 0 16px; transform: translateX(-50%); }
   .dock nav { display: flex; gap: 4px; padding: 7px; border: 1px solid rgba(163,207,248,.14); border-radius: 25px; background: rgba(5,11,20,.82); box-shadow: 0 24px 70px -28px rgba(0,0,0,.92),inset 0 1px 0 rgba(255,255,255,.045); backdrop-filter: blur(24px); }
@@ -1759,24 +1814,13 @@
   @keyframes aurora-two { 0% { border-radius: 61% 39% 36% 64%/43% 59% 41% 57%; transform: translate3d(7%,-14%,0) rotate(5deg) scale(.9); } 52% { border-radius: 39% 61% 67% 33%/63% 37% 58% 42%; transform: translate3d(-5%,22%,0) rotate(-14deg) scale(1.08); } 100% { border-radius: 55% 45% 39% 61%/35% 56% 44% 65%; transform: translate3d(4%,62%,0) rotate(10deg) scale(.98); } }
   @keyframes aurora-three { 0% { border-radius: 36% 64% 51% 49%/62% 43% 57% 38%; transform: translate3d(-32%,8%,0) rotate(-9deg); } 50% { border-radius: 58% 42% 65% 35%/42% 65% 35% 58%; transform: translate3d(2%,-8%,0) rotate(15deg) scale(1.08); } 100% { border-radius: 47% 53% 34% 66%/57% 39% 61% 43%; transform: translate3d(34%,5%,0) rotate(-5deg) scale(.95); } }
 
-  .flow-preview button, .flow-preview article, .flow-preview section, .flow-preview nav, .flow-preview input, .flow-preview textarea,
-  .link-switch, .guide-card, .empty-connect { border: 0; }
-  .flow-preview .stat, .flow-preview .shortcut, .flow-preview .referral-hero,
-  .flow-preview .support-hero, .flow-preview .metric-grid article, .flow-preview .link-switch,
-  .flow-preview .referral-link, .flow-preview .share-referral, .flow-preview .steps,
-  .flow-preview .faq, .flow-preview .profile-card,
-  .flow-preview .settings-group, .flow-preview .device-summary, .flow-preview .registered-device,
-  .flow-preview .preference-list > button, .flow-preview .email-connected,
-  .flow-preview .email-form, .flow-preview .agreement, .flow-preview .connect-sheet,
-  .flow-preview .device-grid > button, .flow-preview .empty-connect, .flow-preview .guide-card,
-  .flow-preview .dock nav, .flow-preview .chat-message, .flow-preview .chat-compose,
-  .flow-preview .purchase-config, .flow-preview .purchase-total,
-  .flow-preview .plan-card { border: 1px solid var(--hairline); }
+  .flow-preview button, .flow-preview article, .flow-preview section, .flow-preview nav, .flow-preview input, .flow-preview textarea, .link-switch, .empty-connect { border: 0; }
+  .flow-preview .stat, .flow-preview .shortcut, .flow-preview .referral-hero, .flow-preview .support-hero, .flow-preview .metric-grid article, .flow-preview .link-switch, .flow-preview .referral-link, .flow-preview .faq, .flow-preview .profile-card, .flow-preview .settings-group, .flow-preview .device-summary, .flow-preview .registered-device, .flow-preview .preference-list > button, .flow-preview .email-connected, .flow-preview .email-form, .flow-preview .agreement, .flow-preview .empty-connect, .flow-preview .dock nav, .flow-preview .chat-message, .flow-preview .chat-compose, .flow-preview .purchase-config, .flow-preview .purchase-total, .flow-preview .plan-card { border: 1px solid var(--hairline); }
   .screen { padding-inline: 20px; }
   .home-screen { padding-top: calc(var(--safe-top-flow) + 120px); }
   .brand { margin-bottom: 25px; filter: none; }
   .brand img { width: 21px; height: 20px; }
-  .eyebrow, .expires, .referral-copy p, .support-hero p, .block-title small, .section-label small, .steps small, .faq-copy small, .profile-card span, .setting-row small, .connect-note, .guide-card small, .connect-success { color: var(--muted); }
+  .eyebrow, .expires, .referral-copy p, .support-hero p, .block-title small, .section-label small, .faq-copy small, .profile-card span, .setting-row small { color: var(--muted); }
   .stat { min-height: 54px; border-radius: 18px; color: #99abc0; background: var(--surface); box-shadow: none; backdrop-filter: blur(16px); }
   .stat small { color: var(--faint); }
   .actions button { border-radius: 18px; }
@@ -1795,10 +1839,7 @@
   .link-switch button { border-radius: 10px; }
   .referral-link { border-radius: 20px; background: var(--surface); color: #c4ced9; }
   .referral-link i { border-radius: 10px; }
-  .share-referral { border-radius: 17px; color: #acdafa; background: var(--surface-raised); }
-  .steps { border-radius: 22px; background: var(--surface); }
-  .steps > div + div, .setting-row + .setting-row { border-top: 0; }
-  .steps > div + div { margin-top: 2px; }
+  .setting-row + .setting-row { border-top: 0; }
   .support-hero button { border-radius: 13px; }
   .faq { border-radius: 20px; background: var(--surface); }
   .profile-card { border-radius: 23px; background: linear-gradient(135deg,#132235,#0a121e); }
@@ -1808,14 +1849,8 @@
   .setting-row { min-height: 62px; }
   .setting-row > i { border-radius: 11px; }
   .setting-row em.connected { border-radius: 8px; }
-  .connect-sheet { border-radius: 30px 30px 0 0; background: linear-gradient(155deg,#152436,#060b13 45%); }
-  .connect-head > button { border-radius: 13px; background: var(--surface-raised); }
-  .device-grid > button { border-radius: 20px; background: var(--surface); }
-  .device-grid > button.active { background: #15283a; box-shadow: none; }
-  .device-grid i { border-radius: 10px; }
-  .sheet-secondary, .empty-connect, .guide-card { background: var(--surface); }
+  .empty-connect { background: var(--surface); }
   .empty-connect { border-radius: 22px; }
-  .guide-card { border-radius: 20px; }
   .dock nav { border-radius: 27px; background: rgba(8,15,24,.9); box-shadow: 0 24px 70px -28px rgba(0,0,0,.92); }
   .dock button { border-radius: 20px; }
 
@@ -1873,7 +1908,6 @@
   .agreement button { margin-top: 10px; }
   .login-screen { display: flex; justify-content: center; flex-direction: column; max-width: 460px; margin: auto; padding-bottom: calc(42px + var(--safe-bottom-flow)); }
   .session-loading{display:flex;align-items:center;justify-content:center;flex-direction:column;min-height:100dvh;text-align:center}.session-loading .brand{margin-bottom:24px}.session-loading>i{width:28px;height:28px;border:2px solid rgba(143,215,251,.18);border-top-color:#8fd7fb;border-radius:50%;animation:payment-spin .8s linear infinite}.session-loading>p{margin:12px 0 0;color:var(--muted);font-size:10px}
-  .login-screen .brand { justify-content: center; margin-bottom: 32px; }
   .login-screen .brand img { width: 30px; height: 30px; object-fit: contain; }
   .login-copy { text-align: center; }
   .login-copy h1 { margin: 0; font-size: 38px; line-height: 1.04; letter-spacing: -.055em; }
@@ -1898,11 +1932,6 @@
   .chat-day span { padding: 5px 8px; border-radius: 8px; background: var(--surface); }
   .chat-row { width: 100%; display: flex; align-items: flex-end; gap: 8px; }
   .chat-row.mine { justify-content: flex-end; }
-  .care-avatar { width: 34px; height: 34px; display: grid; flex: none; place-items: center; overflow: hidden; border: 1px solid rgba(175,220,255,.13); border-radius: 50%; background: radial-gradient(circle at 72% 78%,rgba(79,169,226,.55),transparent 54%),linear-gradient(145deg,#142640,#060b14); box-shadow: 0 10px 24px -14px rgba(54,154,218,.55); }
-  .care-avatar img { width: 23px; height: 23px; object-fit: contain; filter: brightness(0) invert(1); }
-  .chat-welcome { display: flex; flex-direction: column; max-width: 82%; padding: 13px 14px; border-radius: 18px 18px 18px 7px; background: var(--surface); }
-  .chat-welcome b { font-size: 11.5px; }
-  .chat-welcome span { margin-top: 5px; color: var(--muted); font-size: 10px; line-height: 1.45; }
   .chat-message { max-width: 82%; padding: 12px 13px 9px; border-radius: 18px 18px 18px 7px; background: #101a27; }
   .chat-message.mine { border-radius: 18px 18px 7px 18px; background: #173c59; }
   .chat-message p { margin: 0; color: #fff; font-size: 11px; font-weight: 500; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
@@ -1910,23 +1939,12 @@
   .chat-message small { display: block; margin-top: 6px; color: rgba(224,238,249,.7); font-size: 8px; text-align: right; }
   .chat-error { margin: 4px 0; padding: 10px 12px; border-radius: 11px; color: #f0b5b5; background: #211217; font-size: 9.5px; }
   .chat-input-zone { position: fixed; z-index: 19; left: 50%; bottom: calc(var(--safe-bottom-flow) + 87px); width: min(calc(100% - 40px),420px); transform: translateX(-50%); }
-  .chat-quick { display: flex; gap: 7px; overflow-x: auto; padding: 0 1px 9px; scrollbar-width: none; }
-  .chat-quick::-webkit-scrollbar { display: none; }
-  .chat-quick button { min-height: 34px; flex: none; padding: 0 12px; border: 1px solid rgba(177,215,246,.09); border-radius: 11px; color: #dceaf5; background: rgba(10,17,27,.92); font-size: 9px; font-weight: 700; backdrop-filter: blur(18px); }
-  .chat-quick button:disabled { opacity: .55; }
   .chat-compose { width: 100%; display: flex; align-items: flex-end; gap: 8px; padding: 7px; border-radius: 20px; background: #111b28; box-shadow: 0 20px 45px rgba(0,0,0,.38); }
   .chat-compose textarea { min-height: 42px; max-height: 116px; flex: 1; resize: none; padding: 12px 10px; outline: 0; color: var(--text); background: transparent; font: inherit; font-size: 11px; line-height: 1.4; }
   .chat-compose textarea::placeholder { color: #738296; }
   .chat-compose > button { width: 42px; height: 42px; display: grid; flex: none; place-items: center; border-radius: 12px; color: #06131e; background: #8bd2f7; }
-  .chat-head { position: relative; justify-content: center; text-align: center; }
-  .chat-head > div { width: 100%; }
-  .chat-head h1 { font-size: 25px; text-align: center; }
 
   .purchase-screen { max-width: 480px; margin: auto; padding-top: calc(var(--safe-top-flow) + 28px); padding-bottom: calc(var(--safe-bottom-flow) + 40px); }
-  .purchase-head { position: relative; min-height: 76px; text-align: center; }
-  .purchase-head > div { padding-inline: 0; }
-  .purchase-head h1 { margin: 0; font-size: 29px; line-height: 1.06; letter-spacing: -.05em; text-align: center; }
-  .purchase-head span { display: block; max-width: 310px; margin: 11px auto 0; color: var(--muted); font-size: 10.5px; line-height: 1.5; }
   .plan-viewport { position: relative; width: auto; overflow: hidden; margin: 28px -20px 0; }
   .plan-strip { width: 100%; display: flex; gap: 10px; overflow-x: auto; padding: 0 20px 8px; scroll-padding-inline: 20px; scrollbar-width: none; scroll-snap-type: x mandatory; }
   .plan-strip::-webkit-scrollbar { display: none; }
@@ -1941,11 +1959,9 @@
   .plan-card i { position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; display: grid; place-items: center; border-radius: 8px; color: #07131f; background: #91d7fb; }
   .purchase-empty { margin-top: 28px; padding: 24px; border-radius: 22px; color: var(--muted); background: var(--surface); text-align: center; }
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
-  .plan-summary{grid-template-columns:1fr}.plan-summary p{max-width:620px}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
-  .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-quote{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border:1px solid rgba(117,204,249,.28);border-radius:22px;background:linear-gradient(135deg,rgba(29,77,103,.68),rgba(10,22,34,.92));color:#f6fbff}.custom-quote>span,.custom-quote>strong{display:flex;flex-direction:column;gap:4px}.custom-quote>span{font-size:12px;font-weight:900}.custom-quote>strong{align-items:flex-end;font-size:24px;letter-spacing:-.04em}.custom-quote del{color:#7790a3;font-size:11px;font-weight:750;letter-spacing:0}.custom-quote small{color:#96aabc;font-size:8px;font-weight:700;letter-spacing:0}.custom-quote .custom-saving{color:#87d9ac;font-size:9px}
+  .plan-summary{grid-template-columns:1fr}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
+  .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-quote{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border:1px solid rgba(117,204,249,.28);border-radius:22px;background:linear-gradient(135deg,rgba(29,77,103,.68),rgba(10,22,34,.92));color:#f6fbff}.custom-quote del{color:#7790a3;font-size:11px;font-weight:750;letter-spacing:0}.custom-quote small{color:#96aabc;font-size:8px;font-weight:700;letter-spacing:0}.custom-quote .custom-saving{color:#87d9ac;font-size:9px}
   .addons-screen{gap:18px}.addon-block{padding:18px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.addon-block h2{margin:0 0 14px;font-size:15px}.addon-block>small{display:block;margin-top:10px;color:#8298ab;font-size:9px}.addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.addon-grid button{display:flex;align-items:center;justify-content:space-between;min-height:58px;padding:0 15px;border:1px solid rgba(123,203,247,.25);border-radius:16px;color:#eef8ff;background:#102131;font:inherit}.addon-grid button.active{border-color:#83d2fb;background:linear-gradient(135deg,rgba(37,110,144,.72),rgba(15,48,68,.88));box-shadow:inset 0 0 0 1px rgba(139,216,255,.12)}.addon-grid b{font-size:13px}.addon-grid span{color:#91d9ff;font-weight:900}.addon-grid button:disabled{opacity:.55}.addons-screen .device-stepper strong{text-align:center;color:#bce8ff;font-size:22px}
-  .config-copy h2 { max-width: 520px; margin: 0; font-size: 18px; line-height: 1.25; letter-spacing: -.025em; }
-  .config-copy p { max-width: 620px; margin: 10px 0 0; color: #c0ceda; font-size: 12px; font-weight:650; line-height: 1.55; }
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }
   .total-row { display: flex; align-items: center; justify-content: space-between; min-height: 34px; color: #d8e3ed; }
   .total-row span { display: flex; align-items: center; gap: 9px; font-size: 10.5px; font-weight: 700; }
@@ -2067,7 +2083,6 @@
     }
     .dock button.active { flex: none; }
     .purchase-screen { width: min(100%, 980px); display: flex; justify-content: center; flex-direction: column; padding-top: clamp(88px,12vh,150px); padding-bottom: clamp(64px,9vh,120px); }
-    .connect-sheet { max-width: 620px; }
     .inner-screen { width: min(100%, 620px); }
   }
   .promo-field{box-sizing:border-box;display:grid;grid-template-columns:24px 1fr auto;align-items:center;gap:12px;min-height:58px;margin:4px 0 16px;padding:0 10px 0 16px;border:1px solid rgba(166,211,244,.13);border-radius:18px;background:rgba(139,196,235,.055);color:#a9dcfb}.promo-field input{min-width:0;border:0;outline:0;box-shadow:none;background:transparent;color:#f8fbff;font:inherit;font-weight:700;text-transform:uppercase}.promo-field input::placeholder{color:#9cafc0;text-transform:none}.promo-field:focus-within{color:#e7f7ff}.promo-field button{min-height:38px;padding:0 12px;border:0;border-radius:11px;background:#18334a;color:#bde8ff;font-size:11px;font-weight:850}.promo-field button:disabled{cursor:not-allowed;opacity:.5}.promo-field button:focus-visible{outline:2px solid #9bd9ff;outline-offset:2px}.promo-message{margin:-7px 12px 16px!important;color:#ffb1b6!important;font-size:11px!important;text-align:left!important}.promo-message.success{color:#78e1b4!important}.payment-method-sheet{overflow:hidden}.payment-options>button{cursor:pointer}.method-confirm{box-shadow:inset 0 1px rgba(255,255,255,.5),0 16px 36px rgba(65,158,214,.18)}
@@ -2106,7 +2121,6 @@
   .purchase-total,
   .agreement { border-radius: var(--radius-card); }
   .metric-grid article,
-  .steps,
   .faq,
   .device-summary,
   .empty-connect { border-radius: var(--radius-inner); }
@@ -2117,8 +2131,7 @@
   .email-form,
   .email-connected,
   .preference-list > button,
-  .registered-device,
-  .guide-card { border-radius: var(--radius-inner); }
+  .registered-device { border-radius: var(--radius-inner); }
   .link-switch,
   .referral-link,
   .chat-compose { border-radius: var(--radius-card); }
@@ -2126,12 +2139,10 @@
   .setting-row em.connected,
   .avatar { border-radius: 50%; }
   .link-switch button { border-radius: var(--radius-pill); }
-  .share-referral { border-radius: var(--radius-pill); }
   .referral-link i { border-radius: 50%; }
   .setting-row > i,
   .registered-device > i,
-  .email-connected > i,
-  .device-grid i {
+  .email-connected > i {
     border-radius: 50%;
   }
   .desktop-back { position: fixed; z-index: 45; top: calc(var(--safe-top-flow) + 16px); left: 20px; min-height: 46px; display: flex; align-items: center; gap: 8px; padding: 0 16px; border: 1px solid var(--hairline); border-radius: var(--radius-pill); color: #dceaf5; background: rgba(9,17,28,.86); box-shadow: 0 18px 42px -28px rgba(0,0,0,.92); backdrop-filter: blur(20px); font-size: 11px; font-weight: 750; }
@@ -2306,12 +2317,6 @@
       padding-top: 54px;
       padding-bottom: 32px;
     }
-    .chat-screen .chat-head {
-      width: 100%;
-      min-height: 48px;
-      display: grid;
-      align-items: center;
-    }
     .chat-screen .chat-head h1 { font-size: 30px; }
     .chat-screen .support-chat {
       min-height: 0;
@@ -2323,10 +2328,6 @@
       position: static;
       width: 100%;
       transform: none;
-    }
-    .chat-screen .chat-quick {
-      justify-content: flex-start;
-      padding-bottom: 12px;
     }
     .chat-screen .chat-quick button {
       min-height: 40px;
@@ -2345,7 +2346,6 @@
     }
     .purchase-screen { width: min(100%, 1040px); }
     .inner-screen { width: min(100%, 700px); }
-    .connect-sheet { max-width: 680px; }
     .aurora-blob {
       opacity: .27;
       filter: blur(108px);
@@ -2432,17 +2432,13 @@
     transition: color .25s ease;
   }
   .link-switch button.active { color: #07131f; }
-  .steps i,
   .faq-number {
     border-radius: 50%;
   }
-  .device-grid em,
-  .device-grid i,
   .avatar,
   .setting-row em.connected {
     border-radius: 50%;
   }
-  .device-grid em { width: 30px; height: 30px; }
 
   @media (hover: hover) and (pointer: fine) {
     .actions button,
@@ -2451,17 +2447,13 @@
     .setting-row,
     .metric-grid article,
     .referral-link,
-    .share-referral,
-    .device-grid > button,
     .desktop-back,
     .dock button {
       transition: transform .2s ease, background-color .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease;
     }
     .actions button:hover,
     .shortcut:hover,
-    .metric-grid article:hover,
-    .share-referral:hover,
-    .device-grid > button:hover {
+    .metric-grid article:hover {
       transform: translateY(-2px);
     }
     .faq:hover,
@@ -2538,13 +2530,10 @@
     button:active { transform: none; }
   }
   /* Referral: one clear story, from reward to the link. */
-  .referral-page-head { display: block; margin-bottom: 0; }
-  .referral-page-head h1 { padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 31px; letter-spacing: -.055em; }
   .referral-hero { min-height: 320px; display: flex; align-items: center; flex-direction: column; justify-content: flex-end; overflow: visible; padding: 0 20px 22px; background: radial-gradient(circle at 50% 33%,rgba(50,145,204,.18),transparent 48%); text-align: center; }
   .referral-hero img.referral-gift-art { position: absolute; top: -8px; right: 50%; bottom: auto; width: 265px; height: 265px; object-fit: contain; transform: translateX(50%); filter: drop-shadow(0 24px 26px rgba(0,0,0,.42)) drop-shadow(0 0 24px rgba(75,171,232,.22)); }
   @keyframes referralFloat { 0%,100% { transform: translate3d(50%,3px,0) rotate(-1deg); } 50% { transform: translate3d(50%,-9px,0) rotate(1.5deg); } }
   .referral-copy { position: relative; z-index: 2; width: 100%; }
-  .referral-copy h2 { margin: 0; font-size: 27px; letter-spacing: -.045em; }
   .referral-copy p { max-width: 330px; margin: 8px auto 0; color: #b4c3d1; font-size: 11px; font-weight: 650; line-height: 1.5; }
   .content-block { padding: 18px; border: 1px solid var(--hairline); border-radius: 24px; background: var(--surface); }
   .content-block .referral-link { background: var(--surface-raised); }
@@ -2603,8 +2592,7 @@
     .connect-app-grid img { bottom: 34px; width: 180px; }
   }
   @media (max-width: 767px) {
-    .desktop-back.telegram-mobile-hidden, .purchase-back.telegram-mobile-hidden,
-    .connect-page-head > button.telegram-mobile-hidden { display: none; }
+    .desktop-back.telegram-mobile-hidden, .purchase-back.telegram-mobile-hidden, .connect-page-head > button.telegram-mobile-hidden { display: none; }
   }
   .flow-preview.login-mode{background:radial-gradient(95% 48% at 50% -10%,rgba(23,65,116,.17),transparent 68%),radial-gradient(80% 42% at 15% 108%,rgba(26,88,145,.12),transparent 72%),#02050b}
   .login-screen{position:relative;width:100%;max-width:none;display:grid;place-items:center;isolation:isolate;overflow:hidden;margin:0;padding:70px 24px!important;background:transparent;backdrop-filter:none}
@@ -2630,4 +2618,207 @@
   @media(min-width:900px){.login-screen{min-height:calc(100dvh - 64px)!important;width:calc(100% - 64px)!important;margin:32px!important;border-radius:34px}}
   @media(max-width:700px){.login-screen{min-height:100dvh;padding:72px 20px 48px!important}.login-copy h1{font-size:32px}.login-copy>span{font-size:10.5px}}
   .pay-symbol{width:28px;height:28px}.pay-symbol.sbp{width:24px;height:30px;object-fit:contain}.pay-symbol.card{fill:none;stroke:#f1f7fb;stroke-width:2;stroke-linecap:round}
+
+  /* Local refinement: preserve the cabinet, give each task its space. */
+  .screen.purchase-screen { width:min(100%,640px); max-width:640px; min-height:100dvh; margin-inline:auto; padding-top:calc(var(--safe-top-flow) + 18px); padding-bottom:calc(32px + var(--safe-bottom-flow)); }
+  .purchase-toolbar { display:flex; align-items:center; gap:14px; margin-bottom:22px; }
+  .purchase-toolbar h1 { margin:0; font-size:22px; font-weight:700; letter-spacing:-.035em; }
+  .purchase-toolbar .purchase-back { width:44px; height:44px; min-height:44px; justify-content:center; margin:0; padding:0; border-radius:50%; background:var(--surface); }
+  .purchase-screen .product-switch { margin:0; gap:4px; padding:4px; border-radius:18px; background:var(--surface); }
+  .product-switch button { font-size:14px; transition:background .22s ease,color .22s ease; }
+  .purchase-screen .plan-viewport { margin-top:20px; }
+  .purchase-screen .plan-card { min-height:152px; border-radius:22px; }
+  .purchase-screen .plan-card > span { font-size:14px; }
+  .purchase-screen .plan-card > strong { font-size:25px; }
+  .purchase-screen .plan-card > strong b { font-size:12px; }
+  .purchase-screen .plan-card > small { font-size:12px; line-height:1.45; }
+  .purchase-screen .plan-card > em { font-size:11px; }
+  .custom-control header > span { font-size:14px; }
+  .custom-control > small,.addon-block > small { font-size:13px; line-height:1.6; }
+  .custom-options button { font-size:14px; }
+  .custom-quote small,.custom-quote .custom-saving { font-size:12px; }
+  .custom-quote del { font-size:13px; }
+  .screen.addons-screen { display:flex; flex-direction:column; gap:16px; }
+  .addons-screen .purchase-total { margin-top:4px; }
+  .purchase-screen .plan-summary { margin-top:12px; padding:16px 2px; border:0; border-radius:0; background:none; }
+  .plan-composition { display:grid; gap:10px; margin:0; }
+  .plan-composition > div { display:flex; justify-content:space-between; align-items:baseline; gap:16px; }
+  .plan-composition dt { color:#c2ccd9; font-size:14px; line-height:1.5; }
+  .plan-composition dd { margin:0; color:var(--text); font-size:15px; font-weight:650; }
+  .purchase-utilities { display:grid; gap:8px; margin-top:4px; }
+  .purchase-utilities .custom-tariff-open { min-height:52px; margin:0; padding:0 16px; border:0; border-radius:18px; background:var(--surface); box-shadow:none; color:var(--text); font-size:14px; }
+  .purchase-utilities .custom-tariff-open > :global(.arc-icon):first-child { color:#90c8e9; }
+  .purchase-utilities .custom-tariff-open:hover { color:var(--text); background:var(--surface-raised); }
+  .purchase-screen .purchase-total { position:static; width:100%; margin:22px 0 0; padding:0; border:0; border-radius:0; background:transparent; box-shadow:none; transform:none; }
+  .purchase-total .total-row { min-height:20px; margin:0; }
+  .purchase-total .total-row span { font-size:14px; }
+  .purchase-total .total-row small { font-size:13px; color:var(--muted); }
+  .purchase-total > button { margin-top:0; min-height:56px; border-radius:999px; }
+  .purchase-total > button span { font-size:14px; }
+  .purchase-total .total-row + button { margin-top:12px; }
+  .purchase-total > button:disabled { opacity:.5; cursor:not-allowed; }
+  .payment-method-sheet { max-height:calc(100dvh - 32px - var(--safe-top-flow) - var(--safe-bottom-flow)); overflow-y:auto; overscroll-behavior:contain; }
+  .custom-builder { margin-top:4px; }
+
+  .referral-screen { margin-inline:auto; padding-top:calc(var(--safe-top-flow) + 24px); }
+  .referral-screen .referral-hero { min-height:0; display:flex; align-items:center; flex-direction:column; gap:8px; margin:0 0 20px; padding:0; border:0; border-radius:0; background:transparent; overflow:visible; text-align:center; }
+  .referral-art { position:relative; display:grid; place-items:center; width:100%; isolation:isolate; }
+  .referral-art::before { content:''; position:absolute; z-index:-1; width:min(100%,360px); height:280px; background:radial-gradient(ellipse,rgba(52,149,222,.2),rgba(31,96,173,.08) 45%,transparent 72%); filter:blur(22px); pointer-events:none; }
+  .referral-screen .referral-copy { order:0; flex:none; min-width:0; max-width:none; width:100%; }
+  .referral-copy h1 { margin:0 0 10px; font-size:26px; line-height:1.08; letter-spacing:-.04em; }
+  .referral-screen .referral-copy p { margin:0 auto; max-width:420px; font-size:14px; font-weight:500; line-height:1.6; }
+  .referral-screen img.referral-gift-art { position:static; flex:none; width:265px; height:230px; filter:drop-shadow(0 18px 24px rgba(0,0,0,.36)); animation:gift-levitate 6s ease-in-out infinite; }
+  @keyframes gift-levitate { 0%,100% { transform:translateY(2px) rotate(-.6deg); } 50% { transform:translateY(-6px) rotate(.6deg); } }
+  .referral-screen .content-block { margin:0; border-radius:24px; background:var(--surface); }
+  .referral-screen .block-title span { font-size:15px; }
+  .referral-screen .block-title small { font-size:13px; }
+  .referral-screen .link-switch { margin-top:18px; }
+  .referral-screen .referral-link { min-height:54px; font-size:14px; }
+  .referral-screen .referral-link span { font-size:13px; }
+  .referral-screen .link-switch button { font-size:13px; }
+  .referral-screen .qr-referral { min-height:44px; font-size:14px; }
+  .referral-screen .metric-grid { margin:0 0 18px; }
+  .referral-screen .metric-grid article { padding:14px 18px; background:var(--surface); border-radius:20px; }
+  .referral-screen .metric-grid span,.referral-screen .metric-grid small { font-size:13px; }
+
+  .screen.chat-screen { width:min(100%,820px); height:100dvh; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; gap:0; padding:calc(var(--safe-top-flow) + 12px) 20px calc(var(--safe-bottom-flow) + 12px); zoom:1; }
+  .chat-toolbar { display:flex; align-items:center; gap:12px; min-height:64px; padding-bottom:12px; border:0; }
+  .chat-toolbar > button { flex:none; width:44px; height:44px; display:grid; place-items:center; border-radius:50%; background:var(--surface); color:var(--text); }
+  .chat-toolbar h1 { margin:0; font-size:16px; letter-spacing:-.02em; }
+  .chat-toolbar p { margin:4px 0 0; font-size:13px; color:var(--muted); }
+  .chat-screen .support-chat { min-height:0; overflow-y:auto; overscroll-behavior:contain; gap:12px; padding:24px 0; scrollbar-width:thin; scrollbar-color:#304758 transparent; }
+  .chat-screen .chat-day { margin:8px 0; font-size:12px; }
+  .chat-screen .chat-day span { background:transparent; }
+  .chat-screen .chat-message { max-width:86%; padding:13px 16px 10px; border:0; border-radius:18px 18px 18px 5px; background:#142330; }
+  .chat-screen .chat-message.mine { border-radius:18px 18px 5px 18px; background:#214b66; }
+  .chat-screen .chat-message p { font-size:14px; line-height:1.55; }
+  .chat-screen .chat-message > b { font-size:12px; margin-bottom:6px; }
+  .chat-screen .chat-message small { font-size:11px; }
+  .chat-empty { display:flex; align-items:center; justify-content:center; flex:1; flex-direction:column; gap:12px; padding:40px 0; text-align:center; color:#9bd9fb; }
+  .chat-empty h2 { margin:0; font-size:21px; color:var(--text); }
+  .chat-empty p,.chat-placeholder { margin:0; color:var(--muted); font-size:13px; line-height:1.7; }
+  .chat-error p { margin:0 0 8px; font-size:12px; }
+  .chat-error button { min-height:44px; padding:0 14px; border-radius:12px; background:#392632; color:#ffd8da; }
+  .chat-screen .chat-input-zone { position:static; min-width:0; width:100%; transform:none; padding-top:12px; border:0; }
+  .chat-topic-trigger { display:inline-flex; align-items:center; gap:8px; min-height:44px; margin-bottom:8px; padding:0 14px; border:0; border-radius:14px; color:#bdcfdd; background:var(--surface-raised); font-size:14px; font-weight:650; }
+  .chat-topic-trigger:hover { border-color:#456478; color:#e1f2fd; }
+  .support-topic-backdrop { position:fixed; z-index:80; inset:0; background:rgba(0,4,10,.6); backdrop-filter:blur(5px); }
+  .support-topic-panel { position:fixed; z-index:81; width:min(428px,calc(100vw - 32px)); overflow-y:auto; padding:18px; border:0; border-radius:22px; background:#101a27; box-shadow:0 24px 80px rgba(0,0,0,.55); }
+  .support-topic-panel header { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding-bottom:12px; }
+  .support-topic-panel h2 { margin:0; font-size:18px; letter-spacing:-.025em; }
+  .support-topic-panel header p { margin:5px 0 0; color:#adb8c7; font-size:14px; line-height:1.5; }
+  .support-topic-panel header > button { display:grid; place-items:center; flex:none; width:44px; height:44px; margin:-8px -8px 0 0; border:0; border-radius:12px; color:#b9cbd9; background:transparent; }
+  .support-topic-list { display:grid; gap:4px; }
+  .support-topic-list button { display:flex; align-items:center; justify-content:space-between; gap:16px; width:100%; min-height:68px; padding:12px; border:0; border-radius:14px; color:#e0edf7; text-align:left; background:transparent; }
+  .support-topic-list button:hover { color:#b6e7ff; background:#182938; }
+  .support-topic-list button span { display:grid; gap:4px; }
+  .support-topic-list b { font-size:14px; font-weight:650; }
+  .support-topic-list small { color:#adb8c7; font-size:13px; line-height:1.4; }
+  .chat-screen .chat-quick button { min-height:44px; padding-inline:14px; border-radius:14px; font-size:11px; background:var(--surface); backdrop-filter:none; }
+  .chat-screen .chat-compose { display:grid; grid-template-columns:minmax(0,1fr) 44px; align-items:end; gap:8px; min-height:62px; padding:8px; overflow:hidden; border-radius:28px; background:var(--surface-raised); box-shadow:none; }
+  .chat-screen .chat-compose:focus-within { border-color:#83c7ee; box-shadow:0 0 0 2px rgba(131,199,238,.12); }
+  .chat-screen .chat-compose textarea { min-width:0; min-height:44px; max-height:220px; font-size:15px; line-height:1.5; padding:10px 8px; scrollbar-width:thin; scrollbar-color:#304758 transparent; }
+  .chat-screen .chat-compose > button { width:44px; height:44px; min-height:44px; align-self:end; border-radius:50%; }
+  .flow-preview button.system-back { width:44px; height:44px; min-height:44px; flex:none; display:grid; place-items:center; gap:0; padding:0; border:1px solid var(--hairline); border-radius:50%; color:var(--text); background:var(--surface); box-shadow:none; backdrop-filter:none; }
+  .flow-preview button.system-back:hover { background:var(--surface-raised); }
+  .copy-toast { position:fixed; z-index:100; left:50%; bottom:calc(var(--safe-bottom-flow) + 98px); transform:translateX(-50%); display:flex; align-items:center; gap:10px; width:max-content; max-width:calc(100% - 40px); padding:12px 16px; border:1px solid rgba(177,220,246,.18); border-radius:18px; color:var(--text); background:#132331; box-shadow:0 12px 32px #0005; font-size:14px; line-height:1.4; }
+  .copy-toast i { display:grid; place-items:center; flex:none; width:28px; height:28px; border-radius:50%; background:#254d61; color:#b9e8ff; }
+  .copy-toast.without-dock { bottom:calc(var(--safe-bottom-flow) + 20px); }
+  .flow-preview button { transition:transform .22s cubic-bezier(.22,1,.36,1),background-color .22s,border-color .22s,box-shadow .22s,color .22s; }
+  .plan-card { transition:transform .25s cubic-bezier(.22,1,.36,1),background .25s,border-color .25s,box-shadow .25s; }
+  .plan-card.active { transform:translateY(-3px); }
+  .dock button.active :global(.arc-icon) { animation:nav-select .35s cubic-bezier(.22,1,.36,1); }
+  @keyframes nav-select { 0% { transform:scale(.8); } 60% { transform:scale(1.08); } 100% { transform:scale(1); } }
+  .payment-options small,.autorenew small { font-size:13px; line-height:1.5; }
+  .payment-method-sheet > p { font-size:12px; line-height:1.6; }
+  .promo-field button { font-size:13px; }
+  .payment-state > div strong { font-size:14px; }
+  .payment-state > div p { font-size:13px; }
+  .flow-preview button:focus-visible { outline:2px solid #9bd9ff; outline-offset:3px; }
+  .flow-preview button:active:not(:disabled) { transform:scale(.985); }
+  @media(min-width:900px) {
+    .screen.referral-screen { display:flex; flex-direction:column; justify-content:center; width:min(calc(100% - 64px),720px); min-height:100dvh; padding:40px 24px; }
+    .referral-screen > * { width:100%; }
+    .copy-toast,.copy-toast.without-dock { bottom:32px; }
+    .screen.purchase-screen { width:min(calc(100% - 64px),760px); max-width:760px; min-height:100dvh; justify-content:center; padding:56px 24px; }
+    .purchase-screen .purchase-total { width:100%; }
+    .screen.chat-screen { padding-top:28px; padding-bottom:24px; }
+    .purchase-screen .plan-viewport { margin:20px 0 0; overflow:visible; }
+    .purchase-screen .plan-strip { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; overflow:visible; padding:0; scroll-padding:0; }
+    .purchase-screen .plan-card { width:auto; min-width:0; padding:16px; }
+    .purchase-screen .plan-arrow,.purchase-screen .plan-viewport::before,.purchase-screen .plan-viewport::after { display:none; }
+  }
+  @media(min-width:1400px) { main .purchase-screen,main .referral-screen,main .connect-page { zoom:1; min-height:100dvh; } }
+  @media(max-width:380px) { .referral-screen img.referral-gift-art { width:248px; height:215px; } }
+  @media(max-width:767px) { .flow-preview button.system-back.telegram-mobile-hidden { display:none; } }
+  @media(prefers-reduced-motion:reduce) {
+    .flow-preview *, .flow-preview *::before, .flow-preview *::after { animation-duration:0s !important; transition-duration:0s !important; scroll-behavior:auto !important; }
+  }
+
+  /* Shared cabinet surfaces and fixed price slots. */
+  .flow-preview .plan-card,.flow-preview .custom-control,.flow-preview .addon-block,.flow-preview .custom-quote,.flow-preview .support-hero,.flow-preview .faq { border:0; box-shadow:none; background:var(--surface); }
+  .plan-card { display:grid; grid-template-rows:22px 26px 36px 22px; align-content:start; align-items:center; gap:8px; min-height:174px; padding:18px; }
+  .plan-card.active { border:0; background:#14283a; box-shadow:none; transform:none; }
+  .plan-card > span { font-size:14px; line-height:22px; }
+  .plan-card > em { justify-self:start; align-self:center; margin:0; padding:3px 8px; font-size:11px; line-height:18px; font-style:normal; border-radius:9px; }
+  .plan-badge.empty { visibility:hidden; }
+  .plan-card > strong { display:flex; align-items:baseline; gap:4px; margin:0; font-size:25px; line-height:32px; letter-spacing:-.045em; white-space:nowrap; }
+  .plan-card > strong b { font-size:12px; letter-spacing:0; }
+  .plan-money { white-space:nowrap; }
+  .plan-card > small { margin:0; color:#c2ccd9; font-size:12px; line-height:20px; }
+  .plan-card > i { top:15px; right:14px; }
+  .custom-builder { gap:14px; }
+  .custom-control,.addon-block { padding:20px; border-radius:24px; }
+  .custom-control header > span,.addon-block h2 { color:var(--text); font-size:16px; font-weight:650; }
+  .custom-control header > strong { font-size:16px; }
+  .custom-control > small,.addon-block > small { color:#bcc8d7; font-size:14px; line-height:1.6; }
+  .custom-options { margin-top:18px; gap:8px; }
+  .custom-options button,.addon-grid button,.device-stepper button { border:0; background:var(--surface-raised); box-shadow:none; }
+  .custom-options button { min-height:46px; border-radius:14px; color:#e0e8f1; font-size:14px; font-weight:650; }
+  .custom-options button.active,.addon-grid button.active { border:0; background:linear-gradient(135deg,#b4e5ff,#64bdf0); color:#071321; box-shadow:none; }
+  .custom-options button:hover:not(.active),.addon-grid button:hover:not(.active) { background:#1b2a3a; }
+  .device-stepper { margin-top:18px; }
+  .device-stepper button { border-radius:14px; }
+  .custom-quote { padding:22px; border-radius:24px; gap:24px; align-items:center; }
+  .custom-summary { flex:1; min-width:0; }
+  .custom-summary > span { color:var(--text); font-size:16px; font-weight:700; }
+  .custom-summary dl { display:grid; gap:7px; margin:14px 0 0; }
+  .custom-summary dl > div { display:flex; justify-content:space-between; gap:12px; font-size:14px; }
+  .custom-summary dt { color:#bcc8d7; }
+  .custom-summary dd { margin:0; color:var(--text); }
+  .custom-price { display:flex; flex:none; flex-direction:column; align-items:flex-end; gap:6px; }
+  .custom-price strong { font-size:30px; letter-spacing:-.04em; white-space:nowrap; }
+  .custom-price small,.custom-price del { color:#bcc8d7; font-size:13px; white-space:nowrap; }
+  .custom-summary .custom-saving { display:block; margin-top:12px; font-size:13px; color:#a0d9b8; }
+  .addon-block h2 { margin-bottom:18px; }
+  .addon-grid { gap:10px; }
+  .addon-grid button { min-height:60px; padding:0 16px; border-radius:16px; }
+  .addon-grid b { font-size:15px; font-weight:650; }
+  .addon-grid span { font-size:16px; font-weight:700; white-space:nowrap; }
+  .addon-grid button.active span { color:inherit; }
+  .addons-screen .total-row { font-size:15px; }
+  .addons-screen .total-row small { font-size:14px; color:#c2ccd9; }
+  @media(min-width:900px) {
+    .purchase-screen .plan-card { min-height:174px; padding:18px 14px; }
+    .custom-builder { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .custom-builder .custom-control:nth-child(3),.custom-builder .custom-quote { grid-column:1 / -1; }
+  }
+
+
+  .chat-typing { display:flex; align-items:center; gap:10px; padding:12px 16px; color:#bcc8d7; font-size:13px; }
+  .chat-typing > span { display:flex; gap:4px; }
+  .chat-typing i { width:5px; height:5px; border-radius:50%; background:#9bd9ff; animation:typing-dot 1.2s ease-in-out infinite; }
+  .chat-typing i:nth-child(2) { animation-delay:.15s; }
+  .chat-typing i:nth-child(3) { animation-delay:.3s; }
+  @keyframes typing-dot { 0%,60%,100% { transform:translateY(0); opacity:.5; } 30% { transform:translateY(-3px); opacity:1; } }
+
+
+  .support-screen .support-hero > div > span { font-size:13px; color:#bcc8d7; }
+  .support-screen .support-hero h2 { margin:14px 0 12px; font-size:32px; }
+  .support-screen .support-hero p { max-width:330px; font-size:15px; line-height:1.65; color:#c2ccd9; }
+  .support-screen .support-hero button { margin-top:18px; font-size:15px; min-height:48px; }
+  .support-screen .section-label span { font-size:15px; }
+  .support-screen .section-label small { font-size:13px; }
+  .support-screen .faq-copy b { font-size:15px; }
+  .support-screen .faq-copy small { font-size:14px; line-height:1.65; }
 </style>

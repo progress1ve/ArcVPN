@@ -216,3 +216,7 @@ a {
     transition-duration: 0.001ms !important;
   }
 }
+
+/* Preserve native scrolling while hiding its visual rails. */
+:where(html, body, body *) { scrollbar-width: none !important; -ms-overflow-style: none; }
+:where(html, body, body *)::-webkit-scrollbar { display: none !important; width: 0; height: 0; }

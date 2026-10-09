@@ -121,6 +121,7 @@ from database.db_recurring import disable_recurring_methods, get_active_recurrin
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, get_yookassa_payment_details, process_payment_order
 from bot.services.vpn_api import disable_key_on_panel, get_client_from_server_data, push_key_to_panel
 from bot.services.reserve import get_reserve_client_info
+from bot.services import support_ai
 from subscription_pages import render_import_page, render_silent_import_page, render_silent_incy_import_page, render_user_agreement
 
 # Конфиг читаем через getattr с дефолтами: устаревший config.py (а он не
@@ -4439,7 +4440,7 @@ def api_support_messages():
         except ValueError:
             after_id = 0
         result = get_support_messages(telegram_id, after_id=after_id)
-        return _api_no_store(jsonify({"ok": True, **result}))
+        return _api_no_store(jsonify({"ok": True, **result, "ai": support_ai.status(result.get("thread_id"))}))
 
     if (request.content_length or 0) > 8192:
         return _api_error("message_too_large", 413)
@@ -4459,7 +4460,10 @@ def api_support_messages():
         daemon=True,
         name=f"support-notify-{result['thread_id']}",
     ).start()
-    return _api_no_store(jsonify({"ok": True, **result}))
+    if not support_ai.queue_reply(int(result["thread_id"]), int(result["message"]["id"])) and support_ai.enabled():
+        from database.db_support import add_assistant_support_message
+        add_assistant_support_message(int(result["thread_id"]), int(result["message"]["id"]), support_ai.FALLBACK)
+    return _api_no_store(jsonify({"ok": True, **result, "ai": support_ai.status(result["thread_id"])}))
 
 
 @app.route('/api/device/import/<sub_id>', methods=['POST'])
@@ -7622,7 +7626,7 @@ def api_admin_support_thread(thread_id: int):
                 logger.exception("Не удалось отправить ответ поддержки thread=%s", thread_id)
         return _api_no_store(jsonify({"ok": True, "message": message}))
     with get_db() as conn:
-        rows = conn.execute("SELECT id,sender,body,created_at,read_at FROM support_messages WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
+        rows = conn.execute("SELECT id,sender,body,created_at,read_at,(sender='admin' AND sender_telegram_id=0) AS is_ai FROM support_messages WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
         conn.execute("UPDATE support_messages SET read_at=CURRENT_TIMESTAMP WHERE thread_id=? AND sender='user' AND read_at IS NULL", (thread_id,))
     return _api_no_store(jsonify({"ok": True, "thread": thread, "messages": [dict(row) for row in rows]}))
 

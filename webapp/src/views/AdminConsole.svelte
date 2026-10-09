@@ -327,7 +327,7 @@
             <header class="conversation-head"><button class="support-back" on:click={() => supportView = 'list'} aria-label="Вернуться к списку обращений">← <span>Обращения</span></button><div><b>{supportName(selectedThread)}</b><small>{selectedThread.username ? `@${selectedThread.username}` : `Telegram ID ${selectedThread.telegram_id}`}</small></div><span class="conversation-badge">Диалог</span></header>
             <div class="chat-messages" aria-label="История сообщений">
               {#if supportMessages.length}
-                {#each supportMessages as message}<article class:admin={message.sender==='admin'}><span>{message.body}</span><small>{message.sender === 'admin' ? 'ArcVPN · ' : ''}{message.created_at}</small></article>{/each}
+                {#each supportMessages as message}<article class:admin={message.sender==='admin'}><span>{message.body}</span><small>{message.is_ai ? 'ИИ-помощник · ' : message.sender === 'admin' ? 'ArcVPN · ' : ''}{message.created_at}</small></article>{/each}
               {:else}
                 <div class="support-state conversation-empty"><b>История пуста</b><p>Начните диалог первым ответом.</p></div>
               {/if}

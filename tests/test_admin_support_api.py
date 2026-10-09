@@ -39,13 +39,14 @@ def support_db(monkeypatch):
             sender TEXT NOT NULL,
             body TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            read_at TEXT
+            read_at TEXT,
+            sender_telegram_id INTEGER
         );
         INSERT INTO users VALUES (1, 700001, 'alice', 'Alice');
         INSERT INTO users VALUES (2, 700002, 'bob', 'Bob');
         INSERT INTO support_threads VALUES (10, 1, 'open', '2026-08-24 10:00:00');
         INSERT INTO support_threads VALUES (20, 2, 'closed', '2026-08-24 11:00:00');
-        INSERT INTO support_messages VALUES
+        INSERT INTO support_messages (id,thread_id,sender,body,created_at,read_at) VALUES
             (101, 10, 'user', 'Need help', '2026-08-24 09:58:00', NULL),
             (102, 10, 'admin', 'Looking into it', '2026-08-24 09:59:00', NULL),
             (103, 10, 'user', 'Any update?', '2026-08-24 10:00:00', NULL),

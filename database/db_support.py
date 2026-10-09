@@ -22,7 +22,8 @@ def get_support_messages(telegram_id: int, after_id: int = 0, limit: int = 100) 
         return {"thread_id": None, "messages": []}
     with get_db() as conn:
         rows = conn.execute(
-            """SELECT id, sender, body, created_at, read_at FROM support_messages
+            """SELECT id, sender, body, created_at, read_at,
+                      (sender = 'admin' AND sender_telegram_id = 0) AS is_ai FROM support_messages
                WHERE thread_id = ? AND id > ? ORDER BY id ASC LIMIT ?""",
             (thread["id"], max(0, after_id), min(max(1, limit), 200)),
         ).fetchall()
@@ -82,3 +83,26 @@ def add_admin_support_message(thread_id: int, admin_telegram_id: int, body: str)
             (cur.lastrowid,),
         ).fetchone()
         return dict(row)
+
+
+def get_assistant_context(thread_id: int, message_id: int):
+    """Return only conversation text when the requested turn is still latest."""
+    with get_db() as conn:
+        latest = conn.execute("SELECT id,sender FROM support_messages WHERE thread_id=? ORDER BY id DESC LIMIT 1", (thread_id,)).fetchone()
+        if not latest or latest["id"] != message_id or latest["sender"] != "user":
+            return []
+        rows = conn.execute("SELECT sender,body FROM support_messages WHERE thread_id=? ORDER BY id DESC LIMIT 6", (thread_id,)).fetchall()
+        return [dict(row) for row in reversed(rows)]
+
+
+def add_assistant_support_message(thread_id: int, message_id: int, body: str):
+    """Zero sender ID identifies AI; existing sender CHECK and human IDs stay intact."""
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        latest = conn.execute("SELECT id,sender FROM support_messages WHERE thread_id=? ORDER BY id DESC LIMIT 1", (thread_id,)).fetchone()
+        thread = conn.execute("SELECT status FROM support_threads WHERE id=?", (thread_id,)).fetchone()
+        if not thread or thread["status"] != "open" or not latest or latest["id"] != message_id or latest["sender"] != "user":
+            return False
+        conn.execute("INSERT INTO support_messages(thread_id,sender,sender_telegram_id,body) VALUES (?,'admin',0,?)", (thread_id, body[:2000]))
+        conn.execute("UPDATE support_threads SET updated_at=CURRENT_TIMESTAMP WHERE id=?", (thread_id,))
+        return True

@@ -1,51 +1,16 @@
-2026-10-09 main web Moscow prepared and deployed: static HTML/app assets/WOFF2 fonts local85.198.101.79, no ru redirect for arccnet.space; API remains pinned Poland with verified TLS SNI sub.arccnet.space and HTTP Host arccnet.space (stable certificate independent of apex cutover). Existing RU gateway preserved. Main A still217.60.33.38: REG.RU owner access required to set @ A85.198.101.79; no AAAA present. Main-domain spelling inferred from actual linked domain; typed arknet.space clarification unanswered. Runtime b633787 plus certificate follow-up; nginx/haproxy active. Estonia resolve-pinned HTML/app/fonts/API/legal200 TLSverify0, static first~0.14s; Sweden direct200~0.135s and WARP200~0.23s. Browser RU updated identical frontend fonts loaded, no external script on normal landing;4 viewport screenshots moscow-web-20261009-{390,768,1280,1600}.png in visualization2026/10/07/01a11487-9625-7c11-8f2d-9a0d18865abc. No visual redesign. Local CLI TLS fails both RU and main, so owner noVPN access not claimed. Public DNS end-to-end gate pending. Moscow own TLS renewal timer checks DNS before certbot; existing copied valid certificate expires2026-11-25. Future deploy must run scripts/ops/deploy_moscow_web.py after Poland pull; keeps renewed Moscow certificate. No private keys local/output. Owner dirty primary preserved; no subagents.
+# ArcVPN handoff — design publication ready (2026-10-09)
 
-Verified production c12aa29 on 2026-10-09: removed3 Finland Remna nodes and4 disabled Hosts; actual native customer JSON17 profiles contains no Finland label/IP and retains Sweden AI/Games. Subscription/bot active;48 focused tests passed. Returned server never contacted. GitHub connector published identical reviewed local tree5593926730f6e8818c244d0e9375be736f9a30ea after local Git HTTPS failed; root-only panel snapshot retained. No rollback used.
+Mode economy; no subagents. Owner explicitly authorized publication. Isolated
+codex/design-polish-release starts at verified live/GitHub8cc0b1cb. Owner dirty
+primary is preserved; do not merge its unrelated backend/Connect/login changes.
+Mapped source and generated bundle passed65 tests and four viewport acceptance.
+See .codex/stages/current.md for exact scope/evidence and pending deployment.
 
-2026-10-09 owner returned Finland server: remove physical Finland nodes/disabled Hosts and Finland Estonia alias from admin/subscriptions. No further server access; active inventory removed. Swedish AI/Games now follow Netherlands; weights/routes/UUIDs/URLs unchanged. Focused48 tests passed; panel retirement script saves root-only snapshot.
+Public arccnet.space now resolves Moscow85.198.101.79; frontend must be published
+there after Poland fast-forward/restart. Existing TLS/config and API routing stay
+intact. Keep old chunks and static release for rollback; do not deploy cached
+local origin/mainc9976c3f wholesale. Private arcvpn-ops MCP is the transport.
 
-2026-10-08 WARP DNS repair deployed28240fd/3b5798a on Poland, Remnawave profile updated retaining inbound identities. Root-only rollback snapshot sweden-warp-before-dns-fix.json. Actual VLESS/WARP UDP53 DNS timed out before; after asynchronous node propagation received successful google.com DNS answers. Google/Gemini/Wikipedia HTTPS200 through exact AI inbound. DNS outbound rewrites UDP53 to TCP1.1.1.1:53 via WARP, explicit direct DNS action prevents built-in hijack. Other UDP blocked; no host/public identity/topology change. Local WARP ChatGPT HTTP403 remains independent site response; access not claimed. Subscription/bot active; no runtime service restart required for ops-only fix. Canary from earlier stage revoked. No rollback used. Next: owner reconnects existing AI profile and verifies Google on device.
-
-2026-10-08 profile labels renamed to 🇸🇪 Нейросети 🤖 and 🇸🇪 Игровой сервер 🎮, after Finland in same order. Transport/routes/identities unchanged; focused naming/order tests2 passed.
-
-2026-10-08 economy. Sweden special profiles published after Finland: Swedish-flag AI Reality8444 -> WARP localproxy40000; Games Hysteria2 UDP443 -> Sweden DIRECT. Both excluded Auto/YouTube/bypass balancers. Real tunneled WARP HTTPS warp=on loc=SE ARN, Hysteria HTTPS and UDP DNS passed. Valid TLS certificate read-only mounted. 28 permitted customer HTTP catalogs exact order verified (27 full18, one restricted10); three existing device-policy denial catalogs preserved. Repeated fleet audit hit rate limits; do not repeat without need. Previous48 focused tests passed. Existing subscription URLs/user UUIDs/weights/CDN routes preserved. Runtime d8df1f1/0eb0d0c; canary cleanup follow-up. Rollback: hide new Hosts and restore remote root-only snapshot. No rollback used. Physical Happ/game latency unmeasured; WARP addresses may face individual AI-service restrictions. No subagents. Primary owner dirt untouched.
-
-2026-10-07 economy. Ookla download failure investigation pending owner network/app/testserver. Prior nginx64KB/keepalive/4096 fix remains active. Real owner-only fastCDN download fromEstonia25MB200complete~216Mbps;PolandCDNconnecttimesout. No productionruntimechanges;notfixed/reproduced. Evidence .codex/stages/current.md.
-
-2026-10-05 economy. c2e6ecbremoved5/10GBcustomerconstructorchoicesfromlanding/cabinet/APIand80/90specialpricingincludingrelated0GBcap. Alreadyboughtsubscriptions/friend5/10optionsunchanged. Rebasedonto9b80223partnerchatpreserved.79quote+partnertestsPASS,SveltebuildPASSexistingwarnings,no browserowner. Polandffpullsubscriptionrestartactive;publicquote5/10HTTP400,15HTTP200price104(currentcatalog).
-
-# ArcVPN handoff вЂ” partner operational redesign, 2026-10-05
-
-token-mode: economy; no subagents authorized. Primary dirty owner checkout untouched; active clean worktree C:/Users/babay/.codex/worktrees/partner-cabinet/YadrenoVPN-main, branch codex/partner-cabinet.
-Production Poland217.60.33.38 /root/ArcVPN runtime5cefa6b (operational redesign c4a89e8, visible numbering d3ce8a8, native headings/graph afa239c). Normal commit/push/fast-forward deployed. Only subscription restarted for reporting/API; frontend/docs pulls need no restart. Subscription/bot/nginx active. Partner https://partners.arccnet.space/partner; owner https://panel.arccnet.space/admin/partners.
-
-Partner uses actual React admin shared ShellHeader, AdminNavSection, StatCard, table badges, chart and Sigma network. Shared pure SectionHeading is used by actual AdminPayments and partner pages: title20px, back40x40/radius12; logout uses actual admin border/background/padding. Marketing menu now contains only assigned links and network; Clients button removed. Purchases/payouts styled like Payments, with confirmed purchase descriptions, anonymous search/kind filters and table scrolling. Home alone shows poseidon and general lifetime earned/paid/due. No Refresh button; visible authenticated cabinet polls60sec. Statistics/purchases/payouts default Moscow current month with immediate presets and optional custom dates. Stats include scoped active trials/paid, conversion, clients/purchases/reward daily charts. Payout screen has own due/paid/history and full-period transfer count, not capped-page count. Soft desktop admin background, static mobile glow; local Manrope and tile-free partner logo retained. Badges partner1/2 and admin1..4 count only visible sections.
-Partner graphs now use native admin node sizes, label threshold14 and FA2 for all graphs. Small scoped graph camera is centered with bounds refreshed after settling; a singleton seed is rotated diagonally with extra camera margin, preserving actual ownership/topology. No oversized client points or forced labels. Browser found missing refresh after custom bounds; fixed and confirmed live. Privacy adapter uses local client indexes and own links/edges only; cap2000/fallback list retained.
-
-Latest owner acquisition decision: three exclusive channels direct, user referral and advertising (overrides earlier combined answer). Admin dashboard registrations block uses Moscow registration date, current month/default, presets/custom, per-channel charts. Mixed old attribution prefers first-level personal invitation over campaign, never counts twice. October live totals19=direct16+referral0+campaign3; lifetime86=72+7+7. Existing overview channel counters made exclusive too.
-
-Verification: Python451 pass, one existing utcnow deprecation; frontend5 pass in4 relevant files plus final2 UI/graph checks; TypeScript and both builds pass. Browser production390x844/768x1024/1280x900/1600x1000, actual admin reference, no page overflow; date/source filtering, readable defaults/empty states, no repeated identity/general balance, network scaling, numbering verified. Populated purchases/rewards/partial payout layout verified with readonly localhost fixture, no production test transactions. Screenshots C:/Users/babay/.codex/visualizations/2026/10/05/01a10b8d-6e8c-7952-b146-d9e29f76092c/redesign-*.jpg. Local fixture server stopped; viewport reset; agent comparison tab closed, production partner tab retained for review.
-Public partner47/admin38 JS/CSS/fonts HTTP200, entries/health200. Authenticated API1 client/0 eligible purchases; guest401, foreign source400, invalid kind400, partner admin403/partner-host admin404. Ephemeral API verification session removed. Accounts/sources/client bindings/ledger/events exactly equal private pre-stage partner-redesign-before-20261005.sqlite; identity/subscription/referral invariant check passes. Approved client221 future-only30% binding unchanged; passwords/sessions/customer subscriptions untouched. No new financial policy, import, automated transfers or money writes. Unrelated production scripts/ssh_askpass.sh remains dirty and preserved.
-
-Residual limits: live partner has1 trial client and no eligible purchase/payout, so populated money views rely on isolated fixtures/tests. 2000-node cap disclosed, client/purchase/payout tables paginated500 and totals computed before caps. Existing admin chunk-size warning remains. Guide docs/operations/partner-cabinet.md; exact stage evidence .codex/stages/current.md. Follow-up frontend5 plus final2 relevant tests passed, both builds/typecheck passed;4 viewport follow-up screenshots followup-production-*.jpg. Native title/back geometry compared live, network zoom/reset passed, Clients absent on home. All47/38 assets200 after final5cefa6b pull; frontend-only follow-up did not restart services or mutate DB.
-
-
-## 2026-10-07 Sweden replacement
-Production runtime 9a8517f: real HostUp Sweden se.arccnet.space / 136.148.220.228,
-Remnawave3.4.1, own local TLS decoy and Reality key; UFW API only Poland,
-SS only Moscow, fail2ban SSH5/3600s, bounded container logs. BBR/fq pre-existing.
-Physical Finland removed from all delivered profiles and balancing paths;
-retained infrastructure for rollback. SE61/EE39 weighted connections with
-health-aware peer fallback on client and Moscow bridge; proportions are not bytes.
-YouTube SE/EE -> Moscow. Aliases DE/PL/NL -> SE; FI alias -> EE before Best Bypass, manual only.
-Order starts Somalia-flag Auto, RU-flag YouTube, Sweden, Estonia; eight EU bypasses; flags
-restored. Existing URLs/UUIDs unchanged. Rollback snapshots remain remote-only.
-Evidence .codex/stages/sweden-migration.md; full suite453 passed before final catalogue edits; latest one focused case passed;
-all generated syntax and seven fresh customer tunnels passed, Moscow both exits.
-Additional concurrent Cloudflare100-request stress timed out; throughput/peak-hour
-stability and physical Happ gates remain open. Temporary canary revoked.
-Next: client refresh/real Kazan check; Sweden CDN is a separate future stage.
-Owner-dirty primary checkout preserved; runtime changes in managed sweden-node
-worktree. Mode economy.
-
-2026-10-07 Sweden CDN production:4096/7 XMUX then24000/10 GET header fallback;#3/#4 standalone those variants;#6 standalone65536/60-75 header (GETbody fails CDN);#7 standalone32768/10 header. Public links/UUIDs/order retained; SE61/EE39 unchanged. Stage current.md records gates.
+AI assistant is implemented but DISABLED without a dedicated OpenAI API key and
+SUPPORT_AI_ENABLED=true. Modelgpt-4.1-mini; no schema migration. Human handoff stays.
+See docs/operations/support-ai.md. Real inference is not yet verified.
