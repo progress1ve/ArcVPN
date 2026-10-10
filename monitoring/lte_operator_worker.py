@@ -88,7 +88,8 @@ async def notify(events: list[dict]) -> None:
             else:
                 message = (f"✅ LTE-подключение восстановилось\nНода: {node}\nОператор: {operator}\n"
                            "Две последовательные проверки VPN-ключа прошли.")
-            for admin_id in config.ADMIN_IDS:
+            from bot.services.admin_recipients import admin_notification_ids
+            for admin_id in admin_notification_ids():
                 try:
                     await bot.send_message(admin_id, message)
                 except Exception:

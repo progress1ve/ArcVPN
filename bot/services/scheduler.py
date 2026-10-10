@@ -20,7 +20,8 @@ from typing import Optional
 from aiogram import Bot
 from aiogram.types import FSInputFile
 
-from config import ADMIN_IDS, GITHUB_REPO_URL
+from config import GITHUB_REPO_URL
+from bot.services.admin_recipients import admin_notification_ids
 from database.requests import (
     get_all_servers, get_users_stats, get_keys_stats,
     get_daily_payments_stats, get_new_users_count_today,
@@ -703,7 +704,7 @@ async def check_and_notify_updates(bot: Bot) -> None:
                 notify_text += f"\n\n⚠️ Среди обновлений есть <b>блокирующий коммит</b> — обновление нужно выполнять вручную.\n<code>{blocking_msg}</code>"
             
             # Отправляем уведомления админам
-            for admin_id in ADMIN_IDS:
+            for admin_id in admin_notification_ids():
                 try:
                     await bot.send_message(
                         chat_id=admin_id,
@@ -1195,7 +1196,7 @@ async def monthly_traffic_reset(bot: Bot) -> None:
         report_parts.append(f"  ❌ Ошибок: {sync_errors}")
     
     report = "\n".join(report_parts)
-    for admin_id in ADMIN_IDS:
+    for admin_id in admin_notification_ids():
         try:
             await bot.send_message(chat_id=admin_id, text=report, parse_mode="HTML")
         except Exception as e:

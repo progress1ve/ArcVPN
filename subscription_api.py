@@ -3705,7 +3705,8 @@ def _notify_support_admins(thread_id: int, telegram_id: int, body: str) -> None:
         },
     }
     endpoint = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    for admin_id in getattr(config, "ADMIN_IDS", []):
+    from bot.services.admin_recipients import admin_notification_ids
+    for admin_id in admin_notification_ids():
         try:
             data = json.dumps({**payload, "chat_id": admin_id}).encode("utf-8")
             req = urllib.request.Request(endpoint, data=data, headers={"Content-Type": "application/json"})

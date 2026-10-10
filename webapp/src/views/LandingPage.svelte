@@ -19,10 +19,9 @@
     { id: 'linux', label: 'Linux', icon: 'linux' },
   ]
   const featureRows = [
-    ['Автовыбор', 'Один профиль для обычного использования — без ручного перебора списка.'],
-    ['Обычные локации', 'Выбирайте страну, когда хотите управлять подключением сами.'],
-    ['Обход глушилок', 'Специальные профили расходуют только отдельный запас, а не основной трафик.'],
-    ['Одна ссылка', 'Обычные локации, сервисные профили и обход обновляются вместе с подпиской.'],
+    ['Автовыбор', 'Подходящий профиль без ручной настройки.'],
+    ['Локации', 'Выбирайте страну сами.'],
+    ['Обход глушилок', 'Отдельный запас для сложных сетей.'],
   ]
   const faqs = [
     ['Как установить и подключить ArcVPN?', 'Откройте личный кабинет, выберите устройство и установите Happ или INCY. Затем импортируйте ссылку подписки и выберите Автовыбор.'],
@@ -222,7 +221,7 @@
     </section>
 
     <section class="story apps-story" id="apps" data-nav-section use:reveal>
-      <div class="apps-description"><div class="story-heading"><h2>На&nbsp;телефоне<br />и&nbsp;на&nbsp;компьютере</h2><p>Подключайтесь через Happ или&nbsp;INCY. Ссылка импорта и&nbsp;инструкция уже в&nbsp;личном кабинете.</p></div>
+      <div class="apps-description"><div class="story-heading"><h2>На&nbsp;телефоне<br />и&nbsp;на&nbsp;компьютере</h2><p>Happ или&nbsp;INCY. Инструкция и&nbsp;ссылка — в&nbsp;кабинете.</p></div>
         <div class="platforms" aria-label="Поддерживаемые платформы">{#each devices as device}<span><DeviceIcon name={device.icon} size={25}/>{device.label}</span>{/each}</div>
         <dl class="profile-list">{#each featureRows as feature}<div><dt>{feature[0]}</dt><dd>{feature[1]}</dd></div>{/each}</dl>
       </div>
@@ -236,7 +235,7 @@
 
     <section class="story pricing-story" id="tariffs" data-nav-section use:reveal>
       <div class="pricing-heading"><div class="story-heading"><h2>Подписка под<br />ваши устройства</h2><p>Основной трафик безлимитный во всех тарифах.</p></div><div class="period-control" role="group" aria-label="Срок подписки">{#each [1,3,6,12] as month}<button class:active={selectedPeriod===month} aria-pressed={selectedPeriod===month} on:click={() => selectedPeriod=month}>{month} {month===1?'месяц':'мес.'}</button>{/each}</div></div>
-      {#if periodTariffs.length}<div class="plan-comparison">{#each ['economy','standard','family'] as code}{@const plan=periodTariffs.find(item => item.product_code===code)}{#if plan}<article class:recommended={code==='standard'}><header><h3>{productNames[code]}</h3>{#if code==='standard'}<span>Оптимальный</span>{/if}</header><p class="plan-audience">{productCopy[code]}</p><p class="comparison-price"><strong>{plan.monthly_rub.toLocaleString('ru-RU')} ₽</strong><span>/ месяц</span></p><p class="comparison-total">{plan.price_rub.toLocaleString('ru-RU')} ₽ за {plan.period_months} {plan.period_months===1?'месяц':plan.period_months<5?'месяца':'месяцев'}</p><ul><li><ArcIcon name="check" size={17}/>Основной трафик безлимитный</li><li><ArcIcon name="devices" size={17}/>{plan.device_limit} {plan.device_limit>=2&&plan.device_limit<=4?'устройства':'устройств'}</li><li><ArcIcon name="lte" size={17}/>{plan.lte_quota_gb?plan.lte_quota_gb+' ГБ обхода':'Без трафика обхода'}</li></ul><button class="story-action" on:click={() => selectTariff(plan)}>Выбрать {productNames[code]}</button></article>{/if}{/each}</div>
+      {#if periodTariffs.length}<div class="plan-comparison">{#each ['economy','standard','family'] as code}{@const plan=periodTariffs.find(item => item.product_code===code)}{#if plan}<article class:recommended={code==='standard'}><header><h3>{productNames[code]}</h3></header><p class="plan-audience">{productCopy[code]}</p><p class="comparison-price"><strong>{plan.monthly_rub.toLocaleString('ru-RU')} ₽</strong><span>/ месяц</span></p><p class="comparison-total">{plan.price_rub.toLocaleString('ru-RU')} ₽ за {plan.period_months} {plan.period_months===1?'месяц':plan.period_months<5?'месяца':'месяцев'}</p><ul><li><ArcIcon name="check" size={17}/>Основной трафик безлимитный</li><li><ArcIcon name="devices" size={17}/>{plan.device_limit} {plan.device_limit>=2&&plan.device_limit<=4?'устройства':'устройств'}</li><li><ArcIcon name="lte" size={17}/>{plan.lte_quota_gb?plan.lte_quota_gb+' ГБ обхода':'Без трафика обхода'}</li></ul><button class="story-action" on:click={() => selectTariff(plan)}>Выбрать {productNames[code]}</button></article>{/if}{/each}</div>
       {:else if dataError}<div class="catalog-state" role="status"><b>Тарифы временно не загрузились</b><p>Актуальные цены доступны в личном кабинете.</p><a class="text-action" href="/app">Открыть кабинет</a></div>{:else}<div class="catalog-state" role="status">Загружаем тарифы…</div>{/if}
       <details class="custom-plan"><summary>Нужны другие параметры? <span>Собрать свой тариф <ArcIcon name="settings" size={18}/></span></summary><div class="custom-layout"><div class="custom-fields"><fieldset><legend>Срок подписки</legend><div>{#each [1,3,6,12] as month}<button class:active={customMonths===month} aria-pressed={customMonths===month} on:click={() => customMonths=month}>{month} мес.</button>{/each}</div></fieldset><label class="device-range"><span>Устройства <b>{customDevices}</b></span><input aria-label="Количество устройств" type="range" min="1" max="15" bind:value={customDevices}/></label><fieldset><legend>Трафик обхода</legend><div>{#each [0,15,30,45,75,115,175,225,500] as gb}<button class:active={customLte===gb} aria-pressed={customLte===gb} on:click={() => customLte=gb}>{gb?gb+' ГБ':'Без обхода'}</button>{/each}</div></fieldset></div><div class="custom-result" aria-live="polite"><span>{customMonths} мес. · {customDevices} устр. · {customLte} ГБ обхода</span><strong>{quoteBusy?'…':customQuote?customQuote.price_rub.toLocaleString('ru-RU')+' ₽':'Цена недоступна'}</strong>{#if customQuote?.monthly_rub}<small>{customQuote.monthly_rub.toLocaleString('ru-RU')} ₽ в месяц</small>{/if}<a class="story-action" href="/app?screen=custom-tariff" on:click={() => track('landing_custom_tariff_click')}>Создать тариф</a></div></div></details>
     </section>
@@ -449,8 +448,7 @@
   .plan-comparison article.recommended { border-color:#477e9c; background:var(--raised); }
   .plan-comparison header { display:flex; align-items:center; justify-content:space-between; gap:10px; }
   .plan-comparison h3 { margin:0; font-size:20px; letter-spacing:-.025em; }
-  .plan-comparison header > span { padding:5px 8px; border-radius:8px; background:#1f4357; color:#c5eaff; font-size:12px; }
-  .plan-audience { min-height:44px; margin:13px 0 28px; color:var(--steel); font-size:15px; line-height:1.7; }
+  .plan-audience { min-height:3.4em; margin:13px 0 28px; color:var(--steel); font-size:15px; line-height:1.7; }
   .comparison-price { display:flex; align-items:baseline; gap:9px; margin:0; }
   .comparison-price strong { font-size:42px; font-weight:600; letter-spacing:-.055em; }
   .comparison-price span { color:#a1afbb; font-size:14px; }
@@ -500,9 +498,25 @@
   .closing-story nav { display:flex; align-items:center; justify-content:center; gap:28px; }
   .site-footer { position:relative; isolation:isolate; width:100%; overflow:hidden; margin:0; padding:48px 32px 0; background:var(--ink); }
   .site-footer::before { content:''; position:absolute; z-index:-1; inset:0; background:radial-gradient(ellipse at 91% 108%,rgba(119,216,255,.82),rgba(53,133,211,.48) 24%,rgba(23,52,116,.3) 47%,transparent 74%); mask-image:linear-gradient(to bottom,transparent,#000 42%); -webkit-mask-image:linear-gradient(to bottom,transparent,#000 42%); pointer-events:none; }
-  .landing-nav .brand { transform:translateX(-5px); }
-  .story-action,.plan-comparison .recommended .story-action { color:#071321!important; background:linear-gradient(128deg,#b3e4ff 0%,#72c5f4 48%,#448fcf 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 18px 44px -25px rgba(71,172,239,.9); }
-  .story-action:hover,.plan-comparison .story-action:hover { background:linear-gradient(135deg,#c6edff,#82d0f7); }
+  @media (min-width:601px) and (max-width:900px) { .plan-audience { min-height:5.1em; } }
+  /* Neutral glass navigation: the page supplies the color through the blur. */
+  .landing .landing-nav,.landing .landing-nav:not(.compact),.landing .landing-nav.compact { border:1px solid rgba(255,255,255,.18); border-radius:999px; background:linear-gradient(135deg,rgba(255,255,255,.085),rgba(255,255,255,.025)),rgba(12,14,18,.3); box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(255,255,255,.025),0 12px 36px rgba(0,0,0,.2); backdrop-filter:blur(24px) saturate(.85); -webkit-backdrop-filter:blur(24px) saturate(.85); }
+  .landing .landing-nav.compact { background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025)),rgba(12,14,18,.52); }
+  .landing .desktop-nav { gap:6px; }
+  .landing .desktop-nav a { padding:10px 15px; border-radius:999px; color:#b4b9c2; font-size:13px; font-weight:600; transition:color .2s ease,background .2s ease,box-shadow .2s ease; }
+  .landing .desktop-nav a:hover { color:#f7f9fd; background:rgba(255,255,255,.06); }
+  .landing .desktop-nav a.active { color:#f7f9fd; background:rgba(255,255,255,.1); box-shadow:inset 0 1px 0 rgba(255,255,255,.12); }
+  .landing .desktop-nav a.active::after { display:none; }
+  .landing-nav .brand { transform:translateX(8px); }
+  .landing .story-action,.landing .plan-comparison .recommended .story-action,.landing .period-control button.active,.landing .custom-fields button.active { color:#03101d!important; background:linear-gradient(128deg,#b3e4ff 0%,#72c5f4 48%,#448fcf 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 18px 44px -25px rgba(71,172,239,.9); font-weight:800; }
+  .landing .period-control button,.landing .custom-fields button { font-weight:600; }
+  .landing .period-control { display:grid; grid-template-columns:repeat(4,1fr); gap:4px; padding:5px; }
+  .landing .period-control button { min-width:0; padding:0 12px; line-height:1; letter-spacing:0; white-space:nowrap; }
+  .landing .period-control button.active,.landing .custom-fields button.active { font-weight:700; box-shadow:inset 0 1px 0 rgba(255,255,255,.7); }
+  .landing .story-action:hover,.landing .period-control button.active:hover,.landing .custom-fields button.active:hover { filter:brightness(1.06); }
+  .landing .plan-comparison article:not(.recommended) .story-action,.landing .story-action.secondary-action { color:#e9f5fc!important; background:#172530; border:1px solid #354652; box-shadow:none; font-weight:700; }
+  .landing .plan-comparison article:not(.recommended) .story-action:hover,.landing .story-action.secondary-action:hover { background:#12202a; filter:none; }
+  .closing-story { margin-bottom:72px; }
   .footer-top,.footer-meta { width:min(100%,1120px); margin-inline:auto; }
   .footer-top { display:flex; justify-content:space-between; gap:64px; }
   .footer-navigation { display:grid; align-content:start; gap:6px; }
@@ -528,7 +542,6 @@
     .plan-comparison { gap:10px; }
     .plan-comparison article { padding:20px; }
     .plan-comparison header { align-items:flex-start; flex-direction:column; min-height:58px; }
-    .plan-comparison header > span { font-size:12px; }
     .plan-comparison li { align-items:flex-start; font-size:15px; }
     .pricing-heading { align-items:flex-start; flex-direction:column; }
     .profile-list dd { font-size:16px; }
@@ -576,6 +589,7 @@
     .setup-story li p { max-width:none; grid-column:2; }
     .answers-list button { min-height:76px; font-size:15px; }
     .closing-story nav { flex-direction:column; gap:14px; }
+    .closing-story { margin-bottom:48px; }
     .site-footer { padding:36px 20px 0; }
     .footer-top { gap:24px; }
     .footer-contact { gap:8px; }

@@ -9,6 +9,13 @@ from bot.services import support_ai as ai
 from database import db_support as db
 
 
+@pytest.fixture(autouse=True)
+def isolated_provider_configuration(monkeypatch):
+    monkeypatch.setenv("SUPPORT_AI_PROVIDER", "openai")
+    monkeypatch.delenv("SUPPORT_AI_MODEL", raising=False)
+    monkeypatch.setattr(ai, "provider_health", Mock())
+
+
 @pytest.fixture
 def support_db(tmp_path, monkeypatch):
     path = tmp_path / "support.sqlite"
@@ -181,3 +188,37 @@ def test_rate_limited_message_never_requests_ai(monkeypatch):
     monkeypatch.setattr(ai, "queue_reply", queue)
     assert api.app.test_client().post('/api/support/messages', json={"body": "Помогите"}).status_code == 429
     queue.assert_not_called()
+
+
+@pytest.mark.parametrize("provider,key,host", [
+    ("groq", "GROQ_API_KEY", "api.groq.com"),
+    ("openrouter", "OPENROUTER_API_KEY", "openrouter.ai"),
+    ("gemini", "GEMINI_API_KEY", "generativelanguage.googleapis.com"),
+])
+def test_compatible_provider_payloads_are_bounded_and_redacted(monkeypatch, provider, key, host):
+    monkeypatch.setenv("SUPPORT_AI_PROVIDER", provider)
+    monkeypatch.setenv(key, "test-key")
+    monkeypatch.setenv("SUPPORT_AI_ENABLED", "true")
+    captured = {}
+    @contextmanager
+    def response(request, timeout):
+        captured.update(json.loads(request.data), host=request.host, timeout=timeout)
+        yield Mock(read=lambda n: json.dumps({"choices": [{"message": {"content": "Обновите подписку."}}]}).encode())
+    monkeypatch.setattr(ai.urllib.request, "urlopen", response)
+    assert ai.enabled()
+    assert ai.request_reply([{"sender": "user", "body": "https://example.test/private"}]) == "Обновите подписку."
+    assert captured["host"] == host and captured["timeout"] == 8
+    assert "private" not in json.dumps(captured["messages"])
+    assert "tools" not in captured
+    if provider == "groq":
+        assert captured["max_completion_tokens"] == 1024
+        assert captured["include_reasoning"] is False
+
+
+def test_failure_is_reported_after_user_fallback_has_been_saved(support_db, monkeypatch):
+    monkeypatch.setattr(ai, "request_reply", Mock(side_effect=TimeoutError))
+    def alert(healthy, error):
+        assert not healthy and isinstance(error, TimeoutError)
+        assert db.get_support_messages(700001)["messages"][-1]["body"] == ai.FALLBACK
+    monkeypatch.setattr(ai, "provider_health", alert)
+    _run_reserved_reply(monkeypatch)

@@ -5,7 +5,7 @@
 непоследовательной обработкой ошибок (блокировка бота, rate-limit). Этот модуль
 централизует отправку:
 - send_to_user  — пользователю, с обработкой блокировки/лимитов;
-- notify_admins — всем админам;
+- notify_admins — выбранным получателям административных уведомлений;
 - render_template — единая загрузка шаблонов из settings + подстановка плейсхолдеров.
 """
 import asyncio
@@ -20,7 +20,7 @@ from aiogram.exceptions import (
 )
 from aiogram.types import BufferedInputFile, InlineKeyboardMarkup
 
-from config import ADMIN_IDS
+from bot.services.admin_recipients import admin_notification_ids
 
 logger = logging.getLogger(__name__)
 
@@ -92,12 +92,12 @@ async def notify_admins(
     parse_mode: str = "HTML",
 ) -> None:
     """
-    Рассылает сообщение всем администраторам.
+    Отправляет сообщение выбранным получателям, сохраняя отдельные права админки.
 
     Args:
         document: опционально (bytes, filename) — отправить как документ вместо текста.
     """
-    for admin_id in ADMIN_IDS:
+    for admin_id in admin_notification_ids():
         try:
             if document is not None:
                 data, filename = document

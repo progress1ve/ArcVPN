@@ -2755,10 +2755,9 @@
     .flow-preview *, .flow-preview *::before, .flow-preview *::after { animation-duration:0s !important; transition-duration:0s !important; scroll-behavior:auto !important; }
   }
 
-  /* Shared cabinet surfaces and fixed price slots. */
-  .flow-preview .plan-card,.flow-preview .custom-control,.flow-preview .addon-block,.flow-preview .custom-quote,.flow-preview .support-hero,.flow-preview .faq { border:0; box-shadow:none; background:var(--surface); }
+  /* Fixed price slots preserve the original cabinet surfaces. */
   .plan-card { display:grid; grid-template-rows:22px 26px 36px 22px; align-content:start; align-items:center; gap:8px; min-height:174px; padding:18px; }
-  .plan-card.active { border:0; background:#14283a; box-shadow:none; transform:none; }
+  .plan-card.active { transform:none; }
   .plan-card > span { font-size:14px; line-height:22px; }
   .plan-card > em { justify-self:start; align-self:center; margin:0; padding:3px 8px; font-size:11px; line-height:18px; font-style:normal; border-radius:9px; }
   .plan-badge.empty { visibility:hidden; }
@@ -2773,9 +2772,7 @@
   .custom-control header > strong { font-size:16px; }
   .custom-control > small,.addon-block > small { color:#bcc8d7; font-size:14px; line-height:1.6; }
   .custom-options { margin-top:18px; gap:8px; }
-  .custom-options button,.addon-grid button,.device-stepper button { border:0; background:var(--surface-raised); box-shadow:none; }
   .custom-options button { min-height:46px; border-radius:14px; color:#e0e8f1; font-size:14px; font-weight:650; }
-  .custom-options button.active,.addon-grid button.active { border:0; background:linear-gradient(135deg,#b4e5ff,#64bdf0); color:#071321; box-shadow:none; }
   .custom-options button:hover:not(.active),.addon-grid button:hover:not(.active) { background:#1b2a3a; }
   .device-stepper { margin-top:18px; }
   .device-stepper button { border-radius:14px; }
@@ -2795,7 +2792,6 @@
   .addon-grid button { min-height:60px; padding:0 16px; border-radius:16px; }
   .addon-grid b { font-size:15px; font-weight:650; }
   .addon-grid span { font-size:16px; font-weight:700; white-space:nowrap; }
-  .addon-grid button.active span { color:inherit; }
   .addons-screen .total-row { font-size:15px; }
   .addons-screen .total-row small { font-size:14px; color:#c2ccd9; }
   .screen.support-screen { margin-inline:auto; }
