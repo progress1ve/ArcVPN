@@ -146,9 +146,9 @@
     location.href = cabinetUrl({ screen: 'tariffs', product: plan.product_code, months: plan.period_months })
   }
   onMount(() => {
-    document.title = 'ArcVPN (Арк ВПН) — VPN для телефона и компьютера'
+    document.title = 'ArcVPN — VPN для телефона и компьютера'
     const description = document.querySelector('meta[name="description"]')
-    if (description) description.content = 'ArcVPN (Арк ВПН) — VPN для iPhone, Android, Windows и Linux. Подключение через Happ и INCY, безлимитный основной трафик, тарифы и поддержка.'
+    if (description) description.content = 'ArcVPN — VPN для iPhone, Android, Windows и Linux. Подключение через Happ и INCY, безлимитный основной трафик, тарифы и поддержка.'
     document.documentElement.classList.add('landing-document')
     loadPublicData()
     let scrollFrame
@@ -179,7 +179,7 @@
 
 <svelte:head>
   <meta name="theme-color" content="#030508" />
-  <meta property="og:title" content="ArcVPN (Арк ВПН) — VPN для телефона и компьютера" />
+  <meta property="og:title" content="ArcVPN — VPN для телефона и компьютера" />
   <meta property="og:description" content="VPN для iPhone, Android, Windows и Linux. Подключение через Happ и INCY, тарифы и поддержка ArcVPN." />
 </svelte:head>
 

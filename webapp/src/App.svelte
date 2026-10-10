@@ -39,7 +39,7 @@
       document.head.appendChild(robots)
     }
     robots.content = isAdminConsole ? 'noindex,nofollow' : 'index,follow'
-    document.title = isAdminConsole ? 'Админ-панель ArcVPN' : 'ArcVPN (Арк ВПН) — личный кабинет'
+    document.title = isAdminConsole ? 'Админ-панель ArcVPN' : 'ArcVPN — личный кабинет'
     const description = document.querySelector('meta[name="description"]')
     if (description && !isAdminConsole) description.content = 'Личный кабинет ArcVPN: подписка, устройства, тарифы, трафик и поддержка.'
   }
