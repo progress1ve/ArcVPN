@@ -6,8 +6,8 @@
   import { encryptLink as encryptIncyLink } from '@incy/link-encoder/sync'
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
-  import { copyText, toastMsg } from '../lib/ui.js'
-  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createAddonPayment, createEmailTrialPayment, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
+  import { copyText, toastMsg, toast } from '../lib/ui.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createAddonPayment, createEmailTrialPayment, startEmailFreeTrial, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -76,6 +76,7 @@
   let selectedDevice = 'iphone'
   let selectedConnectApp = 'happ'
   let settingsPage = 'main'
+  let settingsReturnTab = 'settings'
   let account = null
   let preferences = { expiry: true, traffic: true, connection: true }
   let registeredDevices = []
@@ -96,6 +97,9 @@
   let referralQrOpen = false
   let referralQrData = ''
   let paidTrialMethod = 'sbp'
+  let freeTrialBusy = false
+  let freeTrialAttempted = false
+  let freeTrialMessage = ''
   let paidTrialBusy = false
   let paidTrialMessage = ''
   let paidTrialDismissed = false
@@ -190,6 +194,7 @@
   let paymentOrderId = ''
   let paymentConfirmationUrl = ''
   let paymentState = 'idle'
+  let paymentKind = 'subscription'
   let paymentMessage = ''
   let paymentPoll = null
   let paymentMethodOpen = false
@@ -303,7 +308,10 @@
       return closePurchase()
     }
     if (supportChatOpen) return closeSupportChat()
-    if (settingsPage !== 'main') settingsPage = 'main'
+    if (settingsPage !== 'main') {
+      settingsPage = 'main'
+      active = settingsReturnTab
+    }
   }
 
   function selectTab(id) {
@@ -319,6 +327,8 @@
   function openSettingsPage(page) {
     haptic('light')
     settingsError = ''
+    settingsReturnTab = active
+    active = 'settings'
     settingsPage = page
     if (page === 'devices') refreshDevices()
     if (page === 'billing') refreshRecurring()
@@ -353,7 +363,6 @@
   }
 
   function openDevices() {
-    active = 'settings'
     openSettingsPage('devices')
     window.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -437,11 +446,14 @@
   }
 
   async function buyPaidTrial() {
-    if (paidTrialBusy) return
+    if (paidTrialBusy || !account?.trial_offer?.renewal_amount_rub) return
     paidTrialBusy = true
     paidTrialMessage = ''
+    if (paymentState === 'canceled') resetPayment()
     try {
-      const result = await createEmailTrialPayment(paidTrialMethod)
+      const result = await createEmailTrialPayment(paidTrialMethod, account.trial_offer.renewal_amount_rub)
+      paymentKind = 'trial'
+      paymentMessage = 'Завершите оплату в приложении банка. Здесь появится подтверждение.'
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -451,10 +463,30 @@
     } catch (error) {
       paidTrialMessage = ({
         recurring_method_not_enabled: 'Автопродление для этого способа оплаты пока недоступно.',
+        trial_terms_changed: 'Цена Стандарта изменилась. Проверьте обновлённые условия и повторите оплату.',
         paid_trial_already_used: 'Пробный период уже был использован.',
+        payment_provider_unavailable: 'Банк сейчас недоступен. Попробуйте позже — повторно оплачивать ничего не нужно.',
         paid_trial_payment_pending: 'Платёж уже создан. Завершите его или дождитесь отмены банком.',
       })[error.reason] || 'Не удалось создать платёж. Попробуйте ещё раз.'
+      if (error.reason === 'trial_terms_changed') await refreshTrialAccount()
     } finally { paidTrialBusy = false }
+  }
+
+  $: if (account?.free_trial_available && !accountLoading && !freeTrialAttempted && (!paymentOrderId || paymentState === 'canceled')) activateFreeTrial()
+
+  async function activateFreeTrial() {
+    if (freeTrialBusy) return
+    freeTrialBusy = true
+    freeTrialAttempted = true
+    freeTrialMessage = ''
+    try {
+      await startEmailFreeTrial()
+      paidTrialDismissed = true
+      await Promise.all([loadStatus({force:true}), refreshDevices(), refreshTrialAccount()])
+      toast('Бесплатный день активирован')
+    } catch (_) {
+      freeTrialMessage = 'Не удалось активировать бесплатный день. Попробуйте ещё раз или напишите в поддержку.'
+    } finally { freeTrialBusy = false }
   }
 
   function dismissPaidTrial() {
@@ -517,6 +549,7 @@
     try {
       const createPayment = method === 'card' ? createCardPayment : createSbpPayment
       const result = await createPayment(plan.id, purchaseDevices, purchaseLteGb, promoCode.trim(), method === 'card' && autoRenew, purchaseCustom)
+      paymentKind = 'subscription'
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -622,6 +655,7 @@
     if (!paymentOrderId) return
     localStorage.setItem('arcvpn-pending-payment', JSON.stringify({
       orderId: paymentOrderId,
+      kind: paymentKind,
       confirmationUrl: paymentConfirmationUrl,
       addonLteGb: addonsOpen ? addonLteGb : 0,
       addonDevices: addonsOpen ? addonDevices : 0,
@@ -656,13 +690,18 @@
     if (!silent) paymentMessage = 'Проверяем платёж…'
     try {
       const result = await fetchSbpPayment(paymentOrderId)
+      if (result.offer_code === 'email_paid_trial') {
+        if (paymentKind !== 'trial') paidTrialDismissed = false
+        paymentKind = 'trial'
+        purchaseOpen = false
+      }
       if (result.applied) {
         paymentState = 'success'
-        paymentMessage = addonsOpen ? 'Докупка активирована и уже доступна.' : 'Подписка обновлена и уже готова к работе.'
+        paymentMessage = paymentKind === 'trial' ? 'Standard активирован на 7 дней. Теперь подключим ваше устройство.' : paymentKind === 'addon' ? 'Докупка активирована и уже доступна.' : 'Подписка обновлена и уже готова к работе.'
         clearInterval(paymentPoll)
         clearPendingPayment()
         haptic('success')
-        await Promise.all([loadStatus({ force: true }), refreshDevices()])
+        await Promise.all([loadStatus({ force: true }), refreshDevices(), refreshTrialAccount()])
       } else if (result.review_required || result.fulfillment_status === 'manual_review') {
         paymentState = 'review'
         paymentMessage = 'Деньги получены. Поддержка проверит выдачу подписки — повторно платить не нужно.'
@@ -677,6 +716,7 @@
         if (paymentState === 'canceled') {
           clearInterval(paymentPoll)
           clearPendingPayment()
+          await refreshTrialAccount()
         }
       }
     } catch (_) {
@@ -685,12 +725,30 @@
     } finally { paymentChecking = false }
   }
 
+  async function refreshTrialAccount() {
+    try { account = await fetchAccount() } catch (_) {}
+  }
+
+  function finishTrialPayment(connect = false) {
+    resetPayment()
+    paidTrialDismissed = true
+    if (connect) openConnect()
+  }
+
+  function changeLoginEmail() {
+    emailStep = 'email'
+    emailCode = ''
+    emailMessage = ''
+    localStorage.removeItem('arcvpn-email-flow')
+  }
+
   function resetPayment() {
     clearInterval(paymentPoll)
     clearPendingPayment()
     paymentOrderId = ''
     paymentConfirmationUrl = ''
     paymentState = 'idle'
+    paymentKind = 'subscription'
     paymentMessage = ''
   }
 
@@ -700,6 +758,7 @@
     paymentMessage = ''
     try {
       const result = await createAddonPayment(addonLteGb, addonDevices, method)
+      paymentKind = 'addon'
       paymentOrderId = result.order_id
       paymentConfirmationUrl = result.confirmation_url
       paymentState = 'awaiting'
@@ -1115,11 +1174,13 @@
         addonLteGb = Number(saved?.addonLteGb || 0)
         addonDevices = Number(saved?.addonDevices || 0)
       }
+      paymentKind = saved?.kind || (addonsOpen ? 'addon' : 'subscription')
+      if (paymentKind === 'trial') paidTrialDismissed = false
       paymentOrderId = restoredOrderId
       paymentConfirmationUrl = saved?.confirmationUrl || ''
       paymentState = 'awaiting'
       paymentMessage = 'Проверяем подтверждение банка…'
-      if (!addonsOpen) purchaseOpen = true
+      if (!addonsOpen && paymentKind !== 'trial') purchaseOpen = true
       startPaymentPolling(true)
     }
     window.addEventListener('focus', handlePaymentResume)
@@ -1146,7 +1207,7 @@
     <main in:fly={{ y: reducedMotion ? 0 : 10, duration: reducedMotion ? 0 : 240, easing: cubicOut }}>
       {#if addonsOpen}
         <section class="screen purchase-screen addons-screen" aria-label="Докупка">
-          <header class="purchase-toolbar"><button class="purchase-back system-back" aria-label="Назад" on:click={() => addonsOpen=false}><ArcIcon name="back" size={20} weight="bold" /></button><h1>Трафик и устройства</h1></header>
+          <header class="purchase-toolbar"><button class="purchase-back system-back" aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button><h1>Трафик и устройства</h1></header>
           <section class="addon-block"><h2>Трафик на обход глушилок</h2><div class="addon-grid">
             {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
               <button class:active={addonLteGb===pack[0]} aria-pressed={addonLteGb===pack[0]} disabled={Boolean(addonBusy)} on:click={() => addonLteGb=addonLteGb===pack[0]?0:pack[0]}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
@@ -1224,7 +1285,7 @@
 
             <nav class="purchase-utilities" aria-label="Другие варианты">
             <button class="custom-tariff-open" on:click={openCustomTariff}><ArcIcon name="settings" size={18} weight="duotone" /><span>Создать свой тариф</span><ArcIcon name="arrow" size={17} weight="bold" /></button>
-            {#if primary?.is_active}<button class="custom-tariff-open" on:click={() => { addonsOpen=true; purchaseOpen=false; window.scrollTo({top:0,behavior:'instant'}) }}><ArcIcon name="wallet" size={18} weight="duotone" /><span>Докупить трафик или устройства</span><ArcIcon name="arrow" size={17} weight="bold" /></button>{/if}
+            {#if primary?.is_active}<button class="custom-tariff-open" on:click={() => { addonsOpen=true; window.scrollTo({top:0,behavior:'instant'}) }}><ArcIcon name="wallet" size={18} weight="duotone" /><span>Докупить трафик или устройства</span><ArcIcon name="arrow" size={17} weight="bold" /></button>{/if}
             </nav>
           {/if}
 
@@ -1349,7 +1410,8 @@
               {#if emailStep === 'code'}<label><span>Код из письма</span><input inputmode="numeric" maxlength="6" autocomplete="one-time-code" bind:value={emailCode} placeholder="000000" /></label>{/if}
               {#if emailStep === 'email'}<button disabled={emailBusy || !emailInput.includes('@')} on:click={() => sendEmailCode('auto')}>Продолжить по email</button>{:else}<button disabled={emailBusy || emailCode.length !== 6} on:click={() => confirmEmailCode('auto')}>Подтвердить и продолжить</button>{/if}
             </section>
-            {#if emailMessage}<p class="form-message">{emailMessage}</p>{/if}
+            {#if emailMessage}<p class="form-message" role="status">{emailMessage}</p>{/if}
+            {#if emailStep === 'code'}<button class="login-change-email" disabled={emailBusy} on:click={changeLoginEmail}>Изменить email</button>{/if}
             {#if !isTelegramWebApp}
               <div class="login-divider"><span>или</span></div>
               {#if botLoginUrl}
@@ -1358,7 +1420,7 @@
                 <p class="telegram-login-state" role="status">Подключаем Telegram…</p>
               {/if}
             {/if}
-            <p class="login-help">Новому email-аккаунту доступен Standard на 7 дней за 10 ₽. Если аккаунт уже есть, вы просто войдёте в него.</p>
+            <p class="login-help">Новому аккаунту — 1 день бесплатно. По желанию — ещё 7 дней Standard за 10 ₽. Если аккаунт уже есть, вы просто войдёте в него.</p>
           </div>
         </section>
       {:else if active === 'home'}
@@ -1388,14 +1450,16 @@
             </button>
           </div>
 
+          {#if freeTrialBusy}<p class="form-message" role="status">Активируем ваш бесплатный день…</p>{/if}
+          {#if freeTrialMessage}<p class="form-message" role="alert">{freeTrialMessage}</p><button class="login-change-email" on:click={activateFreeTrial}>Получить бесплатный день</button>{/if}
           <div class="actions">
             <button class="primary" on:click={openPurchase}><ArcIcon name="wallet" size={20} weight="duotone" />{primary?.is_active ? 'Продлить подписку' : 'Оформить подписку'}</button>
             <button class="secondary" on:click={openConnect}><ArcIcon name="download" size={20} weight="bold" />Подключить VPN</button>
           </div>
 
-          {#if account?.identity_source === 'email' && account?.paid_trial_offer === 'available' && !primary?.is_active && paidTrialDismissed}
+          {#if account?.identity_source === 'email' && (['available','pending','created','canceled','failed'].includes(account?.paid_trial_offer) || paymentKind === 'trial' && paymentOrderId) && paidTrialDismissed}
             <button class="paid-trial-banner" on:click={reopenPaidTrial}>
-              <span><small>ПРОБНЫЙ ПЕРИОД</small><b>7 дней Standard за 10 ₽</b><em>5 ГБ обхода глушилок · автопродление</em></span>
+              <span><small>ПРОБНЫЙ ПЕРИОД</small><b>Ещё 7 дней Standard за 10 ₽</b><em>5 ГБ обхода глушилок · автопродление</em></span>
               <i><ArcIcon name="arrow" size={18} weight="bold" /></i>
             </button>
           {/if}
@@ -1607,21 +1671,39 @@
     </main>
   {/key}
 
-  {#if account?.identity_source === 'email' && ['available','pending','created'].includes(account?.paid_trial_offer) && !primary?.is_active && !paymentOrderId && !paidTrialDismissed}
+  {#if account?.identity_source === 'email' && !freeTrialBusy && !freeTrialMessage && ((['available','pending','created','canceled','failed'].includes(account?.paid_trial_offer) && !paymentOrderId) || paymentKind === 'trial' && paymentOrderId) && !paidTrialDismissed}
     <div class="paid-trial-backdrop" transition:fade={{duration: reducedMotion ? 0 : 160}}>
-      <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" transition:fly={{y:24,duration: reducedMotion ? 0 : 220,easing:cubicOut}}>
+      <section class="paid-trial-card" role="dialog" aria-modal="true" aria-labelledby="paid-trial-title" use:dialogFocus={dismissPaidTrial} transition:fly={{y:24,duration: reducedMotion ? 0 : 220,easing:cubicOut}}>
+        {#if paymentKind === 'trial' && paymentOrderId && paymentState !== 'canceled'}
+        <span class="paid-trial-kicker">ПРОБНЫЙ STANDARD · 10 ₽</span>
+        <h2 id="paid-trial-title">{paymentState === 'success' ? 'Всё готово к подключению' : paymentState === 'review' ? 'Оплата на проверке' : 'Завершите оплату'}</h2>
+        <p role="status" aria-live="polite">{paymentMessage}</p>
+        {#if paymentState === 'success'}
+          <button class="paid-trial-pay" on:click={() => finishTrialPayment(true)}>Подключить VPN</button>
+          <button class="paid-trial-later" on:click={() => finishTrialPayment()}>Вернуться в кабинет</button>
+        {:else if paymentState === 'review'}
+          <button class="paid-trial-pay" on:click={() => { dismissPaidTrial(); selectTab('support'); openSupport() }}>Написать в поддержку</button>
+          <button class="paid-trial-later" on:click={dismissPaidTrial}>Вернуться в кабинет</button>
+        {:else}
+          <button class="paid-trial-pay" disabled={!paymentConfirmationUrl} on:click={reopenPayment}>Открыть оплату снова · 10 ₽</button>
+          <button class="paid-trial-later" disabled={paymentChecking} on:click={() => checkPayment(false)}>{paymentChecking ? 'Проверяем…' : 'Я оплатил — проверить'}</button>
+          <button class="login-change-email" on:click={dismissPaidTrial}>Вернуться в кабинет</button>
+        {/if}
+        {:else}
         <span class="paid-trial-kicker">ПРЕДЛОЖЕНИЕ ДЛЯ НОВОГО АККАУНТА</span>
         <h2 id="paid-trial-title">Попробуйте ArcVPN за 10 ₽</h2>
-        <p>Standard на 7 дней: основной трафик безлимитный, обход глушилок — 5 ГБ, до 3 устройств.</p>
+        {#if paymentState === 'canceled'}<p class="paid-trial-error" role="status">Платёж отменён. Можно попробовать ещё раз.</p>{/if}
+        <p>Продлите пробник на 7 дней: основной трафик безлимитный, обход — 5 ГБ, до 3 устройств.</p>
         <div class="paid-trial-methods" aria-label="Способ оплаты">
-          <button class:active={paidTrialMethod==='sbp'} on:click={() => paidTrialMethod='sbp'}><img src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /><span><b>СБП</b><small>Через приложение банка</small></span><em>{#if paidTrialMethod==='sbp'}<ArcIcon name="check" size={14}/>{/if}</em></button>
-          <button class:active={paidTrialMethod==='bank_card'} on:click={() => paidTrialMethod='bank_card'}><ArcIcon name="card" size={23}/><span><b>Картой</b><small>Мир, Visa или Mastercard</small></span><em>{#if paidTrialMethod==='bank_card'}<ArcIcon name="check" size={14}/>{/if}</em></button>
+          <button class:active={paidTrialMethod==='sbp'} disabled={account?.trial_methods?.sbp === false || paidTrialBusy} on:click={() => paidTrialMethod='sbp'}><img src={`${import.meta.env.BASE_URL}assets/payments/sbp.svg`} alt="" /><span><b>СБП</b><small>Через приложение банка</small></span><em>{#if paidTrialMethod==='sbp'}<ArcIcon name="check" size={14}/>{/if}</em></button>
+          <button class:active={paidTrialMethod==='bank_card'} disabled={account?.trial_methods?.bank_card === false || paidTrialBusy} on:click={() => paidTrialMethod='bank_card'}><ArcIcon name="card" size={23}/><span><b>Картой</b><small>Мир, Visa или Mastercard</small></span><em>{#if paidTrialMethod==='bank_card'}<ArcIcon name="check" size={14}/>{/if}</em></button>
         </div>
-        <div class="paid-trial-renew"><i><ArcIcon name="check" size={14}/></i><span><b>Автопродление включено</b><small>{paidTrialMethod==='sbp'?'Счёт СБП':'Карта'} сохранится. Отключить автопродление можно в настройках.</small></span></div>
+        <div class="paid-trial-renew"><i><ArcIcon name="check" size={14}/></i><span><b>Автопродление включено</b><small>{paidTrialMethod==='sbp'?'Счёт СБП':'Карта'} сохранится. После пробника — Стандарт на 30 дней за {rub(account?.trial_offer?.renewal_amount_rub)}. Отключить до списания можно в Настройки → Автопродление.</small></span></div>
         {#if paidTrialMessage}<p class="paid-trial-error" role="alert">{paidTrialMessage}</p>{/if}
-        <button class="paid-trial-pay" disabled={paidTrialBusy} on:click={buyPaidTrial}>{paidTrialBusy?'Создаём платёж…':`Оплатить ${paidTrialMethod==='sbp'?'через СБП':'картой'} · 10 ₽`}</button>
+        <button class="paid-trial-pay" disabled={paidTrialBusy || !account?.trial_offer?.renewal_amount_rub || account?.trial_methods?.[paidTrialMethod] === false} on:click={buyPaidTrial}>{paidTrialBusy?'Создаём платёж…':`Оплатить ${paidTrialMethod==='sbp'?'через СБП':'картой'} · 10 ₽`}</button>
         <button class="paid-trial-later" disabled={paidTrialBusy} on:click={dismissPaidTrial}>Позже</button>
         <small class="paid-trial-legal">Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a>.</small>
+        {/if}
       </section>
     </div>
   {/if}
@@ -2819,4 +2901,5 @@
   .support-screen .section-label small { font-size:13px; }
   .support-screen .faq-copy b { font-size:15px; }
   .support-screen .faq-copy small { font-size:14px; line-height:1.65; }
+  .login-change-email{display:block;margin:12px auto 0;padding:10px 14px;border:0;background:transparent;color:#acd9f3;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:4px}
 </style>

@@ -17,7 +17,7 @@ def get_webapp_account(telegram_id: int) -> Optional[Dict[str, Any]]:
         row = conn.execute(
             """SELECT id, telegram_id, username, email, email_verified_at,
                       COALESCE(identity_source, 'telegram') identity_source,
-                      email_registered_at,
+                      email_registered_at, used_trial,
                       COALESCE(notify_expiry, 1) notify_expiry,
                       COALESCE(notify_traffic, 1) notify_traffic,
                       COALESCE(notify_connection, 1) notify_connection

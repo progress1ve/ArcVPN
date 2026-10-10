@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 75
+LATEST_VERSION = 76
 
 
 def get_current_version() -> int:
@@ -2668,6 +2668,12 @@ def migration_75(conn):
     migrate(conn)
 
 
+def migration_76(conn):
+    """Snapshot the monthly renewal agreed before a paid website trial."""
+    _add_column(conn, "payments", "renewal_amount_cents INTEGER")
+    _add_column(conn, "payments", "renewal_period_days INTEGER")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2744,6 +2750,7 @@ MIGRATIONS = {
     73: migration_73,
     74: migration_74,
     75: migration_75,
+    76: migration_76,
 }
 
 

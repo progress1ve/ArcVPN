@@ -632,6 +632,15 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
     if operation_type in {'addon_lte', 'addon_device', 'addon_combined'}:
         return await _apply_addon_order(order_id, order)
 
+    if operation_type == 'trial_start' and order.get('offer_code') == 'email_paid_trial':
+        from bot.services.email_trials import paid_trial_eligible
+        if not paid_trial_eligible(get_user_by_id(int(order['user_id'])) or {}):
+            # A normal purchase may have won the race after trial checkout began.
+            # Keep its access intact and route the received money to reconciliation.
+            update_order_fulfillment(order_id, 'manual_review', 'trial eligibility changed after checkout')
+            update_email_paid_trial_claim(order_id, 'paid')
+            return True, '✅ Оплата принята. Поддержка проверит пробник; действующая подписка сохранена.', _reload_order(order_id)
+
     entitlements = apply_payment_entitlements(order_id)
     if not entitlements:
         update_order_fulfillment(order_id, 'manual_review', 'failed to apply entitlements')
@@ -657,6 +666,14 @@ async def apply_paid_order(order_id: str) -> Tuple[bool, str, Optional[Dict[str,
         if not validate_email_paid_trial_claim(int(order['user_id']), order_id):
             update_order_fulfillment(order_id, 'failed', 'email paid-trial claim mismatch')
             return False, "❌ Предложение уже используется другим платежом.", _reload_order(order_id)
+        from database.db_trials import get_trial_entitlement
+        existing_trial = get_trial_entitlement(int(order['user_id']))
+        if existing_trial and existing_trial.get('vpn_key_id'):
+            # Add the paid seven days to the free day, reusing the same key/UUID/URL.
+            order = {**order, 'vpn_key_id': existing_trial['vpn_key_id']}
+            success, message, updated = await _apply_renew_order(order_id, order)
+            update_email_paid_trial_claim(order_id, 'applied' if updated and updated.get('fulfillment_status') == 'applied' else 'paid')
+            return success, message, updated
         from bot.handlers.user.trial import provision_trial_for_user
         user = get_user_by_id(int(order['user_id']))
         provisioned = await provision_trial_for_user(

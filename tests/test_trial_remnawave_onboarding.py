@@ -44,6 +44,7 @@ def test_trial_provisions_exactly_one_native_remnawave_user(monkeypatch):
 
     client = FakeRemnawave()
     monkeypatch.setattr(connection, "get_db", fake_db)
+    monkeypatch.setattr("database.db_trials.get_db", fake_db)
     monkeypatch.setattr(requests, "get_trial_days", lambda: 7)
     monkeypatch.setattr(requests, "get_standard_trial_tariff", lambda: {
         "id": 3, "device_limit": 3, "traffic_limit_gb": 1024,

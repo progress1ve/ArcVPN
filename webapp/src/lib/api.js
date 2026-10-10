@@ -313,10 +313,24 @@ const mockUsers = [
 const mockUserDetail = (telegramId) => ({ ok: true, user: { telegram_id: Number(telegramId), balance_rub: 125, device_limit: 2, lte_used_bytes: 29 * 1024**3, lte_quota_gb: 45 }, subscriptions: [{ id: 10, custom_name: 'ArcVPN', expires_at: '2026-09-20 12:00:00', active: 1, traffic_used: 184 * 1024**3, online_devices: 1 }], payments: [{ order_id: 'qa-order', payment_type: 'sbp', status: 'succeeded', amount_rub: 125, paid_at: '2026-08-20 10:00:00' }], devices: [{ id: 1, active: 1 }], timeline: [{ kind: 'payment', title: 'Оплата подтверждена', detail: '1 месяц', at: '2026-08-20 10:00:00' }] })
 const mockAuditEvents = [{ id: 1, action: 'catalog.update', outcome: 'success', actor_id: 'owner', target_type: 'subscription_catalog', created_at: '2026-08-24T12:10:00Z' }, { id: 2, action: 'rbac.denied', outcome: 'denied', actor_id: 'viewer', target_type: 'permission', target_id: 'catalog.manage', created_at: '2026-08-24T12:08:00Z' }]
 
+// Isolated website onboarding previews. These branches are removed from production builds.
+let devEmailAuthenticated = false
+let devTrialActive = false
+let devTrialFree = false
+const devWebsiteTrial = () => new URLSearchParams(location.search).get('auth') === 'trial' || devEmailAuthenticated
+async function mockWebsiteStatus() {
+  const result = structuredClone(await mock('status'))
+  if (devWebsiteTrial()) result.keys = devTrialActive || devTrialFree ? result.keys.map(key => ({ ...key, is_trial: true, expires_at_unix: Math.floor(Date.now()/1000) + (devTrialActive?7:1)*86400, lte_quota_gb:5, lte_used_bytes:0, lte_remaining_bytes:5*1024**3 })) : []
+  return result
+}
+async function mockWebsiteAccount() {
+  const result = await mock('account')
+  return devWebsiteTrial() ? { ...result, identity_source:'email', paid_trial_offer:devTrialActive?'applied':'available', free_trial_available:!devTrialFree && !devTrialActive, trial_offer:{renewal_amount_rub:145,renewal_period_days:30}, trial_methods:{sbp:true,bank_card:true} } : result
+}
 export const fetchStatus = () => (import.meta.env.DEV
-  ? (new URLSearchParams(location.search).get('auth') === 'login'
+  ? (new URLSearchParams(location.search).get('auth') === 'login' && !devEmailAuthenticated
       ? Promise.reject(Object.assign(new Error('unauthorized'), { code: 401 }))
-      : mock('status'))
+      : mockWebsiteStatus())
   : get('/api/status'))
 export const fetchAdminAccess = () => (import.meta.env.DEV ? mockAdminAccess() : get('/api/admin/access'))
 let mockAdminRoleAssignments = [{ telegram_id: 700001, role: 'operator', assigned_by: 1, updated_at: new Date().toISOString() }]
@@ -377,12 +391,12 @@ export const fetchAdminUsers = ({ q = '', status = 'all', sort = 'new', usage = 
 }
 export const fetchTariffs = () => (import.meta.env.DEV ? mock('tariffs') : get('/api/tariffs'))
 export const fetchReferral = () => (import.meta.env.DEV ? mock('referral') : get('/api/referral'))
-export const fetchAccount = () => (import.meta.env.DEV ? mock('account') : get('/api/account'))
+export const fetchAccount = () => (import.meta.env.DEV ? mockWebsiteAccount() : get('/api/account'))
 export const fetchPublicConfig = () => (import.meta.env.DEV
   ? Promise.resolve({ ok: true, bot_url: 'https://t.me/arcvpnnbot?start=site_login' })
   : get('/api/public/config'))
 export const fetchPreferences = () => (import.meta.env.DEV ? mock('preferences') : get('/api/preferences'))
-export const fetchDevices = () => (import.meta.env.DEV ? mock('devices') : get('/api/devices'))
+export const fetchDevices = () => (import.meta.env.DEV ? devWebsiteTrial() ? Promise.resolve({ok:true,devices:[],device_limit:3,online_total:0}) : mock('devices') : get('/api/devices'))
 export const renameDevice = (deviceId, displayName) =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, device_id: deviceId, display_name: displayName })
@@ -401,7 +415,8 @@ export const createCardPayment = (tariffId, devices = 2, lteGb = 0, promocode = 
   post('/api/payments/card', { tariff_id: tariffId, devices, lte_gb: lteGb, promocode, auto_renew: autoRenew, custom })
 export const createAddonPayment = (lteGb = 0, devices = 0, method = 'sbp') =>
   post(`/api/payments/${method === 'card' ? 'card' : 'sbp'}`, { addon: { lte_gb: lteGb, devices } })
-export const createEmailTrialPayment = (method = 'sbp') => post('/api/payments/email-trial', { method })
+export const startEmailFreeTrial = () => (import.meta.env.DEV ? Promise.resolve().then(() => {devTrialFree=true;return {ok:true,trial_days:1}}) : post('/api/trials/email-free'))
+export const createEmailTrialPayment = (method = 'sbp', renewalAmountRub = null) => (import.meta.env.DEV ? Promise.resolve({ ok:true, order_id:'dev-trial-order', confirmation_url:'', amount_rub:10, status:'pending' }) : post('/api/payments/email-trial', { method, renewal_amount_rub:renewalAmountRub }))
 export const validatePromocode = async (tariffId, code, devices = null, lteGb = null, custom = false, quotedBase = null) => {
   if (!import.meta.env.DEV) return post('/api/promocodes/validate', { tariff_id: tariffId, code, devices, lte_gb: lteGb, custom })
   const normalized = code.trim().toUpperCase()
@@ -417,7 +432,11 @@ export const validatePromocode = async (tariffId, code, devices = null, lteGb = 
 }
 export const fetchSbpPayment = (orderId) =>
   (import.meta.env.DEV
-    ? Promise.resolve({ ok: true, status: 'succeeded', applied: true })
+    ? Promise.resolve().then(() => {
+        const state = orderId === 'dev-trial-order' ? new URLSearchParams(location.search).get('trial-payment') || 'pending' : 'success'
+        if (state === 'success' && orderId === 'dev-trial-order') devTrialActive = true
+        return { ok:true, status:state === 'success' || state === 'review' ? 'succeeded' : state, applied:state === 'success', review_required:state === 'review', offer_code:orderId === 'dev-trial-order' ? 'email_paid_trial' : null }
+      })
     : get(`/api/payments/sbp/${encodeURIComponent(orderId)}`))
 export const fetchRecurringPayment = () =>
   (import.meta.env.DEV
@@ -456,6 +475,7 @@ export async function verifyEmailCode(email, code, purpose = 'link') {
     if (code !== '123456') throw Object.assign(new Error('invalid_code'), { reason: 'invalid_code', code: 400 })
     MOCK.account.email = email
     MOCK.account.email_verified = true
+    if (['auto','login','register'].includes(purpose)) devEmailAuthenticated = true
     return { ok: true, email }
   }
   return post('/api/auth/email/verify', { email, code, purpose })

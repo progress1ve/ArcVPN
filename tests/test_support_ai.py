@@ -222,3 +222,19 @@ def test_failure_is_reported_after_user_fallback_has_been_saved(support_db, monk
         assert db.get_support_messages(700001)["messages"][-1]["body"] == ai.FALLBACK
     monkeypatch.setattr(ai, "provider_health", alert)
     _run_reserved_reply(monkeypatch)
+
+
+@pytest.mark.parametrize("invented", [
+    "Выберите OpenVPN или WireGuard.",
+    "Найдите ArcVPN в Google Play.",
+    "В App Store установите ArcVPN.",
+    "Попробуйте Outline.",
+])
+def test_invented_clients_are_replaced_by_supported_onboarding(invented):
+    answer = ai.verified_reply(invented)
+    assert "Happ или INCY" in answer and "Автовыбор" in answer
+    assert invented not in answer
+
+
+def test_plain_chat_does_not_expose_markdown():
+    assert ai.verified_reply("## Проверка\n1. **Откройте** `Happ`.\n[Инструкция](https://example.test)") == "Проверка\n1. Откройте Happ.\nИнструкция"

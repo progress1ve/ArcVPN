@@ -52,6 +52,14 @@ def _is_standard_name(name: object) -> bool:
     return "standard" in normalized or "стандарт" in normalized
 
 
+def get_standard_monthly_tariff() -> Optional[Dict[str, Any]]:
+    """Only the ordinary monthly Standard can follow a website trial."""
+    with get_db() as conn:
+        rows = conn.execute("SELECT * FROM tariffs WHERE is_active=1 AND duration_days=30 ORDER BY display_order,id").fetchall()
+        row = next((item for item in rows if _is_standard_name(item['name']) and int(item['price_rub'] or 0) > 0), None)
+        return dict(row) if row else None
+
+
 def get_trial_entitlement(user_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
         row = conn.execute(

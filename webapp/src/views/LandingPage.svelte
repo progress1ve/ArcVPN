@@ -213,10 +213,10 @@
     </section>
 
     <section class="story trial-story" id="subscription" data-nav-section use:reveal>
-      <div class="story-heading"><h2>Попробуйте<br />на своей сети</h2><p>7 дней ArcVPN и 5 ГБ для обхода глушилок. Выберите, где удобнее начать.</p></div>
+      <div class="story-heading"><h2>Попробуйте<br />на своей сети</h2><p>На сайте — 1 день бесплатно, без карты. В Telegram — 7 дней и 5 ГБ обхода.</p></div>
       <div class="trial-choices">
         <article><div><span>Через Telegram</span><h3>Бесплатно</h3><p>Бот активирует пробную подписку для нового пользователя.</p></div>{#if config.bot_url}<a class="story-action" href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_trial_click', { channel:'bot' })}>Попробовать в боте <ArcIcon name="arrow" size={18} /></a>{/if}</article>
-        <article><div><span>На сайте</span><h3>10 ₽</h3><p>Новому email-аккаунту — Standard на 7 дней. Автопродление можно отключить в настройках.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
+        <article><div><span>На сайте</span><h3>1 день бесплатно</h3><p>Новому email-аккаунту — без карты и автосписания. По желанию ещё 7 дней за 10 ₽, затем месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
       </div>
     </section>
 
@@ -499,14 +499,17 @@
   .site-footer { position:relative; isolation:isolate; width:100%; overflow:hidden; margin:0; padding:48px 32px 0; background:var(--ink); }
   .site-footer::before { content:''; position:absolute; z-index:-1; inset:0; background:radial-gradient(ellipse at 91% 108%,rgba(119,216,255,.82),rgba(53,133,211,.48) 24%,rgba(23,52,116,.3) 47%,transparent 74%); mask-image:linear-gradient(to bottom,transparent,#000 42%); -webkit-mask-image:linear-gradient(to bottom,transparent,#000 42%); pointer-events:none; }
   @media (min-width:601px) and (max-width:900px) { .plan-audience { min-height:5.1em; } }
-  /* Neutral glass navigation: the page supplies the color through the blur. */
-  .landing .landing-nav,.landing .landing-nav:not(.compact),.landing .landing-nav.compact { border:1px solid rgba(255,255,255,.18); border-radius:999px; background:linear-gradient(135deg,rgba(255,255,255,.085),rgba(255,255,255,.025)),rgba(12,14,18,.3); box-shadow:inset 0 1px 0 rgba(255,255,255,.12),inset 0 -1px 0 rgba(255,255,255,.025),0 12px 36px rgba(0,0,0,.2); backdrop-filter:blur(24px) saturate(.85); -webkit-backdrop-filter:blur(24px) saturate(.85); }
-  .landing .landing-nav.compact { background:linear-gradient(135deg,rgba(255,255,255,.07),rgba(255,255,255,.025)),rgba(12,14,18,.52); }
+  /* ArcVPN glass: near-black body, cold light edge and translucent active pill. */
+  .landing .landing-nav,.landing .landing-nav:not(.compact),.landing .landing-nav.compact { border:1px solid rgba(177,221,245,.19); border-radius:999px; background:linear-gradient(115deg,rgba(198,231,249,.07),rgba(127,200,244,.025) 45%,rgba(255,255,255,.045)),rgba(3,9,15,.46); box-shadow:inset 0 1px 0 rgba(224,244,255,.14),inset 0 -1px 0 rgba(139,208,249,.035),0 12px 36px rgba(0,0,0,.24); backdrop-filter:blur(24px) saturate(1.08); -webkit-backdrop-filter:blur(24px) saturate(1.08); }
+  .landing .landing-nav.compact { background:linear-gradient(115deg,rgba(198,231,249,.065),rgba(127,200,244,.02) 45%,rgba(255,255,255,.04)),rgba(3,9,15,.66); }
   .landing .desktop-nav { gap:6px; }
   .landing .desktop-nav a { padding:10px 15px; border-radius:999px; color:#b4b9c2; font-size:13px; font-weight:600; transition:color .2s ease,background .2s ease,box-shadow .2s ease; }
   .landing .desktop-nav a:hover { color:#f7f9fd; background:rgba(255,255,255,.06); }
-  .landing .desktop-nav a.active { color:#f7f9fd; background:rgba(255,255,255,.1); box-shadow:inset 0 1px 0 rgba(255,255,255,.12); }
+  .landing .desktop-nav a.active { color:#f7f9fd; background:linear-gradient(130deg,rgba(180,227,255,.16),rgba(91,170,220,.08)); box-shadow:inset 0 1px 0 rgba(255,255,255,.12); }
   .landing .desktop-nav a.active::after { display:none; }
+  .landing .landing-nav:not(.compact) { border-color:transparent; border-radius:0; background:transparent; box-shadow:none; backdrop-filter:none; -webkit-backdrop-filter:none; }
+  .landing .landing-nav:not(.compact) .desktop-nav a.active { background:transparent; box-shadow:none; }
+  .landing .landing-nav:not(.compact) .desktop-nav a.active::after { display:none; }
   .landing-nav .brand { transform:translateX(8px); }
   .landing .story-action,.landing .plan-comparison .recommended .story-action,.landing .period-control button.active,.landing .custom-fields button.active { color:#03101d!important; background:linear-gradient(128deg,#b3e4ff 0%,#72c5f4 48%,#448fcf 100%); box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 18px 44px -25px rgba(71,172,239,.9); font-weight:800; }
   .landing .period-control button,.landing .custom-fields button { font-weight:600; }

@@ -118,6 +118,8 @@ from database.requests import (
 )
 from database.db_support import get_support_thread, add_admin_support_message
 from database.db_recurring import disable_recurring_methods, get_active_recurring_method, get_recurring_summary, save_recurring_method
+from bot.services.email_trials import free_trial_available, paid_trial_eligible, offer_details, recurring_terms
+from database.db_trials import get_standard_monthly_tariff, get_trial_entitlement
 from bot.services.billing import create_yookassa_qr_payment, check_yookassa_payment_status, get_yookassa_payment_details, process_payment_order
 from bot.services.vpn_api import disable_key_on_panel, get_client_from_server_data, push_key_to_panel
 from bot.services.reserve import get_reserve_client_info
@@ -4178,7 +4180,7 @@ def api_yookassa_webhook():
         if order.get("offer_code") == "email_paid_trial":
             update_email_paid_trial_claim(order["order_id"], "paid")
         payment_method = payment_details.get("payment_method") or {}
-        if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0):
+        if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0) and (terms := recurring_terms(order)):
             method_type = str(payment_method.get("type") or "bank_card")
             card = payment_method.get("card") or {}
             title = (
@@ -4189,7 +4191,7 @@ def api_yookassa_webhook():
             save_recurring_method(
                 int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title,
                 vpn_key_id=order.get("vpn_key_id"), tariff_id=order.get("tariff_id"),
-                amount_cents=order.get("amount_cents"), period_days=order.get("period_days"),
+                amount_cents=terms["amount_cents"], period_days=terms["period_days"],
             )
         success, message, updated = ASYNC_EXECUTOR.run(
             process_payment_order(order["order_id"]),
@@ -4228,6 +4230,7 @@ def api_sbp_payment_status(order_id: str):
             "status": "succeeded",
             "applied": True,
             "fulfillment_status": "applied",
+            "offer_code": order.get("offer_code"),
         }))
     provider_id = order.get("yookassa_payment_id")
     if not provider_id:
@@ -4257,14 +4260,14 @@ def api_sbp_payment_status(order_id: str):
             if order.get("offer_code") == "email_paid_trial":
                 update_email_paid_trial_claim(order_id, "paid")
             payment_method = payment_details.get("payment_method") or {}
-            if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0):
+            if bool(payment_method.get("saved")) and int(order.get("auto_renew_requested") or 0) and (terms := recurring_terms(order)):
                 method_type = str(payment_method.get("type") or "bank_card")
                 card = payment_method.get("card") or {}
                 title = f"Карта •••• {card.get('last4')}" if card.get("last4") else "СБП" if method_type == "sbp" else "Сохранённый способ оплаты"
                 save_recurring_method(
                     int(order["user_id"]), str(payment_method.get("id") or ""), method_type, title,
                     vpn_key_id=order.get("vpn_key_id"), tariff_id=order.get("tariff_id"),
-                    amount_cents=order.get("amount_cents"), period_days=order.get("period_days"),
+                    amount_cents=terms["amount_cents"], period_days=terms["period_days"],
                 )
             success, _, updated = ASYNC_EXECUTOR.run(process_payment_order(order_id), timeout=45)
             applied = bool(success and updated and updated.get("fulfillment_status") == "applied")
@@ -4275,6 +4278,7 @@ def api_sbp_payment_status(order_id: str):
             "applied": applied,
             "fulfillment_status": fulfillment_status,
             "review_required": status == "succeeded" and fulfillment_status == "manual_review",
+            "offer_code": order.get("offer_code"),
         }))
     except Exception:
         logger.exception("Не удалось проверить СБП-платёж %s", order_id)
@@ -4371,7 +4375,10 @@ def api_account():
         "email_verified": bool(account.get("email_verified_at")),
         "email_available": bool(SMTP_HOST and SMTP_FROM),
         "identity_source": account.get("identity_source") or "telegram",
-        "paid_trial_offer": email_paid_trial_state(int(account["id"])) if account.get("identity_source") == "email" else "not_eligible",
+        "paid_trial_offer": email_paid_trial_state(int(account["id"])) if paid_trial_eligible(account) else "not_eligible",
+        "free_trial_available": free_trial_available(account),
+        "trial_offer": offer_details() if account.get("identity_source") == "email" else None,
+        "trial_methods": {"sbp": get_setting("yookassa_sbp_recurring_enabled", "0") == "1", "bank_card": get_setting("yookassa_recurring_enabled", "0") == "1"},
     })
     return _api_no_store(response)
 
@@ -4745,8 +4752,24 @@ def api_create_email_trial_payment():
     account = get_webapp_account(telegram_id)
     if not account or account.get("identity_source") != "email":
         return _api_error("paid_trial_not_eligible", 403)
-    if email_paid_trial_state(int(account["id"])) in {"paid", "succeeded"}:
+    trial_state = email_paid_trial_state(int(account["id"]))
+    if trial_state in {"paid", "succeeded", "applied"}:
         return _api_error("paid_trial_already_used", 409)
+    if not paid_trial_eligible(account):
+        return _api_error('paid_trial_not_eligible', 403)
+    if trial_state in {"pending", "created"}:
+        with get_db() as conn:
+            pending = conn.execute("""SELECT p.* FROM payments p JOIN email_paid_trial_claims c
+                ON c.order_id=p.order_id WHERE c.user_id=? AND c.status='pending'""", (account['id'],)).fetchone()
+        if pending and pending['yookassa_payment_id']:
+            try:
+                details = ASYNC_EXECUTOR.run(get_yookassa_payment_details(pending['yookassa_payment_id']), timeout=12)
+                return _api_no_store(jsonify({'ok': True, 'order_id': pending['order_id'],
+                    'confirmation_url': (details.get('confirmation') or {}).get('confirmation_url', ''),
+                    'status': details.get('status'), 'amount_rub': 10, 'resumed': True}))
+            except Exception:
+                return _api_error('payment_provider_unavailable', 503)
+        return _api_error('paid_trial_payment_pending', 409)
     payload = request.get_json(silent=True) or {}
     method_type = str(payload.get("method") or "sbp")
     if method_type not in {"sbp", "bank_card"}:
@@ -4754,13 +4777,18 @@ def api_create_email_trial_payment():
     recurring_setting = "yookassa_recurring_enabled" if method_type == "bank_card" else "yookassa_sbp_recurring_enabled"
     if get_setting(recurring_setting, "0") != "1":
         return _api_error("recurring_method_not_enabled", 409)
-    tariff = get_standard_trial_tariff()
+    tariff = get_standard_monthly_tariff()
     if not tariff:
         return _api_error("trial_tariff_unavailable", 503)
+    payload_renewal = payload.get('renewal_amount_rub')
+    if payload_renewal != int(tariff['price_rub']):
+        return _api_error('trial_terms_changed', 409)
+    existing_trial = get_trial_entitlement(int(account['id']))
     order = prepare_payment_order(
         user_id=int(account["id"]), tariff_id=int(tariff["id"]),
         payment_type="yookassa_card" if method_type == "bank_card" else "yookassa_qr",
         amount_cents=1000, operation_type="trial_start",
+        vpn_key_id=(existing_trial or {}).get('vpn_key_id'),
     )
     if not acquire_email_paid_trial_claim(int(account["id"]), order["order_id"]):
         with get_db() as conn:
@@ -4768,8 +4796,9 @@ def api_create_email_trial_payment():
         return _api_error("paid_trial_payment_pending", 409)
     with get_db() as conn:
         conn.execute("""UPDATE payments SET period_days=7,offer_code='email_paid_trial',
-                        auto_renew_requested=1 WHERE order_id=? AND status='pending'""",
-                     (order["order_id"],))
+                        auto_renew_requested=1,renewal_amount_cents=?,renewal_period_days=30
+                        WHERE order_id=? AND status='pending'""",
+                     (int(tariff['price_rub'])*100, order["order_id"]))
     if not set_payment_requested_entitlements(order["order_id"], 3, 5):
         update_email_paid_trial_claim(order["order_id"], "failed")
         with get_db() as conn:
@@ -4793,6 +4822,29 @@ def api_create_email_trial_payment():
         return _api_error("payment_provider_unavailable", 503)
     return _api_no_store(jsonify({"ok": True, "order_id": order["order_id"],
         "confirmation_url": payment["qr_url"], "status": payment["status"], "amount_rub": 10}))
+
+
+@app.route('/api/trials/email-free', methods=['POST'])
+def api_start_email_free_trial():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error('unauthorized', 401)
+    account = get_webapp_account(telegram_id)
+    if not account or account.get('identity_source') != 'email' or not account.get('email_verified_at'):
+        return _api_error('free_trial_not_eligible', 403)
+    entitlement = get_trial_entitlement(int(account['id']))
+    if entitlement and entitlement.get('status') == 'active':
+        return _api_no_store(jsonify({'ok': True, 'already_active': True}))
+    if not free_trial_available(account):
+        return _api_error('free_trial_not_eligible', 409)
+    from bot.handlers.user.trial import provision_trial_for_user
+    try:
+        result = ASYNC_EXECUTOR.run(provision_trial_for_user(account, trial_days_override=1, grant_referral_reward=False), timeout=60)
+    except Exception:
+        return _api_error('trial_activation_pending', 503)
+    if not result:
+        return _api_error('trial_activation_pending', 503)
+    return _api_no_store(jsonify({'ok': True, 'trial_days': 1}))
 
 
 @app.route('/api/internal/cdn-connections', methods=['POST'])

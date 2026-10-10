@@ -1,59 +1,30 @@
-# ArcVPN design polish and optional AI support — 2026-10-09
+# ArcVPN design and website onboarding — 2026-10-10
 
-Mode economy; no subagents. Owner explicitly authorized production publication,
-superseding the earlier local-only request. Release branch is isolated from owner
-dirt and based on verified GitHub/production 8cc0b1cb.
+Mode economy; no subagents (owner contract). Production publication explicitly authorized. Release isolated in codex/design-polish-release; primary owner work preserved and behind production. Poland is runtime authority; Moscow serves public static assets. No DNS, TLS or node/protocol changes.
 
-## Contract and scope
+## Accepted behavior
 
-Preserve the published hero, Svelte stack, billing, subscriptions, login, reserve
-links and 500 GB custom options. Refine lower landing, footer, typography, phone
-art, cabinet payment/referral/support and motion. Borderless surfaces use existing
-cabinet colors; date separators alone divide the chat. AI replies are optional,
-clearly labeled and retain manager handoff. No DNS, TLS, node or bot changes.
+- Landing top navigation has no backdrop or active underline, per final owner correction. After scrolling, near-black glass with a cold light edge and pill.
+- Contextual Back: addons opened from renewal return to the same selected tariff/period; devices return to home or settings according to entry point.
+- New verified website email account automatically gets one free day, Standard, three devices, 5 GB bypass, no card or recurring charge. Existing Telegram trial policy preserved. Durable entitlement makes this once per account; failed provisioning is retryable and commercial accounts are ineligible.
+- Optional 10 RUB purchase adds seven days on the same free-trial key/URL. Future recurring subscription is ordinary monthly Standard, currently145 RUB/30 days. Checkout verifies displayed price and snapshots consent. Legacy checkouts without that snapshot cannot acquire the higher charge.
+- Trial-specific payment pending/canceled/review/success; no normal399 RUB renewal dialog after10 RUB trial. Email can be corrected.
+- Groq answers use Happ/INCY instructions, plain text and bounded requests. Automatic admin notices go only to owner2075630349; second admin access stays.
 
-## Verification before publication
+## Evidence before publication
 
-- PASS: duration prices have identical top positions at 360/768/1280/1600; all
-  four borders are 0; money is nowrap. Three composition rows, no duplicate
-  category heading, payment CTA visible initially (bottom653.4 at360x800).
-- PASS: custom/addon controls are readable and borderless; 500 GB preserved;
-  DEV quote3239 RUB for3 months/3 devices/500 GB; addon15 GB/1 device60 RUB.
-  These are UI fixtures, not production transactions.
-- PASS: referral and support center exactly at x800 at1600; gift levitation;
-  metrics above sharing; copy toasts for referral/subscription and expiry.
-- PASS: complete topic drafts, no automatic send;44x44 round Send, multiline
-  upward-growing composer; date dividers only; accessible dialog focus/Escape.
-- PASS: landing phone fade and contour light, footer seamless top-glow fade,
-  larger typography/platforms; no horizontal overflow at four widths; hidden
-  scrollbars preserve scrolling. CTA gradient/shadow matches actual renewal.
-- PASS: hero content and87 CSS rules match published8cc0b1c (line endings ignored).
-- PASS:65 focused tests cover public catalog/custom quotes/admin support/AI:
-  disabled configuration, redaction, timeout, late-reply races, idempotence,
-  worker limits, authentication, rate limiting and manager notification.
-- PASS: Vite184 modules/4.66s; mapped views zero warnings. Existing unrelated
-  AdminConsole unused CSS warnings retained; vendor/fonts.css exists at runtime.
-- PASS: static SEO canonical/schema/alternate names/noscript/no-noindex; hosted
-  fonts and conditional Telegram SDK preserved. API helper unchanged.
+PASS:129 focused backend tests (24.83s), including one-time trial, retries, eligibility, payment race, unchanged key, snapshot/price changes, migration, provider/prompt/timeout and support access. Latest Vite build184 modules/5.11s; mapped customer views have no Svelte warnings. Old hashed assets retained.
 
-Evidence: primary .codex/stages/evidence/design-20261009/, tariff-grid-final.local.json,
-*-polish-*.jpg, tariff-aligned-final-1600.jpg, custom-tariff-final-*.jpg,
-addons-final-390.jpg and support-centered-final-1600.jpg. Older screenshots are
-superseded where corresponding latest evidence exists.
+PASS: local browser360/768/1280/1600 no horizontal overflow; landing price baselines match across columns at tablet and desktop. Variable Manrope loads. Transparent top and blur24px scrolled navigation observed. Contextual Back preserves six-month/759 RUB selection and both device entry paths.
 
-## Deployment and rollback
+PASS: DEV email invalid code/change email/correct code leads to1 day,0/3 devices,5 GB. Pending, canceled (still gets free day), review and success use isolated previews. No real email or banking transaction. Real SMTP environment exists.
 
-Ready to commit/push/fast-forward Poland, restart only subscription service, then
-publish the same static build to Moscow (public A85.198.101.79 verified). Preserve
-remote ssh_askpass dirt/runtime files and previous static releases. Previous hash
-chunks retained for already-open clients. Rollback by reverting task runtime
-commit and switching Moscow current to previous8cc0b1cb static release.
+PASS: real Groq candidate inference0.52/0.58 seconds with correct Happ/INCY instructions. Earlier owner-only controlled outage/recovery notifications delivered. Alerts detect actual inference failures, not an idle periodic provider probe.
 
-## Explicit remaining gate
+Evidence: primary .codex/stages/evidence/design-20261009/: trial-tests.local.log, release-build-trial.local.log, final-responsive.local.json, free-day-mobile.local.jpg, trial-success-mobile.local.jpg, nav-*-final-1600.local.jpg. Old drafts superseded.
 
-Real AI inference is DEFERRED: no server API key exists. Integration is disabled;
-ChatGPT/Codex subscription billing is separate. Activation instructions are
-in docs/operations/support-ai.md. No provider request, billing transaction or
-customer message was made during QA. Live AI latency/quality and real Telegram
-keyboard remain unverified. Search recrawl/ranking and owner visual acceptance
-remain external observations. Production verification follows publication.
+## Publication and rollback
+
+Runtime base847d28f992770bcea428ca686acb6e232312080b, schema75. Public static basee0e6b70cbe29d4b6356e812e2599f9b07327ed05. Migration76 adds nullable payment renewal amount/period only. Back up live SQLite before migration; restart bot/API only. Publish committed static build atomically to Moscow; verify public assets, frontend and services. Publication pending at this commit.
+
+Rollback: revert runtime commit without removing additive columns, switch static symlink to retained e0e6b70 release. Preserve users/UUIDs/subscription URLs. Owner checkout and remote ssh_askpass excluded. Remaining external checks: real new-email delivery, paid checkout/renewal, Telegram keyboard, search recrawl/ranking and owner visual acceptance. Next: publish and record live evidence.
