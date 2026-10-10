@@ -1879,8 +1879,9 @@ RETRY_CONFIG = {"max_attempts": 3, "delays": [1, 3, 9]}
   `#101a27` raised panels, low-contrast cold borders and muted blue-grey copy.
   The bypass proof stays compact: copy beside its four-row ledger on desktop,
   stacked below 900 px. Pricing keeps its separately approved structure.
-- Current acquisition hierarchy is explicit: a free seven-day Telegram trial
-  is primary and the seven-day website trial for 10 RUB is secondary. Do not
+- Acquisition policy updated2026-10-10: Telegram keeps its free seven-day trial;
+  verified new website email accounts get one free day, with optional seven-day
+  extension for10 RUB and consent to ordinary monthly Standard renewal. Do not
   restore the rejected post-Hero four-fact strip or label trial offers as a
   location catalogue.
 - Landing support copy must remain at least 14 px on mobile. The former
@@ -2010,3 +2011,11 @@ Partner follow-up visual contract, 2026-10-05: owner removed Clients from partne
 2026-10-09 owner returned Finland server: remove physical Finland nodes/disabled Hosts and Finland Estonia alias from admin/subscriptions. No further server access; active inventory removed. Swedish AI/Games now follow Netherlands; weights/routes/UUIDs/URLs unchanged. Focused48 tests passed; panel retirement script saves root-only snapshot.
 
 2026-10-09: Main website prepared on Moscow with local static/fonts and same-domain API proxy to Poland verified via sub.arccnet.space TLS SNI. DNS apex switch to85.198.101.79 pending owner REG.RU access. Keep Moscow static deployment synchronized after frontend releases; own TLS renewal gated on correct DNS.
+
+
+## Owner decisions — website onboarding and support (2026-10-10)
+
+- Verified new website email accounts receive one free day automatically, Standard/3 devices/5 GB bypass; no payment method or recurring consent. Durable entitlement is once per account; retries preserve the key. Existing Telegram free-trial policy unchanged.
+- Optional10 RUB adds seven days on the same subscription key/URL. Thereafter ordinary monthly Standard renewal, currently145 RUB/30 days. Displayed price validated and immutable consent saved; legacy checkouts without new monthly consent cannot infer the higher charge.
+- Top landing navigation is transparent without underline; scrolling adds cold near-black glass. Contextual Back returns to the entry screen and preserves selected renewal duration.
+- Groq is the selected support provider. Automatic admin notices route only to owner2075630349; second admin retains admin access/button. Provider failures trigger an owner notice on actual inference, with persisted cooldown/recovery. Credentials stay in protected server env, not Git.

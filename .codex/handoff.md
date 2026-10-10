@@ -1,16 +1,17 @@
-# ArcVPN handoff — design publication ready (2026-10-09)
+# ArcVPN handoff — published design and website trial (2026-10-10)
 
-Mode economy; no subagents. Owner explicitly authorized publication. Isolated
-codex/design-polish-release starts at verified live/GitHub8cc0b1cb. Owner dirty
-primary is preserved; do not merge its unrelated backend/Connect/login changes.
-Mapped source and generated bundle passed65 tests and four viewport acceptance.
-See .codex/stages/current.md for exact scope/evidence and pending deployment.
+Chat mode: economy. No subagents authorized. Owner explicitly authorized production publication. Runtime/static release71e2fd8d692e7ae53ccc49c4bc6212980f7880c1 follows847d28f9; docs closeout follows separately. Poland217.60.33.38 /root/ArcVPN is runtime/control authority. Moscow85.198.101.79 current static release is /var/www/arcvpn-site/releases/71e2fd8d692e7ae53ccc49c4bc6212980f7880c1; nginx requires app/ inside the release.
 
-Public arccnet.space now resolves Moscow85.198.101.79; frontend must be published
-there after Poland fast-forward/restart. Existing TLS/config and API routing stay
-intact. Keep old chunks and static release for rollback; do not deploy cached
-local origin/mainc9976c3f wholesale. Private arcvpn-ops MCP is the transport.
+Primary checkout HEADf166bef1 is behind production with substantial unrelated owner work, schema62. Preserve it. Latest authoritative backend/source/build is isolated C:/Users/babay/.codex/worktrees/design-polish-release/YadrenoVPN-main, branch codex/design-polish-release. Do not run release tests against primary or copy whole backend/HomeFlow/API files over owner edits. Owned UI corrections selectively synced; whole backend remains release-only.
 
-AI assistant is implemented but DISABLED without a dedicated OpenAI API key and
-SUPPORT_AI_ENABLED=true. Modelgpt-4.1-mini; no schema migration. Human handoff stays.
-See docs/operations/support-ai.md. Real inference is not yet verified.
+Landing top nav is transparent with no active underline; scrolled nav is near-black cold glass. Variable fonts fixed, secondary tariff buttons retained, compact app copy/phone fade/footer and responsive surfaces published. Contextual Back preserves renewal period and device entry point. All4 public widths360/768/1280/1600 have loaded fonts and no horizontal overflow.
+
+New verified website email account automatically gets1 free day (Standard,3 devices,5 GB bypass), no card/recurring. One entitlement prevents duplicate free days; retry failed provisioning. Optional10 RUB adds7 days on same key/URL. Future auto-renew is ordinary monthly Standard (currently145 RUB/30 days), explicitly shown and snapshotted before checkout. Legacy snapshots remain null/no higher charge inferred. Telegram trial unchanged. Payment states/email correction verified with DEV fixtures; real email delivery, bank checkout and renewal remain external acceptance checks.
+
+Schema76 additive columns deployed after verified SQLite backup /opt/arcvpn/staging/website-trial-pre76-20261010.sqlite3 (0600). Bot and API restarted/active. Runtime/public assets/API catalog/robots/sitemap return200; trial endpoints reject unauthenticated calls401. Static publication initially lacked required app/ directory, briefly returned404; corrected and reverified200. Previouse0e6b70 release retained. Roll back static by symlink; runtime via revert, retain additive columns/UUIDs/URLs. Remote ssh_askpass owner dirt preserved.
+
+Groq openai/gpt-oss-120b enabled through root-only /etc/arcvpn/support-ai.env and subscription systemd drop-in. Never print/commit credentials. Instructions/plaintext guard use Happ/INCY. Real postdeploy answer0.8s. Automatic admin notice audience owner2075630349 only; both admins retain admin access/button. AI outage/recovery test notices delivered earlier. Actual inference failure triggers sanitized owner notice,6h duplicate cooldown, single recovery; idle API failure is detected on next support request. Protected previous recipient backup /etc/arcvpn/admin-notification-previous.json. Provider research/config: docs/operations/support-ai.md.
+
+129 focused tests pass; build184 modules/5.11s with no customer-view warnings. Evidence: primary .codex/stages/evidence/design-20261009/: trial-tests.local.log, release-build-trial.local.log, final-responsive.local.json, public-responsive.local.json, nav-top-public-1600.local.jpg, nav-glass-public-1600.local.jpg, free-day-mobile.local.jpg. Search recrawl/ranking not guaranteed. Existing scheduler warnings for email identities/blocked Telegram recipients observed, unrelated to release health.
+
+Next: owner reviews published UI and completes one fresh email signup/optional real bank checkout to confirm delivery and provider consent. Keep real financial actions with owner.
