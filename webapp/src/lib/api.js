@@ -446,12 +446,21 @@ export const disableRecurringPayment = () =>
   (import.meta.env.DEV
     ? Promise.resolve({ ok: true, disabled: true })
     : mutate('/api/billing/recurring', 'DELETE'))
-export const fetchSupportMessages = (after = 0) => (import.meta.env.DEV ? mock('support') : get(`/api/support/messages?after=${encodeURIComponent(after)}`))
+let devSupportAttempts = 0
+const devSupportPreview = () => new URLSearchParams(location.search).get('support-preview') === 'telegram'
+export const fetchSupportMessages = (after = 0) => (import.meta.env.DEV ? devSupportPreview() ? Promise.resolve({ok:true,messages:MOCK.support.messages.filter(m=>m.id>after),ai:{enabled:true,pending:false,handoff:devSupportAttempts>=10}}) : mock('support') : get(`/api/support/messages?after=${encodeURIComponent(after)}`))
 
 export async function sendSupportMessage(body) {
   if (import.meta.env.DEV) {
     const message = { id: Date.now(), sender: 'user', body, created_at: new Date().toISOString() }
     MOCK.support.messages.push(message)
+    if (devSupportPreview()) {
+      devSupportAttempts += 1
+      const body = devSupportAttempts === 10 ? 'Вы отправили много сообщений подряд. Зовём на помощь менеджера — он ответит в этом чате. ИИ пока приостановлен.' : devSupportAttempts === 1 ? 'Проверим прокси в Telegram.\n1. Откройте Настройки → Данные и память → Прокси. Если он включён, временно выключите.\n2. Перезапустите Telegram, оставив VPN включённым. Остальные сайты открываются?' : ''
+      const assistant_message = body ? {id:message.id+1,sender:'admin',is_ai:true,body,created_at:message.created_at} : null
+      if (assistant_message) MOCK.support.messages.push(assistant_message)
+      return {ok:true,thread_id:1,message,assistant_message,ai:{enabled:true,pending:false,handoff:devSupportAttempts>=10}}
+    }
     return { ok: true, thread_id: 1, message }
   }
   return post('/api/support/messages', { body })

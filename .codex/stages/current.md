@@ -1,41 +1,33 @@
-# ArcVPN design and website onboarding — 2026-10-10
+# ArcVPN support diagnosis and anti-spam — 2026-10-10
 
-Mode economy; no subagents (owner contract). Production publication explicitly authorized. Release isolated in codex/design-polish-release; primary owner work preserved and behind production. Poland is runtime authority; Moscow serves public static assets. No DNS, TLS or node/protocol changes.
+Mode economy; no subagents authorized. Continue isolated release branch from d6c9fd36; primary owner/backend work preserved. Production authorization persists. Use stage/server-ops/frontend-qa/closeout workflows.
 
-## Accepted behavior
+## Contract (owner confirmed)
 
-- Landing top navigation has no backdrop or active underline, per final owner correction. After scrolling, near-black glass with a cold light edge and pill.
-- Contextual Back: addons opened from renewal return to the same selected tariff/period; devices return to home or settings according to entry point.
-- New verified website email account automatically gets one free day, Standard, three devices, 5 GB bypass, no card or recurring charge. Existing Telegram trial policy preserved. Durable entitlement makes this once per account; failed provisioning is retryable and commercial accounts are ineligible.
-- Optional 10 RUB purchase adds seven days on the same free-trial key/URL. Future recurring subscription is ordinary monthly Standard, currently145 RUB/30 days. Checkout verifies displayed price and snapshots consent. Legacy checkouts without that snapshot cannot acquire the higher charge.
-- Trial-specific payment pending/canceled/review/success; no normal399 RUB renewal dialog after10 RUB trial. Email can be corrected.
-- Groq answers use Happ/INCY instructions, plain text and bounded requests. Automatic admin notices go only to owner2075630349; second admin access stays.
+- Help with the concrete symptom using known facts and previous attempts. Telegram-specific diagnostic first checks an app proxy; do not infer network blocking or repeat Auto-select when already checked. Verify official Telegram settings paths. Ask one relevant question and offer short readable next steps; no invented UI/client or guaranteed fix.
+- Fresh context belongs only to the authenticated user's thread; last16 turns bounded/redacted. Each turn rereads current database state; no shared model conversation. Closed cases start fresh. Never ask again for facts already in context.
+- Owner selected10 messages/5 minutes. Count valid send attempts including transport throttling, persist rolling window, pause AI at tenth attempt and insert one message calling manager. Keep existing6/minute transport bound. AI remains paused until manager reply/close; further spam cannot call model or duplicate handoff notification. Human/admin access and owner-only alerts preserved.
+- Normalize AI plaintext, HTML entities, escaped Markdown and inline numbered steps. Existing stored AI messages render cleanly through read API; do not rewrite customer history.
 
-## Evidence before publication
+## Components and acceptance
 
-PASS:129 focused backend tests (24.83s), including one-time trial, retries, eligibility, payment race, unchanged key, snapshot/price changes, migration, provider/prompt/timeout and support access. Latest Vite build184 modules/5.11s; mapped customer views have no Svelte warnings. Old hashed assets retained.
+Additional owner contract: remove the fixed reading-progress line. Keep hero/navigation immediately visible; reveal section headings, illustrations, tariff cards and steps once as they enter the viewport with a short fade and upward slide, light sibling stagger. Preserve native scroll/anchors and layout. Reduced motion, absent IntersectionObserver and keyboard focus must show usable content. Check initial hidden/offscreen and revealed states at360/768/1280/1600, anchors, interactions, overflow and observer cleanup. Component: LandingPage.svelte; existing Svelte action extended, no dependency or scroll hijacking.
 
-PASS: local browser360/768/1280/1600 no horizontal overflow; landing price baselines match across columns at tablet and desktop. Variable Manrope loads. Transparent top and blur24px scrolled navigation observed. Contextual Back preserves six-month/759 RUB selection and both device entry paths.
+Mapped: bot/services/support_ai.py; database/db_support.py/migrations.py; support customer/admin routes in subscription_api.py; chat submit in HomeFlowPreview.svelte and isolated DEV fixture in api.js; focused support/admin/routing tests; built bundle and support operations doc.
 
-PASS: DEV email invalid code/change email/correct code leads to1 day,0/3 devices,5 GB. Pending, canceled (still gets free day), review and success use isolated previews. No real email or banking transaction. Real SMTP environment exists.
+Acceptance: cross-user isolation/current context; tenth-attempt handoff survives restart, blocks late AI replies, human reply resets state, manager notification once; rolling-window boundaries/parallel calls/bounded storage; auth/access/rate limits; HTML/Markdown/newline formatting; three real Groq Telegram regression turns do not repeat rejected advice and suggest proxy check; mobile/tablet/desktop/wide chat readability and immediate handoff notice. No real customer messages/charges during QA.
 
-PASS: real Groq candidate inference0.52/0.58 seconds with correct Happ/INCY instructions. Earlier owner-only controlled outage/recovery notifications delivered. Alerts detect actual inference failures, not an idle periodic provider probe.
+Migration77 additive thread state and bounded attempt history; require verified SQLite backup before deployment. Old threads/messages preserved. Runtime rollback via revert and retained columns; static via previous71e2fd8d release. No node/DNS/TLS or unrelated website/trial changes.
 
-Evidence: primary .codex/stages/evidence/design-20261009/: trial-tests.local.log, release-build-trial.local.log, final-responsive.local.json, free-day-mobile.local.jpg, trial-success-mobile.local.jpg, nav-*-final-1600.local.jpg. Old drafts superseded.
+## Local verification
 
-## Publication and rollback
+- Focused suite94 passed: support diagnosis/context isolation, persisted10/5 limit (including429), parallel attempts, bounded storage, single notice/no further model, human reset, closed fresh case, stale replies, read normalization, admin identity/notification audience and website/public regression. Log: primary `.codex/stages/evidence/design-20261009/support-v2-tests.local.log`.
+- Vite184 modules/4.03s; customer views no warnings (pre-existing AdminConsole unused-CSS warnings). Build log: same directory `support-reveal-build.local.log`.
+- Three real Groq regression turns passed0.35/0.75/0.63s, saved `/opt/arcvpn/staging/support-v2-model-evidence.json`; proxy check, known-disabled proxy/OS question and two-check manager handoff. No real customer messages or provider-health test notices. One malformed preflight lacked env and failed; corrected protected env loading. Earlier model repeated proxy/countries; targeted guard now suppresses it.
+- Browser DEV chat notice immediate and unique on tenth send, paused header;360/768/1280/1600 no horizontal overflow, pre-wrap readable. Evidence `support-responsive-v2.local.json`, `support-proxy-1280.local.jpg`, `support-handoff-360.local.jpg`, `support-handoff-1600.local.jpg`.
+- Actual native PageDown from top to footer: all28 reveal groups shown once, none pending, no progress bar/overflow across360/768/1280/1600. Initial28 pending, hero/nav visible. `landing-reveal-complete.local.json`, `reveal-before.local.jpg`, `reveal-apps-1280.local.jpg`. Reduced-motion/no-observer/focus/cleanup verified against the source action with isolated stubs (`reveal-fallback.local.json`); OS preference not changed.
+- Live preflight schema76,2 threads/22 messages, SQLite quick_check ok; preserve unrelated remote dirt.
 
-Runtime base847d28f992770bcea428ca686acb6e232312080b, schema75. Public static basee0e6b70cbe29d4b6356e812e2599f9b07327ed05. Migration76 adds nullable payment renewal amount/period only. Back up live SQLite before migration; restart bot/API only. Publish committed static build atomically to Moscow; verify public assets, frontend and services. Published runtime/static71e2fd8d692e7ae53ccc49c4bc6212980f7880c1; docs closeout follows separately.
+Remaining gates: staged diff, backup, commit/push/FF pull, migration77/affected bot/API restart, atomic Moscow static publish/public browser verification, durable closeout.
 
-Rollback: revert runtime commit without removing additive columns, switch static symlink to retained e0e6b70 release. Preserve users/UUIDs/subscription URLs. Owner checkout and remote ssh_askpass excluded. Remaining external checks: real new-email delivery, paid checkout/renewal, Telegram keyboard, search recrawl/ranking and owner visual acceptance. Next: publish and record live evidence.
-
-
-## Live acceptance and closeout
-
-PASS: Poland fast-forward pull to71e2fd8d, SQLite online backup/integrity verified0600, migration76 and nullable consent columns verified, bot/API active after restart. No existing weekly10 RUB recurring configurations were changed. Moscow archive SHA256 b6e9ca3d3d04389aae5b68f589d543288ef420356c613aa82f0896fa3d0ef150 verified, same committed static assets published.
-
-PASS: public /,/app,new JS/CSS/vendor fonts,robots,sitemap,public catalog/config200. Unauthenticated trial APIs401. Public browser four widths360/768/1280/1600 fonts loaded,no overflow; top background transparent/active pseudo-line none; scrolled blur24px/cold glass. Proof nav-top-public-1600.local.jpg,nav-glass-public-1600.local.jpg,public-responsive.local.json. Real postdeploy Groq first-connect answer0.8 seconds/correct Happ/INCY.
-
-Deployment deviation: initial static extraction omitted nginx-required app/ nesting and caused a brief404. Previous symlink restored, app/ nesting corrected, release republished and actual HTTP/browser200 verified. No nginx configuration changed. Required static layout now recorded in handoff.
-
-Residuals DEFERRED: real email delivery/bank purchase/recurring debit, Telegram keyboard, search recrawl and owner visual acceptance. Existing scheduler Telegram delivery warnings for email-only identities/blocked recipients observed. Next: owner tests one fresh website signup and optional bank checkout. Stage implementation and authorized publication complete; no real test charge performed.
+Verified pre77 backup: `/opt/arcvpn/staging/support-ai-pre77-20261010T090419Z.sqlite3`,0600, integrity ok,2 threads/22 messages. Submit path also deduplicates IDs against concurrent polling. Production fixtures eliminated from the new bundle; staged secret scan and diff check pass.

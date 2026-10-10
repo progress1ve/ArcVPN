@@ -133,6 +133,7 @@
   let supportLoading = false
   let supportAiEnabled = false
   let supportAiPending = false
+  let supportAiHandoff = false
   let supportFetchBusy = false
   let supportLastPoll = 0
   let reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -1021,6 +1022,7 @@
       const result = await fetchSupportMessages(after)
       supportAiEnabled = Boolean(result.ai?.enabled)
       supportAiPending = Boolean(result.ai?.pending)
+      supportAiHandoff = Boolean(result.ai?.handoff)
       const incoming = result.messages || []
       const known = new Set(supportMessages.map((item) => item.id))
       supportMessages = [...supportMessages, ...incoming.filter((item) => !known.has(item.id))]
@@ -1066,7 +1068,10 @@
       const result = await sendSupportMessage(body)
       supportAiEnabled = Boolean(result.ai?.enabled)
       supportAiPending = Boolean(result.ai?.pending)
-      supportMessages = [...supportMessages, result.message]
+      supportAiHandoff = Boolean(result.ai?.handoff)
+      const known = new Set(supportMessages.map((item) => item.id))
+      const incoming = [result.message, result.assistant_message].filter(Boolean)
+      supportMessages = [...supportMessages, ...incoming.filter((item) => !known.has(item.id))]
       supportInput = ''
       supportLastPoll = 0
       await scrollChatToLatest()
@@ -1512,7 +1517,7 @@
           {#if supportChatOpen}
             <header class="chat-toolbar">
               <button class="system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={closeSupportChat}><ArcIcon name="back" size={20} weight="bold" /></button>
-              <div><h1>Поддержка ArcVPN</h1><p>{supportAiEnabled ? 'ИИ помогает сразу · менеджер тоже видит диалог' : 'Менеджер ответит в этом чате'}</p></div>
+              <div><h1>Поддержка ArcVPN</h1><p>{supportAiHandoff ? 'Зовём на помощь менеджера · ИИ приостановлен' : supportAiEnabled ? 'ИИ помогает сразу · менеджер тоже видит диалог' : 'Менеджер ответит в этом чате'}</p></div>
             </header>
             <section class="support-chat" bind:this={supportHistory} role="log" aria-label="История диалога" aria-live="polite" aria-relevant="additions text">
               {#if supportLoading && !supportMessages.length}<p class="chat-placeholder" role="status">Загружаем диалог…</p>

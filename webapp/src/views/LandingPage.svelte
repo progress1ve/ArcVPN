@@ -49,26 +49,26 @@
   let customQuote = null
   let quoteBusy = true
   let quoteTimer
-  let scrollProgress = 0
   let reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
-  function reveal(node) {
+  function reveal(node, order = 0) {
     const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
     if (preference.matches || !('IntersectionObserver' in window)) return {}
     node.classList.add('reveal-pending')
-    const observer = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) {
-        node.classList.remove('reveal-pending')
-        node.classList.add('reveal-visible')
-        observer.disconnect()
-      }
-    }, { rootMargin: '0px 0px 40px', threshold: 0 })
+    node.style.setProperty('--reveal-delay', `${Math.min(order, 3) * 70}ms`)
     const show = () => {
-      if (preference.matches) { node.classList.remove('reveal-pending'); observer.disconnect() }
+      node.classList.remove('reveal-pending')
+      node.classList.add('reveal-visible')
+      observer.disconnect()
     }
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) show()
+    }, { rootMargin: '0px 0px -32px', threshold: .08 })
+    const changeMotion = () => { if (preference.matches) show() }
     observer.observe(node)
-    preference.addEventListener('change', show)
-    return { destroy() { observer.disconnect(); preference.removeEventListener('change', show) } }
+    node.addEventListener('focusin', show)
+    preference.addEventListener('change', changeMotion)
+    return { destroy() { observer.disconnect(); node.removeEventListener('focusin', show); preference.removeEventListener('change', changeMotion) } }
   }
 
   $: periodTariffs = tariffs.filter((item) => Number(item.period_months) === selectedPeriod)
@@ -153,8 +153,6 @@
     let scrollFrame
     const updateScroll = () => {
       scrolled = scrollY > 36
-      const distance = document.documentElement.scrollHeight - innerHeight
-      scrollProgress = distance > 0 ? Math.min(1, Math.max(0, scrollY / distance)) : 0
       const sections = [...document.querySelectorAll('[data-nav-section]')]
       const current = sections.reverse().find(section => section.getBoundingClientRect().top <= innerHeight * .35)
       activeSection = current?.id || 'subscription'
@@ -185,7 +183,6 @@
 </svelte:head>
 
 <div class="landing">
-  <div class="reading-progress" style:transform={`scaleX(${scrollProgress})`} aria-hidden="true"></div>
   <a class="skip" href="#main">К содержанию</a>
 
   <header class:compact={scrolled} class="landing-nav">
@@ -212,37 +209,37 @@
       </div>
     </section>
 
-    <section class="story trial-story" id="subscription" data-nav-section use:reveal>
-      <div class="story-heading"><h2>Попробуйте<br />на своей сети</h2><p>На сайте — 1 день бесплатно, без карты. В Telegram — 7 дней и 5 ГБ обхода.</p></div>
+    <section class="story trial-story" id="subscription" data-nav-section>
+      <div class="story-heading" use:reveal><h2>Попробуйте<br />на своей сети</h2><p>На сайте — 1 день бесплатно, без карты. В Telegram — 7 дней и 5 ГБ обхода.</p></div>
       <div class="trial-choices">
-        <article><div><span>Через Telegram</span><h3>Бесплатно</h3><p>Бот активирует пробную подписку для нового пользователя.</p></div>{#if config.bot_url}<a class="story-action" href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_trial_click', { channel:'bot' })}>Попробовать в боте <ArcIcon name="arrow" size={18} /></a>{/if}</article>
-        <article><div><span>На сайте</span><h3>1 день бесплатно</h3><p>Новому email-аккаунту — без карты и автосписания. По желанию ещё 7 дней за 10 ₽, затем месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
+        <article use:reveal><div><span>Через Telegram</span><h3>Бесплатно</h3><p>Бот активирует пробную подписку для нового пользователя.</p></div>{#if config.bot_url}<a class="story-action" href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_trial_click', { channel:'bot' })}>Попробовать в боте <ArcIcon name="arrow" size={18} /></a>{/if}</article>
+        <article use:reveal={1}><div><span>На сайте</span><h3>1 день бесплатно</h3><p>Новому email-аккаунту — без карты и автосписания. По желанию ещё 7 дней за 10 ₽, затем месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
       </div>
     </section>
 
-    <section class="story apps-story" id="apps" data-nav-section use:reveal>
-      <div class="apps-description"><div class="story-heading"><h2>На&nbsp;телефоне<br />и&nbsp;на&nbsp;компьютере</h2><p>Happ или&nbsp;INCY. Инструкция и&nbsp;ссылка — в&nbsp;кабинете.</p></div>
-        <div class="platforms" aria-label="Поддерживаемые платформы">{#each devices as device}<span><DeviceIcon name={device.icon} size={25}/>{device.label}</span>{/each}</div>
-        <dl class="profile-list">{#each featureRows as feature}<div><dt>{feature[0]}</dt><dd>{feature[1]}</dd></div>{/each}</dl>
+    <section class="story apps-story" id="apps" data-nav-section>
+      <div class="apps-description"><div class="story-heading" use:reveal><h2>На&nbsp;телефоне<br />и&nbsp;на&nbsp;компьютере</h2><p>Happ или&nbsp;INCY. Инструкция и&nbsp;ссылка — в&nbsp;кабинете.</p></div>
+        <div class="platforms" use:reveal aria-label="Поддерживаемые платформы">{#each devices as device}<span><DeviceIcon name={device.icon} size={25}/>{device.label}</span>{/each}</div>
+        <dl class="profile-list">{#each featureRows as feature}<div use:reveal><dt>{feature[0]}</dt><dd>{feature[1]}</dd></div>{/each}</dl>
       </div>
-      <div class="client-proof proof-motion" aria-label="Приложения Happ и INCY"><figure class="phone-happ"><img src={base+'assets/arc-flow/connect-happ-phone-v2.png'} alt="Приложение Happ на телефоне" width="480" height="712" loading="lazy" decoding="async"/></figure><figure class="phone-incy"><img src={base+'assets/arc-flow/connect-incy-phone-v1.png'} alt="Приложение INCY на телефоне" width="480" height="712" loading="lazy" decoding="async"/></figure></div>
+      <div class="client-proof" use:reveal={1} aria-label="Приложения Happ и INCY"><figure class="phone-happ"><img src={base+'assets/arc-flow/connect-happ-phone-v2.png'} alt="Приложение Happ на телефоне" width="480" height="712" loading="lazy" decoding="async"/></figure><figure class="phone-incy"><img src={base+'assets/arc-flow/connect-incy-phone-v1.png'} alt="Приложение INCY на телефоне" width="480" height="712" loading="lazy" decoding="async"/></figure></div>
     </section>
 
-    <section class="story bypass-story" use:reveal>
-      <div class="story-heading"><h2>Когда обычного<br />VPN недостаточно</h2><p>Для сложных сетей в подписке есть специальные профили обхода глушилок. Они используют отдельный запас гигабайтов.</p><a class="text-action" href="#tariffs">Выбрать тариф с обходом <ArcIcon name="arrow" size={18}/></a></div>
-      <div class="traffic-explanation"><div><ArcIcon name="signal" size={25}/><span>Основной трафик<strong>Безлимит</strong><small>Автовыбор и обычные локации</small></span></div><div><ArcIcon name="lte" size={25}/><span>Трафик обхода<strong>Отдельный запас</strong><small>Объём зависит от тарифа; можно докупить</small></span></div><p><ArcIcon name="check" size={18}/>Если запас обхода закончится, обычные профили продолжат работать.</p><small class="network-note">Доступность зависит от сети, устройства и характера ограничений.</small></div>
+    <section class="story bypass-story">
+      <div class="story-heading" use:reveal><h2>Когда обычного<br />VPN недостаточно</h2><p>Для сложных сетей в подписке есть специальные профили обхода глушилок. Они используют отдельный запас гигабайтов.</p><a class="text-action" href="#tariffs">Выбрать тариф с обходом <ArcIcon name="arrow" size={18}/></a></div>
+      <div class="traffic-explanation" use:reveal={1}><div><ArcIcon name="signal" size={25}/><span>Основной трафик<strong>Безлимит</strong><small>Автовыбор и обычные локации</small></span></div><div><ArcIcon name="lte" size={25}/><span>Трафик обхода<strong>Отдельный запас</strong><small>Объём зависит от тарифа; можно докупить</small></span></div><p><ArcIcon name="check" size={18}/>Если запас обхода закончится, обычные профили продолжат работать.</p><small class="network-note">Доступность зависит от сети, устройства и характера ограничений.</small></div>
     </section>
 
-    <section class="story pricing-story" id="tariffs" data-nav-section use:reveal>
-      <div class="pricing-heading"><div class="story-heading"><h2>Подписка под<br />ваши устройства</h2><p>Основной трафик безлимитный во всех тарифах.</p></div><div class="period-control" role="group" aria-label="Срок подписки">{#each [1,3,6,12] as month}<button class:active={selectedPeriod===month} aria-pressed={selectedPeriod===month} on:click={() => selectedPeriod=month}>{month} {month===1?'месяц':'мес.'}</button>{/each}</div></div>
-      {#if periodTariffs.length}<div class="plan-comparison">{#each ['economy','standard','family'] as code}{@const plan=periodTariffs.find(item => item.product_code===code)}{#if plan}<article class:recommended={code==='standard'}><header><h3>{productNames[code]}</h3></header><p class="plan-audience">{productCopy[code]}</p><p class="comparison-price"><strong>{plan.monthly_rub.toLocaleString('ru-RU')} ₽</strong><span>/ месяц</span></p><p class="comparison-total">{plan.price_rub.toLocaleString('ru-RU')} ₽ за {plan.period_months} {plan.period_months===1?'месяц':plan.period_months<5?'месяца':'месяцев'}</p><ul><li><ArcIcon name="check" size={17}/>Основной трафик безлимитный</li><li><ArcIcon name="devices" size={17}/>{plan.device_limit} {plan.device_limit>=2&&plan.device_limit<=4?'устройства':'устройств'}</li><li><ArcIcon name="lte" size={17}/>{plan.lte_quota_gb?plan.lte_quota_gb+' ГБ обхода':'Без трафика обхода'}</li></ul><button class="story-action" on:click={() => selectTariff(plan)}>Выбрать {productNames[code]}</button></article>{/if}{/each}</div>
+    <section class="story pricing-story" id="tariffs" data-nav-section>
+      <div class="pricing-heading"><div class="story-heading" use:reveal><h2>Подписка под<br />ваши устройства</h2><p>Основной трафик безлимитный во всех тарифах.</p></div><div class="period-control" use:reveal={1} role="group" aria-label="Срок подписки">{#each [1,3,6,12] as month}<button class:active={selectedPeriod===month} aria-pressed={selectedPeriod===month} on:click={() => selectedPeriod=month}>{month} {month===1?'месяц':'мес.'}</button>{/each}</div></div>
+      {#if periodTariffs.length}<div class="plan-comparison">{#each ['economy','standard','family'] as code, index}{@const plan=periodTariffs.find(item => item.product_code===code)}{#if plan}<article use:reveal={index} class:recommended={code==='standard'}><header><h3>{productNames[code]}</h3></header><p class="plan-audience">{productCopy[code]}</p><p class="comparison-price"><strong>{plan.monthly_rub.toLocaleString('ru-RU')} ₽</strong><span>/ месяц</span></p><p class="comparison-total">{plan.price_rub.toLocaleString('ru-RU')} ₽ за {plan.period_months} {plan.period_months===1?'месяц':plan.period_months<5?'месяца':'месяцев'}</p><ul><li><ArcIcon name="check" size={17}/>Основной трафик безлимитный</li><li><ArcIcon name="devices" size={17}/>{plan.device_limit} {plan.device_limit>=2&&plan.device_limit<=4?'устройства':'устройств'}</li><li><ArcIcon name="lte" size={17}/>{plan.lte_quota_gb?plan.lte_quota_gb+' ГБ обхода':'Без трафика обхода'}</li></ul><button class="story-action" on:click={() => selectTariff(plan)}>Выбрать {productNames[code]}</button></article>{/if}{/each}</div>
       {:else if dataError}<div class="catalog-state" role="status"><b>Тарифы временно не загрузились</b><p>Актуальные цены доступны в личном кабинете.</p><a class="text-action" href="/app">Открыть кабинет</a></div>{:else}<div class="catalog-state" role="status">Загружаем тарифы…</div>{/if}
-      <details class="custom-plan"><summary>Нужны другие параметры? <span>Собрать свой тариф <ArcIcon name="settings" size={18}/></span></summary><div class="custom-layout"><div class="custom-fields"><fieldset><legend>Срок подписки</legend><div>{#each [1,3,6,12] as month}<button class:active={customMonths===month} aria-pressed={customMonths===month} on:click={() => customMonths=month}>{month} мес.</button>{/each}</div></fieldset><label class="device-range"><span>Устройства <b>{customDevices}</b></span><input aria-label="Количество устройств" type="range" min="1" max="15" bind:value={customDevices}/></label><fieldset><legend>Трафик обхода</legend><div>{#each [0,15,30,45,75,115,175,225,500] as gb}<button class:active={customLte===gb} aria-pressed={customLte===gb} on:click={() => customLte=gb}>{gb?gb+' ГБ':'Без обхода'}</button>{/each}</div></fieldset></div><div class="custom-result" aria-live="polite"><span>{customMonths} мес. · {customDevices} устр. · {customLte} ГБ обхода</span><strong>{quoteBusy?'…':customQuote?customQuote.price_rub.toLocaleString('ru-RU')+' ₽':'Цена недоступна'}</strong>{#if customQuote?.monthly_rub}<small>{customQuote.monthly_rub.toLocaleString('ru-RU')} ₽ в месяц</small>{/if}<a class="story-action" href="/app?screen=custom-tariff" on:click={() => track('landing_custom_tariff_click')}>Создать тариф</a></div></div></details>
+      <details class="custom-plan" use:reveal><summary>Нужны другие параметры? <span>Собрать свой тариф <ArcIcon name="settings" size={18}/></span></summary><div class="custom-layout"><div class="custom-fields"><fieldset><legend>Срок подписки</legend><div>{#each [1,3,6,12] as month}<button class:active={customMonths===month} aria-pressed={customMonths===month} on:click={() => customMonths=month}>{month} мес.</button>{/each}</div></fieldset><label class="device-range"><span>Устройства <b>{customDevices}</b></span><input aria-label="Количество устройств" type="range" min="1" max="15" bind:value={customDevices}/></label><fieldset><legend>Трафик обхода</legend><div>{#each [0,15,30,45,75,115,175,225,500] as gb}<button class:active={customLte===gb} aria-pressed={customLte===gb} on:click={() => customLte=gb}>{gb?gb+' ГБ':'Без обхода'}</button>{/each}</div></fieldset></div><div class="custom-result" aria-live="polite"><span>{customMonths} мес. · {customDevices} устр. · {customLte} ГБ обхода</span><strong>{quoteBusy?'…':customQuote?customQuote.price_rub.toLocaleString('ru-RU')+' ₽':'Цена недоступна'}</strong>{#if customQuote?.monthly_rub}<small>{customQuote.monthly_rub.toLocaleString('ru-RU')} ₽ в месяц</small>{/if}<a class="story-action" href="/app?screen=custom-tariff" on:click={() => track('landing_custom_tariff_click')}>Создать тариф</a></div></div></details>
     </section>
 
-    <section class="story setup-story" id="steps" use:reveal><div class="story-heading"><h2>От подписки<br />до подключения</h2><p>Всё необходимое — в личном кабинете.</p></div><ol><li><span>1</span><h3>Выберите тариф</h3><p>Готовый вариант или свои параметры.</p></li><li><span>2</span><h3>Получите ссылку</h3><p>Она появится после активации.</p></li><li><span>3</span><h3>Установите приложение</h3><p>Подойдут Happ или INCY.</p></li><li><span>4</span><h3>Импортируйте подписку</h3><p>Выберите Автовыбор и подключитесь.</p></li></ol></section>
+    <section class="story setup-story" id="steps"><div class="story-heading" use:reveal><h2>От подписки<br />до подключения</h2><p>Всё необходимое — в личном кабинете.</p></div><ol><li use:reveal><span>1</span><h3>Выберите тариф</h3><p>Готовый вариант или свои параметры.</p></li><li use:reveal={1}><span>2</span><h3>Получите ссылку</h3><p>Она появится после активации.</p></li><li use:reveal={2}><span>3</span><h3>Установите приложение</h3><p>Подойдут Happ или INCY.</p></li><li use:reveal={3}><span>4</span><h3>Импортируйте подписку</h3><p>Выберите Автовыбор и подключитесь.</p></li></ol></section>
 
-    <section class="story answers-story" id="faq" data-nav-section use:reveal><div class="story-heading"><h2>Перед<br />подключением</h2><p>Ответы на частые вопросы.</p>{#if config.support_url}<a class="text-action" href={config.support_url}>Написать в поддержку <ArcIcon name="arrow" size={18}/></a>{/if}</div><div class="answers-list">{#each faqs as faq,index}<article><h3><button aria-expanded={openFaq===index} aria-controls={'answer-'+index} on:click={() => {openFaq=openFaq===index?-1:index;track('landing_faq_open',{index})}}><span>{faq[0]}</span><i class:expanded={openFaq===index}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></i></button></h3>{#if openFaq===index}<div id={'answer-'+index} transition:slide={{duration:reducedMotion?0:220}}><p>{faq[1]}</p></div>{/if}</article>{/each}</div></section>
+    <section class="story answers-story" id="faq" data-nav-section><div class="story-heading" use:reveal><h2>Перед<br />подключением</h2><p>Ответы на частые вопросы.</p>{#if config.support_url}<a class="text-action" href={config.support_url}>Написать в поддержку <ArcIcon name="arrow" size={18}/></a>{/if}</div><div class="answers-list">{#each faqs as faq,index}<article use:reveal={index}><h3><button aria-expanded={openFaq===index} aria-controls={'answer-'+index} on:click={() => {openFaq=openFaq===index?-1:index;track('landing_faq_open',{index})}}><span>{faq[0]}</span><i class:expanded={openFaq===index}><svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true"><path d="M10 3v14M3 10h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></i></button></h3>{#if openFaq===index}<div id={'answer-'+index} transition:slide={{duration:reducedMotion?0:220}}><p>{faq[1]}</p></div>{/if}</article>{/each}</div></section>
 
     <section class="story closing-story" use:reveal><img src={base+'assets/arc-flow/arc-logo.svg'} alt=""/><h2>ArcVPN готов<br />к подключению</h2><p>ArcVPN — VPN для телефона и&nbsp;компьютера.<br />Одна подписка. Управление через сайт и&nbsp;Telegram.</p><nav><a class="story-action" href="/app">Личный кабинет <ArcIcon name="arrow" size={18}/></a><a class="text-action" href="#tariffs">Посмотреть тарифы</a></nav></section>
   </main>
@@ -398,7 +395,6 @@
   .landing{--cabinet-bg:#03070e;--ink:#03070e;--surface:#0a111b;--raised:#101a27;--snow:#f7f9fd;--steel:#adb8c7}
   .skip{position:fixed;z-index:100;top:8px;left:8px;padding:12px 18px;border-radius:999px;color:#030508!important;background:#fff;transform:translateY(-150%)}.skip:focus{transform:none}
   :global(.landing-document) { scroll-behavior:smooth; scrollbar-width:thin; scrollbar-color:#405260 #000; }
-  .reading-progress { position:fixed; z-index:60; top:0; left:0; width:100%; height:2px; background:#8bd4fa; transform-origin:left; pointer-events:none; }
   .story { width:min(calc(100% - 64px),1120px); margin:0 auto; padding:104px 0; scroll-margin-top:0; }
   .story h2 { margin:0; font-size:clamp(36px,4.4vw,58px); font-weight:650; line-height:1.06; letter-spacing:-.05em; text-wrap:balance; }
   .story-heading > p { max-width:430px; margin:22px 0 0; color:var(--steel); font-size:16px; line-height:1.75; }
@@ -534,10 +530,8 @@
   .footer-meta { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-top:28px; }
   .footer-meta small,.footer-meta a { display:flex; align-items:center; min-height:44px; color:#b7c6d7; font-size:14px; line-height:1.5; }
   .footer-wordmark { margin:24px auto -.08em; width:fit-content; max-width:100%; font-size:clamp(88px,25vw,520px); font-weight:650; line-height:.95; letter-spacing:-.075em; color:rgba(169,219,255,.2); user-select:none; }
-  .story:global(.reveal-pending) { opacity:0; transform:translateY(24px); }
-  .story:global(.reveal-visible) { opacity:1; transform:none; transition:opacity .65s ease,transform .75s cubic-bezier(.22,1,.36,1); }
-  @supports (animation-timeline:view()) { @media(prefers-reduced-motion:no-preference) { .proof-motion { animation:proof-drift linear both; animation-timeline:view(); animation-range:entry 0% exit 100%; } } }
-  @keyframes proof-drift { from { transform:translateY(24px); } to { transform:translateY(-24px); } }
+  .landing :global(.reveal-pending) { opacity:0; transform:translateY(22px); }
+  .landing :global(.reveal-visible) { opacity:1; transform:none; transition:opacity .6s ease var(--reveal-delay,0ms),transform .7s cubic-bezier(.22,1,.36,1) var(--reveal-delay,0ms); }
   @media(max-width:1050px) {
     .story { width:calc(100% - 48px); padding:80px 0; }
     .trial-story,.apps-story,.bypass-story,.answers-story { gap:42px; }
@@ -603,7 +597,7 @@
   }
   @media(prefers-reduced-motion:reduce) {
     :global(.landing-document) { scroll-behavior:auto; }
-    .story:global(.reveal-pending),.story:global(.reveal-visible),.proof-motion { opacity:1; transform:none; animation:none; transition:none; }
+    .landing :global(.reveal-pending),.landing :global(.reveal-visible) { opacity:1; transform:none; transition:none; }
     .landing *, .landing *::before, .landing *::after { transition-duration:0s!important; }
   }
 

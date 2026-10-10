@@ -4448,6 +4448,9 @@ def api_support_messages():
         except ValueError:
             after_id = 0
         result = get_support_messages(telegram_id, after_id=after_id)
+        for message in result['messages']:
+            if message.get('is_ai'):
+                message['body'] = support_ai.plain_reply(message['body'])
         return _api_no_store(jsonify({"ok": True, **result, "ai": support_ai.status(result.get("thread_id"))}))
 
     if (request.content_length or 0) > 8192:
@@ -4462,15 +4465,13 @@ def api_support_messages():
         return _api_error("user_not_found", 404)
     if result.get("rate_limited"):
         return _api_error("try_later", 429)
-    threading.Thread(
-        target=_notify_support_admins,
-        args=(int(result["thread_id"]), telegram_id, body),
-        daemon=True,
-        name=f"support-notify-{result['thread_id']}",
-    ).start()
-    if not support_ai.queue_reply(int(result["thread_id"]), int(result["message"]["id"])) and support_ai.enabled():
-        from database.db_support import add_assistant_support_message
-        add_assistant_support_message(int(result["thread_id"]), int(result["message"]["id"]), support_ai.FALLBACK)
+    if not result.get('ai_handoff') or result.get('handoff_started'):
+        notification = f"ИИ приостановлен: 10 отправок за 5 минут. Требуется менеджер.\n\n{body}" if result.get('handoff_started') else body
+        threading.Thread(target=_notify_support_admins, args=(int(result['thread_id']),telegram_id,notification),
+                         daemon=True,name=f"support-notify-{result['thread_id']}").start()
+    if not result.get('ai_handoff') and not support_ai.queue_reply(int(result["thread_id"]), int(result["message"]["id"])) and support_ai.enabled():
+        from database.db_support import handoff_to_manager
+        handoff_to_manager(int(result["thread_id"]), int(result["message"]["id"]), support_ai.FALLBACK, 'capacity')
     return _api_no_store(jsonify({"ok": True, **result, "ai": support_ai.status(result["thread_id"])}))
 
 
@@ -7660,7 +7661,7 @@ def api_admin_support_thread(thread_id: int):
         body = str((request.get_json(silent=True) or {}).get('body') or '').strip()
         if not body or len(body) > 4000:
             return _api_error("invalid_message", 400)
-        message = add_admin_support_message(thread_id, 0, body)
+        message = add_admin_support_message(thread_id, int(_admin_telegram_id() or -1), body)
         try:
             append_admin_audit(
                 "support.reply", "success", actor_id=str(_admin_telegram_id() or "password-session"),
@@ -7696,6 +7697,9 @@ def api_admin_support_thread_status(thread_id: int):
         if not exists:
             return _api_error("thread_not_found", 404)
         conn.execute("UPDATE support_threads SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (status, thread_id))
+        if status == 'closed':
+            conn.execute("UPDATE support_threads SET ai_handoff_reason=NULL WHERE id=?", (thread_id,))
+            conn.execute("DELETE FROM support_ai_attempts WHERE thread_id=?", (thread_id,))
     append_admin_audit("support.status", "success",
         actor_id=str(_admin_telegram_id() or "password-session"),
         target_type="support_thread", target_id=str(thread_id), metadata={"status": status})

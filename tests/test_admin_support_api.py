@@ -54,6 +54,9 @@ def support_db(monkeypatch):
         """
     )
 
+    from database.migrations import migration_77
+    migration_77(connection)
+
     @contextmanager
     def fake_get_db():
         try:
@@ -200,7 +203,7 @@ def test_reply_survives_telegram_delivery_failure(client, monkeypatch):
 
     assert response.status_code == 200
     assert response.get_json()["message"] == saved
-    add_message.assert_called_once_with(10, 0, "We can help")
+    add_message.assert_called_once_with(10, -1, "We can help")
     telegram.assert_called_once()
 
 

@@ -1,6 +1,7 @@
 """Optional, bounded AI support. Credentials stay in the service environment."""
 
 import json
+import html
 import logging
 import os
 import re
@@ -8,6 +9,7 @@ import threading
 import urllib.request
 
 from database.db_support import add_assistant_support_message, get_assistant_context
+from database import db_support
 from bot.services.support_ai_alerts import provider_health
 
 logger = logging.getLogger(__name__)
@@ -15,7 +17,22 @@ _slots = threading.BoundedSemaphore(2)
 _lock = threading.Lock()
 _pending = {}
 FALLBACK = "Не удалось получить ответ ИИ. Сообщение уже передано менеджеру — он ответит в этом чате."
-INSTRUCTIONS = """Ты ИИ-помощник поддержки ArcVPN. Отвечай по-русски, кратко: до 3 понятных шагов.
+INSTRUCTIONS = """Ты ИИ-помощник поддержки ArcVPN. Помоги разобраться в конкретном симптоме, не выдавай общий список советов.
+Отвечай по-русски простым языком: короткое объяснение и 1–2 проверки, либо один нужный уточняющий вопрос.
+История относится только к текущему пользователю. Учитывай последнюю версию его фактов и результат предыдущих проверок.
+Не спрашивай повторно клиент/устройство, если уже названы. Не повторяй неудачные советы.
+Если Автовыбор уже выбран, не предлагай его снова. Если блокировки не наблюдаются, не отправляй сразу на обход.
+Если не работает только Telegram, сначала проверь отдельный прокси в самом Telegram:
+на Android/iPhone: Настройки → Данные и память → Прокси; при включённом прокси предложи временно выключить его
+и перезапустить Telegram, сохранив VPN включённым. В Telegram Desktop: Настройки → Продвинутые настройки → Тип соединения.
+Это диагностическая проверка, а не утверждение, что прокси точно виноват. Не проси параметры/секрет прокси.
+Если прокси уже выключен и проверка не помогла, не повторяй её: уточни устройство/ОС и работают ли остальные сайты через VPN.
+Отличай отсутствие всех соединений от проблемы только с сообщениями, медиа или звонками Telegram.
+На компьютере может понадобиться системный VPN/TUN, но не выдумывай название настройки Happ/INCY: при неизвестном интерфейсе уточни ОС.
+Если остальные сайты работают, не объявляй весь VPN неработающим. Не советуй случайные страны, сброс сети или переустановку.
+При общем сбое можно проверить обновление подписки, одну другую обычную локацию и Wi-Fi/мобильную сеть — по одному шагу,
+с учётом уже сделанного. Обход расходует отдельные ГБ; предлагай его только при признаках ограничений сети.
+После двух неудачных диагностических проверок не ходи по кругу: скажи «Зовём на помощь менеджера — он ответит в этом чате».
 При вопросе о первом подключении используй только эти 3 шага:
 1. В кабинете нажмите «Подключить VPN» и выберите устройство.
 2. Выберите Happ или INCY; установите приложение по инструкции в кабинете.
@@ -59,8 +76,9 @@ def _provider():
 
 
 def status(thread_id=None):
+    handoff = bool(db_support.assistant_handoff_reason(thread_id))
     with _lock:
-        return {"enabled": enabled(), "pending": bool(thread_id and thread_id in _pending)}
+        return {"enabled": enabled(), "pending": bool(not handoff and thread_id and thread_id in _pending), "handoff": handoff}
 
 
 def redact(text):
@@ -76,7 +94,15 @@ def request_reply(messages):
     endpoint, key_name, model = _provider()
     if not endpoint:
         raise ValueError("unknown AI provider")
-    conversation = [{"role": "user" if row["sender"] == "user" else "assistant", "content": redact(row["body"])} for row in messages[-6:]]
+    conversation = []
+    remaining = 6000
+    for row in reversed(messages[-16:]):
+        content = redact(row['body'])[:remaining]
+        if not content:
+            break
+        conversation.append({'role':'user' if row['sender']=='user' else 'assistant', 'content':content})
+        remaining -= len(content)
+    conversation.reverse()
     payload = {
         "model": os.getenv("SUPPORT_AI_MODEL", model),
         "instructions": INSTRUCTIONS,
@@ -105,21 +131,46 @@ def request_reply(messages):
         text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
     if not text:
         raise ValueError("empty AI response")
-    return verified_reply(text)
+    return verified_reply(text, messages)
 
 
-def verified_reply(text):
+def plain_reply(text):
+    """Render generated chat prose, including older entity/Markdown artifacts."""
+    text = html.unescape(html.unescape(text)).replace('\\n', '\n')
+    text = re.sub(r"<[^>]+>", "", text)
+    text = re.sub(r"\\([.*_`#\-\[\]()])", r"\1", text)
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
+    text = re.sub(r"(?m)^#{1,6}\s+", "", text)
+    text = re.sub(r"[*`]+", "", text)
+    text = re.sub(r'\bINCC\b', 'INCY', text, flags=re.I)
+    text = re.sub(r"[ \t]+([1-3])[.)]\s+", r"\n\1. ", text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()[:1800]
+
+
+def verified_reply(text, messages=None):
     """Keep chat text readable and prevent known invented client instructions."""
+    users = [row['body'].lower() for row in messages or [] if row['sender']=='user']
+    services = [match.group(0) for body in users for match in re.finditer(r'\bтг\b|телеграм|telegram|ютуб|youtube|instagram|инстаграм|netflix',body)]
+    telegram = bool(services and re.search(r'\bтг\b|телеграм|telegram',services[-1]))
+    proxy_notes = [body for body in users if 'прокс' in body]
+    proxy_checked = bool(proxy_notes and re.search(r'прокс\w*[^.;,\n]{0,30}(?:выключ|отключ|\bнет\b|не\s+(?:использ|включ))|(?:выключ|отключ|не\s+(?:использ|включ))[^.;,\n]{0,30}прокс|нет\s+прокс', proxy_notes[-1]))
+    failures = sum(max(len(re.findall(r'не помог(?:ла|ло|ли)?', body)), int(bool(re.search(r'не измен|вс[её] (?:равно|ещ[её]) не|по.?прежнему', body)))) for body in users)
+    if telegram and failures >= 2:
+        return 'Проверки не помогли. Зовём на помощь менеджера — он ответит в этом чате. Повторять те же действия не нужно.'
+    if telegram and not proxy_checked and 'прокс' not in text.lower():
+        return "Проверим прокси в самом Telegram: он может мешать соединению даже при включённом VPN.\n1. На телефоне откройте Telegram → Настройки → Данные и память → Прокси. Если прокси включён, временно выключите его.\n2. Перезапустите Telegram, оставив VPN включённым. Остальные сайты через VPN открываются?"
+    device_known = any(re.search(r'android|андроид|iphone|айфон|ios|windows|виндовс|macos|макбук|linux|линукс',body) for body in users)
+    if telegram and proxy_checked and not device_known:
+        return 'Прокси уже выключен — повторять эту проверку не будем. На каком устройстве и ОС открыт Telegram, и что именно не работает: подключение, сообщения, медиа или звонки?'
+    if telegram and proxy_checked and re.search(r'(выключ|отключ|прямое соединение|обычное соединение).{0,100}прокс|прокс.{0,100}(выключ|отключ)', text, re.I | re.S):
+        return 'В Telegram совсем нет соединения или проблема только с сообщениями, медиа либо звонками? Прокси уже проверен, повторять этот шаг не нужно.'
     if re.search(r"open\s*vpn|wire\s*guard|outline|v2ray|arcvpn.{0,45}(?:app\s*store|google\s*play)|(?:app\s*store|google\s*play).{0,45}arcvpn", text, re.I):
         return (
             "1. В кабинете нажмите «Подключить VPN» и выберите устройство.\n"
             "2. Выберите Happ или INCY и установите приложение по инструкции в кабинете.\n"
             "3. Импортируйте подписку кнопкой в кабинете, затем включите Автовыбор в приложении."
         )
-    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
-    text = re.sub(r"(?m)^#{1,6}\s+", "", text)
-    text = re.sub(r"[*`]+", "", text)
-    return text[:1800]
+    return plain_reply(text)
 
 
 def _reply(thread_id, message_id):
@@ -131,6 +182,7 @@ def _reply(thread_id, message_id):
             return
         if re.search(r"менеджер|оператор|живой человек|возврат|оплат|плат[её]ж", messages[-1]["body"], re.I):
             answer = "Сообщение уже передано менеджеру. Он проверит ваш вопрос и ответит в этом чате."
+            db_support.handoff_to_manager(thread_id, message_id, answer, 'requested')
         else:
             try:
                 answer = request_reply(messages)
@@ -141,7 +193,10 @@ def _reply(thread_id, message_id):
                 health = False
                 provider_error = error
                 answer = FALLBACK
-        add_assistant_support_message(thread_id, message_id, answer)
+            if re.search(r'менеджер', answer, re.I):
+                db_support.handoff_to_manager(thread_id, message_id, answer, 'provider' if health is False else 'diagnosis')
+            else:
+                add_assistant_support_message(thread_id, message_id, answer)
         if health is not None:
             provider_health(health, provider_error)
     except Exception:
@@ -154,7 +209,7 @@ def _reply(thread_id, message_id):
 
 
 def queue_reply(thread_id, message_id):
-    if not enabled():
+    if not enabled() or db_support.assistant_handoff_reason(thread_id):
         return False
     with _lock:
         if thread_id in _pending or not _slots.acquire(blocking=False):

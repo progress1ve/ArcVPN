@@ -28,7 +28,7 @@ def _add_column(conn: sqlite3.Connection, table: str, column_def: str) -> None:
 
 
 # Текущая версия схемы БД
-LATEST_VERSION = 76
+LATEST_VERSION = 77
 
 
 def get_current_version() -> int:
@@ -2674,6 +2674,16 @@ def migration_76(conn):
     _add_column(conn, "payments", "renewal_period_days INTEGER")
 
 
+def migration_77(conn):
+    """Persist AI handoff and a bounded rolling send-attempt window per thread."""
+    _add_column(conn, "support_threads", "ai_handoff_reason TEXT")
+    _add_column(conn, "support_threads", "ai_context_start_id INTEGER NOT NULL DEFAULT 0")
+    conn.execute("""CREATE TABLE IF NOT EXISTS support_ai_attempts (
+        id INTEGER PRIMARY KEY, thread_id INTEGER NOT NULL REFERENCES support_threads(id) ON DELETE CASCADE,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_support_ai_attempts_window ON support_ai_attempts(thread_id,created_at)")
+
+
 MIGRATIONS = {
     1: migration_1,
     2: migration_2,
@@ -2751,6 +2761,7 @@ MIGRATIONS = {
     74: migration_74,
     75: migration_75,
     76: migration_76,
+    77: migration_77,
 }
 
 
