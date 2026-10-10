@@ -1402,13 +1402,13 @@
         </section>
       {:else if $status.loading || (!$status.loaded && !$status.error)}
         <section class="screen session-loading" aria-label="Проверяем вход" aria-live="polite">
-          <div class="brand"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /><span>ArcVPN</span></div>
+          <div class="brand"><img src={`${import.meta.env.BASE_URL}assets/arc-flow/arc-logo.svg`} alt="" /><span>ArcVPN</span></div>
           <i aria-hidden="true"></i><p>Проверяем вход…</p>
         </section>
       {:else if $status.error === 'unauthorized'}
         <section class="screen login-screen" aria-label="Вход в ArcVPN">
           <div class="login-inner">
-            <div class="login-brand"><div class="login-mark"><img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></div><span>ArcVPN</span></div>
+            <div class="login-brand"><div class="login-mark"><img src={`${import.meta.env.BASE_URL}assets/arc-flow/arc-logo.svg`} alt="" /></div><span>ArcVPN</span></div>
             <div class="login-copy"><h1>Добро пожаловать<br />в ArcVPN</h1><span>Войдите по email или через Telegram. Если аккаунта ещё нет, мы создадим его после подтверждения — пароль не нужен.</span></div>
             <section class="email-form login-form">
               <label><span>Email</span><input type="email" autocomplete="email" bind:value={emailInput} placeholder="name@example.com" disabled={emailBusy || emailStep === 'code'} /></label>
@@ -1431,7 +1431,7 @@
       {:else if active === 'home'}
         <section class="screen home-screen" aria-label="Главная">
           <div class="brand">
-            <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
+            <img src={`${import.meta.env.BASE_URL}assets/arc-flow/arc-logo.svg`} alt="" />
             <span>ArcVPN</span>
           </div>
 
@@ -1731,7 +1731,7 @@
         <button class="qr-close" aria-label="Закрыть" on:click={() => referralQrOpen=false}>×</button>
         <h2 id="qr-title">Ваш QR-код</h2>
         <p>Друг отсканирует его и откроет вашу персональную ссылку ArcVPN.</p>
-        <div class="qr-image"><img src={referralQrData} alt="QR-код реферальной ссылки" /><img class="qr-logo" src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" /></div>
+        <div class="qr-image"><img src={referralQrData} alt="QR-код реферальной ссылки" /><img class="qr-logo" src={`${import.meta.env.BASE_URL}assets/arc-flow/arc-logo.svg`} alt="" /></div>
         <button class="qr-done" on:click={() => referralQrOpen=false}>Понятно</button>
       </section>
     </div>
@@ -1739,7 +1739,7 @@
 
   {#if $status.loaded && $status.error !== 'unauthorized' && !purchaseOpen && !addonsOpen && !connectOpen && !supportChatOpen}<div class="dock">
     <div class="desktop-brand" aria-hidden="true">
-      <img src={`${import.meta.env.BASE_URL}arc-logo-new.webp`} alt="" />
+      <img src={`${import.meta.env.BASE_URL}assets/arc-flow/arc-logo.svg`} alt="" />
     </div>
     <nav aria-label="Навигация">
       {#each tabs as tab}

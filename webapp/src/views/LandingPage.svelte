@@ -24,6 +24,7 @@
     ['Обход глушилок', 'Отдельный запас для сложных сетей.'],
   ]
   const faqs = [
+    ['Что такое ArcVPN — Арк ВПН?', 'Официальный сайт ArcVPN — arccnet.space. Название по-русски — «Арк ВПН». Здесь можно получить пробный доступ, выбрать подписку и настроить подключение через Happ или INCY. Отдельного приложения ArcVPN в магазинах нет.'],
     ['Как установить и подключить ArcVPN?', 'Откройте личный кабинет, выберите устройство и установите Happ или INCY. Затем импортируйте ссылку подписки и выберите Автовыбор.'],
     ['Что такое трафик обхода глушилок?', 'Это отдельный запас для специальных профилей, которые помогают в сложных сетях. Основной трафик остаётся безлимитным и учитывается отдельно.'],
     ['На скольких устройствах работает подписка?', 'Количество зависит от тарифа. Доступные слоты видны в тарифе и личном кабинете; дополнительные устройства можно докупить.'],
@@ -253,7 +254,7 @@
         <nav class="footer-service" aria-label="Управление и помощь"><a href="/app">Личный кабинет</a>{#if config.bot_url}<a href={config.bot_url} target="_blank" rel="noopener">Telegram-бот</a>{/if}{#if config.support_url}<a href={config.support_url}>Поддержка</a>{/if}{#if config.status_url}<a href={config.status_url}>Статус сервиса</a>{/if}</nav>
       </div>
     </div>
-    <div class="footer-meta"><small>© {new Date().getFullYear()} ArcVPN</small><a href="/legal/user-agreement">Пользовательское соглашение</a></div>
+    <div class="footer-meta"><small>© {new Date().getFullYear()} ArcVPN · Арк ВПН</small><a href="/legal/user-agreement">Пользовательское соглашение</a></div>
     <div class="footer-wordmark" aria-hidden="true">ArcVPN</div>
   </footer>
 </div>

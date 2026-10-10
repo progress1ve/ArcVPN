@@ -7,5 +7,5 @@
   "display": "standalone",
   "background_color": "#07111d",
   "theme_color": "#07111d",
-  "icons": [{ "src": "/app/arc-logo-new.webp", "sizes": "512x512", "type": "image/webp", "purpose": "any maskable" }]
+  "icons": [{ "src": "/app/arcvpn-logo.png", "sizes": "1254x1254", "type": "image/png", "purpose": "any maskable" }]
 }

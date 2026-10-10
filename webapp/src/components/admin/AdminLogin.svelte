@@ -7,7 +7,7 @@
 
 <main class="auth-shell">
   <section class="auth-card" aria-labelledby="admin-login-title">
-    <div class="brand-mark"><img src="/app/arc-logo-new.webp" alt="" /></div>
+    <div class="brand-mark"><img src="/app/assets/arc-flow/arc-logo.svg" alt="" /></div>
     <span class="eyebrow">Управление ArcVPN</span>
     <h1 id="admin-login-title">Вход в Admin</h1>
     <p>{error === 'auth' ? 'Введите пароль владельца или откройте панель из Telegram.' : error === 'forbidden' ? 'Для вашей роли пока нет доступных разделов.' : error}</p>

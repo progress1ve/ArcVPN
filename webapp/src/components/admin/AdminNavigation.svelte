@@ -8,7 +8,7 @@
 
 <aside class="admin-sidebar">
   <a class="brand" href="/admin" on:click|preventDefault={() => onNavigate('overview')}>
-    <span class="brand-icon"><img src="/app/arc-logo-new.webp" alt="" /></span>
+    <span class="brand-icon"><img src="/app/assets/arc-flow/arc-logo.svg" alt="" /></span>
     <span>ArcVPN<small>Admin panel</small></span>
   </a>
   <nav aria-label="Разделы админ-панели">
