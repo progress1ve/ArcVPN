@@ -214,7 +214,7 @@
       <div class="story-heading" use:reveal><h2>Попробуйте<br />на своей сети</h2><p>На сайте — 1 день бесплатно, без карты. В Telegram — 7 дней и 5 ГБ обхода.</p></div>
       <div class="trial-choices">
         <article use:reveal><div><span>Через Telegram</span><h3>Бесплатно</h3><p>Бот активирует пробную подписку для нового пользователя.</p></div>{#if config.bot_url}<a class="story-action" href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_trial_click', { channel:'bot' })}>Попробовать в боте <ArcIcon name="arrow" size={18} /></a>{/if}</article>
-        <article use:reveal={1}><div><span>На сайте</span><h3>1 день бесплатно</h3><p>Новому email-аккаунту — без карты и автосписания. По желанию ещё 7 дней за 10 ₽, затем месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
+        <article use:reveal={1}><div><span>На сайте</span><h3>1 день бесплатно</h3><p>Новому email-аккаунту — без карты и автосписания.</p><p class="trial-extension"><span>Хотите попробовать дольше?</span><strong>Ещё 7 дней за&nbsp;10&nbsp;₽</strong></p><p class="trial-renewal">По желанию. Затем — месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
       </div>
     </section>
 
@@ -412,6 +412,10 @@
   .trial-choices span { color:var(--steel); font-size:15px; }
   .trial-choices h3 { margin:9px 0 12px; font-size:32px; font-weight:600; letter-spacing:-.04em; }
   .trial-choices p { margin:0; color:var(--steel); font-size:16px; line-height:1.7; }
+  .trial-choices .trial-extension { margin-top:22px; }
+  .trial-extension span { display:block; margin-bottom:5px; font-size:14px; }
+  .trial-extension strong { display:block; color:var(--accent); font-size:clamp(22px,2vw,27px); font-weight:600; line-height:1.25; letter-spacing:-.025em; }
+  .trial-choices .trial-renewal { margin-top:10px; font-size:14px; line-height:1.55; }
   .trial-choices .story-action { flex:none; padding-inline:18px; font-size:15px; }
   .apps-story { display:grid; grid-template-columns:1fr 1fr; gap:68px; align-items:center; }
   .apps-description .story-heading > p { margin-top:28px; font-size:18px; color:#c4cfdf; line-height:1.7; }
