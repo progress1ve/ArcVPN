@@ -214,7 +214,7 @@
       <div class="story-heading" use:reveal><h2>Попробуйте<br />на своей сети</h2><p>На сайте — 1 день бесплатно, без карты. В Telegram — 7 дней и 5 ГБ обхода.</p></div>
       <div class="trial-choices">
         <article use:reveal><div><span>Через Telegram</span><h3>Бесплатно</h3><p>Бот активирует пробную подписку для нового пользователя.</p></div>{#if config.bot_url}<a class="story-action" href={config.bot_url} target="_blank" rel="noopener" on:click={() => track('landing_trial_click', { channel:'bot' })}>Попробовать в боте <ArcIcon name="arrow" size={18} /></a>{/if}</article>
-        <article use:reveal={1}><div><span>На сайте</span><h3>1 день бесплатно</h3><p>Новому email-аккаунту — без карты и автосписания.</p><p class="trial-extension"><span>Хотите попробовать дольше?</span><strong>Ещё 7 дней за&nbsp;10&nbsp;₽</strong></p><p class="trial-renewal">По желанию. Затем — месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
+        <article use:reveal={1}><div><span>На сайте</span><h3>1 день бесплатно</h3><p class="trial-extension"><span>Хотите попробовать дольше?</span><strong>Ещё 7 дней за&nbsp;10&nbsp;₽</strong></p><p class="trial-renewal">По желанию. Затем — месячный Стандарт с автопродлением.</p></div><a class="story-action secondary-action" href="/app" on:click={() => track('landing_trial_click', { channel:'site' })}>Попробовать на сайте <ArcIcon name="arrow" size={18} /></a></article>
       </div>
     </section>
 
