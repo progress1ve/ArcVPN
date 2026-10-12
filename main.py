@@ -179,6 +179,8 @@ async def main():
     broadcast_tasks = asyncio.create_task(run_broadcast_worker(bot))
     admin_broadcast_tasks = asyncio.create_task(run_admin_broadcast_worker(bot))
     fleet_alert_tasks = asyncio.create_task(run_fleet_alert_scheduler(bot))
+    from bot.services.hostup_bandwidth import run_hostup_bandwidth_monitor
+    hostup_tasks = asyncio.create_task(run_hostup_bandwidth_monitor(bot))
     from bot.services.friend_subscriptions import run_friend_cleanup
     friend_cleanup_tasks = asyncio.create_task(run_friend_cleanup())
     
@@ -194,6 +196,7 @@ async def main():
         broadcast_tasks.cancel()
         admin_broadcast_tasks.cancel()
         fleet_alert_tasks.cancel()
+        hostup_tasks.cancel()
         friend_cleanup_tasks.cancel()
         await bot.session.close()
 
