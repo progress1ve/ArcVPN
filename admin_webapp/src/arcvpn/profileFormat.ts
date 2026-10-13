@@ -29,6 +29,21 @@ export function adminDate(value?: string | null) {
         minute: '2-digit',
       });
 }
+export function adminDateParts(value?: string | null) {
+  if (!value) return null;
+  let normalized = value.trim().replace(' ', 'T');
+  if (!/([zZ]|[+-]\d\d:\d\d)$/.test(normalized)) normalized += 'Z';
+  const date = new Date(normalized);
+  if (!Number.isFinite(date.getTime())) return null;
+  return {
+    date: date.toLocaleDateString('ru-RU', { timeZone: 'Europe/Moscow' }),
+    time: date.toLocaleTimeString('ru-RU', {
+      timeZone: 'Europe/Moscow',
+      hour: '2-digit',
+      minute: '2-digit',
+    }),
+  };
+}
 export const rubles = (value: number) =>
   new Intl.NumberFormat('ru-RU', {
     style: 'currency',

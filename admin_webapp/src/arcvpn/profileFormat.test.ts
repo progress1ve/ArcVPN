@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { adminDate, gigabytes, parseAnswer, surveyName, waitingDuration } from './profileFormat';
+import {
+  adminDate,
+  adminDateParts,
+  gigabytes,
+  parseAnswer,
+  surveyName,
+  waitingDuration,
+} from './profileFormat';
 describe('operator data formatting', () => {
   it('keeps comments with punctuation intact', () =>
     expect(parseAnswer('service: YouTube: не работает')).toEqual({
@@ -11,6 +18,12 @@ describe('operator data formatting', () => {
     expect(adminDate('2026-10-13T12:24:00+03:00')).toEqual(adminDate('2026-10-13T09:24:00Z'));
     expect(adminDate(null)).toBe('Нет данных');
     expect(adminDate('bad')).toBe('Нет данных');
+    expect(adminDateParts('2026-10-12 23:40:00')).toEqual({ date: '13.10.2026', time: '02:40' });
+    expect(adminDateParts('2026-10-13T02:40:00+03:00')).toEqual({
+      date: '13.10.2026',
+      time: '02:40',
+    });
+    expect(adminDateParts('bad')).toBeNull();
   });
   it('distinguishes a missing counter from zero', () => {
     expect(gigabytes(null)).toBe('Нет данных');

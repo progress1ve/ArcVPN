@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { SectionHeading } from '@/components/admin/SectionHeading';
 import { getJson } from './api';
 import {
   adminDate,
+  adminDateParts,
   gigabytes,
   parseAnswer,
   rubles,
@@ -22,16 +24,63 @@ const tabs = [
   'Поддержка',
   'История',
 ];
-const panel = 'rounded-xl border border-dark-700 bg-dark-900/50 p-4 sm:p-5';
+const panel = 'rounded-xl border border-dark-700 bg-dark-900 p-4 sm:p-5';
 const button =
   'rounded-lg border border-dark-700 px-3 py-2 text-sm text-dark-200 hover:border-accent-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400 disabled:opacity-40';
 
-function Fact({ label, children }: { label: string; children: React.ReactNode }) {
+function Fact({
+  label,
+  children,
+  className = '',
+}: {
+  label: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
   return (
-    <div className="min-w-0 py-3">
-      <dt className="text-xs text-dark-400">{label}</dt>
-      <dd className="mt-1 break-words text-sm font-medium text-dark-100">{children}</dd>
+    <div className={`min-w-0 py-3 ${className}`}>
+      <dt className="text-sm text-dark-300">{label}</dt>
+      <dd className="mt-2 break-words text-base font-semibold leading-snug text-dark-50">
+        {children}
+      </dd>
     </div>
+  );
+}
+function DateValue({ value }: { value?: string | null }) {
+  const parts = adminDateParts(value);
+  return parts ? (
+    <>
+      <time className="block tabular-nums">{parts.date}</time>
+      <span className="mt-1 block text-sm font-normal text-dark-300">{parts.time} МСК</span>
+    </>
+  ) : (
+    <>Нет данных</>
+  );
+}
+function Metric({
+  label,
+  value,
+  caption,
+  onClick,
+}: {
+  label: string;
+  value: string;
+  caption: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`${panel} min-w-0 text-left transition-colors hover:border-accent-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400`}
+    >
+      <span className="block min-h-10 text-sm text-dark-300">{label}</span>
+      <strong className="mt-3 block break-words text-2xl font-semibold tabular-nums leading-tight text-dark-50">
+        {value}
+      </strong>
+      <span className="mt-2 block text-xs leading-relaxed text-dark-300">
+        {caption} <span aria-hidden="true">→</span>
+      </span>
+    </button>
   );
 }
 function Empty({ children }: { children: React.ReactNode }) {
@@ -52,6 +101,7 @@ function Amount({ payment }: { payment: Row }) {
 }
 
 export default function ArcUserProfile() {
+  const navigate = useNavigate();
   const { id } = useParams();
   const [tab, setTab] = useState('Сводка');
   const [period, setPeriod] = useState(7);
@@ -69,24 +119,45 @@ export default function ArcUserProfile() {
   const traffic = useQuery({
     queryKey: ['arc-user-traffic', id, period],
     queryFn: () =>
-      getJson(`/api/admin/traffic/period?telegram_id=${encodeURIComponent(id || '')}&period=${period}`),
+      getJson(
+        `/api/admin/traffic/period?telegram_id=${encodeURIComponent(id || '')}&period=${period}`,
+      ),
     enabled: tab === 'Трафик' && !!id,
     staleTime: 60000,
   });
+  const headerUser = query.data?.user;
+  const heading = (
+    <SectionHeading
+      title={
+        headerUser?.first_name ||
+        headerUser?.username ||
+        (Number(id) > 0 ? `Пользователь ${id}` : 'Клиент сайта')
+      }
+      description={`${headerUser?.username ? `@${headerUser.username} · ` : ''}${Number(id) > 0 ? `Telegram ID ${id}` : `Клиент сайта · ID ${headerUser?.id ?? id}`}`}
+      backLabel="Вернуться к пользователям"
+      onBack={() => navigate('/admin/users')}
+    />
+  );
   if (query.isLoading)
     return (
-      <p role="status" className="p-8 text-dark-300">
-        Загружаем данные пользователя…
-      </p>
+      <main className="min-w-0 space-y-5 pb-12">
+        {heading}
+        <p role="status" className="p-8 text-dark-300">
+          Загружаем данные пользователя…
+        </p>
+      </main>
     );
   if (query.isError || !query.data)
     return (
-      <div role="alert" className={panel}>
-        <p>Не удалось загрузить карточку.</p>
-        <button className={button} onClick={() => query.refetch()}>
-          Повторить
-        </button>
-      </div>
+      <main className="min-w-0 space-y-5 pb-12">
+        {heading}
+        <div role="alert" className={panel}>
+          <p>Не удалось загрузить карточку.</p>
+          <button className={button} onClick={() => query.refetch()}>
+            Повторить
+          </button>
+        </div>
+      </main>
     );
   const data = query.data,
     user = data.user,
@@ -99,10 +170,6 @@ export default function ArcUserProfile() {
   const active = Boolean(current?.active);
   const replies: Row[] = data.lifecycle_answers || [];
   const support: Row[] | null = data.support;
-  const name =
-    user.first_name ||
-    user.username ||
-    (user.telegram_id > 0 ? 'Пользователь без имени' : 'Клиент сайта');
   const total = summary.purchase_totals;
   const spent =
     [
@@ -113,61 +180,50 @@ export default function ArcUserProfile() {
       .filter(Boolean)
       .join(' + ') || rubles(0);
   const onTab = (next: string) => setTab(next);
+  const deviceCount = devices.filter((device) => device.active).length;
+  const mainBytes =
+    subscriptions.length && subscriptions.every((sub) => sub.traffic_used != null)
+      ? subscriptions.reduce((sum, sub) => sum + Number(sub.traffic_used), 0)
+      : null;
+  const subscriptionStatus = current?.panel_disabled_at
+    ? 'Доступ отключён'
+    : active
+      ? 'Подписка действует'
+      : current
+        ? 'Подписка истекла'
+        : 'Подписки нет';
+  const onlineStatus =
+    presence.online === null
+      ? 'Онлайн неизвестен'
+      : presence.online
+        ? 'Сейчас онлайн'
+        : 'Сейчас не в сети';
   return (
     <main className="min-w-0 space-y-5 pb-12">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link className="text-sm text-accent-400 hover:underline" to="/admin/users">
-            ← Пользователи
-          </Link>
-          <h1 className="mt-2 break-words text-2xl font-semibold text-dark-50">{name}</h1>
-          <p className="mt-1 text-sm text-dark-400">
-            {user.username && `@${user.username} · `}
-            {user.telegram_id > 0
-              ? `Telegram ID ${user.telegram_id}`
-              : `Клиент сайта · ID ${user.id}`}
-          </p>
-        </div>
-        <button className={button} disabled={query.isFetching} onClick={() => query.refetch()}>
-          {query.isFetching ? 'Обновляем…' : 'Обновить'}
-        </button>
-      </header>
+      {heading}
       <section className={panel} aria-label="Главное о пользователе">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <strong className={active ? 'text-success-400' : 'text-warning-400'}>
-            {current?.panel_disabled_at
-              ? 'Доступ отключён'
-              : active
-                ? 'Подписка действует'
-                : current
-                  ? 'Подписка истекла'
-                  : 'Подписки нет'}
-          </strong>
-          <span className="text-dark-500">·</span>
-          <span className={presence.online ? 'text-success-400' : 'text-dark-300'}>
-            {presence.online === null
-              ? 'Онлайн неизвестен'
-              : presence.online
-                ? 'Сейчас онлайн'
-                : 'Сейчас не в сети'}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dark-700 pb-4">
+          <h2 className="text-base font-semibold text-dark-50">Подписка</h2>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${active ? 'bg-success-500/15 text-success-400' : 'bg-warning-500/15 text-warning-400'}`}
+          >
+            {subscriptionStatus}
           </span>
         </div>
-        <dl className="mt-2 grid gap-x-6 sm:grid-cols-2 lg:grid-cols-4">
-          <Fact label="Тариф">
+        <dl className="mt-2 grid grid-cols-2 gap-x-6 gap-y-1 lg:grid-cols-[1.3fr_1fr_1fr]">
+          <Fact label="Тариф" className="col-span-2 lg:col-span-1">
             {current?.plan_name || 'Подписки нет'}
             {current && (
-              <small className="mt-1 block font-normal text-dark-400">
-                {user.device_limit} устройств · {user.lte_quota_gb} ГБ LTE
+              <small className="mt-2 block text-sm font-normal text-dark-300">
+                До {user.device_limit} устройств · {user.lte_quota_gb} ГБ LTE
               </small>
             )}
           </Fact>
-          <Fact label="Первая подписка">{adminDate(summary.first_subscription_at)}</Fact>
-          <Fact label="Действует до">{adminDate(current?.expires_at)}</Fact>
-          <Fact label="Покупки за всё время">
-            {spent}
-            <small className="mt-1 block font-normal text-dark-400">
-              {total.count} оплаченных покупок
-            </small>
+          <Fact label="Первая подписка">
+            <DateValue value={summary.first_subscription_at} />
+          </Fact>
+          <Fact label="Действует до">
+            <DateValue value={current?.expires_at} />
           </Fact>
         </dl>
       </section>
@@ -175,7 +231,7 @@ export default function ArcUserProfile() {
         {tabs.map((item) => (
           <button
             key={item}
-            className={`${button} ${tab === item ? 'border-accent-500 bg-accent-500/10 text-accent-300' : ''}`}
+            className={`${button} ${tab === item ? 'border-accent-500 bg-dark-800 text-accent-300' : 'bg-dark-900 text-dark-300'}`}
             aria-pressed={tab === item}
             onClick={() => onTab(item)}
           >
@@ -188,56 +244,115 @@ export default function ArcUserProfile() {
           </button>
         ))}
       </nav>
-      <section className={panel} aria-label={tab}>
+      <section className={tab === 'Сводка' ? 'space-y-4' : panel} aria-label={tab}>
         {tab === 'Сводка' && (
           <>
-            <h2 className="text-lg font-semibold text-dark-100">Подписка и использование</h2>
-            <dl className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
-              <Fact label="Основной трафик · текущий счётчик">
-                {gigabytes(
-                  subscriptions.reduce((sum, sub) => sum + Number(sub.traffic_used || 0), 0),
-                )}
-              </Fact>
-              <Fact label="LTE-трафик · текущий цикл">
-                {gigabytes(user.lte_used_bytes)} / {user.lte_quota_gb} ГБ
-              </Fact>
-              <Fact label="Зарегистрированные устройства">
-                {devices.filter((device) => device.active).length} / {user.device_limit}
-              </Fact>
-              <Fact label="Последний раз онлайн">{adminDate(presence.last_online_at)}</Fact>
-              <Fact label="Последняя наблюдаемая нода">
-                {presence.last_node || 'Нет достоверных данных'}
-              </Fact>
-              <Fact label="Зарегистрирован">{adminDate(user.created_at)}</Fact>
-            </dl>
-            <p className="mt-2 text-xs leading-relaxed text-dark-400">
-              Время — МСК. Онлайн: {presence.source}, наблюдение за последние 3 минуты. Первая
-              подписка — самая ранняя запись среди сохранённых подписок. Счётчики могут
-              сбрасываться; расход за выбранные даты — во вкладке «Трафик».
-            </p>
-            <div className="mt-5 grid gap-3 sm:grid-cols-3">
-              {[
-                ['Устройства', `${devices.filter((d) => d.active).length} активных`],
-                ['Ответы', replies.length ? `${replies.length} ответов` : 'Ещё не отвечал'],
-                [
-                  'Поддержка',
-                  support === null
-                    ? 'Доступ ограничен'
-                    : support.some((t) => t.user_messages > 0)
-                      ? 'Писал в поддержку'
-                      : 'Обращений нет',
-                ],
-              ].map(([target, label]) => (
-                <button
-                  className={`${button} text-left`}
-                  key={target}
-                  onClick={() => onTab(target)}
-                >
-                  <b className="block">{target}</b>
-                  <span className="mt-1 block text-dark-400">{label} →</span>
-                </button>
-              ))}
+            <div
+              className="grid grid-cols-2 gap-3 xl:grid-cols-4"
+              aria-label="Расходы и использование"
+            >
+              <Metric
+                label="Потрачено за всё время"
+                value={spent}
+                caption={`Покупок: ${total.count}`}
+                onClick={() => onTab('Покупки')}
+              />
+              <Metric
+                label="Основной трафик"
+                value={gigabytes(mainBytes)}
+                caption="Текущий счётчик · расход по датам"
+                onClick={() => onTab('Трафик')}
+              />
+              <Metric
+                label="LTE-трафик"
+                value={gigabytes(user.lte_used_bytes)}
+                caption={`Из ${user.lte_quota_gb} ГБ в текущем цикле`}
+                onClick={() => onTab('Трафик')}
+              />
+              <Metric
+                label="Устройства"
+                value={`${deviceCount} / ${user.device_limit}`}
+                caption="Зарегистрировано / лимит"
+                onClick={() => onTab('Устройства')}
+              />
             </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <section className={panel} aria-label="Активность пользователя">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-dark-700 pb-4">
+                  <h2 className="text-base font-semibold text-dark-50">Активность</h2>
+                  <span
+                    className={`text-xs font-medium ${presence.online ? 'text-success-400' : 'text-dark-300'}`}
+                  >
+                    {onlineStatus}
+                  </span>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-4">
+                  <Fact label="Последний раз онлайн">
+                    <DateValue value={presence.last_online_at} />
+                  </Fact>
+                  <Fact label="Последняя нода">
+                    {presence.last_node || 'Нет достоверных данных'}
+                  </Fact>
+                </dl>
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2 border-t border-dark-700 pt-3 text-sm">
+                  <span className="text-dark-300">Регистрация</span>
+                  <time className="text-dark-100">{adminDate(user.created_at)} МСК</time>
+                </div>
+              </section>
+              <section className={panel} aria-label="Ответы и обращения пользователя">
+                <h2 className="border-b border-dark-700 pb-4 text-base font-semibold text-dark-50">
+                  Ответы и обращения
+                </h2>
+                {[
+                  ['Рефералы', `Приглашено: ${data.referrals.invited_count ?? 0}`],
+                  ['Ответы', replies.length ? `Ответов: ${replies.length}` : 'Ещё не отвечал'],
+                  [
+                    'Поддержка',
+                    support === null
+                      ? 'Доступ ограничен'
+                      : support.some((t) => t.user_messages > 0)
+                        ? 'Писал в поддержку'
+                        : 'Обращений нет',
+                  ],
+                ].map(([target, label]) => (
+                  <button
+                    className="flex w-full min-w-0 flex-wrap items-center justify-between gap-2 border-b border-dark-700 py-4 text-left text-sm last:border-b-0 hover:text-accent-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400"
+                    key={target}
+                    onClick={() => onTab(target)}
+                  >
+                    <b className="text-dark-100">{target}</b>
+                    <span className="text-dark-300">
+                      {label}{' '}
+                      <span className="ml-2 text-accent-300" aria-hidden="true">
+                        →
+                      </span>
+                    </span>
+                  </button>
+                ))}
+              </section>
+            </div>
+            <details className="rounded-lg border border-dark-700 bg-dark-900 p-4 text-sm text-dark-300">
+              <summary className="cursor-pointer font-medium focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400">
+                Источники данных
+              </summary>
+              <ul className="mt-3 list-disc space-y-2 pl-5 text-sm leading-relaxed">
+                <li>
+                  Все даты — по Москве. Онлайн: {presence.source}, наблюдение за последние 3 минуты.
+                </li>
+                <li>
+                  Первая подписка — самая ранняя сохранённая запись. Удалённая история сюда не
+                  попадает.
+                </li>
+                <li>
+                  Счётчики трафика могут сбрасываться. Расход по обычным и LTE-нодам за выбранные
+                  даты — во вкладке «Трафик».
+                </li>
+                <li>
+                  Устройства — зарегистрированные устройства пользователя, а не число текущих
+                  подключений.
+                </li>
+              </ul>
+            </details>
             {subscriptions.length > 1 && (
               <div className="mt-6">
                 <h3 className="font-medium text-dark-100">Все подписки</h3>

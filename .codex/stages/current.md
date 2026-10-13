@@ -3,4 +3,4 @@ Evidence/acceptance/rollback: notification-html.md. Production7cda75fc FFpulled;
 
 ## Active: admin user workflows
 
-Owner's content contract, acceptance and evidence: `admin-user-workflows.md`. Initial profile/answers/traffic/support/server preflight runtime `5aca069` deployed on Poland; public profile passes. Follow-up corrects heading navigation/removes answers+ticket refresh and adds ticket waiting/unread/newest sorting; final publication/browser closeout pending. Economy; no subagents authorized. Existing notification-stage evidence retained.
+Owner's content contract, acceptance and evidence: `admin-user-workflows.md`. Initial operational runtime `5aca069` and navigation/ticket queue follow-up `264349e` deployed on Poland. Latest owner screenshot requires matching BackIcon/no Refresh and clearer grouping/contrast in the individual user profile; refinement and complete public4-width acceptance pending. Economy; no subagents authorized. Existing notification-stage evidence retained.

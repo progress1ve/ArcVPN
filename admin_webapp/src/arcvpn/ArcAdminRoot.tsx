@@ -192,15 +192,15 @@ function AdminRoutes() {
           <Route path="/admin/*" element={<Unavailable />} />
           <Route path="*" element={<Navigate to="/admin" replace />} />
         </Routes>
-      </Layout>
       <a
-        className="fixed bottom-2 right-3 z-[70] text-[10px] text-dark-600 transition-colors hover:text-dark-300 focus:text-dark-200"
+        className="mb-4 block text-right text-xs text-dark-400 transition-colors hover:text-dark-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400"
         href="https://github.com/progress1ve/ArcVPN/tree/main/admin_webapp"
         target="_blank"
         rel="noreferrer"
       >
         Исходный код · AGPL-3.0
       </a>
+      </Layout>
     </>
   );
 }

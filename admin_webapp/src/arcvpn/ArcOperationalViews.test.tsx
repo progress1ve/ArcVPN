@@ -25,6 +25,7 @@ function mount(component: React.ReactNode, path: string, route: string) {
         <Routes>
           <Route path={route} element={component} />
           <Route path="/admin" element={<p>Главная админка</p>} />
+          <Route path="/admin/users" element={<p>Список пользователей</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -99,6 +100,9 @@ describe('ArcVPN operator views', () => {
     expect(screen.queryByText('Подарки')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Устройства' }));
     expect(screen.getByText('Устройства ещё не зарегистрированы.')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться к пользователям' }));
+    expect(await screen.findByText('Список пользователей')).toBeTruthy();
   });
   it('preserves a failed reply and distinguishes AI from manager messages', async () => {
     calls.access.mockResolvedValue({ role: 'owner' });
