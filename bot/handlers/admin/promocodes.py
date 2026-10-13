@@ -254,7 +254,7 @@ async def process_promocode_code(message: Message, state: FSMContext):
     # Проверяем уникальность
     from database.db_promocodes import get_promocode_by_code
     if get_promocode_by_code(code):
-        await message.answer(f"❌ Промокод <code>{escape_html(code)}</code> уже существует")
+        await message.answer(f"❌ Промокод <code>{escape_html(code)}</code> уже существует", parse_mode="HTML")
         return
     
     await state.update_data(promocode_code=code)

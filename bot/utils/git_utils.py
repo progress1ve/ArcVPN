@@ -7,6 +7,7 @@ import subprocess
 import logging
 import sys
 import os
+import html
 from typing import Tuple, Optional, List, Dict
 
 logger = logging.getLogger(__name__)
@@ -261,7 +262,7 @@ def check_for_updates() -> Tuple[bool, int, str, bool, Optional[Dict[str, str]],
     
     log_text = f"📦 Доступно обновлений: {commits_behind}\n\n"
     if success_log and log_output:
-        log_text += "Последние изменения:\n<pre>" + log_output + "</pre>"
+        log_text += "Последние изменения:\n<pre>" + html.escape(log_output) + "</pre>"
     
     return True, commits_behind, log_text, has_blocking, blocking_commit, is_beta_only
 

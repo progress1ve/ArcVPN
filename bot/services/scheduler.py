@@ -38,6 +38,7 @@ from bot.services.remnawave_stats import get_remnawave_network_stats, remnawave_
 from bot.utils.git_utils import check_for_updates
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.utils.formatting import Text, Bold
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,7 @@ async def run_fleet_alert_scheduler(bot: Bot) -> None:
 async def _send_lifecycle_batch(bot: Bot) -> None:
     """Send each lifecycle message once; database uniqueness prevents duplicates."""
     from database.connection import get_db
-    from bot.handlers.user.lifecycle import RATING_CAPTION, rating_keyboard
+    from bot.handlers.user.lifecycle import RATING_MESSAGE, WINBACK_MESSAGE, rating_keyboard
 
     with get_db() as conn:
         rating_users = conn.execute("""
@@ -177,9 +178,8 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         try:
             await bot.send_photo(
                 row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v2.png")),
-                caption=RATING_CAPTION,
+                **RATING_MESSAGE.as_caption_kwargs(),
                 reply_markup=rating_keyboard(),
-                parse_mode="HTML",
             )
             with get_db() as conn:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'trial_day1_rating')", (row["id"],))
@@ -196,11 +196,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         try:
             await bot.send_photo(
                 row["telegram_id"], FSInputFile(os.path.join(assets, "arc-winback-v1.png")),
-                caption=(
-                    "👋 <b>Ваша подписка закончилась</b>\n\n"
-                    "Расскажите, почему не стали продлевать. За один ответ мы сразу подарим "
-                    "<b>3 дня ArcVPN</b>, чтобы вы могли проверить сервис ещё раз."
-                ), reply_markup=kb, parse_mode="HTML",
+                **WINBACK_MESSAGE.as_caption_kwargs(), reply_markup=kb,
             )
             with get_db() as conn:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
@@ -212,10 +208,10 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         with get_db() as conn:
             conn.execute("INSERT OR IGNORE INTO trial_winback_offers(user_id) VALUES (?)", (row["id"],))
         deadline = datetime.now(timezone(timedelta(hours=3))) + timedelta(hours=48)
-        caption = (
-            "🎁 <b>Вернитесь в ArcVPN со скидкой 20%</b>\n\n"
-            "Вы уже подключали пробную подписку. До "
-            f"<b>{deadline:%d.%m в %H:%M} МСК</b> для вас действует персональная скидка "
+        caption = Text(
+            "🎁 ", Bold("Вернитесь в ArcVPN со скидкой 20%"), "\n\n",
+            "Вы уже подключали пробную подписку. До ",
+            Bold(f"{deadline:%d.%m в %H:%M} МСК"), " для вас действует персональная скидка "
             "20% на первый тариф на 3 месяца. Обычный трафик — безлимитный; "
             "трафик обхода учитывается отдельно.\n\n"
             "Если что-то помешало пользоваться ArcVPN, расскажите нам об этом."
@@ -226,7 +222,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         ])
         try:
             await bot.send_photo(row["telegram_id"], FSInputFile(os.path.join(assets, "arc-winback-v1.png")),
-                                 caption=caption, reply_markup=kb, parse_mode="HTML")
+                                 **caption.as_caption_kwargs(), reply_markup=kb)
             with get_db() as conn:
                 conn.execute("UPDATE trial_winback_offers SET sent_at=CURRENT_TIMESTAMP WHERE user_id=? AND sent_at IS NULL", (row["id"],))
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
@@ -332,7 +328,7 @@ async def collect_daily_stats() -> str:
         for node in nodes:
             mark = "🟢" if node.get("connected") else ("⚪" if node.get("disabled") else "🔴")
             srv_lines.append(
-                f"  {mark} <b>{node['name']}</b>: {node.get('users_online', 0)} онлайн · "
+                f"  {mark} <b>{html.escape(str(node['name']))}</b>: {node.get('users_online', 0)} онлайн · "
                 f"{node.get('traffic_gb', 0):.1f} ГБ"
             )
         servers_text = "\n".join(srv_lines)
@@ -701,7 +697,7 @@ async def check_and_notify_updates(bot: Bot) -> None:
             # Если есть блокирующий коммит — добавляем предупреждение
             if has_blocking and blocking_commit:
                 blocking_msg = blocking_commit['message'].lstrip('!')
-                notify_text += f"\n\n⚠️ Среди обновлений есть <b>блокирующий коммит</b> — обновление нужно выполнять вручную.\n<code>{blocking_msg}</code>"
+                notify_text += f"\n\n⚠️ Среди обновлений есть <b>блокирующий коммит</b> — обновление нужно выполнять вручную.\n<code>{html.escape(blocking_msg)}</code>"
             
             # Отправляем уведомления админам
             for admin_id in admin_notification_ids():

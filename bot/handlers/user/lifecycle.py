@@ -2,6 +2,7 @@
 
 from aiogram import F, Router
 from aiogram.types import CallbackQuery, ForceReply, Message, InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.utils.formatting import Text, Bold
 
 from database.connection import get_db
 from database.db_keys import extend_vpn_key
@@ -9,12 +10,18 @@ from bot.services.vpn_api import extend_key_on_server
 
 router = Router()
 
-RATING_CAPTION = (
-    "💙 <b>Поможете сделать ArcVPN лучше?</b>\n\n"
+RATING_MESSAGE = Text(
+    "💙 ", Bold("Поможете сделать ArcVPN лучше?"), "\n\n",
     "Пробная подписка работает уже день. Что нам важнее всего улучшить?\n\n"
     "Выберите один вариант — так мы быстрее поймём, что действительно мешает."
 )
-RATING_THANK_YOU = "💙 <b>Спасибо за ответ!</b>\n\nМы сохранили его и используем при следующих улучшениях ArcVPN."
+RATING_CAPTION = RATING_MESSAGE.as_html()
+RATING_THANK_YOU = Text("💙 ", Bold("Спасибо за ответ!"), "\n\nМы сохранили его и используем при следующих улучшениях ArcVPN.")
+WINBACK_MESSAGE = Text(
+    "👋 ", Bold("Ваша подписка закончилась"), "\n\n",
+    "Расскажите, почему не стали продлевать. За один ответ мы сразу подарим ",
+    Bold("3 дня ArcVPN"), ", чтобы вы могли проверить сервис ещё раз.",
+)
 RATING_CHOICES = {"great", "connection", "speed", "service", "setup", "other"}
 
 
@@ -108,13 +115,13 @@ async def lifecycle_rating(callback: CallbackQuery):
     answer = callback.data.rsplit(":", 1)[-1]
     if answer == "back":
         if _reset_rating_answer(callback.from_user.id):
-            await callback.message.edit_caption(caption=RATING_CAPTION, reply_markup=rating_keyboard(), parse_mode="HTML")
+            await callback.message.edit_caption(**RATING_MESSAGE.as_caption_kwargs(), reply_markup=rating_keyboard())
             await callback.answer("Выберите другой вариант")
         else:
             await callback.answer("Ответ уже завершён")
         return
     if answer in {"1", "3", "5"}:
-        await callback.message.edit_caption(caption=RATING_CAPTION, reply_markup=rating_keyboard(), parse_mode="HTML")
+        await callback.message.edit_caption(**RATING_MESSAGE.as_caption_kwargs(), reply_markup=rating_keyboard())
         await callback.answer("Опрос обновлён — выберите вариант ниже")
         return
     saved, _ = _record_rating_answer(callback.from_user.id, answer)
@@ -123,10 +130,10 @@ async def lifecycle_rating(callback: CallbackQuery):
     if saved:
         if answer in {"other", "service"}:
             await callback.message.edit_caption(
-                caption="💙 <b>Расскажите подробнее</b>\n\nНапишите ответ на сообщение ниже или вернитесь к выбору.",
+                **Text("💙 ", Bold("Расскажите подробнее"), "\n\nНапишите ответ на сообщение ниже или вернитесь к выбору.").as_caption_kwargs(),
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[
                     [InlineKeyboardButton(text="↩️ К выбору", callback_data="lifecycle_rating:back")],
-                ]), parse_mode="HTML",
+                ]),
             )
             prompt = ("Напишите, пожалуйста, что именно стоит улучшить."
                       if answer == "other" else "Напишите, какой сайт или приложение не работает.")
@@ -135,7 +142,7 @@ async def lifecycle_rating(callback: CallbackQuery):
                 reply_markup=ForceReply(input_field_placeholder="Коротко опишите проблему"),
             )
         else:
-            await callback.message.edit_caption(caption=RATING_THANK_YOU, reply_markup=None, parse_mode="HTML")
+            await callback.message.edit_caption(**RATING_THANK_YOU.as_caption_kwargs(), reply_markup=None)
 
 
 @router.message(F.reply_to_message.text.contains("что именно стоит улучшить") | F.reply_to_message.text.contains("какой сайт или приложение"))
@@ -163,13 +170,12 @@ async def lifecycle_winback(callback: CallbackQuery):
         await extend_key_on_server(key_id, 3)
     await callback.answer("Подарили 3 дня подписки 🎁", show_alert=True)
     await callback.message.edit_caption(
-        caption=(
-            "🎁 <b>3 дня уже добавлены</b>\n\n"
+        **Text(
+            "🎁 ", Bold("3 дня уже добавлены"), "\n\n",
             "Проверьте ArcVPN ещё раз. Если решите остаться — выгоднее всего тарифы "
             "на 3–12 месяцев: от 80 ₽ в месяц."
-        ),
+        ).as_caption_kwargs(),
         reply_markup=None,
-        parse_mode="HTML",
     )
     if reason == "competitor":
         await callback.message.answer(

@@ -39,8 +39,10 @@ class _Bot:
     def __init__(self):
         self.sent = []
 
-    async def send_photo(self, telegram_id, photo, caption, reply_markup, parse_mode=None):
+    async def send_photo(self, telegram_id, photo, caption, reply_markup, parse_mode=None, caption_entities=None):
         self.sent.append((telegram_id, caption, reply_markup, parse_mode, photo.path))
+        assert '<b>' not in caption and '</b>' not in caption
+        assert caption_entities and any(entity.type == 'bold' for entity in caption_entities)
 
     async def send_message(self, telegram_id, text, reply_markup):
         self.sent.append((telegram_id, text, reply_markup))
@@ -61,7 +63,7 @@ def test_trial_rating_is_sent_once_after_24_hours(monkeypatch):
 
     assert [item[0] for item in bot.sent] == [1001]
     assert "работает уже день" in bot.sent[0][1]
-    assert bot.sent[0][3] == "HTML"
+    assert bot.sent[0][3] is None
     assert bot.sent[0][4].endswith("arc-feedback-v2.png")
     buttons = [button.callback_data for row in bot.sent[0][2].inline_keyboard for button in row]
     assert "lifecycle_rating:service" in buttons
@@ -94,6 +96,26 @@ def test_connected_expired_trial_gets_one_offer_not_generic_winback(monkeypatch)
     assert len(offers) == 1
     assert "скидкой 20%" in offers[0][1]
     assert conn.execute("SELECT sent_at FROM trial_winback_offers WHERE user_id=4").fetchone()[0]
+
+
+def test_winback_caption_has_bold_entities_without_html_and_sends_once(monkeypatch):
+    conn = _connection()
+    conn.execute("INSERT INTO vpn_keys(id,user_id,expires_at) VALUES(11,1,datetime('now','-3 days'))")
+    @contextmanager
+    def fake_db():
+        yield conn
+        conn.commit()
+    monkeypatch.setattr(database.connection, 'get_db', fake_db)
+    bot = _Bot()
+    asyncio.run(_send_lifecycle_batch(bot))
+    asyncio.run(_send_lifecycle_batch(bot))
+    sent = [item for item in bot.sent if 'сразу подарим' in item[1]]
+    assert len(sent) == 1 and sent[0][3] is None
+    payload = lifecycle.WINBACK_MESSAGE.as_caption_kwargs()
+    caption = payload['caption'].encode('utf-16-le')
+    bold = [caption[2 * e.offset:2 * (e.offset + e.length)].decode('utf-16-le') for e in payload['caption_entities']]
+    assert bold == ['Ваша подписка закончилась', '3 дня ArcVPN']
+    assert payload['parse_mode'] is None and '<b>' not in payload['caption']
 
 
 def test_rating_detail_and_back_work_for_current_and_old_event_keys(monkeypatch):

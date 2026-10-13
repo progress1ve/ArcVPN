@@ -170,7 +170,7 @@ async def admin_trial_set_days_process(message: Message, state: FSMContext):
 
         await message.answer(
             f"✅ Длительность пробного периода установлена: <b>{days} дней</b>",
-            reply_markup=builder.as_markup()
+            reply_markup=builder.as_markup(), parse_mode="HTML"
         )
         await state.clear()
 
@@ -238,7 +238,7 @@ async def admin_trial_set_traffic_process(message: Message, state: FSMContext):
 
         await message.answer(
             f"✅ Лимит трафика установлен: <b>{traffic_text}</b>",
-            reply_markup=builder.as_markup()
+            reply_markup=builder.as_markup(), parse_mode="HTML"
         )
         await state.clear()
 

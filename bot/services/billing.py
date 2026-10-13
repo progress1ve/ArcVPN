@@ -1297,7 +1297,8 @@ async def _notify_referral_bonus(referrer_id: int, friend_id: int, days: int, ki
         if not referrer:
             return
 
-        friend_name = f"@{friend['username']}" if (friend and friend.get('username')) else "ваш друг"
+        from bot.utils.text import escape_html
+        friend_name = escape_html(f"@{friend['username']}") if (friend and friend.get('username')) else "ваш друг"
         word = _days_word(days)
 
         builder = InlineKeyboardBuilder()
@@ -1317,7 +1318,8 @@ async def _notify_referral_bonus(referrer_id: int, friend_id: int, days: int, ki
                 f"Продлили вашу подписку на {days} {word} — спасибо, что приглашаете!"
             )
 
-        bot = Bot(token=BOT_TOKEN)
+        from bot.middlewares.parse_mode_fallback import SafeParseSession
+        bot = Bot(token=BOT_TOKEN, session=SafeParseSession())
         try:
             await bot.send_message(
                 chat_id=referrer['telegram_id'], text=ref_text,

@@ -1190,7 +1190,7 @@ async def admin_cdn_limit_process(message: Message, state: FSMContext):
         logger.info(f"CDN-лимит изменён на {limit_text}")
         builder = InlineKeyboardBuilder()
         builder.row(back_button("admin_payments"))
-        await message.answer(f"✅ CDN-лимит: <b>{limit_text}</b>", reply_markup=builder.as_markup())
+        await message.answer(f"✅ CDN-лимит: <b>{limit_text}</b>", reply_markup=builder.as_markup(), parse_mode="HTML")
         await state.clear()
     except ValueError:
         await message.answer("❌ Введите число от 0 до 1000.")
