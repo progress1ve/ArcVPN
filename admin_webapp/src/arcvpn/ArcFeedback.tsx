@@ -1,12 +1,14 @@
 import { useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { useQuery } from '@tanstack/react-query';
+import { SectionHeading } from '@/components/admin/SectionHeading';
 import { getJson } from './api';
 import { adminDate, answerNames, parseAnswer, surveyName } from './profileFormat';
 
 const control =
   'rounded-lg border border-dark-700 bg-dark-900 px-3 py-2 text-sm text-dark-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400 disabled:opacity-40';
 export default function ArcFeedback() {
+  const navigate = useNavigate();
   const [event, setEvent] = useState('all'),
     [answer, setAnswer] = useState('all'),
     [paid, setPaid] = useState('all'),
@@ -35,20 +37,12 @@ export default function ArcFeedback() {
       .reduce((sum, row) => sum + Number(row.count), 0);
   return (
     <main className="min-w-0 space-y-5 pb-12">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Link to="/admin" className="text-sm text-accent-400">
-            ← Админка
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-dark-50">Ответы пользователей</h1>
-          <p className="mt-1 text-sm text-dark-400">
-            Что понравилось, что не работало и почему не продлили
-          </p>
-        </div>
-        <button className={control} disabled={query.isFetching} onClick={() => query.refetch()}>
-          Обновить
-        </button>
-      </header>
+      <SectionHeading
+        title="Ответы пользователей"
+        description="Что понравилось, что не работало и почему не продлили"
+        backLabel="Вернуться в админку"
+        onBack={() => navigate('/admin')}
+      />
       {data && (
         <section className="grid gap-3 sm:grid-cols-3" aria-label="Сводка опросов">
           {[

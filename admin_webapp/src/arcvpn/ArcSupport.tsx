@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { SectionHeading } from '@/components/admin/SectionHeading';
 import { access, getJson } from './api';
-import { adminDate, supportStatus } from './profileFormat';
+import { adminDate, supportStatus, waitingDuration } from './profileFormat';
 
 const control =
   'rounded-lg border border-dark-700 bg-dark-900 px-3 py-2 text-sm text-dark-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent-400 disabled:opacity-40';
@@ -13,9 +14,11 @@ const handoffReason: Record<string, string> = {
   manager: 'Пользователь попросил менеджера',
 };
 export default function ArcSupport() {
+  const navigate = useNavigate();
   const { ticketId } = useParams();
   const id = Number(ticketId) || null;
   const [status, setStatus] = useState(''),
+    [order, setOrder] = useState('waiting'),
     [search, setSearch] = useState(''),
     [cursor, setCursor] = useState(0),
     [drafts, setDrafts] = useState<Record<number, string>>({}),
@@ -27,10 +30,10 @@ export default function ArcSupport() {
     permissions.data?.permissions?.includes('*') ||
     permissions.data?.permissions?.includes('support.reply');
   const listing = useQuery({
-    queryKey: ['arc-support-list', status, search, cursor],
+    queryKey: ['arc-support-list', status, order, search, cursor],
     queryFn: () =>
       getJson(
-        `/api/admin/support/threads?${new URLSearchParams({ status, q: search, cursor: String(cursor), limit: '25' })}`,
+        `/api/admin/support/threads?${new URLSearchParams({ status, order, q: search, cursor: String(cursor), limit: '25' })}`,
       ),
     refetchInterval: 15000,
   });
@@ -71,21 +74,21 @@ export default function ArcSupport() {
   });
   const thread = detail.data?.thread;
   useEffect(() => {
-    if (thread?.id) client.invalidateQueries({ queryKey: ['arc-support-unread'] });
-  }, [thread?.id, client]);
+    if (thread?.id) {
+      client.invalidateQueries({ queryKey: ['arc-support-unread'] });
+      client.invalidateQueries({ queryKey: ['arc-support-list'] });
+    }
+  }, [thread?.id, detail.dataUpdatedAt, client]);
   const rows = listing.data?.threads || [];
   const draft = id ? drafts[id] || '' : '';
   return (
     <main className="min-w-0 space-y-5 pb-12">
-      <header>
-        <Link to="/admin" className="text-sm text-accent-400">
-          ← Админка
-        </Link>
-        <h1 className="mt-2 text-2xl font-semibold text-dark-50">Поддержка</h1>
-        <p className="mt-1 text-sm text-dark-400">
-          Переписка пользователей, ответы ИИ и работа менеджера
-        </p>
-      </header>
+      <SectionHeading
+        title="Тикеты"
+        description="Переписка пользователей, ответы ИИ и работа менеджера"
+        backLabel="Вернуться в админку"
+        onBack={() => navigate('/admin')}
+      />
       <div className="flex flex-wrap gap-2">
         <input
           aria-label="Поиск обращений"
@@ -107,6 +110,7 @@ export default function ArcSupport() {
           className={control}
         >
           <option value="">Все обращения</option>
+          <option value="waiting">Ждут ответа</option>
           <option value="handoff">Нужен менеджер</option>
           <option value="unread">Непрочитанные</option>
           {Object.entries(supportStatus).map(([key, label]) => (
@@ -115,10 +119,25 @@ export default function ArcSupport() {
             </option>
           ))}
         </select>
-        <button className={control} disabled={listing.isFetching} onClick={refresh}>
-          Обновить
-        </button>
+        <select
+          aria-label="Порядок обращений"
+          className={`${control} max-w-full`}
+          value={order}
+          onChange={(e) => {
+            setOrder(e.target.value);
+            setCursor(0);
+          }}
+        >
+          <option value="waiting">Дольше ждут ответа</option>
+          <option value="newest">Новые сообщения сначала</option>
+          <option value="unreviewed">Дольше не прочитаны</option>
+          <option value="created">Новые обращения сначала</option>
+        </select>
       </div>
+      <p className="text-xs text-dark-400">
+        Ожидание считается от первого сообщения без ответа. Для переданных менеджеру обращений ответ
+        ИИ не завершает ожидание. Список обновляется автоматически.
+      </p>
       <div className="grid min-w-0 gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
         <section
           className={`${id ? 'hidden lg:block' : ''} min-w-0 overflow-hidden rounded-xl border border-dark-700 bg-dark-900/50`}
@@ -162,12 +181,30 @@ export default function ArcSupport() {
               {row.ai_handoff_reason && row.status !== 'closed' && (
                 <p className="mt-2 text-xs text-warning-400">Нужен менеджер</p>
               )}
+              {row.waiting_since && (
+                <p
+                  className="mt-2 text-xs text-warning-400"
+                  title={`Ждёт с ${adminDate(row.waiting_since)} МСК`}
+                >
+                  Ждёт ответа · {waitingDuration(row.waiting_since)}
+                </p>
+              )}
+              {row.unreviewed_since && (
+                <p
+                  className="mt-1 text-xs text-accent-300"
+                  title={`Не прочитано с ${adminDate(row.unreviewed_since)} МСК`}
+                >
+                  Не прочитано · {waitingDuration(row.unreviewed_since)}
+                </p>
+              )}
               <p className="mt-2 line-clamp-2 break-words text-sm text-dark-300">
                 {row.last_message
                   ? `${row.last_sender === 'user' ? 'Пользователь' : row.last_is_ai ? 'ИИ' : 'Менеджер'}: ${row.last_message}`
                   : 'Сообщений нет'}
               </p>
-              <time className="mt-2 block text-xs text-dark-500">{adminDate(row.updated_at)}</time>
+              <time className="mt-2 block text-xs text-dark-500">
+                Последнее сообщение · {adminDate(row.last_message_at || row.updated_at)}
+              </time>
             </Link>
           ))}
           {listing.data && (

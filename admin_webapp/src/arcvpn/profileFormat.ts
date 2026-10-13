@@ -53,3 +53,14 @@ export const supportStatus: Record<string, string> = {
   answered: 'Ответ отправлен',
   closed: 'Закрыт',
 };
+export function waitingDuration(value: string, now = Date.now()) {
+  let normalized = value.trim().replace(' ', 'T');
+  if (!/([zZ]|[+-]\d\d:\d\d)$/.test(normalized)) normalized += 'Z';
+  const timestamp = new Date(normalized).getTime();
+  if (!Number.isFinite(timestamp)) return 'Нет данных';
+  const minutes = Math.max(0, Math.floor((now - timestamp) / 60000));
+  if (minutes < 1) return 'меньше минуты';
+  if (minutes < 60) return `${minutes} мин.`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)} ч. ${minutes % 60} мин.`;
+  return `${Math.floor(minutes / 1440)} д. ${Math.floor((minutes % 1440) / 60)} ч.`;
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adminDate, gigabytes, parseAnswer, surveyName } from './profileFormat';
+import { adminDate, gigabytes, parseAnswer, surveyName, waitingDuration } from './profileFormat';
 describe('operator data formatting', () => {
   it('keeps comments with punctuation intact', () =>
     expect(parseAnswer('service: YouTube: не работает')).toEqual({
@@ -19,4 +19,11 @@ describe('operator data formatting', () => {
   });
   it('identifies the survey', () =>
     expect(surveyName('expired_winback')).toBe('Почему не продлил'));
+  it('formats waiting time consistently in UTC without negative or invalid ages', () => {
+    const now = Date.parse('2026-10-13T12:00:00Z');
+    expect(waitingDuration('2026-10-12 10:00:00', now)).toBe('1 д. 2 ч.');
+    expect(waitingDuration('2026-10-13T13:00:00+03:00', now)).toBe('2 ч. 0 мин.');
+    expect(waitingDuration('2026-10-14', now)).toBe('меньше минуты');
+    expect(waitingDuration('bad', now)).toBe('Нет данных');
+  });
 });

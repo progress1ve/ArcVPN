@@ -219,3 +219,72 @@ def test_reply_survives_audit_failure_after_message_is_persisted(client, monkeyp
 
     assert response.status_code == 200
     add_message.assert_called_once()
+
+
+@pytest.fixture
+def queue_db(support_db):
+    support_db.executescript("""
+      INSERT INTO users VALUES(3,700003,'carol','Carol'),(4,700004,'dave','Dave'),(5,700005,'eve','Eve');
+      INSERT INTO support_threads(id,user_id,status,created_at,updated_at,ai_handoff_reason) VALUES
+        (30,3,'open','2026-08-01','2026-08-24 08:00:00',NULL),
+        (40,4,'open','2026-08-23','2026-08-24 12:00:00',NULL),
+        (50,5,'open','2026-08-22','2026-08-24 13:00:00','manager');
+      INSERT INTO support_messages(id,thread_id,sender,body,created_at,read_at,sender_telegram_id) VALUES
+        (301,30,'user','Older waiting, already read','2026-08-24 08:00:00','2026-08-24 08:01:00',700003),
+        (401,40,'user','AI question','2026-08-24 07:00:00',NULL,700004),
+        (402,40,'admin','AI answer','2026-08-24 12:00:00',NULL,0),
+        (501,50,'admin','Previous human answer','2026-08-23 18:00:00',NULL,-1),
+        (502,50,'user','Need manager','2026-08-24 09:00:00',NULL,700005),
+        (503,50,'user','Still waiting','2026-08-24 09:30:00',NULL,700005),
+        (504,50,'admin','AI handoff notice','2026-08-24 13:00:00',NULL,0);
+    """)
+    return support_db
+
+
+def test_waiting_queue_keeps_read_requests_and_ignores_ai_handoff_notice(client, queue_db, monkeypatch):
+    authorize(monkeypatch, 'support')
+    result = client.get('/api/admin/support/threads?status=waiting&order=waiting').get_json()
+    rows = result['threads']
+    assert [row['id'] for row in rows] == [30,50,10]
+    assert rows[0]['unread'] == 0
+    assert rows[0]['waiting_since'] == '2026-08-24 08:00:00'
+    assert rows[1]['waiting_since'] == '2026-08-24 09:00:00'
+    assert rows[1]['last_is_ai'] == 1
+    assert rows[2]['waiting_since'] == '2026-08-24 10:00:00'
+    assert result['total'] == 3
+
+
+@pytest.mark.parametrize(('order','expected'),[
+    ('newest',[50,40,20,10,30]),
+    ('unreviewed',[40,50,10,20,30]),
+    ('created',[20,10,40,50,30]),
+])
+def test_queue_order_is_applied_before_pagination(client, queue_db, monkeypatch, order, expected):
+    authorize(monkeypatch,'support')
+    first = client.get(f'/api/admin/support/threads?order={order}&limit=2').get_json()
+    rest = client.get(f'/api/admin/support/threads?order={order}&cursor=2').get_json()
+    assert [row['id'] for row in first['threads']+rest['threads']] == expected
+    assert first['next_cursor'] == 2
+    assert first['total'] == 5
+
+
+def test_reading_and_human_reply_have_different_effects_on_waiting(client, queue_db, monkeypatch):
+    authorize(monkeypatch,'support')
+    monkeypatch.setattr(api,'get_support_thread',lambda thread_id:{'id':thread_id,'telegram_id':700005,'status':'open'})
+    assert client.get('/api/admin/support/threads/50').status_code == 200
+    row = client.get('/api/admin/support/threads?status=waiting&q=eve').get_json()['threads'][0]
+    assert row['unreviewed_since'] is None
+    assert row['waiting_since'] == '2026-08-24 09:00:00'
+    queue_db.execute("UPDATE support_threads SET ai_handoff_reason=NULL WHERE id=50")
+    queue_db.execute("INSERT INTO support_messages(id,thread_id,sender,body,created_at,sender_telegram_id) VALUES(505,50,'admin','Human reply','2026-08-24 14:00:00',-1)")
+    assert client.get('/api/admin/support/threads?status=waiting&q=eve').get_json()['total'] == 0
+
+
+def test_closed_and_pending_threads_handle_waiting_without_status_guessing(client, queue_db, monkeypatch):
+    authorize(monkeypatch,'support')
+    queue_db.execute("UPDATE support_threads SET status='closed' WHERE id=50")
+    queue_db.execute("UPDATE support_threads SET status='pending' WHERE id=40")
+    rows = client.get('/api/admin/support/threads?status=waiting&order=waiting').get_json()['threads']
+    assert [row['id'] for row in rows] == [40,30,10]
+    assert rows[0]['waiting_since'] == '2026-08-24 07:00:00'
+    assert client.get('/api/admin/support/threads?order=bad').status_code == 400

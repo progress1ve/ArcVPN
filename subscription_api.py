@@ -7714,33 +7714,60 @@ def api_admin_support_threads():
     except ValueError:
         return _api_error('invalid_pagination', 400)
     status = request.args.get('status', '')
-    if status and status not in {'open','pending','answered','closed','unread','handoff'}:
+    if status and status not in {'open','pending','answered','closed','unread','handoff','waiting'}:
         return _api_error('invalid_status', 400)
+    order = request.args.get('order', 'priority')
+    orders = {
+        'priority': "CASE WHEN status='open' THEN 0 ELSE 1 END,updated_at DESC,id DESC",
+        'newest': "datetime(COALESCE(last_message_at,updated_at)) DESC,id DESC",
+        'created': "datetime(COALESCE(created_at,first_message_at,updated_at)) DESC,id DESC",
+        'waiting': "waiting_since IS NULL,datetime(waiting_since),datetime(COALESCE(last_message_at,updated_at)) DESC,id DESC",
+        'unreviewed': "unreviewed_since IS NULL,datetime(unreviewed_since),datetime(COALESCE(last_message_at,updated_at)) DESC,id DESC",
+    }
+    if order not in orders:
+        return _api_error('invalid_order', 400)
     filters, params = [], []
     if status == 'unread':
-        filters.append("EXISTS(SELECT 1 FROM support_messages m WHERE m.thread_id=t.id AND m.sender='user' AND m.read_at IS NULL)")
+        filters.append('unread>0')
     elif status == 'handoff':
-        filters.append("t.ai_handoff_reason IS NOT NULL AND t.status!='closed'")
+        filters.append("ai_handoff_reason IS NOT NULL AND status!='closed'")
+    elif status == 'waiting':
+        filters.append('waiting_since IS NOT NULL')
     elif status:
-        filters.append('t.status=?'); params.append(status)
+        filters.append('status=?'); params.append(status)
     needle = _clean_text(request.args.get('q'), 100).lower()
     if needle:
-        filters.append("instr(arc_casefold(COALESCE(u.username,'') || ' ' || COALESCE(u.first_name,'') || ' ' || CAST(u.telegram_id AS TEXT)),?)>0")
+        filters.append("instr(arc_casefold(COALESCE(username,'') || ' ' || COALESCE(first_name,'') || ' ' || CAST(telegram_id AS TEXT)),?)>0")
         params.append(needle.casefold())
     where = ' WHERE ' + ' AND '.join(filters) if filters else ''
     with get_db() as conn:
         if needle:
             conn.create_function('arc_casefold', 1, lambda value: str(value or '').casefold())
-        total = conn.execute('SELECT COUNT(*) FROM support_threads t JOIN users u ON u.id=t.user_id' + where, params).fetchone()[0]
-        rows = conn.execute("""SELECT t.id,t.status,t.created_at,t.updated_at,t.ai_handoff_reason,u.telegram_id,u.username,u.first_name,
+        timeline = """WITH timeline AS (
+          SELECT t.id,t.status,t.created_at,t.updated_at,t.ai_handoff_reason,u.telegram_id,u.username,u.first_name,
             (SELECT body FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_message,
             (SELECT sender FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_sender,
             (SELECT sender_telegram_id=0 AND sender='admin' FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_is_ai,
+            (SELECT created_at FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_message_at,
+            (SELECT MIN(created_at) FROM support_messages m WHERE m.thread_id=t.id) first_message_at,
+            (SELECT MAX(id) FROM support_messages m WHERE m.thread_id=t.id AND sender='user') last_user_id,
+            (SELECT MAX(id) FROM support_messages m WHERE m.thread_id=t.id AND sender='admin') last_admin_id,
+            (SELECT MAX(id) FROM support_messages m WHERE m.thread_id=t.id AND sender='admin' AND COALESCE(sender_telegram_id,-1)!=0) last_human_id,
+            (SELECT MIN(created_at) FROM support_messages m WHERE m.thread_id=t.id AND sender='user' AND read_at IS NULL) unreviewed_since,
             (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id) messages_count,
             (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id AND m.sender='user' AND m.read_at IS NULL) unread
-            FROM support_threads t JOIN users u ON u.id=t.user_id""" + where + """
-            ORDER BY CASE WHEN t.status='open' THEN 0 ELSE 1 END,t.updated_at DESC,t.id DESC LIMIT ? OFFSET ?""", (*params,limit,cursor)).fetchall()
-    return _api_no_store(jsonify({"ok": True, "threads": [dict(row) for row in rows],
+            FROM support_threads t JOIN users u ON u.id=t.user_id
+        ), queue AS (
+          SELECT *, CASE WHEN status!='closed' AND
+            (ai_handoff_reason IS NOT NULL OR status='pending' OR last_user_id>COALESCE(last_admin_id,0))
+            THEN (SELECT MIN(created_at) FROM support_messages m WHERE m.thread_id=timeline.id AND m.sender='user'
+              AND m.id>COALESCE(CASE WHEN ai_handoff_reason IS NOT NULL OR status='pending' THEN last_human_id ELSE last_admin_id END,0))
+            END waiting_since FROM timeline
+        ) """
+        total = conn.execute(timeline + 'SELECT COUNT(*) FROM queue' + where, params).fetchone()[0]
+        rows = conn.execute(timeline + 'SELECT * FROM queue' + where + ' ORDER BY ' + orders[order] + ' LIMIT ? OFFSET ?', (*params,limit,cursor)).fetchall()
+    internal = {'last_user_id','last_admin_id','last_human_id','first_message_at'}
+    return _api_no_store(jsonify({"ok": True, "threads": [{k:v for k,v in dict(row).items() if k not in internal} for row in rows],
         'total': total, 'cursor': cursor, 'next_cursor': cursor+limit if cursor+limit<total else None}))
 
 

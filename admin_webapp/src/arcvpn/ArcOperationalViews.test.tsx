@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import ArcUserProfile from './ArcUserProfile';
 import ArcSupport from './ArcSupport';
+import ArcFeedback from './ArcFeedback';
 const calls = vi.hoisted(() => ({ getJson: vi.fn(), access: vi.fn() }));
 vi.mock('./api', () => calls);
 afterEach(() => {
@@ -23,12 +24,37 @@ function mount(component: React.ReactNode, path: string, route: string) {
       <MemoryRouter initialEntries={[path]}>
         <Routes>
           <Route path={route} element={component} />
+          <Route path="/admin" element={<p>Главная админка</p>} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 describe('ArcVPN operator views', () => {
+  it('uses the users heading navigation in answers without a redundant refresh action', async () => {
+    calls.getJson.mockResolvedValue({ answers: [], summary: [], total: 0 });
+    mount(<ArcFeedback />, '/admin/feedback', '/admin/feedback');
+    expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться в админку' }));
+    expect(await screen.findByText('Главная админка')).toBeTruthy();
+  });
+  it('requests ticket waiting and unread order from the server', async () => {
+    calls.access.mockResolvedValue({ role: 'owner' });
+    calls.getJson.mockResolvedValue({ threads: [], total: 0 });
+    mount(<ArcSupport />, '/admin/tickets', '/admin/tickets');
+    expect(screen.queryByRole('button', { name: 'Обновить' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Фильтр обращений'), { target: { value: 'waiting' } });
+    fireEvent.change(screen.getByLabelText('Порядок обращений'), {
+      target: { value: 'unreviewed' },
+    });
+    await waitFor(() =>
+      expect(calls.getJson).toHaveBeenCalledWith(
+        expect.stringContaining('status=waiting&order=unreviewed'),
+      ),
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Вернуться в админку' }));
+    expect(await screen.findByText('Главная админка')).toBeTruthy();
+  });
   it('shows real subscription, separated totals and unknown telemetry without donor defaults', async () => {
     calls.getJson.mockResolvedValue({
       user: {
