@@ -119,6 +119,7 @@ def detail_db(monkeypatch):
 
     connection.execute("ALTER TABLE tariffs ADD COLUMN device_limit INTEGER")
     connection.execute("ALTER TABLE tariffs ADD COLUMN lte_quota_gb INTEGER")
+    connection.execute("ALTER TABLE payments ADD COLUMN fulfilled_at TEXT")
     for field in ("is_custom_tariff INTEGER DEFAULT 0", "requested_device_limit INTEGER", "requested_lte_quota_gb INTEGER", "addon_kind TEXT", "addon_units INTEGER", "addon_lte_gb INTEGER", "addon_device_units INTEGER"):
         connection.execute("ALTER TABLE payments ADD COLUMN " + field)
 

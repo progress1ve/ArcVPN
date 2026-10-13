@@ -23,6 +23,7 @@ import SuccessNotificationModal from '@/components/SuccessNotificationModal';
 import { PromptDialogHost } from '@/components/PromptDialogHost';
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import TicketNotificationBell from '@/components/TicketNotificationBell';
+import ArcSupportBell from '@/arcvpn/ArcSupportBell';
 import { ArcVpnLogo } from '@/components/ArcVpnLogo';
 import {
   SubscriptionIcon,
@@ -235,7 +236,7 @@ export function AppShell({ children }: AppShellProps) {
             >
               {isDark ? <MoonIcon className="h-5 w-5" /> : <SunIcon className="h-5 w-5" />}
             </button>
-            <TicketNotificationBell isAdmin={location.pathname.startsWith('/admin')} />
+            {location.pathname.startsWith('/admin') ? <ArcSupportBell /> : <TicketNotificationBell isAdmin={false} />}
             <LanguageSwitcher />
             <button
               onClick={() => {

@@ -1,0 +1,23 @@
+# Admin operational views — 2026-10-13
+
+Economy; no subagents authorized. Owner requested implementation after audit. Base is exact production `e31ce161`, imported through a narrow Git bundle because local GitHub TLS fails. React admin already exists; customer Svelte unchanged.
+
+## Agreed content and acceptance
+
+User card: first recorded subscription creation, current expiration, actual standard/custom/trial plan and current device/LTE entitlement; successful purchase history and lifetime totals with RUB/Stars/USD separated; separate ordinary/LTE recorded counters and real selected-period usage; device names/platform/status, last observed online and actual observed node (unknown if unavailable), referrals, survey answers, support history and activity. Removed deleted key history cannot be reconstructed; label source limitation explicitly. First VPN connection must not be inferred from last VPN connection. Missing telemetry must remain unknown.
+
+Global answers: distinguish survey, readable chosen answer/comment, time and user; practical filters and navigation. Traffic: compact searchable/sortable ordinary/LTE/total table, real inclusive UTC dates, no fake country/node/plan columns. Tickets: customer/AI/manager distinction, handoff and unread state, useful filtering, correct statuses and existing reply flow; no unsupported attachments/settings/priority. Remove Squads from navigation only, preserve existing backend/node configuration and URLs.
+
+Scope: `subscription_api.py`, new read-only profile helper, `admin_webapp/src/arcvpn/` operational views, feedback view, root routing/navigation, focused tests, generated `admin_webapp_dist`. No billing/routing/protocol/identity mutation, no migrations, no synthetic customer messages, no new stack.
+
+Verification: backend tests for full-history money/status/currencies/trial/custom/addons/disabled state/unknown presence and support permissions; frontend data/state tests and TS/build; local and public 360/768/1280/1600 browser evidence, keyboard/overflow/empty/error states. Commit and staged review, publish/push then Poland FF pull, restart subscription API only, public authenticated behavior. Read-only nginx inspection established that Moscow proxies `/admin` to Poland; admin assets come from tracked `admin_webapp_dist`, so no Moscow static release is needed. Rollback runtime revert and retained old admin assets. Preserve unknown production dirt and permanent Google verification route.
+
+## Evidence
+
+Before: owner's screenshot and live information tab reproduce donor placeholders and last-node server fallback. Original first_connected_at maps to last_online_at; status/language/email/activity defaults; gifts/node history fake empty; detail promise cache never invalidates. Source code and production admin recent history verified. Existing production HEAD `e31ce161`; no changes deployed yet.
+
+Owner additionally requested reviewing `admin-platform.md` and node automation roadmaps. Existing React preflight was hidden behind donor `remnawave:write`; expose it for the existing owner's backend `nodes.provision` authority, without exposing unsupported donor node mutation buttons. Add a direct New Server entry, clear password/trust on target changes, independent fingerprint acknowledgment, accurate read-only result and human errors; remove a speculative full-preset list. No new host credentials provided, no real preflight/provisioning/tunnel performed. Scope question about full provisioning remains pending; current addition is usable server preflight, not fake installation. Full worker/vault/topology/canary remains a distinct future stage.
+
+Evidence so far: 83 backend tests pass (profile/full totals/currencies/pagination/legacy snapshots/negative website identities/unknown node/offline telemetry/permissions/support/AI/traffic/SSH gates); 7 frontend tests pass. Local browser has all four pages at360/768/1280/1600 without overflow (`primary/.codex/stages/evidence/admin-20261013/responsive.local.json`, sixteen `.local.jpg`). Initial empty-schema and outdated Estonia CDN test fixture repaired locally; no production migrations. Node preflight form and final build/browser pass pending.
+
+Final local checkpoint:83 backend/8 frontend tests passed; TS/build passed, existing chunk-size/static+dynamic import warnings only. New server form also inspected at all4 widths, giving20 local screenshots without overflow; empty/error/unknown data, preserved failed reply and independent SSH trust/password clearing verified by tests. Exact Telegram-ID filter prevents a user's period traffic from borrowing prefix matches. Unicode search works for Cyrillic names/comments. No source dependency/version changes, credentials committed or real SSH/customer-message actions.

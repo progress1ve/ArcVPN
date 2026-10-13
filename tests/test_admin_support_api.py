@@ -56,6 +56,7 @@ def support_db(monkeypatch):
 
     from database.migrations import migration_77
     migration_77(connection)
+    connection.execute("ALTER TABLE support_threads ADD COLUMN created_at TEXT")
 
     @contextmanager
     def fake_get_db():

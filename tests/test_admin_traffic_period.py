@@ -47,6 +47,10 @@ def test_period_cards_rows_and_group_filter(monkeypatch):
     assert week.get_json()["items"][0]["total_bytes"] == 31
     assert one.get_json()["end_date"] == datetime.now(timezone.utc).date().isoformat()
     assert week.get_json()["start_date"] == (datetime.now(timezone.utc).date() - timedelta(days=6)).isoformat()
+    conn.execute("INSERT INTO users VALUES(6,1234,'other','Other',2,NULL)")
+    exact=client.get('/api/admin/traffic/period?telegram_id=123').get_json()
+    assert exact['total']==1
+    assert exact['items'][0]['telegram_id']==123
     conn.close()
 
 

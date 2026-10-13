@@ -14,11 +14,8 @@ import {
   ChevronRightIcon,
   RefreshIcon,
   UsersIcon,
-  CheckCircleIcon,
   SubscriptionIcon,
   UserPlusIcon,
-  BanIcon,
-  TrashIcon,
 } from '@/components/icons';
 
 function StatusBadge({ status }: { status: string }) {
@@ -146,7 +143,6 @@ export default function AdminUsers() {
   const { capabilities } = usePlatform();
 
   const [search, setSearch] = useState('');
-  const [emailSearch, setEmailSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [sortBy, setSortBy] = useState<string>('created_at');
   const [offset, setOffset] = useState(0);
@@ -154,11 +150,10 @@ export default function AdminUsers() {
   const limit = 20;
 
   const usersQuery = useQuery({
-    queryKey: ['admin-users', offset, limit, sortBy, search, emailSearch, statusFilter] as const,
+    queryKey: ['admin-users', offset, limit, sortBy, search, statusFilter] as const,
     queryFn: () => {
       const params: Record<string, unknown> = { offset, limit, sort_by: sortBy };
       if (search) params.search = search;
-      if (emailSearch) params.email = emailSearch;
       if (statusFilter) params.status = statusFilter;
       return adminUsersApi.getUsers(params as Parameters<typeof adminUsersApi.getUsers>[0]);
     },
@@ -215,7 +210,7 @@ export default function AdminUsers() {
 
       {/* Stats */}
       {stats && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3">
           <StatCard
             label={t('admin.users.stats.total')}
             value={stats.total_users}
@@ -223,13 +218,7 @@ export default function AdminUsers() {
             tone="accent"
           />
           <StatCard
-            label={t('admin.users.stats.active')}
-            value={stats.active_users}
-            icon={<CheckCircleIcon className="h-5 w-5" />}
-            tone="success"
-          />
-          <StatCard
-            label={t('admin.users.stats.withSubscription')}
+            label="Действующих подписок"
             value={stats.users_with_active_subscription}
             icon={<SubscriptionIcon className="h-5 w-5" />}
             tone="accent"
@@ -239,18 +228,6 @@ export default function AdminUsers() {
             value={stats.active_today}
             icon={<UserPlusIcon className="h-5 w-5" />}
             tone="warning"
-          />
-          <StatCard
-            label={t('admin.users.stats.blocked')}
-            value={stats.blocked_users}
-            icon={<BanIcon className="h-5 w-5" />}
-            tone="error"
-          />
-          <StatCard
-            label={t('admin.users.stats.deleted')}
-            value={stats.deleted_users}
-            icon={<TrashIcon className="h-5 w-5" />}
-            tone="neutral"
           />
         </div>
       )}
@@ -269,23 +246,6 @@ export default function AdminUsers() {
                   setOffset(0);
                 }}
                 placeholder={t('admin.users.search')}
-                className="w-full rounded-xl border border-dark-700 bg-dark-800 py-2 pl-10 pr-4 text-dark-100 placeholder-dark-500 focus:border-dark-600 focus:outline-none"
-              />
-              <div className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">
-                <SearchIcon />
-              </div>
-            </div>
-          </form>
-          <form onSubmit={handleSearch} className="flex-1">
-            <div className="relative">
-              <input
-                type="email"
-                value={emailSearch}
-                onChange={(e) => {
-                  setEmailSearch(e.target.value);
-                  setOffset(0);
-                }}
-                placeholder={t('admin.users.searchEmail')}
                 className="w-full rounded-xl border border-dark-700 bg-dark-800 py-2 pl-10 pr-4 text-dark-100 placeholder-dark-500 focus:border-dark-600 focus:outline-none"
               />
               <div className="absolute left-3 top-1/2 -translate-y-1/2 text-dark-500">
@@ -312,8 +272,6 @@ export default function AdminUsers() {
             <option value="never_online">Ещё не подключались</option>
             <option value="active">{t('admin.users.status.active')}</option>
             <option value="inactive">Неактивные</option>
-            <option value="blocked">{t('admin.users.status.blocked')}</option>
-            <option value="deleted">{t('admin.users.status.deleted')}</option>
           </select>
           <select
             value={sortBy}
@@ -324,7 +282,6 @@ export default function AdminUsers() {
             className="rounded-xl border border-dark-700 bg-dark-800 px-3 py-2 text-dark-100"
           >
             <option value="created_at">{t('admin.users.filters.byDate')}</option>
-            <option value="balance">{t('admin.users.filters.byBalance')}</option>
             <option value="last_activity">{t('admin.users.filters.byActivity')}</option>
             <option value="main_traffic">По основному трафику</option>
             <option value="lte_traffic">По LTE-трафику</option>

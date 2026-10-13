@@ -16,7 +16,7 @@ def test_lte_presence_is_separate_from_normal_and_stale_activity(monkeypatch):
     monkeypatch.setattr(api, '_load_remnawave_runtime_config', lambda: {'REMNAWAVE_PANEL_URL':'https://example.com','REMNAWAVE_API_TOKEN':'test'})
     now = datetime.now(timezone.utc)
     schema(conn)
-    ingest(conn, '87.251.19.197', {'available': True, 'identities': [
+    ingest(conn, '136.148.220.228', {'available': True, 'identities': [
         {'hash': identity_hash(101), 'probe_at': now.timestamp()},
         {'hash': identity_hash(102), 'user_at': now.timestamp()},
     ]}, now.timestamp())
@@ -32,3 +32,5 @@ def test_lte_presence_is_separate_from_normal_and_stale_activity(monkeypatch):
     assert rows[1]['lte_usage'] == 'probe'
     assert rows[2]['lte_usage'] == 'user'
     assert 3 not in rows
+    assert api._ADMIN_ACTIVITY_CACHE[3]['online_node']=='Estonia'
+    assert api._ADMIN_ACTIVITY_CACHE[3]['online_at']==(now-timedelta(minutes=5)).isoformat()

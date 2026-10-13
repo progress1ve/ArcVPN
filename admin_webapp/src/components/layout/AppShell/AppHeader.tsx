@@ -21,6 +21,7 @@ import { cn } from '@/lib/utils';
 
 import LanguageSwitcher from '@/components/LanguageSwitcher';
 import TicketNotificationBell from '@/components/TicketNotificationBell';
+import ArcSupportBell from '@/arcvpn/ArcSupportBell';
 import { ArcVpnLogo } from '@/components/ArcVpnLogo';
 
 // Icons
@@ -271,7 +272,7 @@ export function AppHeader({
               )}
 
               <div onClick={() => setMobileMenuOpen(false)}>
-                <TicketNotificationBell isAdmin={isAdminActive()} />
+                {isAdminActive() ? <ArcSupportBell /> : <TicketNotificationBell isAdmin={false} />}
               </div>
               <div onClick={() => setMobileMenuOpen(false)}>
                 <LanguageSwitcher />

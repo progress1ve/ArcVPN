@@ -6060,7 +6060,7 @@ def api_admin_feedback():
     paid = str(request.args.get("paid") or "all")
     if event not in {"all", "trial", "winback"} or paid not in {"all", "yes", "no"}:
         return _api_error("invalid_filter", 400)
-    valid_answers = {"all", "great", "connection", "speed", "service", "setup",
+    valid_answers = {"all", "unanswered", "problems", "great", "connection", "speed", "service", "setup",
                      "expensive", "quality", "competitor", "other"}
     if answer not in valid_answers:
         return _api_error("invalid_filter", 400)
@@ -6078,10 +6078,11 @@ def api_admin_feedback():
             AND COALESCE(p.operation_type,'')!='trial_start'
             AND COALESCE(p.offer_code,'')!='email_paid_trial')"""
         base = f"""FROM lifecycle_events le JOIN users u ON u.id=le.user_id
-            WHERE le.event_key IN ('trial_day1_rating','day5_rating','expired_winback')"""
+            WHERE le.event_key IN ('trial_day1_rating','day5_rating','expired_winback')
+              AND (le.sent_at IS NOT NULL OR (le.answer IS NOT NULL AND trim(le.answer)!=''))"""
         summary = [dict(row) for row in conn.execute(f"""
             SELECT CASE WHEN le.event_key='expired_winback' THEN 'winback' ELSE 'trial' END AS event,
-                   CASE WHEN le.answer IS NULL THEN 'unanswered'
+                   CASE WHEN le.answer IS NULL OR trim(le.answer)='' THEN 'unanswered'
                         WHEN instr(le.answer,':')>0 THEN trim(substr(le.answer,1,instr(le.answer,':')-1))
                         ELSE trim(le.answer) END AS answer,
                    COUNT(*) AS count,
@@ -6089,14 +6090,22 @@ def api_admin_feedback():
             {base}
             GROUP BY event,answer ORDER BY event, count DESC
         """).fetchall()]
-        filters = ["le.answer IS NOT NULL", "trim(le.answer)!=''"]
+        filters = ["(le.answer IS NULL OR trim(le.answer)='')"] if answer == 'unanswered' else ["le.answer IS NOT NULL", "trim(le.answer)!=''"]
         params: list[Any] = []
         if event != "all":
             filters.append("le.event_key='expired_winback'" if event == "winback"
                            else "le.event_key IN ('trial_day1_rating','day5_rating')")
-        if answer != "all":
-            filters.append("(le.answer=? OR le.answer LIKE ?)")
-            params.extend([answer, answer + ": %"])
+        answer_code = "trim(CASE WHEN instr(le.answer,':')>0 THEN substr(le.answer,1,instr(le.answer,':')-1) ELSE le.answer END)"
+        if answer == 'problems':
+            filters.append(f"{answer_code} IN ('connection','speed','service','setup','quality')")
+        elif answer not in ('all', 'unanswered'):
+            filters.append(f"{answer_code}=?")
+            params.append(answer)
+        needle = _clean_text(request.args.get('q'), 100).lower()
+        if needle:
+            conn.create_function('arc_casefold', 1, lambda value: str(value or '').casefold())
+            filters.append("(arc_casefold(COALESCE(u.username,'') || ' ' || COALESCE(u.first_name,'') || ' ' || CAST(u.telegram_id AS TEXT) || ' ' || COALESCE(le.answer,'')) LIKE ? ESCAPE '\\')")
+            params.append('%' + needle.casefold().replace('\\','\\\\').replace('%','\\%').replace('_','\\_') + '%')
         if paid != "all":
             filters.append(paid_sql if paid == "yes" else "NOT " + paid_sql)
         where = base + " AND " + " AND ".join(filters)
@@ -6112,10 +6121,14 @@ def api_admin_feedback():
                                   "next_cursor": cursor + limit if cursor + limit < total else None}))
 
 
-@app.route('/api/admin/users/<int:telegram_id>', methods=['GET'])
+@app.route('/api/admin/users/<int(signed=True):telegram_id>', methods=['GET'])
 def api_admin_user_detail(telegram_id: int):
     if not _admin_authorized("overview.read"):
         return _api_error("admin_forbidden", 403)
+    try:
+        payment_cursor = max(0, int(request.args.get('payment_cursor', 0)))
+    except ValueError:
+        return _api_error('invalid_pagination', 400)
     with get_db() as conn:
         user = conn.execute("""SELECT id,telegram_id,username,first_name,created_at,
             device_limit,COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) AS lte_quota_gb,
@@ -6127,7 +6140,7 @@ def api_admin_user_detail(telegram_id: int):
         if not user:
             return _api_error("user_not_found", 404)
         user_id = int(user["id"])
-        subscriptions = [dict(row) for row in conn.execute("""SELECT vk.id,vk.custom_name,
+        subscriptions = [dict(row) for row in conn.execute("""SELECT vk.id,vk.custom_name,vk.tariff_id,
             vk.expires_at,vk.created_at,vk.traffic_used,vk.traffic_limit,vk.online_devices,
             vk.last_online_at,vk.panel_disabled_at,t.name AS tariff_name,s.name AS server_name,
             EXISTS(SELECT 1 FROM trial_entitlements te
@@ -6137,7 +6150,7 @@ def api_admin_user_detail(telegram_id: int):
             LEFT JOIN servers s ON s.id=vk.server_id
             WHERE vk.user_id=? ORDER BY vk.expires_at DESC,vk.id DESC""", (user_id,)).fetchall()]
         payments = [dict(row) for row in conn.execute("""SELECT p.order_id,p.payment_type,p.operation_type,
-            p.offer_code,p.status,p.period_days,p.paid_at,p.is_custom_tariff,p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,t.name AS tariff_name,
+            p.offer_code,p.status,p.period_days,COALESCE(p.paid_at,p.fulfilled_at) AS paid_at,p.is_custom_tariff,p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,t.name AS tariff_name,
             CASE
               WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN p.amount_cents/100.0
               WHEN p.payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN p.amount_cents
@@ -6145,7 +6158,7 @@ def api_admin_user_detail(telegram_id: int):
             CASE WHEN p.payment_type='crypto' THEN p.amount_cents/100.0 ELSE 0 END AS amount_usd,
             COALESCE(p.amount_stars,0) AS amount_stars
             FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
-            WHERE p.user_id=? ORDER BY p.paid_at DESC,p.id DESC LIMIT 100""", (user_id,)).fetchall()]
+            WHERE p.user_id=? ORDER BY COALESCE(p.paid_at,p.fulfilled_at) DESC,p.id DESC LIMIT 100 OFFSET ?""", (user_id,payment_cursor)).fetchall()]
         from bot.services.payment_labels import payment_label
         for payment in payments:
             payment["tariff_name"] = payment_label(payment)
@@ -6233,12 +6246,48 @@ def api_admin_user_detail(telegram_id: int):
     }))
 
 
+@app.route('/api/admin/users/<int(signed=True):telegram_id>/profile', methods=['GET'])
+def api_admin_user_profile(telegram_id: int):
+    response = api_admin_user_detail(telegram_id)
+    if response.status_code != 200:
+        return response
+    payload = response.get_json()
+    from bot.services.admin_profile import profile_facts
+    user_id = int(payload['user']['id'])
+    with get_db() as conn:
+        payload['summary'] = profile_facts(conn, user_id, payload['subscriptions'])
+        payment_count = conn.execute('SELECT COUNT(*) FROM payments WHERE user_id=?', (user_id,)).fetchone()[0]
+        payment_cursor = max(0, int(request.args.get('payment_cursor', 0)))
+        payload['payments_page'] = {'cursor': payment_cursor, 'total': payment_count,
+            'next_cursor': payment_cursor+100 if payment_cursor+100<payment_count else None}
+        payload['support'] = None
+        if _admin_authorized('support.read'):
+            payload['support'] = [dict(row) for row in conn.execute('''
+                SELECT t.id,t.status,t.created_at,t.updated_at,t.ai_handoff_reason,
+                  (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id) AS messages_count,
+                  (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id AND m.sender='user') AS user_messages
+                FROM support_threads t WHERE t.user_id=? ORDER BY t.updated_at DESC
+            ''', (user_id,))]
+    authoritative, live = _admin_live_presence()
+    observed = _ADMIN_ACTIVITY_CACHE.get(user_id, {}) if authoritative else {}
+    local_dates = [str(sub['last_online_at']) for sub in payload['subscriptions'] if sub.get('last_online_at')]
+    payload['presence'] = {
+        'online': user_id in live if authoritative else None,
+        'last_online_at': observed.get('online_at') or (max(local_dates) if local_dates else None),
+        'last_node': observed.get('online_node'),
+        'source': 'Remnawave' if authoritative else 'Локальный учёт; панель недоступна',
+        'checked_at': datetime.now(timezone.utc).isoformat(),
+    }
+    return _api_no_store(jsonify(payload))
+
+
 _ADMIN_PRESENCE_CACHE: tuple[float, bool, dict[int, dict[str, Any]]] = (0.0, False, {})
+_ADMIN_ACTIVITY_CACHE: dict[int, dict[str, Any]] = {}
 
 
 def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
     """Resolve Remnawave presence to local users by Telegram ID or panel username."""
-    global _ADMIN_PRESENCE_CACHE
+    global _ADMIN_PRESENCE_CACHE, _ADMIN_ACTIVITY_CACHE
     now = time.monotonic()
     if now - _ADMIN_PRESENCE_CACHE[0] < 10:
         return _ADMIN_PRESENCE_CACHE[1], _ADMIN_PRESENCE_CACHE[2]
@@ -6274,6 +6323,8 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=3)
         live_by_tg: dict[str, dict[str, Any]] = {}
         live_by_username: dict[str, dict[str, Any]] = {}
+        activity_by_tg: dict[str, dict[str, Any]] = {}
+        activity_by_name: dict[str, dict[str, Any]] = {}
         cdn_identities = {}
         for item in (result or {}).get("users", []):
             username = str(item.get('username') or '')
@@ -6287,13 +6338,18 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
                 online_at = datetime.fromisoformat(str(raw_online_at).replace("Z", "+00:00"))
             except ValueError:
                 continue
-            if online_at < cutoff:
-                continue
             node_uuid = str(traffic.get("lastConnectedNodeUuid") or "")
             presence = {
                 "online_at": raw_online_at,
-                "online_node": node_names.get(node_uuid, "Узел не определён"),
+                "online_node": node_names.get(node_uuid),
             }
+            if item.get('telegramId') is not None:
+                identity = str(item['telegramId'])
+                if identity not in activity_by_tg or str(activity_by_tg[identity]['online_at']) < str(raw_online_at):
+                    activity_by_tg[identity] = presence
+            activity_by_name[username.strip().lower()] = presence
+            if online_at < cutoff:
+                continue
             if item.get("telegramId") is not None:
                 # Keep main and LTE identities independently: they can both be online.
                 previous = live_by_tg.get(str(item.get('telegramId')))
@@ -6324,6 +6380,15 @@ def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
             presence = lte_presence or live_by_tg.get(str(row["telegram_id"])) or live_by_username.get(str(row["panel_email"] or ""))
             if presence:
                 resolved[int(row["id"])] = {**presence, 'lte_online': bool(lte_presence), 'lte_usage': cdn_states.get(int(row['id']), 'unknown')}
+        activity = {}
+        for row in rows:
+            candidates = [activity_by_tg.get(str(row['telegram_id'])),
+                          activity_by_name.get(str(row['panel_email'] or '')),
+                          activity_by_name.get(f"arc_lte_{row['id']}")]
+            candidates = [item for item in candidates if item]
+            if candidates:
+                activity[int(row['id'])] = max(candidates, key=lambda item: str(item['online_at']))
+        _ADMIN_ACTIVITY_CACHE = activity
         _ADMIN_PRESENCE_CACHE = (now, True, resolved)
         return True, resolved
     except Exception:
@@ -6847,6 +6912,7 @@ def api_admin_traffic_period():
             raise ValueError("Invalid date range")
         limit = min(100, max(10, int(request.args.get("limit") or 50)))
         offset = max(0, int(request.args.get("offset") or 0))
+        selected_telegram = int(request.args['telegram_id']) if request.args.get('telegram_id') is not None else None
     except (KeyError, TypeError, ValueError):
         return _api_error("invalid_traffic_period", 400)
     try:
@@ -6895,6 +6961,8 @@ def api_admin_traffic_period():
     now_sql = datetime.now(timezone.utc).isoformat()
     rows = []
     for row in users:
+        if selected_telegram is not None and int(row['telegram_id'] or 0) != selected_telegram:
+            continue
         if needle and not any(needle in str(row.get(field) or "").lower()
                               for field in ("username", "first_name", "telegram_id")):
             continue
@@ -7640,13 +7708,40 @@ def api_admin_overview():
 def api_admin_support_threads():
     if not _admin_authorized("support.read"):
         return _api_error("admin_unauthorized", 403)
+    try:
+        cursor = max(0, int(request.args.get('cursor', 0)))
+        limit = min(100, max(1, int(request.args.get('limit', 100))))
+    except ValueError:
+        return _api_error('invalid_pagination', 400)
+    status = request.args.get('status', '')
+    if status and status not in {'open','pending','answered','closed','unread','handoff'}:
+        return _api_error('invalid_status', 400)
+    filters, params = [], []
+    if status == 'unread':
+        filters.append("EXISTS(SELECT 1 FROM support_messages m WHERE m.thread_id=t.id AND m.sender='user' AND m.read_at IS NULL)")
+    elif status == 'handoff':
+        filters.append("t.ai_handoff_reason IS NOT NULL AND t.status!='closed'")
+    elif status:
+        filters.append('t.status=?'); params.append(status)
+    needle = _clean_text(request.args.get('q'), 100).lower()
+    if needle:
+        filters.append("instr(arc_casefold(COALESCE(u.username,'') || ' ' || COALESCE(u.first_name,'') || ' ' || CAST(u.telegram_id AS TEXT)),?)>0")
+        params.append(needle.casefold())
+    where = ' WHERE ' + ' AND '.join(filters) if filters else ''
     with get_db() as conn:
-        rows = conn.execute("""SELECT t.id,t.status,t.updated_at,u.telegram_id,u.username,u.first_name,
+        if needle:
+            conn.create_function('arc_casefold', 1, lambda value: str(value or '').casefold())
+        total = conn.execute('SELECT COUNT(*) FROM support_threads t JOIN users u ON u.id=t.user_id' + where, params).fetchone()[0]
+        rows = conn.execute("""SELECT t.id,t.status,t.created_at,t.updated_at,t.ai_handoff_reason,u.telegram_id,u.username,u.first_name,
             (SELECT body FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_message,
+            (SELECT sender FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_sender,
+            (SELECT sender_telegram_id=0 AND sender='admin' FROM support_messages m WHERE m.thread_id=t.id ORDER BY m.id DESC LIMIT 1) last_is_ai,
+            (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id) messages_count,
             (SELECT COUNT(*) FROM support_messages m WHERE m.thread_id=t.id AND m.sender='user' AND m.read_at IS NULL) unread
-            FROM support_threads t JOIN users u ON u.id=t.user_id
-            ORDER BY CASE WHEN t.status='open' THEN 0 ELSE 1 END,t.updated_at DESC LIMIT 100""").fetchall()
-    return _api_no_store(jsonify({"ok": True, "threads": [dict(row) for row in rows]}))
+            FROM support_threads t JOIN users u ON u.id=t.user_id""" + where + """
+            ORDER BY CASE WHEN t.status='open' THEN 0 ELSE 1 END,t.updated_at DESC,t.id DESC LIMIT ? OFFSET ?""", (*params,limit,cursor)).fetchall()
+    return _api_no_store(jsonify({"ok": True, "threads": [dict(row) for row in rows],
+        'total': total, 'cursor': cursor, 'next_cursor': cursor+limit if cursor+limit<total else None}))
 
 
 @app.route('/api/admin/support/threads/<int:thread_id>', methods=['GET', 'POST'])
@@ -7680,6 +7775,8 @@ def api_admin_support_thread(thread_id: int):
                 logger.exception("Не удалось отправить ответ поддержки thread=%s", thread_id)
         return _api_no_store(jsonify({"ok": True, "message": message}))
     with get_db() as conn:
+        metadata = conn.execute('SELECT created_at,updated_at,ai_handoff_reason FROM support_threads WHERE id=?', (thread_id,)).fetchone()
+        thread.update(dict(metadata))
         rows = conn.execute("SELECT id,sender,body,created_at,read_at,(sender='admin' AND sender_telegram_id=0) AS is_ai FROM support_messages WHERE thread_id=? ORDER BY id", (thread_id,)).fetchall()
         conn.execute("UPDATE support_messages SET read_at=CURRENT_TIMESTAMP WHERE thread_id=? AND sender='user' AND read_at IS NULL", (thread_id,))
     return _api_no_store(jsonify({"ok": True, "thread": thread, "messages": [dict(row) for row in rows]}))

@@ -317,10 +317,10 @@ const sections: AdminSection[] = [
         permission: 'remnawave:read',
       },
       {
-        name: 'Сквады',
+        name: 'Новый сервер',
         icon: 'server',
-        to: '/admin/squads',
-        permission: 'remnawave:read',
+        to: '/admin/nodes/new',
+        permission: 'nodes:preflight',
       },
       {
         name: 'admin.nav.reachability',

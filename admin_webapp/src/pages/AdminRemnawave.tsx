@@ -518,7 +518,7 @@ function NodesTab({
   isActionLoading,
 }: NodesTabProps) {
   const { t } = useTranslation();
-  const canManage = usePermissionStore((s) => s.hasPermission('remnawave:write'));
+  const canManage = usePermissionStore((s) => s.hasPermission('nodes:preflight'));
   const currentHosts = new Set(['87.251.19.197', '136.148.220.228']);
   const visibleNodes = nodes.filter((node) => currentHosts.has(node.address));
   const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });

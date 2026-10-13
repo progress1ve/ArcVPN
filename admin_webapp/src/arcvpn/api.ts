@@ -576,7 +576,6 @@ export function dashboardStats(data: Json): Json {
       purchased_today: Number(data.business?.payments?.day?.orders || 0),
       purchased_week: Number(data.business?.payments?.week?.orders || 0),
       purchased_month: Number(data.business?.payments?.month?.orders || 0),
-      trial_to_paid_conversion: 0,
     },
     financial: {
       income_today_kopeks: today * 100,
@@ -822,7 +821,7 @@ export async function syncStatus(telegramId: number): Promise<Json> {
 export async function usersStats(): Promise<Json> {
   const [overview, listing] = await Promise.all([getOverview(), getUsers({ limit: 100 })]);
   return {
-    total_users: Number(overview.users?.total || listing.total || 0),
+    total_users: Number(listing.total || 0),
     active_users: listing.users.filter((u: Json) => u.active).length,
     blocked_users: 0,
     deleted_users: 0,

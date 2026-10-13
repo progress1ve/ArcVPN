@@ -13,16 +13,17 @@ import AdminPanel from '@/pages/AdminPanel';
 import AdminDashboard from '@/pages/AdminDashboard';
 import AdminUsers from '@/pages/AdminUsers';
 import AdminFriendSubscriptions from '@/pages/AdminFriendSubscriptions';
-import AdminUserDetail from '@/pages/AdminUserDetail';
-import AdminFeedback from '@/pages/AdminFeedback';
+import ArcUserProfile from './ArcUserProfile';
+import ArcFeedback from './ArcFeedback';
 import ReferralNetwork from '@/pages/ReferralNetwork';
 import AdminPayments from '@/pages/AdminPayments';
 import AdminSalesStats from '@/pages/AdminSalesStats';
 import AdminProfit from '@/pages/AdminProfit';
-import AdminTrafficUsage from '@/pages/AdminTrafficUsage';
-import AdminTickets from '@/pages/AdminTickets';
+import ArcTraffic from './ArcTraffic';
+import ArcSupport from './ArcSupport';
 import AdminRemnawave from '@/pages/AdminRemnawave';
 import ArcNodeDetail from '@/pages/ArcNodeDetail';
+import ArcNodePreflight from '@/pages/ArcNodePreflight';
 import AdminRemnawaveSquadDetail from '@/pages/AdminRemnawaveSquadDetail';
 import AdminSquads from '@/pages/AdminSquads';
 import ArcMarketing from './ArcMarketing';
@@ -79,7 +80,7 @@ function seedSession(role = 'owner') {
     } as never,
   });
   usePermissionStore.setState({
-    permissions: role === 'owner' ? [...permissions, 'broadcasts:read'] : permissions.filter(p => p !== 'partners:read'),
+    permissions: role === 'owner' ? [...permissions, 'broadcasts:read', 'nodes:preflight'] : permissions.filter(p => p !== 'partners:read'),
     roles: [role],
     roleLevel: 999,
     isLoaded: true,
@@ -170,8 +171,8 @@ function AdminRoutes() {
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/admin/users" element={<AdminUsers />} />
           <Route path="/admin/friend-subscriptions" element={<AdminFriendSubscriptions />} />
-          <Route path="/admin/users/:id" element={<AdminUserDetail />} />
-          <Route path="/admin/feedback" element={<AdminFeedback />} />
+          <Route path="/admin/users/:id" element={<ArcUserProfile />} />
+          <Route path="/admin/feedback" element={<ArcFeedback />} />
           <Route path="/admin/referral-network" element={<ReferralNetwork />} />
           <Route path="/admin/marketing" element={<ArcMarketing />} />
           <Route path="/admin/partners" element={<ArcPartners />} />
@@ -179,11 +180,12 @@ function AdminRoutes() {
           <Route path="/admin/payments" element={<AdminPayments />} />
           <Route path="/admin/sales-stats" element={<AdminSalesStats />} />
           <Route path="/admin/profit" element={<AdminProfit />} />
-          <Route path="/admin/traffic" element={<AdminTrafficUsage />} />
-          <Route path="/admin/traffic-usage" element={<AdminTrafficUsage />} />
-          <Route path="/admin/tickets" element={<AdminTickets />} />
-          <Route path="/admin/tickets/:ticketId" element={<AdminTickets />} />
+          <Route path="/admin/traffic" element={<ArcTraffic />} />
+          <Route path="/admin/traffic-usage" element={<ArcTraffic />} />
+          <Route path="/admin/tickets" element={<ArcSupport />} />
+          <Route path="/admin/tickets/:ticketId" element={<ArcSupport />} />
           <Route path="/admin/remnawave" element={<AdminRemnawave />} />
+          <Route path="/admin/nodes/new" element={<div className="space-y-4 pb-12"><a href="/admin/remnawave" className="text-sm text-accent-400">← Ноды</a><h1 className="text-2xl font-semibold text-dark-50">Новый сервер</h1><ArcNodePreflight initialOpen /></div>} />
           <Route path="/admin/remnawave/nodes/:host" element={<ArcNodeDetail />} />
           <Route path="/admin/squads" element={<AdminSquads />} />
           <Route path="/admin/remnawave/squads/:uuid" element={<AdminRemnawaveSquadDetail />} />
