@@ -147,7 +147,7 @@ def test_paid_order_applies_product_entitlements(tmp_path, monkeypatch):
     conn.close()
 
 
-def test_cycle_scoped_lte_addon_is_idempotent(tmp_path, monkeypatch):
+def test_month_long_lte_addon_is_idempotent(tmp_path, monkeypatch):
     from database import connection
     from database.db_webapp import apply_payment_addon
 

@@ -1217,7 +1217,7 @@
             {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
               <button class:active={addonLteGb===pack[0]} aria-pressed={addonLteGb===pack[0]} disabled={Boolean(addonBusy)} on:click={() => addonLteGb=addonLteGb===pack[0]?0:pack[0]}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
             {/each}
-          </div><small>Докупленные ГБ действуют до следующего сброса трафика.</small></section>
+          </div><small>Докупленные ГБ действуют месяц с момента активации докупки.</small></section>
           <section class="addon-block"><h2>Устройства</h2><div class="device-stepper"><button aria-label="Уменьшить количество устройств" disabled={addonDevices<=0||Boolean(addonBusy)} on:click={() => addonDevices--}>−</button><strong>{addonDevices}</strong><button aria-label="Увеличить количество устройств" disabled={addonDevices>=addonDeviceMax||Boolean(addonBusy)} on:click={() => addonDevices++}>+</button></div><small>25 ₽ за устройство · максимум 15 устройств в подписке.</small></section>
           <section class="purchase-total"><div class="total-row"><span>Выбрано</span><small>{addonLteGb ? `${addonLteGb} ГБ` : 'без трафика'} · {addonDevices} устр.</small></div><button disabled={!addonTotalRub||Boolean(addonBusy)} on:click={addonPurchaseAction}><span>{paymentState==='awaiting'?'Открыть оплату снова':addonTotalRub?'Выбрать способ оплаты':'Выберите трафик или устройство'}</span>{#if addonTotalRub}<strong>{rub(addonTotalRub)}</strong>{/if}</button></section>
           {#if paymentMessage}<p class="purchase-error" role="status">{paymentMessage}</p>{/if}

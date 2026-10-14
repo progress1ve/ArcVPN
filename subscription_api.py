@@ -6130,6 +6130,8 @@ def api_admin_user_detail(telegram_id: int):
     except ValueError:
         return _api_error('invalid_pagination', 400)
     with get_db() as conn:
+        from database.db_lte_addons import reconcile_lte_addons
+        reconcile_lte_addons(conn, telegram_id=telegram_id)
         user = conn.execute("""SELECT id,telegram_id,username,first_name,created_at,
             device_limit,COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) AS lte_quota_gb,
             COALESCE(lte_cycle_bonus_gb,0) AS lte_cycle_bonus_gb,
@@ -6475,6 +6477,8 @@ def api_admin_users():
       WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance') THEN COALESCE(p.amount_cents,0)
       ELSE 0 END"""
     with get_db() as conn:
+        from database.db_lte_addons import reconcile_lte_addons
+        reconcile_lte_addons(conn)
         user_columns = {column['name'] for column in conn.execute('PRAGMA table_info(users)')}
         guest_filter = "WHERE COALESCE(u.identity_source,'telegram')!='guest'" if 'identity_source' in user_columns else ''
         base_sql = f"""WITH customer_rows AS (

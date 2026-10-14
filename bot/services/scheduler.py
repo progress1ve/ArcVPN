@@ -924,21 +924,26 @@ async def process_due_traffic_cycle_resets(*, resetter=None, now=None) -> dict:
                 if not await resetter(key_id):
                     raise RuntimeError(f"authoritative reset rejected key {key_id}")
             from database.db_webapp import get_lte_identity_by_id
-            lte = get_lte_identity_by_id(user_id) or {}
+            lte = get_lte_identity_by_id(user_id, now=now) or {}
             if lte.get("lte_panel_username"):
                 from bot.services.remnawave_stats import remnawave_authority_config
                 lte_client = get_client_from_server_data(remnawave_authority_config())
                 try:
+                    before = await lte_client.get_user(lte['lte_panel_username'])
+                    if not before or str(before.get('vlessUuid') or '') != str(lte.get('lte_client_uuid') or ''):
+                        raise RuntimeError('authoritative LTE identity mismatch before reset')
                     if not await lte_client.reset_client_traffic(0, lte["lte_panel_username"]):
                         raise RuntimeError("authoritative LTE reset rejected")
                     panel_user = await lte_client.get_user(lte["lte_panel_username"])
                     if not panel_user:
                         raise RuntimeError("authoritative LTE identity missing after reset")
-                    await lte_client._request("PATCH", "/api/users", json={
-                        "id": panel_user["id"],
-                        "trafficLimitBytes": int(lte.get("lte_base_quota_gb") or 0) * 1024**3,
-                        "status": "ACTIVE" if int(lte.get("lte_base_quota_gb") or 0) > 0 else "DISABLED",
-                    })
+                    from bot.services.lte_identity import lte_quota_patch
+                    quota_patch = lte_quota_patch(lte, panel_user, now)
+                    if quota_patch:
+                        await lte_client._request('PATCH', '/api/users', json=quota_patch)
+                        verified = await lte_client.get_user(lte['lte_panel_username'])
+                        if not verified or any(verified.get(key) != value for key, value in quota_patch.items() if key != 'id'):
+                            raise RuntimeError('authoritative LTE quota update rejected')
                 finally:
                     await lte_client.close()
             if not complete_traffic_cycle_reset(user_id, boundary, completed_at=now):
@@ -973,10 +978,14 @@ async def reconcile_lte_usage(bot: Optional[Bot] = None) -> dict:
                 user = await client.get_user(identity["lte_panel_username"])
                 if not user or str(user.get("vlessUuid") or "") != str(identity["lte_client_uuid"]):
                     raise RuntimeError("LTE identity mismatch")
-                from bot.services.lte_identity import lte_expiry_patch
-                expiry_patch = lte_expiry_patch(identity, user)
-                if expiry_patch:
-                    await client._request("PATCH", "/api/users", json=expiry_patch)
+                from bot.services.lte_identity import lte_expiry_patch, lte_quota_patch
+                entitlement_patch = lte_expiry_patch(identity, user)
+                entitlement_patch.update(lte_quota_patch(identity, user))
+                if entitlement_patch:
+                    await client._request("PATCH", "/api/users", json=entitlement_patch)
+                    verified = await client.get_user(identity['lte_panel_username'])
+                    if not verified or any(verified.get(key) != value for key, value in entitlement_patch.items() if key not in {'id', 'expireAt'}):
+                        raise RuntimeError('LTE entitlement update rejected')
                 used = int((user.get("userTraffic") or {}).get("usedTrafficBytes") or 0)
                 raw_online = (user.get("userTraffic") or {}).get("onlineAt")
                 if raw_online:

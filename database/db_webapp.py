@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from .connection import get_db
+from .db_lte_addons import reconcile_lte_addons
 
 
 def _iso_after(minutes: int = 0, days: int = 0) -> str:
@@ -308,6 +309,7 @@ def get_user_entitlements(telegram_id: int) -> Dict[str, int]:
 
 def get_user_entitlements_by_id(user_id: int) -> Dict[str, int]:
     with get_db() as conn:
+        reconcile_lte_addons(conn, user_id=user_id)
         columns = {column["name"] for column in conn.execute("PRAGMA table_info(users)")}
         bonus_expr = "COALESCE(lte_cycle_bonus_gb, 0)" if "lte_cycle_bonus_gb" in columns else "0"
         row = conn.execute(
@@ -343,6 +345,7 @@ def set_payment_addon(order_id: str, lte_gb: int = 0, device_units: int = 0) -> 
 def apply_payment_addon(order_id: str) -> Optional[Dict[str, int]]:
     """Apply a paid add-on once; panel synchronization is handled by billing."""
     with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
         order = conn.execute(
             """SELECT user_id,status,addon_kind,addon_units,
                       COALESCE(addon_lte_gb,CASE WHEN addon_kind='lte' THEN addon_units ELSE 0 END) addon_lte_gb,
@@ -363,6 +366,7 @@ def apply_payment_addon(order_id: str) -> Optional[Dict[str, int]]:
             if int(order["addon_lte_gb"]):
                 conn.execute("UPDATE users SET lte_notified_pct=100 WHERE id=?", (int(order["user_id"]),))
             conn.execute("UPDATE payments SET addons_applied_at=CURRENT_TIMESTAMP WHERE order_id=?", (order_id,))
+        reconcile_lte_addons(conn, user_id=int(order['user_id']))
         current = conn.execute(
             """SELECT COALESCE(device_limit,2) device_limit,
                       COALESCE(lte_quota_gb,0)+COALESCE(lte_cycle_bonus_gb,0) lte_quota_gb,
@@ -453,6 +457,7 @@ def apply_payment_entitlements(order_id: str) -> Optional[Dict[str, int]]:
 def refresh_lte_cycle(telegram_id: int) -> Dict[str, int]:
     """Return LTE counters; authoritative cycle resets run in the scheduler."""
     with get_db() as conn:
+        reconcile_lte_addons(conn, telegram_id=telegram_id)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
         bonus_expr = "COALESCE(lte_cycle_bonus_gb,0)" if "lte_cycle_bonus_gb" in columns else "0"
         if "traffic_cycle_anchor_at" not in columns:
@@ -509,6 +514,7 @@ def set_lte_usage(telegram_id: int, bytes_used: int) -> Dict[str, int]:
 
 def get_lte_identity(telegram_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
+        reconcile_lte_addons(conn, telegram_id=telegram_id)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
         if "lte_client_uuid" not in columns:
             return None
@@ -622,8 +628,9 @@ def validate_email_paid_trial_claim(user_id: int, order_id: str) -> bool:
         return bool(row)
 
 
-def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+def get_lte_identity_by_id(user_id: int, *, now: datetime | str | None = None) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
+        reconcile_lte_addons(conn, user_id=user_id, now=now)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
         if "lte_client_uuid" not in columns:
             return None
@@ -639,6 +646,7 @@ def get_lte_identity_by_id(user_id: int) -> Optional[Dict[str, Any]]:
 
 def list_lte_identities() -> list[Dict[str, Any]]:
     with get_db() as conn:
+        reconcile_lte_addons(conn)
         return [dict(row) for row in conn.execute(
             """SELECT id user_id, telegram_id, lte_panel_username, is_banned,
                       (SELECT MAX(expires_at) FROM vpn_keys WHERE user_id=users.id) subscription_expires_at,

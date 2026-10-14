@@ -92,3 +92,26 @@ def lte_expiry_patch(identity: dict, panel_user: dict, now: datetime | None = No
             and int(identity.get("lte_quota_gb") or 0) > 0 and quota > used):
         patch["status"] = "ACTIVE"
     return {"id": panel_user["id"], **patch} if patch else {}
+
+
+def lte_quota_patch(identity: dict, panel_user: dict, now: datetime | str | None = None) -> dict:
+    """Align paid allowance without resetting usage or reviving revoked access."""
+    from database.db_traffic_cycles import _utc
+    point = _utc(now)
+    expiry = identity.get('subscription_expires_at') or panel_user.get('expireAt')
+    if identity.get('is_banned') or not panel_user.get('id') or not expiry or _utc(expiry) <= point:
+        return {}
+    quota = max(0, int(identity.get('lte_quota_gb') or 0)) * 1024**3
+    used = max(0, int((panel_user.get('userTraffic') or {}).get('usedTrafficBytes') or 0))
+    status = panel_user.get('status')
+    patch = {}
+    if int(panel_user.get('trafficLimitBytes') or 0) != quota:
+        patch['trafficLimitBytes'] = quota
+    if quota == 0 and status != 'DISABLED':
+        patch['status'] = 'DISABLED'  # Remnawave zero limit means unlimited.
+    elif status != 'DISABLED' and quota > 0:
+        if used >= quota and status == 'ACTIVE':
+            patch['status'] = 'LIMITED'
+        elif used < quota and status in {'LIMITED', 'EXPIRED'}:
+            patch['status'] = 'ACTIVE'
+    return {'id': panel_user['id'], **patch} if patch else {}

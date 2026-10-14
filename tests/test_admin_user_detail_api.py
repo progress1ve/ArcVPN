@@ -160,6 +160,17 @@ def test_user_detail_exposes_purchases_and_deduplicated_direct_referrals(
     ]
     assert payload["referrals"]["friends"][0]["reward_days"] == 7
 
+
+def test_admin_reads_restore_paid_lte_boost_and_remove_only_expired_grant(client, detail_db):
+    detail_db.execute('ALTER TABLE payments ADD COLUMN addons_applied_at TEXT')
+    detail_db.execute("UPDATE payments SET operation_type='addon_lte',addon_kind='lte',addon_units=45,addon_lte_gb=45,addons_applied_at=datetime('now','-10 days') WHERE id=1")
+    payload = client.get('/api/admin/users/700001').get_json()
+    assert payload['user']['lte_quota_gb'] == 50
+    detail_db.execute("UPDATE payments SET addons_applied_at=datetime('now','-2 months') WHERE id=1")
+    rows = client.get('/api/admin/users').get_json()['users']
+    assert next(row for row in rows if row['telegram_id'] == 700001)['lte_quota_gb'] == 5
+    assert detail_db.execute('SELECT lte_quota_gb,lte_cycle_bonus_gb FROM users WHERE id=1').fetchone()[:] == (5,0)
+
     trial_response = client.get("/api/admin/users/700002")
     assert trial_response.status_code == 200
     trial_payload = trial_response.get_json()

@@ -332,7 +332,7 @@ async def _apply_topup_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
 
 
 async def _apply_addon_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool, str, Optional[Dict[str, Any]]]:
-    """Apply and synchronize a current-cycle traffic or device add-on."""
+    """Apply and synchronize a month-long traffic boost or a device add-on."""
     entitlements = apply_payment_addon(order_id)
     if not entitlements:
         update_order_fulfillment(order_id, 'manual_review', 'failed to apply addon')
@@ -440,6 +440,7 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
                     client, user=refreshed_user, expires_at=expiry,
                     quota_gb=int(entitlements.get('lte_quota_gb') or 0),
                     device_limit=int(entitlements.get('device_limit') or 1),
+                    persist_base_quota=False,
                 )
             finally:
                 await client.close()
