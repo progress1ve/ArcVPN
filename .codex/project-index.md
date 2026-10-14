@@ -4,6 +4,7 @@
 - Admin web/API: `subscription_api.py`, `admin_webapp/src/arcvpn/ArcAdminRoot.tsx` (current dedicated React admin); `webapp/src/views/AdminConsole.svelte` remains legacy Svelte.
 - Partner cabinet/accounting: `partner_api.py`, `database/db_partners.py`, `admin_webapp/src/arcvpn/ArcPartnerCabinet.tsx`, `admin_webapp/src/arcvpn/ArcPartners.tsx`; operator guide `docs/operations/partner-cabinet.md`.
 - Subscription delivery: `subscription_api.py`
+- Paid LTE month-long grants/cache: `database/db_lte_addons.py`; base calendar cycles: `database/db_traffic_cycles.py`; panel sync: `bot/services/lte_identity.py`, `bot/services/scheduler.py`.
 - Remnawave integration: search `bot/services/` and `scripts/` for `remnawave`
 - Tests: `tests/`
 - Operations/deploy: `scripts/`, `deploy/systemd/`, systemd service names in `AGENTS.md`
