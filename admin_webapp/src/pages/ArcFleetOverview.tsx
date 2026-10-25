@@ -11,7 +11,7 @@ export default function ArcFleetOverview(){
  const [traffic,setTraffic]=useState<(Traffic|null)[]>([]);const [total,setTotal]=useState<{main:number;lte:number}|null>(null);
  const [health,setHealth]=useState<string>('Проверяем…');const [error,setError]=useState(false);
  useEffect(()=>{let live=true;const load=async()=>{
-  const jobs=await Promise.allSettled([read<{remnawave:{nodes:Node[]}}>('/api/admin/overview'),...hosts.map(h=>read<Capacity>(`/api/admin/nodes/capacity?host=${h}&range=7d`)),read<{results:{operator:string;target_path:string;outcome:string;checked_at:string}[]}>('/api/admin/nodes/operator-probes?host=136.148.220.228')]);
+  const jobs=await Promise.allSettled([read<{remnawave:{nodes:Node[]}}>('/api/admin/overview'),...hosts.map(h=>read<Capacity>(`/api/admin/nodes/capacity?host=${h}&range=7d`)),read<{results:{operator:string;target_path:string;outcome:string;checked_at:string}[]}>('/api/admin/nodes/operator-probes?host=87.251.19.197')]);
   if(!live)return;const overview=jobs[0];if(overview.status==='fulfilled')setNodes((overview.value as {remnawave:{nodes:Node[]}}).remnawave.nodes.filter(n=>hosts.includes(n.address)));else setError(true);
   setCapacity(jobs.slice(1,3).map(r=>r.status==='fulfilled'?r.value as Capacity:null));
   // Unknown/offline provider probes do not establish a node outage.

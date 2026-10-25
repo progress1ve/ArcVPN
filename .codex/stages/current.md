@@ -1,5 +1,7 @@
 # Temporary Sweden pause: Estonia becomes physical origin — 2026-10-25
 
+Admin follow-up25Oct: owner screenshot exposes stale frontend Sweden-only result/network-status guards and copy, despite correct deployed EE backend worker. Scope: ArcNodeDetail loads EE operator results/status; ArcFleetOverview reads EE probe health; both describe CDN Estonia24000/10. No network/UUID/URL/policy changes. Acceptance: TypeScript/build, retain old hashed admin assets, authenticated deployed EE CDN tab loads actual history/network status and starts existing bounded worker; Sweden does not load CDN probes. Check responsive360/768/1280/1600; no layout redesign. Publish reviewed source+dist via verified tree and Poland FFpull, restart subscription service only; rollback revert frontend release, retain old assets. Before evidence: owner screenshot and live EE tab reproduce stale Sweden text/no results.
+
 Owner authorization: 'CDN through Estonia instead of Sweden; Sweden based on Estonia because payment paused'; follow-up explicitly includes AI and Games on Estonia. Economy, no subagents. Production baseline378f2fc. No user UUID/subscription URL/price/quota changes. No Sweden deletion; reversible pause.
 
 | Visible path | Client hostname | CDN resource/group | Active/backup | Host/SNI | Inbound/path | Multiplier | URL impact | Failure/rollback |
