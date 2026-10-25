@@ -7,14 +7,14 @@ from monitoring.remnawave_fleet_monitor import tcp_ports
 from monitoring.cdn_connections import classify
 
 
-def test_sweden_edges_and_direct_profiles_match_delivered_variants():
-    nodes=[{'address':SWEDEN,'name':'Sweden','connected':True,'inbounds':[{'tag':v['tag']} for v in VARIANTS.values()]},
-           {'address':ESTONIA,'name':'Estonia','connected':True,'inbounds':[]}]
+def test_estonia_edges_and_direct_profiles_match_delivered_variants():
+    nodes=[{'address':SWEDEN,'name':'Sweden','connected':False,'disabled':True,'inbounds':[]},
+           {'address':ESTONIA,'name':'Estonia','connected':True,'inbounds':[{'tag':v['tag'].replace('SE_', 'EE_', 1)} for v in VARIANTS.values()]}]
     edges=cdn_edges(nodes)
-    assert len(edges)==4 and all(e['healthy'] and e['origin']==SWEDEN for e in edges)
+    assert len(edges)==4 and all(e['healthy'] and e['origin']==ESTONIA for e in edges)
     schemes=connection_schemes(nodes,{},edges)
     assert [s['kind'] for s in schemes[1:]]==['client_cdn_fallback','client_cdn_fallback','direct_cdn','direct_cdn','client_cdn_fallback','direct_cdn','direct_cdn','client_cdn_fallback']
-    assert [m['weight'] for m in schemes[0]['members']]==[61,39]
+    assert [m['weight'] for m in schemes[0]['members']]==[100]
     assert all(not e['healthy'] for e in cdn_edges([]))
 
 
@@ -38,13 +38,13 @@ def test_sweden_diagnostics_skip_loopback_and_peer_only_ports():
     assert classify('accepted tcp:example.com:443 [EE_OWNER_DIRECT_XHTTP -> DIRECT] email: test') is None
 
 
-def test_estonia_has_no_current_cdn_probes(monkeypatch):
+def test_paused_sweden_has_no_current_cdn_probes(monkeypatch):
     import subscription_api as api
     monkeypatch.setattr(api,'_admin_authorized',lambda _:True)
-    r=api.app.test_client().get('/api/admin/nodes/operator-probes?host='+ESTONIA)
+    r=api.app.test_client().get('/api/admin/nodes/operator-probes?host='+SWEDEN)
     assert r.status_code==200 and r.get_json()['results']==[]
 
 
 def test_only_24000_operator_checks_are_scheduled():
     from monitoring.lte_operator_worker import NODES
-    assert NODES == ((SWEDEN, '/api-se-test-24000', 'Швеция 24000/10'),)
+    assert NODES == ((ESTONIA, '/api-se-test-24000', 'Эстония 24000/10'),)

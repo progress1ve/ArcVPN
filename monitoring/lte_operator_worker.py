@@ -1,4 +1,4 @@
-"""Scheduled operator-side VPN checks for the Sweden CDN 24000/10 variant."""
+"""Scheduled operator-side VPN checks for the Estonia CDN 24000/10 variant."""
 from __future__ import annotations
 
 import asyncio
@@ -16,7 +16,7 @@ LOG = logging.getLogger(__name__)
 KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
 from monitoring.cdn_fallbacks import VARIANTS, settings
-NODES = tuple(("136.148.220.228", v["path"], f"Швеция {size}/{v['interval']}")
+NODES = tuple(("87.251.19.197", v["path"], f"Эстония {size}/{v['interval']}")
               for size, v in VARIANTS.items() if size == 24000)
 
 

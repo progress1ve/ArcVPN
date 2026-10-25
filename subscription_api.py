@@ -293,7 +293,7 @@ def _allowed_customer_transport(link: str) -> bool:
     if parsed.scheme.lower() not in {"hysteria", "hysteria2", "hy2"}:
         return True
     name = _subscription_source_name(urllib.parse.unquote(parsed.fragment))
-    return name == SWEDEN_GAMES_NAME and parsed.hostname in {"se.arccnet.space", "136.148.220.228"} and (parsed.port or 443) == 443
+    return name == SWEDEN_GAMES_NAME and parsed.hostname in {"se.arccnet.space", "136.148.220.228", "ee.arccnet.space", "87.251.19.197"} and (parsed.port or 443) == 443
 
 # 3x-ui API обычно отдаёт inbound по ID, а не в пользовательском порядке.
 # Имена остаются редактируемыми в панели; этот список задаёт только порядок
@@ -4856,7 +4856,7 @@ def api_internal_cdn_connections():
     if (request.content_length or 0) > 256000:
         return _api_error('report_too_large', 413)
     payload = request.get_json(silent=True)
-    if not isinstance(payload, dict) or payload.get('host') != '136.148.220.228':
+    if not isinstance(payload, dict) or payload.get('host') != '87.251.19.197':
         return _api_error('unknown_node', 400)
     from monitoring.cdn_connections import ingest
     try:
@@ -5069,7 +5069,7 @@ def api_admin_lte_availability():
     host = _clean_text(request.args.get("host"), 255).strip().lower()
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
         return _api_error("invalid_lte_host", 400)
-    if host != "136.148.220.228":
+    if host != "87.251.19.197":
         return _api_no_store(jsonify({"ok": True, "host": host, "operators": [], "results": []}))
     try:
         with get_db() as conn:

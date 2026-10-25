@@ -37,3 +37,4 @@ def test_aliases_never_clone_warp_even_if_it_arrives_first(monkeypatch):
     normalized=[api._normalize_customer_profile_label(l) for l in links()]
     assert [urllib.parse.unquote(l.rsplit('#',1)[-1]) for l in normalized[:2]]==['🇸🇪 '+n for n in api.SWEDEN_SPECIAL_NAMES]
     assert not api._allowed_customer_transport('hy2://test@other:443#'+urllib.parse.quote(api.SWEDEN_GAMES_NAME))
+    assert api._allowed_customer_transport('hy2://test@ee.arccnet.space:443?sni=ee.arccnet.space#'+urllib.parse.quote('🇸🇪 '+api.SWEDEN_GAMES_NAME))

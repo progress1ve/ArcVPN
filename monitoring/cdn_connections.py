@@ -9,6 +9,7 @@ PROBE_TARGETS = {'tcp:sub.arccnet.space:18080', 'tcp:217.60.33.38:18080'}
 LEGACY_TARGETS = {'tcp:www.gstatic.com:80', 'tcp:www.gstatic.com:443',
                   'tcp:www.google.com:80', 'tcp:www.google.com:443'}
 WINDOW = 180
+CDN_ORIGIN_HOST = '87.251.19.197'
 
 
 def identity_hash(value):
@@ -22,7 +23,8 @@ def classify(line):
         return None
     destination, detour, email = match.groups()
     inbound = re.split(r'\s*(?:->|>>)\s*', detour)[0]
-    if inbound not in {'SE_CDN_TEST_4096', 'SE_CDN_TEST_24000', 'SE_CDN_BODY_65536', 'SE_CDN_HEADER_32768'}:
+    if inbound not in {'SE_CDN_TEST_4096', 'SE_CDN_TEST_24000', 'SE_CDN_BODY_65536', 'SE_CDN_HEADER_32768',
+                       'EE_CDN_TEST_4096', 'EE_CDN_TEST_24000', 'EE_CDN_BODY_65536', 'EE_CDN_HEADER_32768'}:
         return None
     kind = 'probe' if destination in PROBE_TARGETS else 'legacy' if destination in LEGACY_TARGETS else 'user'
     return identity_hash(email), kind
@@ -64,8 +66,8 @@ def ingest(conn, host, payload, now=None):
 def states(conn, identities, now=None):
     now = time.time() if now is None else now
     try:
-        report = conn.execute("SELECT * FROM cdn_connection_reports WHERE host='136.148.220.228'").fetchone()
-        rows = conn.execute("SELECT * FROM cdn_connection_activity WHERE host='136.148.220.228'").fetchall()
+        report = conn.execute("SELECT * FROM cdn_connection_reports WHERE host=?", (CDN_ORIGIN_HOST,)).fetchone()
+        rows = conn.execute("SELECT * FROM cdn_connection_activity WHERE host=?", (CDN_ORIGIN_HOST,)).fetchall()
     except sqlite3.OperationalError:
         return {}
     byhash = {r['identity_hash']: r for r in rows}
