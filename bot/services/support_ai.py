@@ -246,9 +246,9 @@ def escalation_reason(messages):
             continue
         body = row['body'].lower()
         normalized = re.sub(r'[^\w\s]', '', body).strip()
-        if answered and len(normalized) >= 16 and normalized in seen:
+        if answered and len(normalized) >= 8 and normalized in seen:
             return 'diagnosis'
         if answered:
-            failures += len(re.findall(r'не помог(?:ла|ло|ли)?|не измен|вс[её] (?:равно|ещ[её]) не|по.?прежнему|ответ.{0,15}(?:невер|неправ)|не реш', body))
+            failures += len(re.findall(r'не помог(?:ла|ло|ли)?|не измен|вс[её] (?:равно|ещ[её]) не|по.?прежнему|ответ.{0,15}(?:невер|неправ)|не реш|не работает|не грузит|не открыв|не подключ', body))
         seen.add(normalized)
     return 'diagnosis' if failures >= 2 else None

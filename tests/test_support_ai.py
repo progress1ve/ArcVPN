@@ -441,6 +441,8 @@ def test_two_failed_checks_for_any_service_and_repeated_question_handoff():
     assert ai.escalation_reason(rows[:3]) is None
     question = {'sender':'user','body':'Где мой доступ к сервису?'}
     assert ai.escalation_reason([question, {'sender':'admin','body':'Уточните'}, question]) == 'diagnosis'
+    assert ai.escalation_reason([{'sender':'user','body':'Не работает'}, {'sender':'admin','body':'Проверка'}, {'sender':'user','body':'Не работает'}]) == 'diagnosis'
+    assert ai.escalation_reason([{'sender':'user','body':'Нет доступа'}, {'sender':'admin','body':'Проверка1'}, {'sender':'user','body':'Не открывается'}, {'sender':'admin','body':'Проверка2'}, {'sender':'user','body':'Не подключается'}]) == 'diagnosis'
 
 
 def test_paused_human_followup_notifies_manager_without_queueing_ai(support_db,monkeypatch):
