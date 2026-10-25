@@ -26,4 +26,12 @@ Browser QA: 28 task-page checks plus friends/settings/support/chat/payment at360
 
 Evidence folder `C:/Users/babay/.codex/visualizations/2026/10/25/01a17261-5177-76b1-bc0c-63f58d90a6f3/`: webapp-support-before360.png, webapp-support-final360.png; webapp-payment-before360.png, webapp-payment-after360.png and widths768/1280/1600; webapp-responsive.json, webapp-support-payment.json, webapp-inset-browser-states.json, webapp-zero-portrait.json. Screenshots explicitly use a localhost Telegram-control fixture. Real iOS SF Pro rendering and real Telegram-client insets remain hardware-dependent owner checks, not claimed as device testing. No payments/support messages submitted.
 
-Publication and public verification pending.
+## Published / closeout
+
+Runtime/static `c6755b878be71d95df618c309f30d232d9be004d`, reviewed local `6b00e379859191e85608a3bf88958b491ef6dea3`, identical Git tree `791ddb63cdd7bde62ab45aaecce6874d831288d6`. Git HTTPS TLS remained unavailable locally;14 committed blobs published through GitHub connector with exact SHA verification, guarded main FF update, Poland `git pull --ff-only`. No backend runtime changes, no service restarts; bot/subscription API active.
+
+Moscow atomic current release now `/var/www/arcvpn-site/releases/c6755b878be71d95df618c309f30d232d9be004d`;7-file delta archive SHA256 `3dabd4728971dd05a14ce21654ead12a5428c47ba01f7fd3a5aa3ecd374ad9ee` verified before extraction. Copied previous release first, preserving older hashed assets; nginx-t passed, Google permanent verification preserved. Root/app/admin/health/Google/new+old assets all200. Published App-BMIRClE9.js SHA256 `28265f45cbac1819eec126b518d4ae917e1f35b5bbba96a1dcb503c3eb8e3fe3`, App-BfhIsl6g.css `3b4bdf5a3e631e28bfcadc9da4cffc3b27175877c4ae6be9e3d2b8948c9af31a` match local reviewed files.
+
+Deployed login inspected360/768/1280/1600: new entry/index-CHtvHRiH.js and App styles loaded, Manrope fallback retained on Windows, zero overflow/console errors (`webapp-public.json`). Authenticated customer/support/payment layouts tested using local Telegram emulation, not a real production user session. Real iPhone SF Pro optical rendering/native Telegram-client overlays deferred to owner's hardware check; no device test claimed. All implementation, build, local responsive and public asset gates passed; this residual does not require a code change without contrary device evidence.
+
+Rollback ready: old Moscow releasea76f09ee retained; switch symlink or revert source/build; no DB rollback. Documentation closeout updates handoff and stable AI_CONTEXT contract; no restart for docs. Next: owner closes/reopens Telegram WebApp and checks the two originally reported screens on their device.
