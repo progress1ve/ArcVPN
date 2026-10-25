@@ -7,12 +7,18 @@ export const tg = typeof window !== 'undefined' ? window.Telegram?.WebApp : unde
 function syncSafeArea() {
   if (typeof document === 'undefined') return
   const safe = tg?.safeAreaInset || {}
-  const content = tg?.contentSafeAreaInset || safe
+  // Device insets and Telegram controls occupy separate areas. An absent
+  // content inset must not reuse (and double count) the device inset.
+  const content = tg?.contentSafeAreaInset || {}
   const root = document.documentElement
   root.style.setProperty('--tg-safe-top', `${Math.max(0, Number(safe.top) || 0)}px`)
   root.style.setProperty('--tg-safe-bottom', `${Math.max(0, Number(safe.bottom) || 0)}px`)
   root.style.setProperty('--tg-content-safe-top', `${Math.max(0, Number(content.top) || 0)}px`)
   root.style.setProperty('--tg-content-safe-bottom', `${Math.max(0, Number(content.bottom) || 0)}px`)
+  for (const edge of ['left', 'right']) {
+    root.style.setProperty(`--tg-safe-${edge}`, `${Math.max(0, Number(safe[edge]) || 0)}px`)
+    root.style.setProperty(`--tg-content-safe-${edge}`, `${Math.max(0, Number(content[edge]) || 0)}px`)
+  }
 }
 
 export function initTelegram() {
@@ -26,6 +32,7 @@ export function initTelegram() {
   tg.onEvent?.('safeAreaChanged', syncSafeArea)
   tg.onEvent?.('contentSafeAreaChanged', syncSafeArea)
   tg.onEvent?.('viewportChanged', syncSafeArea)
+  tg.onEvent?.('fullscreenChanged', syncSafeArea)
   // Закрываем приложение только осознанно — гасим случайный свайп вниз.
   tg.disableVerticalSwipes?.()
   // BotFather Fullscreen — основной launch mode. Этот вызов страхует старые

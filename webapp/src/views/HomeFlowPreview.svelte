@@ -111,7 +111,7 @@
   let supportInput = ''
   let supportTopicOpen = false
   let supportTopicTrigger
-  let supportTopicPlacement = { left:16, bottom:120, maxHeight:500 }
+  let supportTopicPlacement = { left:16, bottom:120, maxHeight:500, width:328 }
   let supportComposer
   function composerSize(node) {
     const resize = () => {
@@ -142,8 +142,13 @@
   function positionSupportTopics() {
     if (!supportTopicTrigger) return
     const trigger = supportTopicTrigger.getBoundingClientRect()
-    const width = Math.min(428, innerWidth - 32)
-    supportTopicPlacement = { left:Math.min(Math.max(16,trigger.left),innerWidth-width-16), bottom:innerHeight-trigger.top+12, maxHeight:Math.max(120,trigger.top-28) }
+    const screen = supportTopicTrigger.closest('.screen')
+    const bounds = screen.getBoundingClientRect()
+    const style = getComputedStyle(screen)
+    const left = bounds.left + parseFloat(style.paddingLeft)
+    const right = bounds.right - parseFloat(style.paddingRight)
+    const width = Math.min(428, right - left)
+    supportTopicPlacement = { left:Math.min(Math.max(left,trigger.left),right-width), bottom:innerHeight-trigger.top+12, maxHeight:Math.max(0,trigger.top-parseFloat(style.paddingTop)-12), width }
   }
   function openSupportTopics() {
     positionSupportTopics()
@@ -832,7 +837,10 @@
   }
 
   function paymentBackdropKey(event) {
-    if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') paymentMethodOpen = false
+    if (event.key === 'Escape' || (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' '))) {
+      event.preventDefault()
+      paymentMethodOpen = false
+    }
   }
 
   function openPurchase() {
@@ -1195,7 +1203,7 @@
 
 <svelte:window on:resize={positionSupportTopics} />
 
-<div class="flow-preview" class:login-mode={$status.error === 'unauthorized'}>
+<div class="flow-preview" class:telegram-webapp={isTelegramWebApp} class:login-mode={$status.error === 'unauthorized'}>
   <div class="aurora" aria-hidden="true">
     <i class="aurora-blob blob-one"></i>
     <i class="aurora-blob blob-two"></i>
@@ -1212,7 +1220,7 @@
     <main in:fly={{ y: reducedMotion ? 0 : 10, duration: reducedMotion ? 0 : 240, easing: cubicOut }}>
       {#if addonsOpen}
         <section class="screen purchase-screen addons-screen" aria-label="Докупка">
-          <header class="purchase-toolbar"><button class="purchase-back system-back" aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button><h1>Трафик и устройства</h1></header>
+          <header class="purchase-toolbar"><button class="purchase-back system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={handleNativeBack}><ArcIcon name="back" size={20} weight="bold" /></button><h1>Трафик и устройства</h1></header>
           <section class="addon-block"><h2>Трафик на обход глушилок</h2><div class="addon-grid">
             {#each [[5,20],[15,35],[30,60],[45,90],[75,175],[115,290]] as pack}
               <button class:active={addonLteGb===pack[0]} aria-pressed={addonLteGb===pack[0]} disabled={Boolean(addonBusy)} on:click={() => addonLteGb=addonLteGb===pack[0]?0:pack[0]}><b>{pack[0]} ГБ</b><span>{pack[1]} ₽</span></button>
@@ -1327,7 +1335,7 @@
                 </div>
                 <div class="promo-field"><ArcIcon name="gift" size={20}/><input aria-label="Промокод" bind:value={promoCode} on:input={editPromo} maxlength="32" placeholder="Промокод" autocomplete="off"/><button disabled={promoBusy || !promoCode.trim()} on:click={applyPromocode}>{promoBusy ? 'Проверяем…' : 'Применить'}</button></div>
                 {#if promoMessage}<p class:success={Boolean(promoQuote)} class="promo-message" role={promoQuote ? 'status' : 'alert'}>{promoMessage}</p>{/if}
-                <button class="autorenew" on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>{#if autoRenew}<ArcIcon name="check" size={15} weight="bold" />{/if}</i><span><b>Автопродление</b><small>{autoRenew ? (selectedPaymentMethod==='sbp' ? 'Счёт СБП сохранится, отключить можно в настройках' : 'Карта сохранится, отключить можно в настройках') : 'Способ оплаты не будет сохранён'}</small></span></button>
+                <button class="autorenew" aria-pressed={autoRenew} on:click={() => autoRenew=!autoRenew}><i class:checked={autoRenew}>{#if autoRenew}<ArcIcon name="check" size={15} weight="bold" />{/if}</i><span><b>Автопродление</b><small>{autoRenew ? (selectedPaymentMethod==='sbp' ? 'Счёт СБП сохранится, отключить можно в настройках' : 'Карта сохранится, отключить можно в настройках') : 'Способ оплаты не будет сохранён'}</small></span></button>
                 <button class="method-confirm" disabled={paymentBusy} on:click={confirmPaymentMethod}>Оплатить {selectedPaymentMethod==='sbp'?'через СБП':'картой'} · {rub(purchaseTotalRub)}</button>
                 <p>Оплачивая, вы принимаете <a href="/legal/user-agreement" target="_blank">Пользовательское соглашение</a></p>
               </section>
@@ -1540,7 +1548,7 @@
             </div>
             {#if supportTopicOpen}
               <div class="support-topic-backdrop" role="button" tabindex="0" aria-label="Закрыть выбор темы" on:click={() => supportTopicOpen = false} on:keydown={(event) => { if (event.key === 'Escape' || event.key === 'Enter') supportTopicOpen = false }} transition:fade={{duration:reducedMotion?0:140}}></div>
-              <section id="support-topics" class="support-topic-panel" style:left={`${supportTopicPlacement.left}px`} style:bottom={`${supportTopicPlacement.bottom}px`} style:max-height={`${supportTopicPlacement.maxHeight}px`} role="dialog" aria-modal="true" aria-labelledby="support-topics-title" use:dialogFocus={() => supportTopicOpen=false} transition:topicExpand={{duration:reducedMotion?0:280}}>
+              <section id="support-topics" class="support-topic-panel" style:width={`${supportTopicPlacement.width}px`} style:left={`${supportTopicPlacement.left}px`} style:bottom={`${supportTopicPlacement.bottom}px`} style:max-height={`${supportTopicPlacement.maxHeight}px`} role="dialog" aria-modal="true" aria-labelledby="support-topics-title" use:dialogFocus={() => supportTopicOpen=false} transition:topicExpand={{duration:reducedMotion?0:280}}>
                 <header><div><h2 id="support-topics-title">С чем помочь?</h2><p>Готовое сообщение появится в поле ввода.</p></div><button aria-label="Закрыть выбор темы" on:click={() => supportTopicOpen=false}><ArcIcon name="close" size={19}/></button></header>
                 <div class="support-topic-list">{#each supportTopics as topic}<button on:click={() => chooseSupportTopic(topic)}><span><b>{topic.title}</b><small>{topic.hint}</small></span><ArcIcon name="arrow" size={17}/></button>{/each}</div>
               </section>
@@ -1759,11 +1767,13 @@
     --faint: #556477;
     --border: rgba(187, 218, 249, .12);
     --surface: rgba(7, 13, 23, .78);
-    --safe-top-flow: max(env(safe-area-inset-top, 0px), var(--tg-content-safe-top, 0px));
-    --safe-bottom-flow: max(env(safe-area-inset-bottom, 0px), var(--tg-content-safe-bottom, 0px));
+    --safe-top-flow: var(--safe-top);
+    --safe-bottom-flow: var(--safe-bottom);
     position: relative;
     min-height: 100dvh;
     overflow-x: hidden;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
     color: var(--text);
     background:
       radial-gradient(95% 48% at 50% -10%, rgba(23, 65, 116, .17), transparent 68%),
@@ -2708,9 +2718,9 @@
 
   /* Local refinement: preserve the cabinet, give each task its space. */
   .screen.purchase-screen { width:min(100%,640px); max-width:640px; min-height:100dvh; margin-inline:auto; padding-top:calc(var(--safe-top-flow) + 18px); padding-bottom:calc(32px + var(--safe-bottom-flow)); }
-  .purchase-toolbar { display:flex; align-items:center; gap:14px; margin-bottom:22px; }
-  .purchase-toolbar h1 { margin:0; font-size:22px; font-weight:700; letter-spacing:-.035em; }
-  .purchase-toolbar .purchase-back { width:44px; height:44px; min-height:44px; justify-content:center; margin:0; padding:0; border-radius:50%; background:var(--surface); }
+  .purchase-toolbar { position:relative; display:flex; align-items:center; justify-content:center; min-height:44px; padding-inline:48px; margin-bottom:22px; text-align:center; }
+  .purchase-toolbar h1 { min-width:0; margin:0; font-size:22px; font-weight:700; letter-spacing:-.035em; }
+  .purchase-toolbar .purchase-back { position:absolute; left:0; top:0; width:44px; height:44px; min-height:44px; justify-content:center; margin:0; padding:0; border-radius:50%; background:var(--surface); }
   .purchase-screen .product-switch { margin:0; gap:4px; padding:4px; border-radius:18px; background:var(--surface); }
   .product-switch button { font-size:14px; transition:background .22s ease,color .22s ease; }
   .purchase-screen .plan-viewport { margin-top:20px; }
@@ -2769,8 +2779,8 @@
   .referral-screen .metric-grid span,.referral-screen .metric-grid small { font-size:13px; }
 
   .screen.chat-screen { width:min(100%,820px); height:100dvh; min-height:0; display:grid; grid-template-columns:minmax(0,1fr); grid-template-rows:auto minmax(0,1fr) auto; gap:0; padding:calc(var(--safe-top-flow) + 12px) 20px calc(var(--safe-bottom-flow) + 12px); zoom:1; }
-  .chat-toolbar { display:flex; align-items:center; gap:12px; min-height:64px; padding-bottom:12px; border:0; }
-  .chat-toolbar > button { flex:none; width:44px; height:44px; display:grid; place-items:center; border-radius:50%; background:var(--surface); color:var(--text); }
+  .chat-toolbar { position:relative; display:grid; align-items:center; grid-template-columns:minmax(0,1fr); min-height:64px; padding:0 48px 12px; border:0; text-align:center; }
+  .chat-toolbar > button { position:absolute; top:0; left:0; width:44px; height:44px; display:grid; place-items:center; border-radius:50%; background:var(--surface); color:var(--text); }
   .chat-toolbar h1 { margin:0; font-size:16px; letter-spacing:-.02em; }
   .chat-toolbar p { margin:4px 0 0; font-size:13px; color:var(--muted); }
   .chat-screen .support-chat { min-height:0; overflow-y:auto; overscroll-behavior:contain; gap:12px; padding:24px 0; scrollbar-width:thin; scrollbar-color:#304758 transparent; }
@@ -2907,4 +2917,51 @@
   .support-screen .faq-copy b { font-size:15px; }
   .support-screen .faq-copy small { font-size:14px; line-height:1.65; }
   .login-change-email{display:block;margin:12px auto 0;padding:10px 14px;border:0;background:transparent;color:#acd9f3;font-size:12px;font-weight:600;text-decoration:underline;text-underline-offset:4px}
+  /* Equal title gutters keep Back/Close controls from shifting the title. */
+  .payment-method-sheet header, .support-topic-panel header {
+    position: relative;
+    justify-content: center;
+    min-height: 44px;
+    padding-inline: 44px;
+    text-align: center;
+  }
+  .payment-method-sheet header > button, .support-topic-panel header > button {
+    position: absolute;
+    right: 0;
+    top: 0;
+    margin: 0;
+  }
+  .payment-method-sheet h2 { font-size: clamp(20px, 5.5vw, 24px); }
+  .autorenew > i { flex: 0 0 30px; min-width: 30px; aspect-ratio: 1; }
+  .autorenew > span { flex: 1; min-width: 0; }
+  .autorenew:focus-visible { outline: 2px solid #9bd9ff; outline-offset: 3px; }
+  .payment-method-backdrop, .paid-trial-backdrop, .logout-backdrop, .qr-backdrop {
+    padding-top: calc(var(--safe-top-flow) + 16px);
+    padding-bottom: calc(var(--safe-bottom-flow) + 16px);
+    padding-left: calc(var(--safe-left) + 16px);
+    padding-right: calc(var(--safe-right) + 16px);
+  }
+  .paid-trial-card, .logout-dialog, .qr-dialog {
+    max-height: calc(100dvh - var(--safe-top-flow) - var(--safe-bottom-flow) - 32px);
+    overflow-y: auto;
+  }
+  .paid-trial-card > h2 { text-align: center; }
+  @media (max-width: 899px) {
+    .dock {
+      left: calc((100% + var(--safe-left) - var(--safe-right)) / 2);
+      width: min(calc(100% - var(--safe-left) - var(--safe-right)), 460px);
+    }
+  }
+  @media (min-width: 900px) {
+    .telegram-webapp .screen {
+      padding-top: max(64px, calc(var(--safe-top-flow) + 12px));
+      padding-bottom: max(52px, calc(var(--safe-bottom-flow) + 12px));
+    }
+  }
+  /* iOS exposes SF Pro through the system font, including optical sizing.
+     Keep the ArcVPN wordmark and day counter in the original brand face. */
+  @supports (-webkit-touch-callout: none) {
+    .flow-preview { font-family: -apple-system, BlinkMacSystemFont, 'Manrope', sans-serif; }
+    .brand, .days { font-family: 'Manrope', 'Inter', sans-serif; }
+  }
 </style>

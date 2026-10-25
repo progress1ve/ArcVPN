@@ -1,5 +1,9 @@
 # AI_CONTEXT.md — рабочая память проекта ArcVPN
 
+## Customer WebApp safe-area and typography contract (2026-10-25)
+
+Page/task/dialog titles centered with equal control gutters. Telegram device insets and content-control insets add; browser env and Telegram device inset use max to avoid counting the same notch twice. Handle all four edges and live/fullscreen updates; missing content inset is zero. Autorenew indicator is a non-shrinking30px circle; keyboard activation must not bubble into backdrop dismissal. Owner's final font choice: native Apple system SF Pro on iOS only, existing Manrope on other devices; preserve Manrope ArcVPN wordmark/day counter. No SF font files distributed, no landing/admin font change. Source: customer Svelte HomeFlowPreview, lib/telegram.js and shared app.css. Browser fixture evidence is not real Telegram/iPhone testing.
+
 ## Актуальный контракт нод и стиль работы (2026-09-29)
 
 Для новой ноды применяй `.agents/skills/arcvpn-add-node/SKILL.md`, для замеров —
