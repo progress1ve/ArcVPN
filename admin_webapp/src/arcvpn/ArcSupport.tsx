@@ -12,6 +12,11 @@ const handoffReason: Record<string, string> = {
   diagnosis: 'Не удалось решить проблему',
   payment: 'Вопрос оплаты',
   manager: 'Пользователь попросил менеджера',
+  requested: 'Пользователь попросил менеджера',
+  provider: 'ИИ не смог получить ответ',
+  capacity: 'ИИ занят',
+  human: 'Диалог ведёт менеджер',
+  manual: 'ИИ выключен менеджером',
 };
 export default function ArcSupport() {
   const navigate = useNavigate();
@@ -73,6 +78,16 @@ export default function ArcSupport() {
     },
   });
   const thread = detail.data?.thread;
+  const changeAi = useMutation({
+    mutationFn: ({ threadId, enabled }: { threadId: number; enabled: boolean }) =>
+      getJson(`/api/admin/support/threads/${threadId}/ai`, {
+        method: 'PATCH', body: JSON.stringify({ enabled }),
+      }),
+    onSuccess: (_data, variables) => {
+      setNotice(variables.enabled ? 'ИИ включён для новых сообщений пользователя.' : 'ИИ выключен. Диалог ведёт менеджер.');
+      refresh();
+    },
+  });
   useEffect(() => {
     if (thread?.id) {
       client.invalidateQueries({ queryKey: ['arc-support-unread'] });
@@ -179,7 +194,7 @@ export default function ArcSupport() {
                 {supportStatus[row.status]} · {row.messages_count} сообщений
               </p>
               {row.ai_handoff_reason && row.status !== 'closed' && (
-                <p className="mt-2 text-xs text-warning-400">Нужен менеджер</p>
+                <p className="mt-2 text-xs text-warning-400">{['human','manual'].includes(row.ai_handoff_reason) ? 'Диалог ведёт менеджер' : 'Нужен менеджер'}</p>
               )}
               {row.waiting_since && (
                 <p
@@ -287,9 +302,19 @@ export default function ArcSupport() {
                   ))}
                 </select>
               </header>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dark-700 p-3">
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium text-dark-100">ИИ-ответчик: {thread.ai_handoff_reason ? 'выключен' : 'включён'}</p>
+                  <p className="mt-1 text-xs text-dark-400">Ответ менеджера автоматически выключает ИИ. Включение действует только для новых сообщений.</p>
+                </div>
+                <button type="button" className={`${control} shrink-0`} disabled={!canReply || changeAi.isPending || thread.status === 'closed'}
+                  onClick={() => id && changeAi.mutate({ threadId: id, enabled: !!thread.ai_handoff_reason })}>
+                  {changeAi.isPending ? 'Сохраняем…' : thread.ai_handoff_reason ? 'Включить ИИ' : 'Выключить ИИ'}
+                </button>
+              </div>
               {thread.ai_handoff_reason && thread.status !== 'closed' && (
                 <p className="mt-4 rounded-lg border border-warning-500/30 p-3 text-sm text-warning-400">
-                  Нужен менеджер:{' '}
+                  {['human', 'manual'].includes(thread.ai_handoff_reason) ? 'Управление диалогом:' : 'Нужен менеджер:'}{' '}
                   {handoffReason[thread.ai_handoff_reason] || 'ИИ передал обращение'}. ИИ
                   приостановлен.
                 </p>
@@ -368,7 +393,7 @@ export default function ArcSupport() {
                     {reply.isPending ? 'Отправляем…' : 'Отправить ответ'}
                   </button>
                 </div>
-                {(reply.isError || changeStatus.isError) && (
+                {(reply.isError || changeStatus.isError || changeAi.isError) && (
                   <p role="alert" className="mt-3 text-sm text-error-400">
                     Действие не удалось. Текст ответа сохранён.
                   </p>

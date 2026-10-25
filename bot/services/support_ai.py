@@ -33,6 +33,10 @@ INSTRUCTIONS = """Ты ИИ-помощник поддержки ArcVPN. Помо
 При общем сбое можно проверить обновление подписки, одну другую обычную локацию и Wi-Fi/мобильную сеть — по одному шагу,
 с учётом уже сделанного. Обход расходует отдельные ГБ; предлагай его только при признаках ограничений сети.
 После двух неудачных диагностических проверок не ходи по кругу: скажи «Зовём на помощь менеджера — он ответит в этом чате».
+Если клиент повторяет тот же нерешённый вопрос или говорит, что ответ неверен, не спорь и не придумывай объяснения: передай менеджеру.
+Ответ человека-менеджера и персональные обещания о компенсации, бесплатных ГБ, цене и условиях никогда не оспаривай.
+Вопросы о выполнении такого обещания передавай менеджеру, даже если клиент не употребляет слово «оплата».
+Нельзя утверждать, что ГБ израсходованы, пакет истёк или покупка не начислена: у тебя нет проверенных данных аккаунта.
 При вопросе о первом подключении используй только эти 3 шага:
 1. В кабинете нажмите «Подключить VPN» и выберите устройство.
 2. Выберите Happ или INCY; установите приложение по инструкции в кабинете.
@@ -180,9 +184,10 @@ def _reply(thread_id, message_id):
         messages = get_assistant_context(thread_id, message_id)
         if not messages:
             return
-        if re.search(r"менеджер|оператор|живой человек|возврат|оплат|плат[её]ж", messages[-1]["body"], re.I):
-            answer = "Сообщение уже передано менеджеру. Он проверит ваш вопрос и ответит в этом чате."
-            db_support.handoff_to_manager(thread_id, message_id, answer, 'requested')
+        reason = escalation_reason(messages)
+        if reason:
+            answer = "Зовём на помощь менеджера — он проверит ваш вопрос и ответит в этом чате. Повторять уже сделанные проверки не нужно."
+            db_support.handoff_to_manager(thread_id, message_id, answer, reason)
         else:
             try:
                 answer = request_reply(messages)
@@ -195,6 +200,8 @@ def _reply(thread_id, message_id):
                 answer = FALLBACK
             if re.search(r'менеджер', answer, re.I):
                 db_support.handoff_to_manager(thread_id, message_id, answer, 'provider' if health is False else 'diagnosis')
+            elif re.search(r'(?:я|мы)\s+(?:проверил|проверили|начислил|вернул|изменил)|(?:ваш[иа]?|у вас).{0,45}(?:гигабайты|гб|пакет).{0,30}(?:израсходован|ист[её]к|сгорел)', answer, re.I):
+                db_support.handoff_to_manager(thread_id, message_id, 'Данные покупки и лимитов проверит менеджер — он ответит в этом чате.', 'payment')
             else:
                 add_assistant_support_message(thread_id, message_id, answer)
         if health is not None:
@@ -223,3 +230,25 @@ def queue_reply(thread_id, message_id):
         _slots.release()
         return False
     return True
+
+
+def escalation_reason(messages):
+    """Decide handoff before any provider call; account decisions belong to humans."""
+    latest = messages[-1]['body'].lower()
+    if re.search(r'менеджер|живо[йг][о]?\s+человек|человек[а]?\s+(?:поддержки|оператор)|позовите|соедините|вызовите|оператор[а]?\s+(?:поддержки|пожалуйста)|(?:дайте|нужен|позов|хочу).{0,25}оператор|(?:поговор|связ|соедин).{0,30}человек|^оператор[а]?$', latest):
+        return 'requested'
+    if re.search(r'возврат|верн\w*.{0,20}(?:деньг|руб)|оплат|плат[её]ж|купил|купила|покуп|докуп|списал|начисл|компенсац|обеща|промокод|скидк|бесплатн\w*.{0,30}(?:гб|гигабайт)|(?:гб|гигабайт).{0,30}(?:пропал|слетел|исчез|не добав|не приш)', latest):
+        return 'payment'
+    seen, failures, answered = set(), 0, False
+    for row in messages:
+        if row['sender'] != 'user':
+            answered = True
+            continue
+        body = row['body'].lower()
+        normalized = re.sub(r'[^\w\s]', '', body).strip()
+        if answered and len(normalized) >= 16 and normalized in seen:
+            return 'diagnosis'
+        if answered:
+            failures += len(re.findall(r'не помог(?:ла|ло|ли)?|не измен|вс[её] (?:равно|ещ[её]) не|по.?прежнему|ответ.{0,15}(?:невер|неправ)|не реш', body))
+        seen.add(normalized)
+    return 'diagnosis' if failures >= 2 else None

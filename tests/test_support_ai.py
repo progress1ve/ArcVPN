@@ -130,7 +130,7 @@ def test_payment_handoff_never_calls_provider(support_db, monkeypatch):
     monkeypatch.setattr(ai, "request_reply", provider)
     _run_reserved_reply(monkeypatch)
     provider.assert_not_called()
-    assert "менеджеру" in db.get_support_messages(700001)["messages"][-1]["body"]
+    assert "менеджер" in db.get_support_messages(700001)["messages"][-1]["body"]
 
 
 def test_unauthorized_endpoint_never_queues_ai(monkeypatch):
@@ -318,7 +318,7 @@ def test_tenth_attempt_hands_off_once_even_when_transport_throttles(support_db,m
     provider.assert_not_called()
 
 
-def test_rolling_window_expires_and_human_reply_resets_handoff(support_db):
+def test_rolling_window_expires_and_human_reply_owns_handoff(support_db):
     with support_db() as c:
         c.executemany("INSERT INTO support_ai_attempts(thread_id,created_at) VALUES(10,datetime('now','-6 minutes'))", [()]*9)
     result=db.add_user_support_message(700001,'Новое сообщение')
@@ -327,7 +327,7 @@ def test_rolling_window_expires_and_human_reply_resets_handoff(support_db):
         assert c.execute('SELECT COUNT(*) FROM support_ai_attempts').fetchone()[0]==1
         c.execute("UPDATE support_threads SET ai_handoff_reason='spam'")
     assert db.add_admin_support_message(10,-1,'Менеджер здесь')
-    assert db.assistant_handoff_reason(10) is None
+    assert db.assistant_handoff_reason(10) == 'human'
     with support_db() as c:
         assert c.execute('SELECT COUNT(*) FROM support_ai_attempts').fetchone()[0]==0
     assert not db.get_support_messages(700001)['messages'][-1]['is_ai']
@@ -385,3 +385,85 @@ def test_read_api_formats_old_ai_only_without_rewriting_history(support_db,monke
     assert result.json['messages'][-1]['body']=='Прокси\n2. Проверка'
     with support_db() as c:
         assert c.execute('SELECT body FROM support_messages ORDER BY id DESC LIMIT 1').fetchone()[0]==original
+
+
+def test_human_takeover_survives_followup_and_reopening(support_db):
+    db.add_admin_support_message(10, -1, 'Вам добавим20ГБ каждый месяц')
+    followup = db.add_user_support_message(700001, 'Это будет каждый месяц?')
+    assert followup['ai_handoff'] and followup['handoff_reason'] == 'human'
+    assert db.get_assistant_context(10, followup['message']['id']) == []
+    with support_db() as c:
+        c.execute("UPDATE support_threads SET status='closed' WHERE id=10")
+    reopened = db.add_user_support_message(700001, 'Уточнение менеджеру')
+    assert reopened['ai_handoff']
+    db.set_support_ai_enabled(10, True)
+    assert not db.get_assistant_context(10, reopened['message']['id'])
+    fresh = db.add_user_support_message(700001, 'Как импортировать подписку?')
+    assert not fresh['ai_handoff']
+    assert len(db.get_assistant_context(10, fresh['message']['id'])) == 1
+
+
+def test_pause_resume_discards_already_running_response(support_db, monkeypatch):
+    def provider(_messages):
+        db.set_support_ai_enabled(10, False)
+        db.set_support_ai_enabled(10, True)
+        return 'Устаревший ответ'
+    monkeypatch.setattr(ai, 'request_reply', provider)
+    _run_reserved_reply(monkeypatch)
+    assert len(db.get_support_messages(700001)['messages']) == 1
+    assert not db.handoff_to_manager(10, 1, 'Устаревшая передача', 'diagnosis')
+
+
+@pytest.mark.parametrize('body', [
+    'Я докупил30ГБ, они пропали',
+    'После покупки не появились гигабайты',
+    'Если беру2, бесплатные20гб будут каждый месяц?',
+    'Вы обещали добавить трафик',
+    'Соедините с человеком',
+    'Хочу поговорить с человеком',
+    'Дайте оператора',
+])
+def test_account_promises_and_purchase_questions_handoff_before_model(support_db, monkeypatch, body):
+    with support_db() as c:
+        c.execute('UPDATE support_messages SET body=?', (body,))
+    provider = Mock()
+    monkeypatch.setattr(ai, 'request_reply', provider)
+    _run_reserved_reply(monkeypatch)
+    provider.assert_not_called()
+    assert db.assistant_handoff_reason(10) in {'payment','requested'}
+
+
+def test_two_failed_checks_for_any_service_and_repeated_question_handoff():
+    rows = [{'sender':'user','body':'VPN не работает'}, {'sender':'admin','body':'Проверка1'},
+            {'sender':'user','body':'Не помогло'}, {'sender':'admin','body':'Проверка2'},
+            {'sender':'user','body':'Все равно не работает'}]
+    assert ai.escalation_reason(rows) == 'diagnosis'
+    assert ai.escalation_reason(rows[:3]) is None
+    question = {'sender':'user','body':'Где мой доступ к сервису?'}
+    assert ai.escalation_reason([question, {'sender':'admin','body':'Уточните'}, question]) == 'diagnosis'
+
+
+def test_paused_human_followup_notifies_manager_without_queueing_ai(support_db,monkeypatch):
+    import subscription_api as api
+    db.add_admin_support_message(10, -1, 'Веду обращение')
+    monkeypatch.setattr(api,'_webapp_telegram_id',lambda:700001)
+    monkeypatch.setattr(api,'add_user_support_message',db.add_user_support_message)
+    notify = Mock()
+    monkeypatch.setattr(api.threading,'Thread',notify)
+    queue = Mock()
+    monkeypatch.setattr(ai,'queue_reply',queue)
+    r=api.app.test_client().post('/api/support/messages',json={'body':'Дополнение менеджеру'})
+    assert r.status_code==200 and r.json['ai']['handoff']
+    queue.assert_not_called()
+    notify.return_value.start.assert_called_once()
+
+
+def test_legacy_backfill_is_idempotent_and_respects_explicit_resume(support_db):
+    from scripts.ops.pause_human_support import pause_existing_human_threads
+    with support_db() as c:
+        c.execute("INSERT INTO support_messages(thread_id,sender,sender_telegram_id,body) VALUES(10,'admin',-1,'Old human reply')")
+        assert len(pause_existing_human_threads(c)) == 1
+        assert not pause_existing_human_threads(c)
+    db.set_support_ai_enabled(10, True)
+    with support_db() as c:
+        assert not pause_existing_human_threads(c)

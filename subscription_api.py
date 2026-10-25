@@ -4465,7 +4465,7 @@ def api_support_messages():
         return _api_error("user_not_found", 404)
     if result.get("rate_limited"):
         return _api_error("try_later", 429)
-    if not result.get('ai_handoff') or result.get('handoff_started'):
+    if not result.get('ai_handoff') or result.get('handoff_started') or result.get('handoff_reason') in {'human', 'manual'}:
         notification = f"ИИ приостановлен: 10 отправок за 5 минут. Требуется менеджер.\n\n{body}" if result.get('handoff_started') else body
         threading.Thread(target=_notify_support_admins, args=(int(result['thread_id']),telegram_id,notification),
                          daemon=True,name=f"support-notify-{result['thread_id']}").start()
@@ -7826,12 +7826,28 @@ def api_admin_support_thread_status(thread_id: int):
             return _api_error("thread_not_found", 404)
         conn.execute("UPDATE support_threads SET status=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (status, thread_id))
         if status == 'closed':
-            conn.execute("UPDATE support_threads SET ai_handoff_reason=NULL WHERE id=?", (thread_id,))
+            conn.execute("UPDATE support_threads SET ai_handoff_reason=CASE WHEN ai_handoff_reason IN ('human','manual') THEN ai_handoff_reason ELSE NULL END WHERE id=?", (thread_id,))
             conn.execute("DELETE FROM support_ai_attempts WHERE thread_id=?", (thread_id,))
     append_admin_audit("support.status", "success",
         actor_id=str(_admin_telegram_id() or "password-session"),
         target_type="support_thread", target_id=str(thread_id), metadata={"status": status})
     return _api_no_store(jsonify({"ok": True, "status": status}))
+
+
+@app.route('/api/admin/support/threads/<int:thread_id>/ai', methods=['PATCH'])
+def api_admin_support_thread_ai(thread_id: int):
+    if not _admin_authorized('support.reply'):
+        return _api_error('admin_unauthorized', 403)
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or type(payload.get('enabled')) is not bool:
+        return _api_error('invalid_ai_enabled', 400)
+    result = support_ai.db_support.set_support_ai_enabled(thread_id, payload['enabled'])
+    if result is None:
+        return _api_error('thread_not_found', 404)
+    append_admin_audit('support.ai', 'success',
+        actor_id=str(_admin_telegram_id() or 'password-session'),
+        target_type='support_thread', target_id=str(thread_id), metadata={'enabled': payload['enabled']})
+    return _api_no_store(jsonify({'ok': True, 'ai': result}))
 
 
 @app.route('/legal/user-agreement')

@@ -137,4 +137,27 @@ describe('ArcVPN operator views', () => {
       body: JSON.stringify({ body: 'Проверяем проблему' }),
     });
   });
+
+  it('lets a manager explicitly resume AI for future messages without sending a reply', async () => {
+    calls.access.mockResolvedValue({ role: 'owner' });
+    let reason: string | null = 'human';
+    calls.getJson.mockImplementation((path: string, init?: RequestInit) => {
+      if (path.endsWith('/ai') && init?.method === 'PATCH') {
+        reason = null;
+        return Promise.resolve({ ok: true });
+      }
+      if (path.includes('?')) return Promise.resolve({ threads: [] });
+      return Promise.resolve({ thread: { id: 7, telegram_id: 100, status: 'open', ai_handoff_reason: reason }, messages: [] });
+    });
+    mount(<ArcSupport />, '/admin/tickets/7', '/admin/tickets/:ticketId');
+    const resume = await screen.findByRole('button', { name: 'Включить ИИ' });
+    await waitFor(() => expect((resume as HTMLButtonElement).disabled).toBe(false));
+    fireEvent.click(resume);
+    expect(await screen.findByText('ИИ включён для новых сообщений пользователя.')).toBeTruthy();
+    expect(await screen.findByRole('button', { name: 'Выключить ИИ' })).toBeTruthy();
+    expect(calls.getJson).toHaveBeenCalledWith('/api/admin/support/threads/7/ai', {
+      method: 'PATCH', body: JSON.stringify({ enabled: true }),
+    });
+    expect(calls.getJson.mock.calls.some(([,init]) => (init as RequestInit)?.method === 'POST')).toBe(false);
+  });
 });

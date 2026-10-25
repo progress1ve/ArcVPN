@@ -68,6 +68,7 @@ def support_db(monkeypatch):
             raise
 
     monkeypatch.setattr(api, "get_db", fake_get_db)
+    monkeypatch.setattr(api.support_ai.db_support, "get_db", fake_get_db)
     yield connection
     connection.close()
 
@@ -288,3 +289,24 @@ def test_closed_and_pending_threads_handle_waiting_without_status_guessing(clien
     assert [row['id'] for row in rows] == [40,30,10]
     assert rows[0]['waiting_since'] == '2026-08-24 07:00:00'
     assert client.get('/api/admin/support/threads?order=bad').status_code == 400
+
+
+def test_ai_toggle_permissions_and_no_customer_messages(client,support_db,monkeypatch):
+    authorize(monkeypatch,'viewer')
+    assert client.patch('/api/admin/support/threads/10/ai',json={'enabled':False}).status_code==403
+    authorize(monkeypatch,'support')
+    for payload in [{}, {'enabled':'true'}, {'enabled':1}, []]:
+        assert client.patch('/api/admin/support/threads/10/ai',json=payload).status_code==400
+    before=support_db.execute('SELECT COUNT(*) FROM support_messages').fetchone()[0]
+    assert client.patch('/api/admin/support/threads/10/ai',json={'enabled':False}).json['ai']['reason']=='manual'
+    assert client.patch('/api/admin/support/threads/10/ai',json={'enabled':True}).json['ai']['reason'] is None
+    assert client.patch('/api/admin/support/threads/999/ai',json={'enabled':True}).status_code==404
+    assert support_db.execute('SELECT COUNT(*) FROM support_messages').fetchone()[0]==before
+
+
+def test_closing_case_preserves_manager_ownership(client,support_db,monkeypatch):
+    authorize(monkeypatch,'support')
+    support_db.execute("UPDATE support_threads SET ai_handoff_reason='human' WHERE id=10")
+    assert client.patch('/api/admin/support/threads/10/status',json={'status':'closed'}).status_code==200
+    assert client.patch('/api/admin/support/threads/10/status',json={'status':'open'}).status_code==200
+    assert support_db.execute('SELECT ai_handoff_reason FROM support_threads WHERE id=10').fetchone()[0]=='human'
