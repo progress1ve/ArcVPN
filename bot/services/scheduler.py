@@ -836,7 +836,7 @@ async def run_yookassa_reconciliation_scheduler(bot: Bot) -> None:
 
 async def process_due_recurring_payments(bot: Bot) -> None:
     """Create idempotent renewal charges for saved YooKassa cards/SBP accounts."""
-    from database.db_recurring import claim_due_recurring_cycles, update_recurring_cycle
+    from database.db_recurring import claim_due_recurring_cycles, update_recurring_cycle, snapshot_recurring_entitlements
     from database.db_payments import prepare_payment_order, save_yookassa_payment_id
     from bot.services.billing import create_yookassa_recurring_payment
 
@@ -857,6 +857,8 @@ async def process_due_recurring_payments(bot: Bot) -> None:
                 operation_type="renew",
             )
             description = f"ArcVPN — автопродление на {int(item['effective_period_days'])} дней"
+            if not snapshot_recurring_entitlements(order['order_id'], int(item['user_id'])):
+                raise RuntimeError('Could not snapshot renewal configuration')
             payment = await create_yookassa_recurring_payment(
                 amount_rub=int(item["effective_amount_cents"]) / 100,
                 order_id=order["order_id"],

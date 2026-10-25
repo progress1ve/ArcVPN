@@ -1,5 +1,6 @@
 """YooKassa recurring payment method storage and self-service revocation."""
 from typing import Any, Dict, Optional
+import json
 
 from .connection import get_db
 
@@ -57,6 +58,39 @@ def disable_recurring_methods(user_id: int) -> int:
             WHERE user_id=? AND active=1
         """, (user_id,))
         return int(cursor.rowcount or 0)
+
+
+def snapshot_recurring_entitlements(order_id: str, user_id: int) -> bool:
+    """Renew the current configuration, excluding temporary paid LTE boosts."""
+    with get_db() as conn:
+        conn.execute('BEGIN IMMEDIATE')
+        user = conn.execute('SELECT device_limit,lte_quota_gb FROM users WHERE id=?', (user_id,)).fetchone()
+        if not user:
+            return False
+        devices, quota = user['device_limit'], user['lte_quota_gb']
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='settings'").fetchone():
+            key = f'personal_recurring_plan:{user_id}'
+            saved = conn.execute('SELECT value FROM settings WHERE key=?', (key,)).fetchone()
+            policy = json.loads(saved['value']) if saved else {}
+            if policy.get('active'):
+                changed = conn.execute("""SELECT 1 FROM payments WHERE user_id=? AND id>?
+                    AND status='paid' AND operation_type IN ('new','renew','upgrade')
+                    AND COALESCE(payment_type,'')!='yookassa_recurring' LIMIT 1""", (user_id,policy['source_payment_id'])).fetchone()
+                order = conn.execute('SELECT tariff_id,vpn_key_id,amount_cents,period_days FROM payments WHERE order_id=? AND user_id=?', (order_id,user_id)).fetchone()
+                matches = order and all(order[k] == policy[k] for k in ('tariff_id','vpn_key_id','amount_cents','period_days'))
+                if changed or not matches:
+                    policy['active'] = False
+                    conn.execute('UPDATE settings SET value=? WHERE key=?', (json.dumps(policy),key))
+                else:
+                    quota = policy['lte_quota_gb']
+        result = conn.execute("""UPDATE payments SET requested_device_limit=?,requested_lte_quota_gb=?,
+            is_custom_tariff=CASE WHEN ?!=COALESCE((SELECT device_limit FROM tariffs WHERE id=payments.tariff_id),?)
+              OR ?!=COALESCE((SELECT lte_quota_gb FROM tariffs WHERE id=payments.tariff_id),?)
+              OR amount_cents!=COALESCE((SELECT price_rub*100 FROM tariffs WHERE id=payments.tariff_id),amount_cents)
+              THEN 1 ELSE 0 END
+            WHERE order_id=? AND user_id=? AND status='pending' AND addons_applied_at IS NULL""",
+            (devices,quota,devices,devices,quota,quota,order_id,user_id))
+        return result.rowcount == 1
 
 
 def get_recurring_summary() -> Dict[str, int]:
