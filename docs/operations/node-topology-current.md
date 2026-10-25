@@ -1,4 +1,8 @@
-# ArcVPN node and CDN topology — verified snapshot, 2026-10-01
+# ArcVPN node and CDN topology — verified update, 2026-10-25
+
+Current override: owner temporarily stopped paying Sweden. Remnawave Sweden disabled; physical Estonia87.251.19.197 serves Swedish ordinary, AI and Games aliases under their existing names. Auto/YouTube/bypass primary policies are EE100%; Moscow bridge has no SE hop. EE WARP proxy40000 serves AI Reality8444; EE Hysteria2 UDP443 uses own valid EE certificate and renewal hook. Preserve all subscription URLs/UUIDs and EE own Reality keys.
+
+Yandex existing cdn-de.arccnet.space resource/group ee-origin now sole EE87.251.19.197 HTTP80 with Hostorigin.arccnet.space. Retained /api-se-test-4096, /api-se-test-24000, /api-se-65536, /api-se-32768 proxy local EE10012–15. Legacy /api-test and /api-ee-* also local; subscription/import routes proxy Poland HTTPS. Four actual CDN tunnels, ordinary/YouTube, AI/WARP, Games, and Moscow->EE passed from Moscow. CDN subscription200 and fresh17-profile catalog have no unpaidSE endpoint. EE collector/current operator probes moved to EE, scheduled24000/10 only. Sweden not deleted, no DNS switch. The dated snapshot below is historical and superseded where different.
 
 This is a non-secret operational snapshot, not a substitute for checking current code, Remnawave, DNS and live tunnels before any change. Historical entries in `AI_CONTEXT.md` can describe retired routes. The production/control plane is Poland `pl-control` (`217.60.33.38`); Germany control plane and Germany exit are retired. Credentials live only in the encrypted local vault referenced by `.codex/server-inventory.toml`, never in Git.
 
