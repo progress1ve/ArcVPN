@@ -1,4 +1,4 @@
-"""Sweden XHTTP variants and ordered fallback preserving existing user identity."""
+"""CDN XHTTP variants preserving existing authorization and user identity."""
 import copy
 import re
 HOST = 'cdn-de.arccnet.space'
@@ -24,7 +24,8 @@ def outbound(source,size,tag):
  o['settings']['vnext'][0].update(address=HOST,port=443)
  s=o['streamSettings'];s['security']='tls';s.pop('realitySettings',None)
  s['tlsSettings']={'serverName':HOST,'fingerprint':'firefox','alpn':['h2','http/1.1']}
- s['xhttpSettings']={'host':HOST,'path':VARIANTS[size]['path'],'mode':'packet-up','extra':settings(size)}
+ variant=VARIANTS[size]
+ s['xhttpSettings']={'host':HOST,'path':variant['path'],'mode':'packet-up','extra':settings(size)}
  o.pop('mux',None)
  return o
 
@@ -44,6 +45,37 @@ def direct(profile,source,size):
  for k in ('observatory','burstObservatory'):profile.pop(k,None)
  return profile
 
+def cdn_only(profile, source):
+ """Use only authorized CDN transports; split direct/block rules stay intact."""
+ routing=profile.setdefault('routing',{})
+ old=profile['outbounds']
+ retained=[o for o in old if o.get('protocol') in ('freedom','blackhole','dns')]
+ retained_tags={o['tag'] for o in retained}
+ removed_tags={o['tag'] for o in old if o['tag'] not in retained_tags}
+ loopbacks={o.get('settings',{}).get('inboundTag') for o in old if o.get('protocol')=='loopback'}
+ rules=[]
+ for original in routing.get('rules',[]):
+  rule=copy.deepcopy(original)
+  if 'inboundTag' in rule:
+   rule['inboundTag']=[tag for tag in rule['inboundTag'] if tag not in loopbacks]
+   if not rule['inboundTag']:continue
+  if 'balancerTag' in rule or rule.get('outboundTag') in removed_tags:
+   rule.pop('outboundTag',None);rule['balancerTag']='balancer_cdn_only'
+  rules.append(rule)
+ rules.append({'type':'field','network':'tcp,udp','balancerTag':'balancer_cdn_only'})
+ choices=[(32768,'cdn-medium'),(4096,'cdn-fast'),(24000,'cdn-safe')]
+ variants=[outbound(source,size,tag) for size,tag in choices]
+ profile['outbounds']=variants+retained
+ routing['rules']=rules
+ routing['balancers']=[{'tag':'balancer_cdn_only','selector':[o['tag'] for o in variants],
+  'strategy':{'type':'leastLoad','settings':{'expected':2,'maxRTT':'800ms',
+   'baselines':['200ms','400ms'],'tolerance':0.05}},'fallbackTag':'cdn-safe'}]
+ profile.pop('observatory',None)
+ observer=profile.setdefault('burstObservatory',{})
+ observer['subjectSelector']=[o['tag'] for o in variants]
+ observer.setdefault('pingConfig',{}).update(interval='30s',sampling=3,timeout='2s')
+ return profile
+
 def apply(profiles,reserve_names=()):
  result=copy.deepcopy(profiles)
  for profile in result:
@@ -55,6 +87,8 @@ def apply(profiles,reserve_names=()):
   routing=profile.get('routing',{});balancers=routing.get('balancers',[])
   parents=[b for b in balancers if b.get('fallbackTag') in {o['tag'] for o in candidates}]
   if not parents:continue
+  if '\u041b\u0443\u0447\u0448\u0438\u0439 \u043e\u0431\u0445\u043e\u0434' in profile.get('remarks',''):
+   cdn_only(profile,candidates[0]);continue
   number=re.search(r'\u041e\u0431\u0445\u043e\u0434 \u0433\u043b\u0443\u0448\u0438\u043b\u043e\u043a\s*#(\d+)(?:\s|$)',profile.get('remarks',''))
   size={3:4096,4:24000,6:65536,7:32768}.get(int(number.group(1))) if number else None
   if size:
