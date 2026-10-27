@@ -36,7 +36,7 @@ location = "Russia/Moscow"
 host = "85.198.101.79"
 ssh_user = "root"
 credential_alias = "msk-beget"
-status = "provisioning"
+status = "unpaid by owner2026-10-27; SSH timeout; not a live reserve"
 
 [[servers]]
 alias = "nl-dhost"
@@ -62,3 +62,13 @@ role = "managed-vpn-node"
 location = "Albania"
 host = "al1-goykb.vpvr4ib84nuv6hdkt.ru"
 status = "active"
+
+[[servers]]
+alias = "msk-budget"
+role = "bridge-node-and-public-web"
+location = "Russia/Moscow"
+host = "95.182.120.237"
+public_domain = "ru.arccnet.space"
+ssh_user = "root"
+credential_alias = "msk-budget"
+status = "owner-approved replacement preparing2026-10-27; 250RUB/month"

@@ -5,7 +5,7 @@ import re
 import secrets
 from datetime import datetime, timezone
 
-HOSTS = {"87.251.19.197", "136.148.220.228", "85.198.101.79"}
+HOSTS = {"87.251.19.197", "136.148.220.228", "95.182.120.237"}
 SOURCE_SHA = "068d37703beab0ec7e44a24ed45f6e911af51511ea6476a85add7250fab3d3dc"
 
 

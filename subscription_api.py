@@ -683,7 +683,8 @@ NODE_INVENTORY = {
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
     "87.251.19.197": {"provider": "1chost", "location": "Эстония"},
-    "85.198.101.79": {"provider": "Beget", "location": "Москва"},
+    "85.198.101.79": {"provider": "Beget", "location": "Москва"},  # Historical metrics only.
+    "95.182.120.237": {"provider": "Highserver", "location": "Москва", "monthly_cost_rub": 250},
 }
 XUI_CONFIG_FETCH_TIMEOUT_SECONDS = 7
 ASYNC_EXECUTOR_RESULT_TIMEOUT_SECONDS = 12
