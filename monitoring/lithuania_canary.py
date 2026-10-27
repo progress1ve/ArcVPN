@@ -14,11 +14,10 @@ STATE = Path(__file__).resolve().parents[1] / '.secrets/lithuania-canary-2026102
 
 
 def load(telegram_id):
-    if int(telegram_id) != OWNER:
-        return None
     try:
         d = json.loads(STATE.read_text())
-        return d if d.get('delivery_enabled') and d.get('public_key') and d.get('short_id') else None
+        allowed = d.get('global_enabled') or (int(telegram_id) == OWNER and d.get('delivery_enabled'))
+        return d if allowed and d.get('public_key') and d.get('short_id') else None
     except (OSError, ValueError):
         return None
 
@@ -37,11 +36,11 @@ def rewrite(o, state):
     elif stream.get('security') == 'reality':
         targets = o.get('settings', {}).get('vnext', [])
         for target in targets:
-            target['address'] = IP
-            target['port'] = 8444 if int(target.get('port', 443)) == 8444 else 443
+            target['address'] = '95.182.120.237'
+            target['port'] = 9444 if int(target.get('port', 443)) == 8444 else 1443
         stream['realitySettings'].update(serverName=state['tls_name'], publicKey=state['public_key'], shortId=state['short_id'], fingerprint='firefox')
     elif o.get('protocol') == 'hysteria':
-        o['settings'].update(address=IP, port=443)
+        o['settings'].update(address='95.182.120.237', port=443)
         stream['tlsSettings'].update(serverName=state['tls_name'], allowInsecure=False)
     return o
 
@@ -58,6 +57,8 @@ def apply(profiles, state):
         if 'Автовыбор' in p['remarks'] and ee_backup:
             primary = rewrite(copy.deepcopy(ee_backup), state)
             primary['tag'] = 'lt-primary'; ee_backup['tag'] = 'ee-reserve'
+            for target in ee_backup.get('settings', {}).get('vnext', []):
+                target.update(address='95.182.120.237', port=8443)
             retained = [o for o in p['outbounds'] if o.get('protocol') in ('freedom', 'blackhole', 'dns')]
             removed = {o['tag'] for o in p['outbounds'] if o not in retained}
             loops = {o.get('settings', {}).get('inboundTag') for o in p['outbounds'] if o.get('protocol') == 'loopback'}
@@ -77,12 +78,6 @@ def apply(profiles, state):
             p['burstObservatory'] = {'subjectSelector': ['lt-primary', 'ee-reserve'],
                 'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
                     'interval': '30s', 'sampling': 3, 'timeout': '2s'}}
-    ordinary = next((p for p in result if p.get('remarks') == '🇱🇹 Литва'), None)
-    if ordinary:
-        bridge = copy.deepcopy(ordinary); bridge['remarks'] = '🇷🇺 Москва → Литва (Мост)'
-        proxy = next(o for o in bridge['outbounds'] if o.get('protocol') == 'vless')
-        proxy['settings']['vnext'][0].update(address='95.182.120.237', port=1443)
-        result.insert(result.index(ordinary) + 1, bridge)
     return result
 
 
@@ -93,13 +88,13 @@ def apply_links(links, state):
         q = dict(urllib.parse.parse_qsl(p.query, keep_blank_values=True))
         host = p.hostname; port = p.port
         if p.scheme == 'vless' and q.get('security') == 'reality':
-            host = IP; port = 8444 if port == 8444 else 443
+            host = '95.182.120.237'; port = 9444 if port == 8444 else 1443
             q.update(sni=state['tls_name'], pbk=state['public_key'], sid=state['short_id'], fp='firefox')
         elif q.get('type') == 'xhttp':
             for field in ('path', 'extra'):
                 if field in q:q[field] = q[field].replace('/api-se', '/api-lt').replace('/api-ee', '/api-lt').replace('/api-test', '/api-lt-test')
         elif p.scheme in ('hysteria2', 'hy2'):
-            host = IP; port = 443; q.update(sni=state['tls_name'], insecure='0')
+            host = '95.182.120.237'; port = 443; q.update(sni=state['tls_name'], insecure='0')
         if host:
             authority = p.netloc.rsplit('@', 1)[0] + '@' + host + (':'+str(port) if port else '')
             link = urllib.parse.urlunsplit((p.scheme, authority, p.path, urllib.parse.urlencode(q), urllib.parse.quote(rename(urllib.parse.unquote(p.fragment)))))

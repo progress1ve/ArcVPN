@@ -10,12 +10,14 @@ def reality(tag='proxy', port=443):
         'streamSettings': {'network': 'tcp', 'security': 'reality', 'realitySettings': {'publicKey': 'ee-key'}}}
 
 
-def test_owner_gate_never_reads_state_for_other_customers(monkeypatch):
-    class Forbidden:
-        def read_text(self):
-            raise AssertionError('Other customers must not read owner state')
-    monkeypatch.setattr(m, 'STATE', Forbidden())
+def test_other_customers_get_overlay_only_when_globally_enabled(monkeypatch, tmp_path):
+    import json
+    path = tmp_path / 'state.json'
+    path.write_text(json.dumps({**STATE, 'delivery_enabled': True}))
+    monkeypatch.setattr(m, 'STATE', path)
     assert m.load(12345) is None
+    path.write_text(json.dumps({**STATE, 'delivery_enabled': True, 'global_enabled': True}))
+    assert m.load(12345) is not None
 
 
 def test_auto_lt_primary_ee_only_failure_fallback_preserves_input():
@@ -26,8 +28,10 @@ def test_auto_lt_primary_ee_only_failure_fallback_preserves_input():
     old = copy.deepcopy(profiles)
     p = m.apply(profiles, STATE)[0]
     assert profiles == old
-    assert p['outbounds'][0]['settings']['vnext'][0]['address'] == m.IP
-    assert p['outbounds'][1]['settings']['vnext'][0]['address'] == 'ee.example'
+    assert p['outbounds'][0]['settings']['vnext'][0]['address'] == '95.182.120.237'
+    assert p['outbounds'][0]['settings']['vnext'][0]['port'] == 1443
+    assert p['outbounds'][1]['settings']['vnext'][0]['address'] == '95.182.120.237'
+    assert p['outbounds'][1]['settings']['vnext'][0]['port'] == 8443
     assert p['routing']['balancers'][0]['selector'] == ['lt-primary']
     assert p['routing']['balancers'][0]['fallbackTag'] == 'ee-reserve'
     assert p['routing']['rules'][0]['outboundTag'] == 'direct'
@@ -38,7 +42,7 @@ def test_alias_uuid_and_ai_port_preserved():
     p = m.apply(profiles, STATE)[0]
     assert p['remarks'] == '🇱🇹 Нейросети 🤖'
     target = p['outbounds'][0]['settings']['vnext'][0]
-    assert target['port'] == 8444
+    assert target['port'] == 9444
     assert target['users'][0]['id'] == 'keep-owner-uuid'
 
 
@@ -56,5 +60,5 @@ def test_cdn_endpoint_and_identity_retained_only_owner_path_changes():
 def test_plain_link_preserves_owner_identity():
     link = 'vless://keep-owner-uuid@ee.example:8444?security=reality&type=tcp&pbk=old#%F0%9F%87%B8%F0%9F%87%AA%20AI'
     result = m.apply_links([link], STATE)[0]
-    assert 'keep-owner-uuid@88.216.62.135:8444' in result
+    assert 'keep-owner-uuid@95.182.120.237:9444' in result
     assert 'pbk=node-public-key' in result
