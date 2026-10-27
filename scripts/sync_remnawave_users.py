@@ -15,6 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from bot.services.panels.remnawave import RemnawaveClient
+from monitoring.lithuania_canary import load as load_lt_canary
 
 
 def load_env(path: Path) -> None:
@@ -135,6 +136,11 @@ async def synchronize(apply: bool, db_path: Path) -> dict:
                     "activeInternalSquads": [squad_uuid],
                     "description": f"ArcVPN key {key['id']} - zero-downtime migration",
                 }
+                # This private squad is enabled for the owner only during the
+                # Lithuania trial; the regular squad remains unchanged.
+                lt_canary = load_lt_canary(key['telegram_id'])
+                if lt_canary and lt_canary.get('main_squad'):
+                    payload['activeInternalSquads'].append(lt_canary['main_squad'])
                 if apply:
                     if current:
                         payload["id"] = current["id"]

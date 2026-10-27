@@ -1998,6 +1998,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         reserve_names = [item['name'] for item in balancer_policy
                          if item.get('id') in {'bypass-4', 'bypass-5', 'bypass-6', 'bypass-7', 'bypass-8'}]
         rendered_profiles = apply_cdn_fallbacks(rendered_profiles, reserve_names)
+    from monitoring.lithuania_canary import load as load_lt_canary, apply as apply_lt_canary
+    lt_canary = load_lt_canary(key.telegram_id)
+    if lt_canary:
+        rendered_profiles = apply_lt_canary(rendered_profiles, lt_canary)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,
@@ -2062,6 +2066,10 @@ def _prepare_subscription(
             announce_base64=announce_base64,
         )
 
+    from monitoring.lithuania_canary import load as load_lt_canary, apply_links as apply_lt_links
+    lt_canary = load_lt_canary(key.telegram_id)
+    if lt_canary:
+        visible_links = apply_lt_links(visible_links, lt_canary)
     plain_text_subscription = _build_plain_text_subscription(
         "\n".join([*visible_links, *exhausted_links]), routing_link, userinfo_header, announce_base64
     )
