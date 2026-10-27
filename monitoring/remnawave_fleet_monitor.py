@@ -38,7 +38,7 @@ def tcp_ports(node: dict) -> list[int]:
             continue
         # These bridge listeners admit only their peer nodes, not the public
         # control-plane probe. Their rejection is not a customer-port outage.
-        if node.get('address') in {'87.251.19.197','136.148.220.228','95.182.120.237'} and port in {2443,2444,10443}:
+        if node.get('address') in {'87.251.19.197','136.148.220.228','95.182.120.237','88.216.62.135'} and port in {2443,2444,10443}:
             continue
         if 1 <= port <= 65535:
             result.append(port)
@@ -62,7 +62,7 @@ def main() -> int:
         if node.get("isDisabled"):
             continue
         host = str(node.get("address") or "").strip()
-        if host not in {'87.251.19.197','136.148.220.228','95.182.120.237'}:
+        if host not in {'87.251.19.197','136.148.220.228','95.182.120.237','88.216.62.135'}:
             continue
         ports = tcp_ports(node)
         diagnostic = run(host, ports) if ports else {

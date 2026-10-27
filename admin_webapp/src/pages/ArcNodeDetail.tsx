@@ -226,7 +226,7 @@ export default function ArcNodeDetail() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    if (import.meta.env.DEV || host !== "87.251.19.197") return;
+    if (import.meta.env.DEV || host !== "88.216.62.135") return;
     let active = true;
     getJson('/api/admin/nodes/operator-network-status').then((data) => {
       if (active) setOperatorNetwork(data as typeof operatorNetwork);
@@ -258,7 +258,7 @@ export default function ArcNodeDetail() {
           })),
         })
       : getJson(`/api/admin/nodes/metrics?host=${encodeURIComponent(host)}&range=${period}`);
-    const operatorRequest = import.meta.env.DEV || host !== "87.251.19.197"
+    const operatorRequest = import.meta.env.DEV || host !== "88.216.62.135"
       ? Promise.resolve({ results: [] })
       : getJson(`/api/admin/nodes/operator-probes?host=${encodeURIComponent(host)}`);
     const registryRequest = import.meta.env.DEV
@@ -342,7 +342,7 @@ export default function ArcNodeDetail() {
     setOperatorRunMessage('Запускаем проверку…');
     try {
       await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
-      setOperatorRunMessage('Проверяем CDN Эстонии 24000/10 в доступных сетях…');
+      setOperatorRunMessage('Проверяем CDN Литвы 24000/10 в доступных сетях…');
       setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : '';
@@ -428,6 +428,7 @@ export default function ArcNodeDetail() {
     mts: 'МТС',
   };
   const isLte =
+    host === '88.216.62.135' ||
     /lte|cdn|xhttp/i.test(`${node?.name || ''} ${server?.name || ''}`) ||
     (overview?.remnawave?.lte_edges || []).some((edge) => edge.origin === host) ||
     operatorProbes.length > 0;
@@ -443,7 +444,7 @@ export default function ArcNodeDetail() {
           </h1>
           <p className="mt-2 text-sm text-dark-400">
             {server?.location || documented?.location || node?.country_code || 'Расположение не подтверждено'} ·{' '}
-            {server?.provider || (host === '136.148.220.228' ? 'HostUp' : host === '87.251.19.197' ? 'One Cent Host' : 'Провайдер не указан')} · {host}
+            {server?.provider || (host === '88.216.62.135' ? 'Cherry Servers' : host === '136.148.220.228' ? 'HostUp' : host === '87.251.19.197' ? 'One Cent Host' : 'Провайдер не указан')} · {host}
           </p>
         </div>
       </div>
@@ -834,7 +835,7 @@ export default function ArcNodeDetail() {
               </div>
               {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
-                Один запуск проверяет CDN Эстонии 24000/10 во всех доступных сетях.
+                Один запуск проверяет CDN Литвы 24000/10 во всех доступных сетях.
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
               <p className="mt-2 text-xs text-dark-400">

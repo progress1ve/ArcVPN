@@ -679,6 +679,7 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # from the code, while the behaviour itself stays enabled by default.
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
+    "88.216.62.135": {"provider": "Cherry Servers", "location": "Литва"},
     "136.148.220.228": {"provider": "HostUp", "location": "Швеция"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
     "193.233.82.42": {"provider": "dhost", "location": "Нидерланды", "monthly_cost_rub": 300, "capacity_mbps": 1000},
@@ -5078,7 +5079,7 @@ def api_admin_lte_availability():
     host = _clean_text(request.args.get("host"), 255).strip().lower()
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
         return _api_error("invalid_lte_host", 400)
-    if host != "87.251.19.197":
+    if host != "88.216.62.135":
         return _api_no_store(jsonify({"ok": True, "host": host, "operators": [], "results": []}))
     try:
         with get_db() as conn:
