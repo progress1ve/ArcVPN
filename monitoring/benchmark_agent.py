@@ -11,12 +11,13 @@ import time
 import urllib.request
 
 SHA = "068d37703beab0ec7e44a24ed45f6e911af51511ea6476a85add7250fab3d3dc"
+ENDPOINT = os.getenv('ARCVPN_BENCHMARK_URL', 'https://sub.arccnet.space/api/internal/benchmark-agent')
 
 
 def main():
     configuration = json.loads(Path('/etc/arcvpn/benchmark-agent.json').read_text())
     def request(payload):
-        req = urllib.request.Request('https://arccnet.space/api/internal/benchmark-agent',
+        req = urllib.request.Request(ENDPOINT,
             data=json.dumps(payload).encode(), headers={'Content-Type':'application/json',
             'Authorization':'Bearer ' + configuration['token']})
         with urllib.request.urlopen(req, timeout=15) as response:

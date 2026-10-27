@@ -88,6 +88,7 @@ def main():
         f"ARCVPN_METRICS_TOKEN={token}\n"
         f"ARCVPN_NODE_HOST={args.node_host}\n"
         f"ARCVPN_NODE_NAME={args.node_name}\n"
+        "ARCVPN_METRICS_URL=https://sub.arccnet.space/api/internal/node-metrics\n"
         "ARCVPN_PROBE_INTERVAL_SECONDS=1800\n"
     ).encode()
     with connect(args.node_host, node_password, args.node_fingerprint) as node:
