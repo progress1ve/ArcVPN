@@ -23,6 +23,8 @@ def load(telegram_id):
 
 
 def rename(name):
+    if 'Нейросети' in name or 'Игровой сервер' in name:
+        return name.replace('🇱🇹', '🇸🇪')
     return name.replace('🇸🇪', '🇱🇹').replace('Швеция', 'Литва')
 
 
@@ -48,6 +50,9 @@ def rewrite(o, state):
 def apply(profiles, state):
     result = copy.deepcopy(profiles)
     original_auto = next((p for p in profiles if 'Автовыбор' in p.get('remarks', '')), None)
+    game = next((p for p in profiles if 'Игровой сервер' in p.get('remarks', '')), None)
+    hysteria = next((copy.deepcopy(o) for o in (game or {}).get('outbounds', [])
+        if o.get('protocol') == 'hysteria'), None)
     ee_backup = next((copy.deepcopy(o) for o in (original_auto or {}).get('outbounds', [])
         if o.get('streamSettings', {}).get('security') == 'reality'), None)
     for p in result:
@@ -74,8 +79,22 @@ def apply(profiles, state):
             p['routing']['rules'] = rules
             p['routing']['balancers'] = [{'tag': 'lt-first', 'selector': ['lt-primary'],
                 'strategy': {'type': 'leastPing'}, 'fallbackTag': 'ee-reserve'}]
+            if hysteria:
+                hy = rewrite(copy.deepcopy(hysteria), state)
+                hy['tag'] = 'lt-hysteria-primary'
+                p['outbounds'].insert(0, hy)
+                p['outbounds'].append({'tag': 'lt-reality-stage', 'protocol': 'loopback',
+                    'settings': {'inboundTag': 'lt-reality-stage'}})
+                p['routing']['rules'].insert(0, {'type': 'field', 'inboundTag': ['lt-reality-stage'],
+                    'network': 'tcp,udp', 'balancerTag': 'lt-first'})
+                for rule in p['routing']['rules'][1:]:
+                    if rule.get('balancerTag') == 'lt-first':
+                        rule['balancerTag'] = 'lt-hysteria-first'
+                p['routing']['balancers'].insert(0, {'tag': 'lt-hysteria-first',
+                    'selector': ['lt-hysteria-primary'], 'strategy': {'type': 'leastPing'},
+                    'fallbackTag': 'lt-reality-stage'})
             p.pop('observatory', None)
-            p['burstObservatory'] = {'subjectSelector': ['lt-primary', 'ee-reserve'],
+            p['burstObservatory'] = {'subjectSelector': (['lt-hysteria-primary'] if hysteria else []) + ['lt-primary', 'ee-reserve'],
                 'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
                     'interval': '30s', 'sampling': 3, 'timeout': '2s'}}
     return result

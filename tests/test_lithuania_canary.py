@@ -40,10 +40,41 @@ def test_auto_lt_primary_ee_only_failure_fallback_preserves_input():
 def test_alias_uuid_and_ai_port_preserved():
     profiles = [{'remarks': '🇸🇪 Нейросети 🤖', 'outbounds': [reality(port=8444)]}]
     p = m.apply(profiles, STATE)[0]
-    assert p['remarks'] == '🇱🇹 Нейросети 🤖'
+    assert p['remarks'] == '🇸🇪 Нейросети 🤖'
     target = p['outbounds'][0]['settings']['vnext'][0]
     assert target['port'] == 9444
     assert target['users'][0]['id'] == 'keep-owner-uuid'
+
+
+def test_auto_prefers_game_hysteria_then_reality_and_estonia():
+    auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('old'),
+        {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': [
+            {'domain': ['example.ru'], 'outboundTag': 'direct'},
+            {'network': 'tcp,udp', 'balancerTag': 'old'}]}}
+    game = {'remarks': '🇱🇹 Игровой сервер 🎮', 'outbounds': [
+        {'tag': 'proxy', 'protocol': 'hysteria', 'settings': {'address': 'ee.example', 'port': 443, 'version': 2},
+         'streamSettings': {'network': 'hysteria', 'security': 'tls',
+             'hysteriaSettings': {'auth': 'user-hysteria-auth'}, 'tlsSettings': {'serverName': 'ee.example'}}}]}
+    original = copy.deepcopy([auto, game])
+    result = m.apply([auto, game], STATE)
+    assert [auto, game] == original
+    p = result[0]
+    hy = p['outbounds'][0]
+    assert hy['protocol'] == 'hysteria' and hy['tag'] == 'lt-hysteria-primary'
+    assert hy['streamSettings']['hysteriaSettings']['auth'] == 'user-hysteria-auth'
+    assert hy['settings']['address'] == '95.182.120.237' and hy['settings']['port'] == 443
+    assert p['routing']['balancers'][0]['selector'] == ['lt-hysteria-primary']
+    assert p['routing']['balancers'][0]['fallbackTag'] == 'lt-reality-stage'
+    assert p['routing']['balancers'][1]['fallbackTag'] == 'ee-reserve'
+    assert p['routing']['rules'][0]['balancerTag'] == 'lt-first'
+    assert any(r.get('outboundTag') == 'direct' for r in p['routing']['rules'])
+    assert result[1]['remarks'] == '🇸🇪 Игровой сервер 🎮'
+
+
+def test_plain_link_special_flags_are_swedish():
+    import urllib.parse
+    link = 'vless://test@ee.example:8444?security=reality#' + urllib.parse.quote('🇱🇹 Нейросети 🤖')
+    assert urllib.parse.unquote(m.apply_links([link], STATE)[0].split('#', 1)[1]) == '🇸🇪 Нейросети 🤖'
 
 
 def test_cdn_endpoint_and_identity_retained_only_owner_path_changes():

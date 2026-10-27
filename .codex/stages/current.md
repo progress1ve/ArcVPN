@@ -1,5 +1,21 @@
 # Lithuania owner-only rollout — 2026-10-27
 
+## Current stage: Hysteria-first AutoSelect
+
+Owner requests first Hysteria2, then TCP Reality, retaining existing fallbacks, and Swedish flags on AI/game profiles. Existing global AutoSelect has LT Reality then EE Reality, with no CDN fallback. Keep that order after adding Hysteria; preserve URLs, identities, split routing, and all other profiles. AI/game names become 🇸🇪 Нейросети 🤖 and 🇸🇪 Игровой сервер 🎮 while exits stay Lithuania.
+
+| Path | Client endpoint | Origin / SNI | Failure path | Traffic / identifiers |
+| --- | --- | --- | --- | --- |
+| Auto primary Hysteria2 | Moscow 95.182.120.237 UDP443 | Lithuania 88.216.62.135 UDP443 / 88-216-62-135.sslip.io | LT Reality | normal traffic, existing game identity; URLs unchanged |
+| Auto second Reality | Moscow TCP1443 | LT TCP443 / 88-216-62-135.sslip.io | EE Reality | normal traffic, existing identity |
+| Auto final reserve | Moscow TCP8443 | EE TCP443 / ee.arccnet.space | no further fallback | normal traffic, existing identity |
+| CDN/bypasses | cdn-de.arccnet.space TCP443 | Yandex ee-origin -> LT HTTP80 / CDN SNI | unchanged | separate LTE accounting |
+| AI/game profiles | existing Moscow TCP9444/UDP443 | Lithuania WARP/Hysteria, same SNI | unchanged | existing identities |
+
+Implement subscriber JSON overlay, unit tests and production deployment on Poland. Before production: syntax/config and actual Xray tunnels with Hysteria available and artificially unavailable in a private local config; ensure EE fallback config is unchanged; confirm customer and owner subscription rendering without exposing identifiers. Roll back by reverting overlay deployment; no network or panel changes. Risk: clients/cores without Hysteria or balancer/loopback support, UDP filtering, observatory detection delay, Moscow single point of failure. Real mobile-device tests remain separate.
+
+Preproduction evidence: 13 focused tests passed; Xray 26.7.28 config valid. Independent owner canary from Estonia through Moscow: Hysteria selected and exit LT; forcing only Hysteria port unavailable selected LT TCP Reality; forcing both LT transports unavailable selected EE Reality and exited EE. Private test configs contain credentials and must be removed after validation. Mobile client compatibility and behavior under real operator UDP filtering remain open.
+
 ## Global rollout completed 2026-10-27
 
 Owner approved all-user rollout after LatencyLab. CDN group ee-origin now points directly to LT 88.216.62.135; unique marker through Yandex returned 200. LatencyLab 24000/10 VPN check succeeded on T2, T-Mobile, Megafon, Beeline and MTS in Orel at 19:19 UTC; restrictions were not established. Global delivery flag enabled; existing device subscription IDs and user UUIDs preserved. Owner and one non-owner bound subscriptions returned HTTP 200 and 17 profiles, without separate bridge; Auto LT via RU:1443 with EE fallback via RU:8443. AI RU:9444 and game UDP443 use LT, CDN has no RU hop. UI, worker and LT telemetry deployed in GitHub/Poland commit 991c50e8268e318409b99558a0c7cc04e110d9fb. User must refresh subscriptions. Provider currently reports 1 TB included; 5 TB remains unconfirmed. Rollback: disable global flag while retaining owner canary and restore Yandex origin 87.251.19.197 if needed; no database restore.
