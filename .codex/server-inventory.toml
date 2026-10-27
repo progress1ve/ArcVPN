@@ -75,9 +75,9 @@ status = "active replacement2026-10-27; 250RUB/month; YouTube zapret2 trial pend
 
 [[servers]]
 alias = "lt-cherry"
-role = "owner-only-vpn-canary"
+role = "vpn-node"
 location = "Lithuania/Siauliai"
 host = "88.216.62.135"
 ssh_user = "root"
 credential_alias = "lt-cherry"
-status = "active owner canary; global rollout awaits owner approval; provider shows 1TB included"
+status = "active primary exit; globally enabled 2026-10-27; provider shows 1TB included"
