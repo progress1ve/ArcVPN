@@ -43,7 +43,7 @@ class HappFallbackBalancerTests(unittest.TestCase):
         with patch("subscription_api._catalog_overrides", return_value={}):
             profiles = json.loads(_build_happ_json_subscription(key, links))
 
-        self.assertEqual(HAPP_ROUTING_PROFILE["ProxySites"], TIKTOK_PROXY_SITES)
+        self.assertTrue(set(TIKTOK_PROXY_SITES).issubset(HAPP_ROUTING_PROFILE["ProxySites"]))
         for profile in profiles:
             rules = profile["routing"]["rules"]
             tiktok_index = next(i for i, rule in enumerate(rules) if rule.get("domain") == TIKTOK_PROXY_SITES)

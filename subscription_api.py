@@ -136,7 +136,10 @@ SUBSCRIPTION_CDN_RESERVE_URL = os.getenv(
 WEBAPP_URL = os.getenv("WEBAPP_URL", SUBSCRIPTION_URL).rstrip("/")
 ENABLE_SPLIT_TUNNELING = getattr(config, "ENABLE_SPLIT_TUNNELING", True)
 SPLIT_TUNNELING_DIRECT_IP = getattr(config, "SPLIT_TUNNELING_DIRECT_IP", ["geoip:ru", "geoip:private"])
-SPLIT_TUNNELING_DIRECT_SITES = getattr(config, "SPLIT_TUNNELING_DIRECT_SITES", ["geosite:category-ru"])
+SPLIT_TUNNELING_DIRECT_SITES = list(dict.fromkeys([
+    *getattr(config, "SPLIT_TUNNELING_DIRECT_SITES", ["geosite:category-ru"]),
+    "domain:kari.com", "domain:megastroy.com",
+]))
 SPLIT_TUNNELING_MODE = getattr(config, "SPLIT_TUNNELING_MODE", "speed")
 SPLIT_TUNNELING_REMOTE_DNS_DOMAIN = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_DOMAIN", "https://cloudflare-dns.com/dns-query")
 SPLIT_TUNNELING_REMOTE_DNS_IP = getattr(config, "SPLIT_TUNNELING_REMOTE_DNS_IP", "1.1.1.1")
@@ -163,6 +166,7 @@ RESERVE_ACCESS_ENABLED = getattr(config, "RESERVE_ACCESS_ENABLED", False)
 RESERVE_CLIENT_EMAIL = getattr(config, "RESERVE_CLIENT_EMAIL", "reserve_shared_fallback")
 RESERVE_PROXY_SITES = getattr(config, "RESERVE_PROXY_SITES", ["geosite:telegram"])
 RESERVE_PROXY_IP = getattr(config, "RESERVE_PROXY_IP", ["geoip:telegram"])
+TELEGRAM_PROXY_SITES = ["geosite:telegram", "domain:telegram.org", "domain:telegram.me", "domain:t.me", "domain:telegram.dog"]
 # Имя, которое видит пользователь в VPN-клиенте, когда подписка истекла
 # (вместо обычного "ArcVPN - <тариф>"). Призыв к действию — продлить.
 RESERVE_DISPLAY_NAME = getattr(config, "RESERVE_DISPLAY_NAME", "⚠️ Оплатите VPN — подписка истекла")
@@ -761,7 +765,7 @@ def _build_happ_routing_profile() -> Dict[str, Any]:
         "DomesticDNSType": "System",
         "DirectSites": list(SPLIT_TUNNELING_DIRECT_SITES),
         "DirectIp": direct_ip_rules,
-        "ProxySites": list(TIKTOK_PROXY_SITES),
+        "ProxySites": list(dict.fromkeys([*TIKTOK_PROXY_SITES, *TELEGRAM_PROXY_SITES])),
         "ProxyIp": [],
         "BlockSites": [],
         "BlockIp": [],
@@ -1442,8 +1446,11 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
         "remarks": key.tariff_name,
         "routing": {
             "domainMatcher": "hybrid",
-            "domainStrategy": "IPIfNonMatch",
+            "domainStrategy": "IPOnDemand",
             "rules": [
+                _happ_tiktok_proxy_rule(),
+                _happ_youtube_proxy_rule(),
+                _happ_telegram_proxy_rule(),
                 {
                     "ip": ["geoip:private"],
                     "outboundTag": "direct",
@@ -1465,6 +1472,7 @@ def _build_json_subscription(key: ActiveKeyRecord, link: str) -> str:
                     "outboundTag": "direct",
                     "type": "field",
                 },
+                {"ip": list(SPLIT_TUNNELING_DIRECT_IP), "outboundTag": "direct", "type": "field"},
                 {
                     "network": "tcp,udp",
                     "outboundTag": "proxy",
@@ -1647,6 +1655,16 @@ def _happ_youtube_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: s
     return rule
 
 
+def _happ_telegram_proxy_rule(*, outbound_tag: str | None = None, balancer_tag: str | None = None) -> Dict[str, Any]:
+    """Keep Telegram on the tunnel before Russian IP-based direct rules."""
+    rule: Dict[str, Any] = {"domain": list(TELEGRAM_PROXY_SITES), "type": "field"}
+    if balancer_tag:
+        rule["balancerTag"] = balancer_tag
+    else:
+        rule["outboundTag"] = outbound_tag or "proxy"
+    return rule
+
+
 async def _remnawave_auto_snapshot(key: ActiveKeyRecord) -> tuple[dict[str, int], Optional[str], Optional[str]]:
     """Read only the connected main-node populations and this user's activity."""
     runtime = _load_remnawave_runtime_config()
@@ -1741,10 +1759,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
             "outbounds": [outbound, {"protocol": "freedom", "tag": "direct"}, {"protocol": "blackhole", "tag": "block"}],
             "remarks": display_name,
             "routing": {
-                "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+                "domainMatcher": "hybrid", "domainStrategy": "IPOnDemand",
                 "rules": [
                     _happ_tiktok_proxy_rule(outbound_tag="proxy"),
                     _happ_youtube_proxy_rule(outbound_tag="proxy"),
+                    _happ_telegram_proxy_rule(outbound_tag="proxy"),
                     *_happ_direct_rules(),
                     {"network": "tcp,udp", "outboundTag": "proxy", "type": "field"},
                 ],
@@ -1871,13 +1890,14 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                 },
                 "tag": "balancer_reserve",
             }] if auto_failover else []),
-            "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+            "domainMatcher": "hybrid", "domainStrategy": "IPOnDemand",
             "rules": ([{
                 "inboundTag": ["auto-reserve"], "network": "tcp,udp",
                 "balancerTag": "balancer_reserve", "type": "field",
             }] if auto_failover else []) + [
                 _happ_tiktok_proxy_rule(balancer_tag="balancer_main"),
                 _happ_youtube_proxy_rule(balancer_tag="balancer_main"),
+                _happ_telegram_proxy_rule(balancer_tag="balancer_main"),
                 *_happ_direct_rules(),
                 {"balancerTag": "balancer_main", "network": "tcp,udp", "type": "field"},
             ],
@@ -1942,10 +1962,11 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
                     },
                     "tag": "balancer_youtube",
                 }],
-                "domainMatcher": "hybrid", "domainStrategy": "IPIfNonMatch",
+                "domainMatcher": "hybrid", "domainStrategy": "IPOnDemand",
                 "rules": [
                     _happ_tiktok_proxy_rule(balancer_tag="balancer_youtube"),
                     _happ_youtube_proxy_rule(balancer_tag="balancer_youtube"),
+                    _happ_telegram_proxy_rule(balancer_tag="balancer_youtube"),
                     *_happ_direct_rules(),
                     {"balancerTag": "balancer_youtube", "network": "tcp,udp", "type": "field"},
                 ],
