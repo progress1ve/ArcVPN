@@ -59,6 +59,11 @@ def apply(profiles, state, *, include_fragment=False):
         if 'Автовыбор' in p['remarks'] and ee_backup:
             primary = rewrite(copy.deepcopy(ee_backup), state)
             primary['tag'] = 'lt-primary'
+            primary.setdefault('streamSettings', {})['finalmask'] = {
+                'tcp': [{'type': 'fragment', 'settings': {
+                    'packets': 'tlshello', 'length': '10-20', 'delay': '10-20',
+                }}]
+            }
             retained = [o for o in p['outbounds'] if o.get('protocol') in ('freedom', 'blackhole', 'dns')]
             removed = {o['tag'] for o in p['outbounds'] if o not in retained}
             loops = {o.get('settings', {}).get('inboundTag') for o in p['outbounds'] if o.get('protocol') == 'loopback'}

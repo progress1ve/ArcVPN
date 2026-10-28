@@ -31,6 +31,7 @@ def test_auto_lt_primary_only_preserves_input():
     assert p['outbounds'][0]['settings']['vnext'][0]['address'] == '95.182.120.237'
     assert p['outbounds'][0]['settings']['vnext'][0]['port'] == 1443
     assert p['outbounds'][0]['tag'] == 'lt-primary'
+    assert p['outbounds'][0]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
     assert 'balancers' not in p['routing']
     assert p['routing']['rules'][-1]['outboundTag'] == 'lt-primary'
     assert p['routing']['rules'][0]['outboundTag'] == 'direct'
@@ -103,4 +104,4 @@ def test_owner_fragment_profile_is_separate_and_normal_auto_unchanged():
     assert owner[1]['remarks'] == '🇱🇹 Литва — тест фрагментации'
     stream = owner[1]['outbounds'][0]['streamSettings']
     assert stream['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
-    assert 'finalmask' not in owner[0]['outbounds'][0]['streamSettings']
+    assert owner[0]['outbounds'][0]['streamSettings']['finalmask'] == stream['finalmask']
