@@ -324,3 +324,15 @@ def test_campaign_tariff_button_is_bot_callback():
     data['buttons'][0]['callback_data'] = 'arbitrary'
     with pytest.raises(ValueError):
         campaigns.validate_payload(data)
+
+
+def test_compact_campaign_promo_text_matches_requested_copy():
+    data = payload('new_promo', code='SALE15', discount_type='percent', discount_value=15, duration_days=7, max_uses=1000)
+    data.update(message_text='<b>🎉 Распродажа!</b>\n<b>Мы обновили наши серверы и в честь этого дарим промокод на 15%.</b>', compact_promo=True)
+    clean = campaigns.validate_payload(data)
+    text = campaigns.render(clean, {'key_id': 1})
+    assert text == data['message_text'] + '\n\n🎟 Промокод: <code>SALE15</code>\nСрок: 7 дней.'
+    assert 'Скидка:' not in text
+    data['reward']['duration_days'] = 8
+    with pytest.raises(ValueError):
+        campaigns.validate_payload(data)

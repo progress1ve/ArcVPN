@@ -236,8 +236,14 @@ def validate_payload(data):
     title = str(data.get('title') or '').strip()
     if not title or len(title) > 100:
         raise ValueError('Название: 1–100 символов')
-    return {'title': title, 'message_text': validate_html(data.get('message_text'), 1024 if photo else 4096),
-            'audience': chosen, 'reward': offer, 'photo_file_id': photo, 'buttons': clean_buttons}
+    compact = data.get('compact_promo') is True
+    if compact and (kind != 'new_promo' or offer['duration_days'] != 7):
+        raise ValueError('Краткий формат доступен для нового промокода на 7 дней')
+    result = {'title': title, 'message_text': validate_html(data.get('message_text'), 1024 if photo else 4096),
+              'audience': chosen, 'reward': offer, 'photo_file_id': photo, 'buttons': clean_buttons}
+    if compact:
+        result['compact_promo'] = True
+    return result
 
 
 def audience_rows(conn, audience):
@@ -356,7 +362,10 @@ def render(payload, recipient, *, promo=None):
             code = recipient['promo_code'] if kind == 'personal_discount' else reward['code']
             value, unit = reward['discount_value'], '%' if reward['discount_type'] == 'percent' else ' ₽'
             until = f"{reward['duration_days']} дн. с запуска рассылки"
-        text += f'\n\n🎟 Промокод: <code>{html.escape(code)}</code>\nСкидка: <b>{value}{unit}</b> · срок: {html.escape(until)}.'
+        if payload.get('compact_promo') and kind == 'new_promo':
+            text += f'\n\n🎟 Промокод: <code>{html.escape(code)}</code>\nСрок: 7 дней.'
+        else:
+            text += f'\n\n🎟 Промокод: <code>{html.escape(code)}</code>\nСкидка: <b>{value}{unit}</b> · срок: {html.escape(until)}.'
         if kind == 'personal_discount':
             text += '\nТолько для вашего аккаунта, на одну покупку. Не суммируется с другими промокодами.'
     return validate_html(text, 1024 if payload['photo_file_id'] else 4096)
