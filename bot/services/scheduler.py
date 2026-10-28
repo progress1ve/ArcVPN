@@ -245,7 +245,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
             "Если что-то помешало пользоваться ArcVPN, расскажите нам об этом."
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить со скидкой −20%", url=offer_url)],
+            [InlineKeyboardButton(text="Оплатить со скидкой −20%", web_app=WebAppInfo(url=offer_url))],
             [InlineKeyboardButton(text="Почему не подошло?", callback_data="lifecycle_offer:reason")],
         ])
         try:
@@ -261,7 +261,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
         if row["id"] in blocked_this_batch:
             continue
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="Оплатить со скидкой −20%", url=offer_url)],
+            [InlineKeyboardButton(text="Оплатить со скидкой −20%", web_app=WebAppInfo(url=offer_url))],
         ])
         try:
             await bot.send_message(row["telegram_id"],

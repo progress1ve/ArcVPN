@@ -95,6 +95,9 @@ def test_connected_expired_trial_gets_one_offer_not_generic_winback(monkeypatch)
     offers = [item for item in bot.sent if item[0] == 1004 and "скидкой 20%" in item[1]]
     assert len(offers) == 1
     assert "скидкой 20%" in offers[0][1]
+    button = offers[0][2].inline_keyboard[0][0]
+    assert button.web_app and "offer=trial_winback" in button.web_app.url
+    assert button.url is None
     assert conn.execute("SELECT sent_at FROM trial_winback_offers WHERE user_id=4").fetchone()[0]
 
 
