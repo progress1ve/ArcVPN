@@ -2020,10 +2020,10 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         reserve_names = [item['name'] for item in balancer_policy
                          if item.get('id') in {'bypass-4', 'bypass-5', 'bypass-6', 'bypass-7', 'bypass-8'}]
         rendered_profiles = apply_cdn_fallbacks(rendered_profiles, reserve_names)
-    from monitoring.lithuania_canary import OWNER as lt_owner, load as load_lt_canary, apply as apply_lt_canary
+    from monitoring.lithuania_canary import load as load_lt_canary, apply as apply_lt_canary
     lt_canary = load_lt_canary(key.telegram_id)
     if lt_canary:
-        rendered_profiles = apply_lt_canary(rendered_profiles, lt_canary, include_fragment=int(key.telegram_id) == lt_owner)
+        rendered_profiles = apply_lt_canary(rendered_profiles, lt_canary)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,

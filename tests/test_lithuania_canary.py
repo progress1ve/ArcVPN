@@ -95,13 +95,9 @@ def test_plain_link_preserves_owner_identity():
     assert 'pbk=node-public-key' in result
 
 
-def test_owner_fragment_profile_is_separate_and_normal_auto_unchanged():
+def test_auto_fragmentation_does_not_add_test_profile():
     auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('old'), {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': []}}
-    normal = m.apply([auto], STATE)
-    owner = m.apply([auto], STATE, include_fragment=True)
-    assert len(normal) == 1 and len(owner) == 2
-    assert owner[0] == normal[0]
-    assert owner[1]['remarks'] == '🇱🇹 Литва — тест фрагментации'
-    stream = owner[1]['outbounds'][0]['streamSettings']
-    assert stream['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
-    assert owner[0]['outbounds'][0]['streamSettings']['finalmask'] == stream['finalmask']
+    profiles = m.apply([auto], STATE)
+    assert len(profiles) == 1
+    assert profiles[0]['remarks'] == auto['remarks']
+    assert profiles[0]['outbounds'][0]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}

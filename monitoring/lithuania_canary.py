@@ -47,7 +47,7 @@ def rewrite(o, state):
     return o
 
 
-def apply(profiles, state, *, include_fragment=False):
+def apply(profiles, state):
     result = copy.deepcopy(profiles)
     original_auto = next((p for p in profiles if 'Автовыбор' in p.get('remarks', '')), None)
     ee_backup = next((copy.deepcopy(o) for o in (original_auto or {}).get('outbounds', [])
@@ -81,19 +81,6 @@ def apply(profiles, state, *, include_fragment=False):
             p['routing'].pop('balancers', None)
             p.pop('observatory', None)
             p.pop('burstObservatory', None)
-    if include_fragment:
-        auto = next((p for p in result if 'Автовыбор' in p.get('remarks', '')), None)
-        if auto:
-            candidate = copy.deepcopy(auto)
-            primary = next((o for o in candidate.get('outbounds', []) if o.get('tag') == 'lt-primary'), None)
-            if primary:
-                primary.setdefault('streamSettings', {})['finalmask'] = {
-                    'tcp': [{'type': 'fragment', 'settings': {
-                        'packets': 'tlshello', 'length': '10-20', 'delay': '10-20',
-                    }}]
-                }
-                candidate['remarks'] = '🇱🇹 Литва — тест фрагментации'
-                result.insert(result.index(auto) + 1, candidate)
     return result
 
 
