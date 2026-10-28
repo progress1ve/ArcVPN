@@ -92,3 +92,15 @@ def test_plain_link_preserves_owner_identity():
     result = m.apply_links([link], STATE)[0]
     assert 'keep-owner-uuid@95.182.120.237:9444' in result
     assert 'pbk=node-public-key' in result
+
+
+def test_owner_fragment_profile_is_separate_and_normal_auto_unchanged():
+    auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('old'), {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': []}}
+    normal = m.apply([auto], STATE)
+    owner = m.apply([auto], STATE, include_fragment=True)
+    assert len(normal) == 1 and len(owner) == 2
+    assert owner[0] == normal[0]
+    assert owner[1]['remarks'] == '🇱🇹 Литва — тест фрагментации'
+    stream = owner[1]['outbounds'][0]['streamSettings']
+    assert stream['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
+    assert 'finalmask' not in owner[0]['outbounds'][0]['streamSettings']
