@@ -50,9 +50,6 @@ def rewrite(o, state):
 def apply(profiles, state):
     result = copy.deepcopy(profiles)
     original_auto = next((p for p in profiles if 'Автовыбор' in p.get('remarks', '')), None)
-    game = next((p for p in profiles if 'Игровой сервер' in p.get('remarks', '')), None)
-    hysteria = next((copy.deepcopy(o) for o in (game or {}).get('outbounds', [])
-        if o.get('protocol') == 'hysteria'), None)
     ee_backup = next((copy.deepcopy(o) for o in (original_auto or {}).get('outbounds', [])
         if o.get('streamSettings', {}).get('security') == 'reality'), None)
     for p in result:
@@ -61,9 +58,7 @@ def apply(profiles, state):
             rewrite(o, state)
         if 'Автовыбор' in p['remarks'] and ee_backup:
             primary = rewrite(copy.deepcopy(ee_backup), state)
-            primary['tag'] = 'lt-primary'; ee_backup['tag'] = 'ee-reserve'
-            for target in ee_backup.get('settings', {}).get('vnext', []):
-                target.update(address='95.182.120.237', port=8443)
+            primary['tag'] = 'lt-primary'
             retained = [o for o in p['outbounds'] if o.get('protocol') in ('freedom', 'blackhole', 'dns')]
             removed = {o['tag'] for o in p['outbounds'] if o not in retained}
             loops = {o.get('settings', {}).get('inboundTag') for o in p['outbounds'] if o.get('protocol') == 'loopback'}
@@ -72,22 +67,15 @@ def apply(profiles, state):
                 if set(r.get('inboundTag', [])) & loops:
                     continue
                 if 'balancerTag' in r or r.get('outboundTag') in removed:
-                    r.pop('outboundTag', None); r['balancerTag'] = 'lt-first'
+                    r.pop('balancerTag', None)
+                    r['outboundTag'] = 'lt-primary'
                 rules.append(r)
-            rules.append({'type': 'field', 'network': 'tcp,udp', 'balancerTag': 'lt-first'})
-            p['outbounds'] = [primary, ee_backup] + retained
+            rules.append({'type': 'field', 'network': 'tcp,udp', 'outboundTag': 'lt-primary'})
+            p['outbounds'] = [primary] + retained
             p['routing']['rules'] = rules
-            p['routing']['balancers'] = [{'tag': 'lt-first', 'selector': ['lt-primary'],
-                'strategy': {'type': 'leastPing'}, 'fallbackTag': 'ee-reserve'}]
-            if hysteria:
-                hy = rewrite(copy.deepcopy(hysteria), state)
-                hy['tag'] = 'lt-hysteria-primary'
-                p['outbounds'].insert(0, hy)
-                p['routing']['balancers'][0]['selector'].insert(0, 'lt-hysteria-primary')
+            p['routing'].pop('balancers', None)
             p.pop('observatory', None)
-            p['burstObservatory'] = {'subjectSelector': (['lt-hysteria-primary'] if hysteria else []) + ['lt-primary', 'ee-reserve'],
-                'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
-                    'interval': '30s', 'sampling': 3, 'timeout': '2s'}}
+            p.pop('burstObservatory', None)
     return result
 
 

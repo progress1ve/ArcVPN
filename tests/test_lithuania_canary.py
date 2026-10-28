@@ -20,7 +20,7 @@ def test_other_customers_get_overlay_only_when_globally_enabled(monkeypatch, tmp
     assert m.load(12345) is not None
 
 
-def test_auto_lt_primary_ee_only_failure_fallback_preserves_input():
+def test_auto_lt_primary_only_preserves_input():
     profiles = [{'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('proxy-main-1'),
         {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': [
         {'type': 'field', 'domain': ['example.ru'], 'outboundTag': 'direct'},
@@ -30,10 +30,9 @@ def test_auto_lt_primary_ee_only_failure_fallback_preserves_input():
     assert profiles == old
     assert p['outbounds'][0]['settings']['vnext'][0]['address'] == '95.182.120.237'
     assert p['outbounds'][0]['settings']['vnext'][0]['port'] == 1443
-    assert p['outbounds'][1]['settings']['vnext'][0]['address'] == '95.182.120.237'
-    assert p['outbounds'][1]['settings']['vnext'][0]['port'] == 8443
-    assert p['routing']['balancers'][0]['selector'] == ['lt-primary']
-    assert p['routing']['balancers'][0]['fallbackTag'] == 'ee-reserve'
+    assert p['outbounds'][0]['tag'] == 'lt-primary'
+    assert 'balancers' not in p['routing']
+    assert p['routing']['rules'][-1]['outboundTag'] == 'lt-primary'
     assert p['routing']['rules'][0]['outboundTag'] == 'direct'
 
 
@@ -46,7 +45,7 @@ def test_alias_uuid_and_ai_port_preserved():
     assert target['users'][0]['id'] == 'keep-owner-uuid'
 
 
-def test_auto_selects_healthy_hysteria_or_reality_then_estonia():
+def test_auto_excludes_hysteria_and_estonia_but_keeps_game_profile():
     auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('old'),
         {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': [
             {'domain': ['example.ru'], 'outboundTag': 'direct'},
@@ -59,15 +58,15 @@ def test_auto_selects_healthy_hysteria_or_reality_then_estonia():
     result = m.apply([auto, game], STATE)
     assert [auto, game] == original
     p = result[0]
-    hy = p['outbounds'][0]
-    assert hy['protocol'] == 'hysteria' and hy['tag'] == 'lt-hysteria-primary'
-    assert hy['streamSettings']['hysteriaSettings']['auth'] == 'user-hysteria-auth'
-    assert hy['settings']['address'] == '95.182.120.237' and hy['settings']['port'] == 443
-    assert p['routing']['balancers'][0]['selector'] == ['lt-hysteria-primary', 'lt-primary']
-    assert p['routing']['balancers'][0]['fallbackTag'] == 'ee-reserve'
-    assert not any(o.get('protocol') == 'loopback' for o in p['outbounds'])
-    assert p['routing']['rules'][-1]['balancerTag'] == 'lt-first'
+    primary = p['outbounds'][0]
+    assert primary['protocol'] == 'vless' and primary['tag'] == 'lt-primary'
+    assert primary['settings']['vnext'][0]['address'] == '95.182.120.237'
+    assert primary['settings']['vnext'][0]['port'] == 1443
+    assert not any(o.get('protocol') in ('hysteria', 'loopback') for o in p['outbounds'])
+    assert 'balancers' not in p['routing'] and 'burstObservatory' not in p
+    assert p['routing']['rules'][-1]['outboundTag'] == 'lt-primary'
     assert any(r.get('outboundTag') == 'direct' for r in p['routing']['rules'])
+    assert result[1]['outbounds'][0]['protocol'] == 'hysteria'
     assert result[1]['remarks'] == '🇸🇪 Игровой сервер 🎮'
 
 
