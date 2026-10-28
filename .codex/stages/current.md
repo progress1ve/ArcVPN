@@ -15,6 +15,8 @@ Accept: automated generation tests; real owner-authorized Xray tunnel with Hyste
 
 Predeployment: 15 focused tests pass. Owner-only Xray 26 tunnel canary through Moscow: UDP failure -> LT TCP; TCP failure -> LT Hysteria; both LT failures -> EE, actual Cloudflare trace exit verified. No live production ports were disabled. Last observations every 30s with 3 samples and 2s timeout; no fast handover guarantee.
 
+Deployed 147ed40196e20d6e0b0b225f7c2db3b4f3e69416 via GitHub main and Poland ff-only pull; only subscription API restarted, bot remains active. Owner and one nonowner bound subscriptions returned HTTP200 and 17 profiles with both selectors and EE fallback; Kari direct rules preserved. Private owner canary files removed on PL and EE. User must refresh subscription and reconnect; actual INCY/Wi-Fi/Telegram experience remains unverified. Rollback by reverting runtime commit and restarting subscription service.
+
 ## Current stage: Russian service routing — 2026-10-28
 
 Owner reports Kari and Megastroy fail in browsers across clients, requests analysis against supplied competitor subscriptions and systemic improvement. JSON Xray rules have `IPIfNonMatch` but a final unconditional VPN rule, preventing a second IP resolution pass for unmatched domains; direct geoip:ru is therefore ineffective for those domains. Explicit current direct domains omit kari.com and megastroy.com. Compared competitor configurations: one uses IPIfNonMatch without a terminal catch-all; others use curated domain rules and priority proxy exceptions. Avoid copying ad-block/shared CDN or broad unrelated rules. Moscow Kari HTTP200 vs EE/LT403; Megastroy HTTP403 both Russia VPS and EU, so routing is plausible but not proven as its sole cause.
