@@ -313,3 +313,14 @@ def test_recipient_search_accepts_telegram_username_with_at(db, search):
     response = app.test_client().get('/api/admin/broadcasts/users', query_string={'search': search})
     assert response.status_code == 200
     assert [row['telegram_id'] for row in response.get_json()['users']] == [101]
+
+
+def test_campaign_tariff_button_is_bot_callback():
+    from bot.services.admin_broadcast_worker import keyboard
+    data = payload()
+    data['buttons'] = [{'text': 'Выбрать тариф', 'callback_data': 'buy_key'}]
+    clean = campaigns.validate_payload(data)
+    assert keyboard(clean).inline_keyboard[0][0].callback_data == 'buy_key'
+    data['buttons'][0]['callback_data'] = 'arbitrary'
+    with pytest.raises(ValueError):
+        campaigns.validate_payload(data)

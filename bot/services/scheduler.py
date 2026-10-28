@@ -18,6 +18,7 @@ from datetime import datetime, time as dt_time, timedelta, timezone
 from typing import Optional
 
 from aiogram import Bot
+from aiogram.exceptions import TelegramForbiddenError, TelegramBadRequest
 from aiogram.types import FSInputFile
 
 from config import GITHUB_REPO_URL
@@ -110,6 +111,9 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
     from bot.handlers.user.lifecycle import RATING_MESSAGE, WINBACK_MESSAGE, rating_keyboard
 
     with get_db() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS lifecycle_delivery_blocked (
+            user_id INTEGER PRIMARY KEY, telegram_id INTEGER NOT NULL,
+            blocked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
         rating_users = conn.execute("""
             SELECT u.id, u.telegram_id FROM users u
             JOIN trial_entitlements te ON te.user_id = u.id
@@ -120,6 +124,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                 SELECT 1 FROM lifecycle_events le
                 WHERE le.user_id=u.id AND le.event_key IN ('trial_day1_rating','day5_rating')
               )
+            AND NOT EXISTS (SELECT 1 FROM lifecycle_delivery_blocked b WHERE b.user_id=u.id AND b.telegram_id=u.telegram_id)
             LIMIT 25
         """).fetchall()
         winback_users = conn.execute("""
@@ -139,6 +144,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                   AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
                   AND COALESCE(p.operation_type,'')!='trial_start'
                   AND COALESCE(p.offer_code,'')!='email_paid_trial'))
+            AND NOT EXISTS (SELECT 1 FROM lifecycle_delivery_blocked b WHERE b.user_id=u.id AND b.telegram_id=u.telegram_id)
             LIMIT 25
         """).fetchall()
         offer_users = conn.execute("""
@@ -157,6 +163,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                   AND COALESCE(p.offer_code,'')!='email_paid_trial')
               AND NOT EXISTS (SELECT 1 FROM lifecycle_events le WHERE le.user_id=u.id AND le.event_key='expired_winback')
               AND (offer.user_id IS NULL OR offer.sent_at IS NULL)
+            AND NOT EXISTS (SELECT 1 FROM lifecycle_delivery_blocked b WHERE b.user_id=u.id AND b.telegram_id=u.telegram_id)
             LIMIT 25
         """).fetchall()
         reminder_users = conn.execute("""
@@ -170,11 +177,28 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                   AND p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')!='trial'
                   AND COALESCE(p.operation_type,'')!='trial_start'
                   AND COALESCE(p.offer_code,'')!='email_paid_trial')
+            AND NOT EXISTS (SELECT 1 FROM lifecycle_delivery_blocked b WHERE b.user_id=u.id AND b.telegram_id=u.telegram_id)
             LIMIT 25
         """).fetchall()
 
+    blocked_this_batch = set()
+
+    def delivery_failed(row, exc, label):
+        permanent = isinstance(exc, TelegramForbiddenError) or (
+            isinstance(exc, TelegramBadRequest) and 'user is deactivated' in str(exc).lower())
+        if permanent:
+            blocked_this_batch.add(row['id'])
+            with get_db() as conn:
+                conn.execute("INSERT OR REPLACE INTO lifecycle_delivery_blocked(user_id,telegram_id) VALUES (?,?)",
+                             (row['id'], row['telegram_id']))
+            logger.info("Lifecycle delivery suppressed: %s", label)
+        else:
+            logger.warning("Lifecycle %s delivery failed: %s", label, exc)
+
     assets = os.path.join(PROJECT_ROOT, "bot", "assets")
     for row in rating_users:
+        if row["id"] in blocked_this_batch:
+            continue
         try:
             await bot.send_photo(
                 row["telegram_id"], FSInputFile(os.path.join(assets, "arc-feedback-v2.png")),
@@ -184,9 +208,11 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
             with get_db() as conn:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'trial_day1_rating')", (row["id"],))
         except Exception as exc:
-            logger.warning("Lifecycle rating delivery failed for %s: %s", row["telegram_id"], exc)
+            delivery_failed(row, exc, "rating")
 
     for row in winback_users:
+        if row["id"] in blocked_this_batch:
+            continue
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💸 Дорого", callback_data="lifecycle_winback:expensive")],
             [InlineKeyboardButton(text="📉 Плохо работало", callback_data="lifecycle_winback:quality")],
@@ -201,10 +227,12 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
             with get_db() as conn:
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
         except Exception as exc:
-            logger.warning("Lifecycle winback delivery failed for %s: %s", row["telegram_id"], exc)
+            delivery_failed(row, exc, "winback")
 
     offer_url = f"{os.getenv('WEBAPP_URL', getattr(__import__('config'), 'WEBAPP_URL', 'https://arccnet.space')).rstrip('/')}/app/?screen=tariffs&product=standard&months=3&offer=trial_winback"
     for row in offer_users:
+        if row["id"] in blocked_this_batch:
+            continue
         with get_db() as conn:
             conn.execute("INSERT OR IGNORE INTO trial_winback_offers(user_id) VALUES (?)", (row["id"],))
         deadline = datetime.now(timezone(timedelta(hours=3))) + timedelta(hours=48)
@@ -227,9 +255,11 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
                 conn.execute("UPDATE trial_winback_offers SET sent_at=CURRENT_TIMESTAMP WHERE user_id=? AND sent_at IS NULL", (row["id"],))
                 conn.execute("INSERT OR IGNORE INTO lifecycle_events(user_id,event_key) VALUES (?, 'expired_winback')", (row["id"],))
         except Exception as exc:
-            logger.warning("Trial offer delivery failed for %s: %s", row["telegram_id"], exc)
+            delivery_failed(row, exc, "offer")
 
     for row in reminder_users:
+        if row["id"] in blocked_this_batch:
+            continue
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="Оплатить со скидкой −20%", url=offer_url)],
         ])
@@ -240,7 +270,7 @@ async def _send_lifecycle_batch(bot: Bot) -> None:
             with get_db() as conn:
                 conn.execute("UPDATE trial_winback_offers SET reminder_sent_at=CURRENT_TIMESTAMP WHERE user_id=? AND reminder_sent_at IS NULL", (row["id"],))
         except Exception as exc:
-            logger.warning("Trial offer reminder failed for %s: %s", row["telegram_id"], exc)
+            delivery_failed(row, exc, "reminder")
 
 
 async def run_lifecycle_scheduler(bot: Bot) -> None:

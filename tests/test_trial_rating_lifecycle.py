@@ -213,3 +213,32 @@ def test_active_subscription_screen_renders_link_after_renewal_back(monkeypatch)
         button.callback_data == "key_renew:185"
         for row in rendered["markup"].inline_keyboard for button in row
     )
+
+
+def test_blocked_user_is_suppressed_across_batches_and_network_error_retried(monkeypatch):
+    from aiogram.exceptions import TelegramForbiddenError, TelegramNetworkError
+    from aiogram.methods import SendPhoto
+    conn = _connection()
+    @contextmanager
+    def fake_db():
+        yield conn
+        conn.commit()
+    monkeypatch.setattr(database.connection, 'get_db', fake_db)
+    class FailingBot(_Bot):
+        def __init__(self, error):
+            super().__init__()
+            self.attempts = 0
+            self.error = error
+        async def send_photo(self, *args, **kwargs):
+            self.attempts += 1
+            raise self.error(method=SendPhoto(chat_id=1001, photo='x'), message='failure')
+    blocked = FailingBot(TelegramForbiddenError)
+    asyncio.run(_send_lifecycle_batch(blocked))
+    asyncio.run(_send_lifecycle_batch(blocked))
+    assert blocked.attempts == 1
+    assert conn.execute('SELECT count(*) FROM lifecycle_delivery_blocked').fetchone()[0] == 1
+    conn.execute('DELETE FROM lifecycle_delivery_blocked')
+    transient = FailingBot(TelegramNetworkError)
+    asyncio.run(_send_lifecycle_batch(transient))
+    asyncio.run(_send_lifecycle_batch(transient))
+    assert transient.attempts == 2

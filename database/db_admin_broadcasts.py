@@ -229,7 +229,10 @@ def validate_payload(data):
         label = str(button.get('text') or '').strip()
         if not label or len(label) > 40:
             raise ValueError('Текст кнопки: 1–40 символов')
-        clean_buttons.append({'text': label, 'url': safe_url(button.get('url'))})
+        if button.get('callback_data') == 'buy_key' and not button.get('url'):
+            clean_buttons.append({'text': label, 'callback_data': 'buy_key'})
+        else:
+            clean_buttons.append({'text': label, 'url': safe_url(button.get('url'))})
     title = str(data.get('title') or '').strip()
     if not title or len(title) > 100:
         raise ValueError('Название: 1–100 символов')

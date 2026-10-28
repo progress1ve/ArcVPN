@@ -248,6 +248,13 @@ async def cmd_start(message: Message, state: FSMContext, command: CommandObject)
         pass
 
     (user, is_new) = get_or_create_user(user_id, username)
+    # An incoming /start proves that this user can receive bot messages again.
+    from database.connection import get_db
+    with get_db() as conn:
+        conn.execute("""CREATE TABLE IF NOT EXISTS lifecycle_delivery_blocked (
+            user_id INTEGER PRIMARY KEY, telegram_id INTEGER NOT NULL,
+            blocked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)""")
+        conn.execute("DELETE FROM lifecycle_delivery_blocked WHERE user_id=? AND telegram_id=?", (user['id'], user_id))
     if user.get('is_banned'):
         await safe_edit_or_send(message, '⛔ <b>Доступ заблокирован</b>\n\nВаш аккаунт заблокирован. Обратитесь в поддержку.', force_new=True)
         return
