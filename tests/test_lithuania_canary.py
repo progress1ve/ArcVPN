@@ -46,7 +46,7 @@ def test_alias_uuid_and_ai_port_preserved():
     assert target['users'][0]['id'] == 'keep-owner-uuid'
 
 
-def test_auto_prefers_game_hysteria_then_reality_and_estonia():
+def test_auto_selects_healthy_hysteria_or_reality_then_estonia():
     auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('old'),
         {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': [
             {'domain': ['example.ru'], 'outboundTag': 'direct'},
@@ -63,10 +63,10 @@ def test_auto_prefers_game_hysteria_then_reality_and_estonia():
     assert hy['protocol'] == 'hysteria' and hy['tag'] == 'lt-hysteria-primary'
     assert hy['streamSettings']['hysteriaSettings']['auth'] == 'user-hysteria-auth'
     assert hy['settings']['address'] == '95.182.120.237' and hy['settings']['port'] == 443
-    assert p['routing']['balancers'][0]['selector'] == ['lt-hysteria-primary']
-    assert p['routing']['balancers'][0]['fallbackTag'] == 'lt-reality-stage'
-    assert p['routing']['balancers'][1]['fallbackTag'] == 'ee-reserve'
-    assert p['routing']['rules'][0]['balancerTag'] == 'lt-first'
+    assert p['routing']['balancers'][0]['selector'] == ['lt-hysteria-primary', 'lt-primary']
+    assert p['routing']['balancers'][0]['fallbackTag'] == 'ee-reserve'
+    assert not any(o.get('protocol') == 'loopback' for o in p['outbounds'])
+    assert p['routing']['rules'][-1]['balancerTag'] == 'lt-first'
     assert any(r.get('outboundTag') == 'direct' for r in p['routing']['rules'])
     assert result[1]['remarks'] == '🇸🇪 Игровой сервер 🎮'
 

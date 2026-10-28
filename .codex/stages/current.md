@@ -1,5 +1,20 @@
 # Lithuania owner-only rollout — 2026-10-27
 
+## Current stage: choose between Hysteria2 and TCP — 2026-10-28
+
+Owner requests automatic choice between TCP Reality and Hysteria because one user reports Telegram delays on Auto. Current production uses Hysteria first, then Reality, then Estonia; cause of the complaint is not established. Implement one leastPing selector over both Lithuania transports and retain Estonia as final fallback. Check both in parallel on existing observatory interval; do not claim this fixes Telegram, and report measurement/failover limitations. No client credential, URL, DNS, CDN, bypass, or manual profile changes.
+
+| Profile | Client entry | Origin/SNI | Selection and fallback | Multiplier / impact |
+| --- | --- | --- | --- | --- |
+| Auto Hysteria | Moscow UDP443 | LT UDP443 / 88-216-62-135.sslip.io | measured with TCP, lower healthy probe selected | normal multiplier 1, existing user identity/URL |
+| Auto Reality | Moscow TCP1443 | LT TCP443 / same SNI | measured with Hysteria, lower healthy probe selected | normal multiplier 1, existing user identity/URL |
+| Auto final reserve | Moscow TCP8443 | EE TCP443 / ee.arccnet.space | fallback when neither LT transport healthy | normal multiplier 1, existing identity/URL |
+| CDN and other profiles | unchanged | unchanged | unchanged | unchanged |
+
+Accept: automated generation tests; real owner-authorized Xray tunnel with Hysteria forced unavailable, TCP forced unavailable and both unavailable to verify LT-TCP, LT-Hysteria, EE respectively; actual current owner/nonowner subscription output and preserved split routing; clean scoped canary. Probing target is a generic connectivity URL, so health/RTT does not guarantee Telegram availability or speed; changes do not interrupt existing connections immediately and periodic probes introduce delay. Client device/ISP acceptance is required. Rollback by revert runtime commit and restart subscription API.
+
+Predeployment: 15 focused tests pass. Owner-only Xray 26 tunnel canary through Moscow: UDP failure -> LT TCP; TCP failure -> LT Hysteria; both LT failures -> EE, actual Cloudflare trace exit verified. No live production ports were disabled. Last observations every 30s with 3 samples and 2s timeout; no fast handover guarantee.
+
 ## Current stage: Russian service routing — 2026-10-28
 
 Owner reports Kari and Megastroy fail in browsers across clients, requests analysis against supplied competitor subscriptions and systemic improvement. JSON Xray rules have `IPIfNonMatch` but a final unconditional VPN rule, preventing a second IP resolution pass for unmatched domains; direct geoip:ru is therefore ineffective for those domains. Explicit current direct domains omit kari.com and megastroy.com. Compared competitor configurations: one uses IPIfNonMatch without a terminal catch-all; others use curated domain rules and priority proxy exceptions. Avoid copying ad-block/shared CDN or broad unrelated rules. Moscow Kari HTTP200 vs EE/LT403; Megastroy HTTP403 both Russia VPS and EU, so routing is plausible but not proven as its sole cause.

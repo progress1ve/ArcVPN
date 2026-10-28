@@ -83,16 +83,7 @@ def apply(profiles, state):
                 hy = rewrite(copy.deepcopy(hysteria), state)
                 hy['tag'] = 'lt-hysteria-primary'
                 p['outbounds'].insert(0, hy)
-                p['outbounds'].append({'tag': 'lt-reality-stage', 'protocol': 'loopback',
-                    'settings': {'inboundTag': 'lt-reality-stage'}})
-                p['routing']['rules'].insert(0, {'type': 'field', 'inboundTag': ['lt-reality-stage'],
-                    'network': 'tcp,udp', 'balancerTag': 'lt-first'})
-                for rule in p['routing']['rules'][1:]:
-                    if rule.get('balancerTag') == 'lt-first':
-                        rule['balancerTag'] = 'lt-hysteria-first'
-                p['routing']['balancers'].insert(0, {'tag': 'lt-hysteria-first',
-                    'selector': ['lt-hysteria-primary'], 'strategy': {'type': 'leastPing'},
-                    'fallbackTag': 'lt-reality-stage'})
+                p['routing']['balancers'][0]['selector'].insert(0, 'lt-hysteria-primary')
             p.pop('observatory', None)
             p['burstObservatory'] = {'subjectSelector': (['lt-hysteria-primary'] if hysteria else []) + ['lt-primary', 'ee-reserve'],
                 'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
