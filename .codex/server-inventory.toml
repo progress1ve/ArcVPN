@@ -8,7 +8,7 @@ host = "136.148.220.228"
 public_domain = "se.arccnet.space"
 ssh_user = "root"
 credential_alias = "se-hostup"
-status = "paused unpaid by owner 2026-10-25; disabled in Remnawave; aliases and CDN use Estonia"
+status = "active restored2026-10-29; Auto+YouTube leastLoad with directLT; EE/NL/AI/Games aliases useSE; YouTube egress Moscow95.182.120.237; CDN remainsLT"
 
 # Non-secret topology only. Credential aliases map to the local DPAPI vault.
 [[servers]]
