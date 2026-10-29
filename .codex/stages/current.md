@@ -1,6 +1,6 @@
 # Owner XHTTP test removed — 2026-10-29
 
-Economy,no subagents. Owner requests removing LithuaniaXHTTPtest. Removed JSON/plain rendererhooks only; preserves all normalprofiles/identities/URLs/quotas and Auto leastLoad. Historical module/tests remain inactive. No nginx/node/CDN/firewall or YouTubebridge change required. On currentMoscow95.182.120.237, arcvpn-youtube-zapret.service verifiedactive+enabled, NFQUEUE240 table exists and countsTCP/UDP443packets; queuebypass retained. Existing bridge2444allowsEE/LT/SE. This is zapretDPIsoftware, not a YouTube prohibition. Publication/publicreadback pending.
+Economy,no subagents. Owner requests removing LithuaniaXHTTPtest. Removed JSON/plain rendererhooks only; preserves all normalprofiles/identities/URLs/quotas and Auto leastLoad. Historical module/tests remain inactive. No nginx/node/CDN/firewall or YouTubebridge change required. On currentMoscow95.182.120.237, arcvpn-youtube-zapret.service verifiedactive+enabled, NFQUEUE240 table exists and countsTCP/UDP443packets; queuebypass retained. Existing bridge2444allowsEE/LT/SE. This is zapretDPIsoftware, not a YouTube prohibition. Runtime9183b9a9 committed/pushed/PolandFFpulled; subscription restarted, bot/APIactive.18focused tests pass. Public owner/nonowner/noLTE JSON18/18/10 and plain17/17/9 all200, test absent for all. zapret2 nfqws2 process confirmed running PID51329 from /opt/zapret2-v1.0.6; service active/running+enabled. No bridge change. Owner refresh to remove imported cached profile.
 
 # Owner Lithuania XHTTP fixed and published — 2026-10-29
 
