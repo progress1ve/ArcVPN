@@ -59,7 +59,10 @@ def apply(profiles, state):
         if 'Автовыбор' in p['remarks'] and ee_backup:
             primary = rewrite(copy.deepcopy(ee_backup), state)
             primary['tag'] = 'lt-primary'
-            primary.setdefault('streamSettings', {})['finalmask'] = {
+            primary.setdefault('streamSettings', {}).pop('finalmask', None)
+            fragmented = copy.deepcopy(primary)
+            fragmented['tag'] = 'lt-primary-fragment'
+            fragmented['streamSettings']['finalmask'] = {
                 'tcp': [{'type': 'fragment', 'settings': {
                     'packets': 'tlshello', 'length': '10-20', 'delay': '10-20',
                 }}]
@@ -76,7 +79,7 @@ def apply(profiles, state):
                     r['outboundTag'] = 'lt-primary'
                 rules.append(r)
             rules.append({'type': 'field', 'network': 'tcp,udp', 'outboundTag': 'lt-primary'})
-            p['outbounds'] = [primary] + retained
+            p['outbounds'] = [primary, fragmented] + retained
             p['routing']['rules'] = rules
             p['routing'].pop('balancers', None)
             p.pop('observatory', None)
@@ -88,17 +91,19 @@ def apply(profiles, state):
                    and o.get('streamSettings', {}).get('network') == 'xhttp'}
             if 'cdn-safe' in cdn:
                 p['outbounds'].append(cdn['cdn-safe'])
-                for rule in rules:
-                    if rule.get('outboundTag') == 'lt-primary':
-                        rule.pop('outboundTag')
-                        rule['balancerTag'] = 'lt-first'
-                p['routing']['balancers'] = [
-                    {'tag': 'lt-first', 'selector': ['lt-primary'],
-                     'strategy': {'type': 'leastPing'}, 'fallbackTag': 'cdn-safe'}]
-                p['burstObservatory'] = {'subjectSelector': ['lt-primary'],
-                    'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
-                                   # Fragmented Reality handshakes exceed 2s even on a healthy path.
-                                   'interval': '30s', 'sampling': 3, 'timeout': '5s'}}
+            for rule in rules:
+                if rule.get('outboundTag') == 'lt-primary':
+                    rule.pop('outboundTag')
+                    rule['balancerTag'] = 'lt-first'
+            # Prefix matching deliberately observes both ordinary Reality variants.
+            p['routing']['balancers'] = [
+                {'tag': 'lt-first', 'selector': ['lt-primary'],
+                 'strategy': {'type': 'leastPing'},
+                 'fallbackTag': 'cdn-safe' if 'cdn-safe' in cdn else fragmented['tag']}]
+            p['burstObservatory'] = {'subjectSelector': ['lt-primary'],
+                'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
+                               # Fragmented Reality handshakes exceed 2s even on a healthy path.
+                               'interval': '30s', 'sampling': 3, 'timeout': '5s'}}
     return result
 
 

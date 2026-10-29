@@ -20,7 +20,7 @@ def test_other_customers_get_overlay_only_when_globally_enabled(monkeypatch, tmp
     assert m.load(12345) is not None
 
 
-def test_auto_lt_primary_only_preserves_input():
+def test_auto_without_lte_selects_both_main_variants_and_preserves_input():
     profiles = [{'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality('proxy-main-1'),
         {'tag': 'direct', 'protocol': 'freedom'}], 'routing': {'rules': [
         {'type': 'field', 'domain': ['example.ru'], 'outboundTag': 'direct'},
@@ -31,9 +31,11 @@ def test_auto_lt_primary_only_preserves_input():
     assert p['outbounds'][0]['settings']['vnext'][0]['address'] == '95.182.120.237'
     assert p['outbounds'][0]['settings']['vnext'][0]['port'] == 1443
     assert p['outbounds'][0]['tag'] == 'lt-primary'
-    assert p['outbounds'][0]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
-    assert 'balancers' not in p['routing']
-    assert p['routing']['rules'][-1]['outboundTag'] == 'lt-primary'
+    assert 'finalmask' not in p['outbounds'][0]['streamSettings']
+    assert p['outbounds'][1]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
+    assert p['routing']['balancers'][0]['fallbackTag'] == 'lt-primary-fragment'
+    assert p['routing']['rules'][-1]['balancerTag'] == 'lt-first'
+    assert not any(o.get('tag') == 'cdn-safe' for o in p['outbounds'])
     assert p['routing']['rules'][0]['outboundTag'] == 'direct'
 
 
@@ -64,8 +66,8 @@ def test_auto_excludes_hysteria_and_estonia_but_keeps_game_profile():
     assert primary['settings']['vnext'][0]['address'] == '95.182.120.237'
     assert primary['settings']['vnext'][0]['port'] == 1443
     assert not any(o.get('protocol') in ('hysteria', 'loopback') for o in p['outbounds'])
-    assert 'balancers' not in p['routing'] and 'burstObservatory' not in p
-    assert p['routing']['rules'][-1]['outboundTag'] == 'lt-primary'
+    assert p['routing']['balancers'][0]['fallbackTag'] == 'lt-primary-fragment'
+    assert p['routing']['rules'][-1]['balancerTag'] == 'lt-first'
     assert any(r.get('outboundTag') == 'direct' for r in p['routing']['rules'])
     assert result[1]['outbounds'][0]['protocol'] == 'hysteria'
     assert result[1]['remarks'] == '🇸🇪 Игровой сервер 🎮'
@@ -100,7 +102,7 @@ def test_auto_fragmentation_does_not_add_test_profile():
     profiles = m.apply([auto], STATE)
     assert len(profiles) == 1
     assert profiles[0]['remarks'] == auto['remarks']
-    assert profiles[0]['outbounds'][0]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
+    assert profiles[0]['outbounds'][1]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
 
 
 def test_auto_restores_authorized_cdn_fallback_without_estonia_or_hysteria():
@@ -118,3 +120,33 @@ def test_auto_restores_authorized_cdn_fallback_without_estonia_or_hysteria():
     assert all(o['settings']['vnext'][0]['users'][0]['id']=='separate-lte-uuid' for o in cdn)
     assert any(r.get('outboundTag')=='direct' for r in p['routing']['rules'])
     assert not any(o.get('tag')=='ee-reserve' or o.get('protocol')=='hysteria' for o in p['outbounds'])
+
+
+def test_auto_variants_share_main_authorization_but_are_independent_copies():
+    source = reality('old')
+    source['streamSettings']['finalmask'] = {'tcp': [{'type': 'obsolete'}]}
+    auto = {'remarks': 'Автовыбор', 'outbounds': [source], 'routing': {'rules': []}}
+    before = copy.deepcopy(auto)
+    p = m.apply([auto], STATE)[0]
+    plain, fragmented = p['outbounds'][:2]
+    assert plain['settings'] == fragmented['settings']
+    assert plain['settings']['vnext'][0]['users'][0]['id'] == 'keep-owner-uuid'
+    assert 'finalmask' not in plain['streamSettings']
+    assert fragmented['streamSettings']['finalmask']['tcp'][0]['type'] == 'fragment'
+    observed = p['burstObservatory']['subjectSelector']
+    assert {o['tag'] for o in p['outbounds'] if any(o['tag'].startswith(s) for s in observed)} == {'lt-primary', 'lt-primary-fragment'}
+    assert auto == before
+    plain['settings']['vnext'][0]['users'][0]['id'] = 'changed-in-test'
+    assert fragmented['settings']['vnext'][0]['users'][0]['id'] == 'keep-owner-uuid'
+
+
+def test_no_lte_failure_never_falls_back_to_unprotected_direct():
+    auto = {'remarks': 'Автовыбор', 'outbounds': [reality(),
+        {'tag': 'direct', 'protocol': 'freedom'}, {'tag': 'block', 'protocol': 'blackhole'}],
+        'routing': {'rules': [{'domain': ['example.ru'], 'outboundTag': 'direct'}]}}
+    p = m.apply([auto], STATE)[0]
+    b = p['routing']['balancers'][0]
+    fallback = next(o for o in p['outbounds'] if o['tag'] == b['fallbackTag'])
+    assert fallback['protocol'] == 'vless'
+    assert fallback['streamSettings']['security'] == 'reality'
+    assert p['routing']['rules'][0]['outboundTag'] == 'direct'
