@@ -1,0 +1,42 @@
+{
+  "short4MiB": {
+    "zapret-on": {
+      "success": 4,
+      "total": 4,
+      "medianMbps": 356.056,
+      "medianFirstDataSeconds": 0.014
+    },
+    "zapret-bypass": {
+      "success": 4,
+      "total": 4,
+      "medianMbps": 391.601,
+      "medianFirstDataSeconds": 0.0129
+    }
+  },
+  "long20sWindows": {
+    "zapret-on": {
+      "windows": 4,
+      "medianMbps": 3.7865,
+      "medianFirstByteSeconds": 0.0426,
+      "transportErrors": 0
+    },
+    "zapret-bypass": {
+      "windows": 4,
+      "medianMbps": 3.7805,
+      "medianFirstByteSeconds": 0.0438,
+      "transportErrors": 0
+    }
+  },
+  "longIncompleteRanges": "intentional 20s cap; not failed connectivity",
+  "discardedLongObservations": 1,
+  "test": "same signed media URL, pinned IPv4, Moscow egress, TLS HTTP1.1, ABBA",
+  "video": "aqz-KE-bpKQ",
+  "format": "298",
+  "globalServiceToggled": false,
+  "initialInvalidExperiment": "0x40000000 NOTRACK broke control TCP; excluded",
+  "serviceActive": "active",
+  "serviceEnabled": "enabled",
+  "testRuleRemoved": true,
+  "ytDlpSha256": "e51e69e89489f199530f13d32a4342da3ddb2cf34842f364603a066db05afbf3",
+  "decision": "No consistent sustained speed advantage without zapret; user conditional disable not triggered; original active state retained"
+}

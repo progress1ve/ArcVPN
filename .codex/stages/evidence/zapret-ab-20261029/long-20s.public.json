@@ -1,0 +1,133 @@
+{
+  "source": "Moscow egress same media URL and pinned IP",
+  "video": "aqz-KE-bpKQ",
+  "format": "298",
+  "requestedBytes": 16777216,
+  "serviceAfter": "active",
+  "globalServiceToggled": false,
+  "testRuleRemoved": true,
+  "httpVersion": "1.1",
+  "controls": [
+    {
+      "mark": 0,
+      "tcp": "connected"
+    },
+    {
+      "mark": 16777216,
+      "tcp": "connected"
+    }
+  ],
+  "observations": [
+    {
+      "pair": 1,
+      "mode": "zapret-on",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0202,
+      "bytes": 9502656,
+      "seconds": 20.0749,
+      "firstDataSeconds": 0.0427,
+      "mbps": 3.787
+    },
+    {
+      "pair": 1,
+      "mode": "zapret-bypass",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0124,
+      "bytes": 9420736,
+      "seconds": 20.0281,
+      "firstDataSeconds": 0.0283,
+      "mbps": 3.763
+    },
+    {
+      "pair": 2,
+      "mode": "zapret-bypass",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0134,
+      "bytes": 9453504,
+      "seconds": 20.0004,
+      "firstDataSeconds": 0.0452,
+      "mbps": 3.781
+    },
+    {
+      "pair": 2,
+      "mode": "zapret-on",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0213,
+      "bytes": 9469888,
+      "seconds": 20.0119,
+      "firstDataSeconds": 0.0446,
+      "mbps": 3.786
+    },
+    {
+      "pair": 3,
+      "mode": "zapret-on",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0151,
+      "bytes": 9486272,
+      "seconds": 20.0236,
+      "firstDataSeconds": 0.0369,
+      "mbps": 3.79
+    },
+    {
+      "pair": 3,
+      "mode": "zapret-bypass",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0124,
+      "bytes": 9469888,
+      "seconds": 20.0137,
+      "firstDataSeconds": 0.0424,
+      "mbps": 3.785
+    },
+    {
+      "pair": 4,
+      "mode": "zapret-bypass",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0553,
+      "bytes": 9453504,
+      "seconds": 20.0097,
+      "firstDataSeconds": 0.0803,
+      "mbps": 3.78
+    },
+    {
+      "pair": 4,
+      "mode": "zapret-on",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0122,
+      "bytes": 9469888,
+      "seconds": 20.0126,
+      "firstDataSeconds": 0.0425,
+      "mbps": 3.786
+    },
+    {
+      "pair": 5,
+      "mode": "zapret-on",
+      "valid": false,
+      "status": 206,
+      "headersSeconds": 0.0205,
+      "bytes": 9453504,
+      "seconds": 20.0118,
+      "firstDataSeconds": 0.0442,
+      "mbps": 3.779
+    }
+  ],
+  "zapret-on": {
+    "success": 0,
+    "total": 5,
+    "medianMbps": null,
+    "medianFirstDataSeconds": null
+  },
+  "zapret-bypass": {
+    "success": 0,
+    "total": 4,
+    "medianMbps": null,
+    "medianFirstDataSeconds": null
+  }
+}

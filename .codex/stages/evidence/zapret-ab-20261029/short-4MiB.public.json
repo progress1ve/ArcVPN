@@ -1,0 +1,122 @@
+{
+  "source": "Moscow egress same media URL and pinned IP",
+  "video": "aqz-KE-bpKQ",
+  "format": "298",
+  "requestedBytes": 4194304,
+  "serviceAfter": "active",
+  "globalServiceToggled": false,
+  "testRuleRemoved": true,
+  "httpVersion": "1.1",
+  "controls": [
+    {
+      "mark": 0,
+      "tcp": "connected"
+    },
+    {
+      "mark": 16777216,
+      "tcp": "connected"
+    }
+  ],
+  "observations": [
+    {
+      "pair": 1,
+      "mode": "zapret-on",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.089,
+      "bytes": 4194304,
+      "seconds": 0.1711,
+      "firstDataSeconds": 0.0891,
+      "mbps": 196.061
+    },
+    {
+      "pair": 1,
+      "mode": "zapret-bypass",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.0147,
+      "bytes": 4194304,
+      "seconds": 0.0901,
+      "firstDataSeconds": 0.0148,
+      "mbps": 372.359
+    },
+    {
+      "pair": 2,
+      "mode": "zapret-bypass",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.0115,
+      "bytes": 4194304,
+      "seconds": 0.0817,
+      "firstDataSeconds": 0.0116,
+      "mbps": 410.842
+    },
+    {
+      "pair": 2,
+      "mode": "zapret-on",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.0149,
+      "bytes": 4194304,
+      "seconds": 0.0899,
+      "firstDataSeconds": 0.015,
+      "mbps": 373.134
+    },
+    {
+      "pair": 3,
+      "mode": "zapret-on",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.0123,
+      "bytes": 4194304,
+      "seconds": 0.099,
+      "firstDataSeconds": 0.0123,
+      "mbps": 338.978
+    },
+    {
+      "pair": 3,
+      "mode": "zapret-bypass",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.0142,
+      "bytes": 4194304,
+      "seconds": 0.099,
+      "firstDataSeconds": 0.0143,
+      "mbps": 339.047
+    },
+    {
+      "pair": 4,
+      "mode": "zapret-bypass",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.0104,
+      "bytes": 4194304,
+      "seconds": 0.0809,
+      "firstDataSeconds": 0.0105,
+      "mbps": 414.664
+    },
+    {
+      "pair": 4,
+      "mode": "zapret-on",
+      "valid": true,
+      "status": 206,
+      "headersSeconds": 0.013,
+      "bytes": 4194304,
+      "seconds": 0.0854,
+      "firstDataSeconds": 0.013,
+      "mbps": 392.692
+    }
+  ],
+  "zapret-on": {
+    "success": 4,
+    "total": 4,
+    "medianMbps": 356.056,
+    "medianFirstDataSeconds": 0.014
+  },
+  "zapret-bypass": {
+    "success": 4,
+    "total": 4,
+    "medianMbps": 391.601,
+    "medianFirstDataSeconds": 0.0129
+  }
+}

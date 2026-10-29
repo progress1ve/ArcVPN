@@ -1,0 +1,22 @@
+{
+  "source": "Moscow same IP media object",
+  "video": "aqz-KE-bpKQ",
+  "format": "298",
+  "requestedBytes": 4194304,
+  "serviceBefore": "active",
+  "serviceAfter": "active",
+  "globalServiceToggled": false,
+  "httpVersion": "1.1",
+  "zapret-on": {
+    "success": 4,
+    "total": 4,
+    "medianMbps": 290.915,
+    "medianFirstDataSeconds": 0.0119
+  },
+  "zapret-bypass": {
+    "success": 0,
+    "total": 4,
+    "medianMbps": null,
+    "medianFirstDataSeconds": null
+  }
+}
