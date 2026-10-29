@@ -320,6 +320,47 @@
     }
   }
 
+  function slidingNavigation(node) {
+    let frame = 0
+    let readyFrame = 0
+    let destroyed = false
+    const buttons = [...node.querySelectorAll('button')]
+    function measure() {
+      if (destroyed) return
+      const button = node.querySelector('button.active')
+      if (!button) return
+      const bounds = button.getBoundingClientRect()
+      const container = node.getBoundingClientRect()
+      node.style.setProperty('--selection-x', `${bounds.left - container.left - node.clientLeft}px`)
+      node.style.setProperty('--selection-y', `${bounds.top - container.top - node.clientTop}px`)
+      node.style.setProperty('--selection-width', `${bounds.width}px`)
+      node.style.setProperty('--selection-height', `${bounds.height}px`)
+      if (!node.classList.contains('selection-ready') && !readyFrame) {
+        readyFrame = requestAnimationFrame(() => {
+          readyFrame = 0
+          if (!destroyed) node.classList.add('selection-ready')
+        })
+      }
+    }
+    function schedule() {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(measure)
+    }
+    const observer = new ResizeObserver(schedule)
+    observer.observe(node)
+    buttons.forEach(button => observer.observe(button))
+    schedule()
+    return {
+      update() { tick().then(() => { if (!destroyed) schedule() }) },
+      destroy() {
+        destroyed = true
+        observer.disconnect()
+        cancelAnimationFrame(frame)
+        cancelAnimationFrame(readyFrame)
+      },
+    }
+  }
+
   function selectTab(id) {
     if (id === active) return
     selectionHaptic()
@@ -1264,7 +1305,20 @@
                 </div>
                 <small>Основной трафик остаётся безлимитным на любом варианте.</small>
               </div>
-              <div class="custom-quote" aria-live="polite"><div class="custom-summary"><span>Ваш тариф</span><dl><div><dt>Срок</dt><dd>{customMonths} мес.</dd></div><div><dt>Устройства</dt><dd>{customDevices}</dd></div><div><dt>Обход</dt><dd>{customLteGb} ГБ</dd></div></dl>{#if customMonths > 1 && customSavingsRub > 0}<small class="custom-saving">Выгода {rub(customSavingsRub)}</small>{/if}</div><div class="custom-price">{#if customMonths > 1 && customSavingsRub > 0}<del>{rub(customComparisonRub)}</del>{/if}<strong>{rub(customBaseRub)}</strong><small>{rub(Math.round(customBaseRub/customMonths))} / мес</small></div></div>
+              <section class="custom-quote" aria-label="Ваш тариф" aria-live="polite">
+                <h2>Ваш тариф</h2>
+                <dl class="custom-summary">
+                  <div><dt>Срок</dt><dd>{customMonths} мес.</dd></div>
+                  <div><dt>Устройства</dt><dd>{customDevices}</dd></div>
+                  <div><dt>Обход</dt><dd>{customLteGb} ГБ</dd></div>
+                </dl>
+                <div class="custom-total">
+                  <div class="custom-price">
+                    <div class="custom-amount"><strong>{rub(customBaseRub)}</strong>{#if customMonths > 1 && customSavingsRub > 0}<del>{rub(customComparisonRub)}</del>{/if}</div>
+                  </div>
+                  <span class="custom-monthly">{rub(Math.round(customBaseRub/customMonths))} / мес</span>
+                </div>
+              </section>
             </section>
           {:else}
             <nav class="product-switch" aria-label="Выбор тарифа">
@@ -1749,9 +1803,10 @@
     <div class="desktop-brand" aria-hidden="true">
       <img src={`${import.meta.env.BASE_URL}assets/arc-flow/arc-logo.svg`} alt="" />
     </div>
-    <nav aria-label="Навигация">
+    <nav aria-label="Навигация" use:slidingNavigation={active}>
+      <span class="dock-selection" aria-hidden="true"></span>
       {#each tabs as tab}
-        <button class:active={active === tab.id} aria-label={tab.label} title={tab.label} on:click={() => selectTab(tab.id)}>
+        <button class:active={active === tab.id} aria-current={active === tab.id ? 'page' : undefined} aria-label={tab.label} title={tab.label} on:click={() => selectTab(tab.id)}>
           <ArcIcon name={tab.icon} size={24} weight={active === tab.id ? 'duotone' : 'regular'} />
         </button>
       {/each}
@@ -1881,7 +1936,7 @@
   .empty-connect p { max-width: 290px; margin: 0; color: #8291a3; font-size: 10.5px; line-height: 1.5; }
 
   .dock { position: fixed; z-index: 20; left: 50%; bottom: calc(var(--safe-bottom-flow) + 12px); width: min(100%,460px); padding: 0 16px; transform: translateX(-50%); }
-  .dock nav { display: flex; gap: 4px; padding: 7px; border: 1px solid rgba(163,207,248,.14); border-radius: 25px; background: rgba(5,11,20,.82); box-shadow: 0 24px 70px -28px rgba(0,0,0,.92),inset 0 1px 0 rgba(255,255,255,.045); backdrop-filter: blur(24px); }
+  .dock nav { position:relative; isolation:isolate; display: flex; gap: 4px; padding: 7px; border: 1px solid rgba(163,207,248,.14); border-radius: 25px; background: rgba(5,11,20,.82); box-shadow: 0 24px 70px -28px rgba(0,0,0,.92),inset 0 1px 0 rgba(255,255,255,.045); backdrop-filter: blur(24px); }
   .dock button { min-width: 0; min-height: 52px; display: grid; flex: 1; place-items: center; border-radius: 18px; color: #8090a3; transition: flex .22s ease, color .22s ease, background .22s ease, transform .12s ease; }
   .dock button.active { flex: 1.18; color: #071321; background: linear-gradient(135deg,#b4e5ff,#64bdf0); box-shadow: inset 0 1px 0 rgba(255,255,255,.66),0 9px 26px -15px rgba(82,180,240,.9); }
   .desktop-brand { display: none; }
@@ -2057,7 +2112,7 @@
   .purchase-empty { margin-top: 28px; padding: 24px; border-radius: 22px; color: var(--muted); background: var(--surface); text-align: center; }
   .purchase-config { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; margin-top: 16px; padding: 19px; border-radius: 24px; background: rgba(10,17,27,.9); }
   .plan-summary{grid-template-columns:1fr}.product-switch{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-top:12px;padding:6px;border:1px solid rgba(166,211,244,.12);border-radius:18px;background:rgba(10,17,27,.78)}.product-switch button{min-width:0;min-height:44px;border:0;border-radius:13px;background:transparent;color:#8ca3b8;font:inherit;font-size:12px;font-weight:850;cursor:pointer}.product-switch button.active{background:linear-gradient(135deg,#b8e7ff,#6fc5f3);color:#07131d;box-shadow:0 9px 24px rgba(76,169,221,.18)}.product-switch button:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
-  .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-quote{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:18px;border:1px solid rgba(117,204,249,.28);border-radius:22px;background:linear-gradient(135deg,rgba(29,77,103,.68),rgba(10,22,34,.92));color:#f6fbff}.custom-quote del{color:#7790a3;font-size:11px;font-weight:750;letter-spacing:0}.custom-quote small{color:#96aabc;font-size:8px;font-weight:700;letter-spacing:0}.custom-quote .custom-saving{color:#87d9ac;font-size:9px}
+  .custom-tariff-open{box-sizing:border-box;width:100%;min-height:54px;display:grid;grid-template-columns:28px 1fr 20px;align-items:center;gap:10px;margin-top:10px;padding:0 17px;border:1px solid rgba(123,203,247,.32);border-radius:18px;color:#a9ddfa;background:rgba(19,49,71,.42);font:inherit;font-size:12px;font-weight:900;text-align:left;cursor:pointer}.custom-tariff-open:hover{background:rgba(25,64,91,.55)}.custom-tariff-open:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}.custom-builder{display:grid;gap:12px;margin-top:20px}.custom-control{padding:17px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.custom-control header{display:flex;align-items:center;justify-content:space-between;gap:16px}.custom-control header span{color:#d7e7f3;font-size:12px;font-weight:850}.custom-control header strong{color:#9ddcff;font-size:15px}.custom-control>small{display:block;margin-top:11px;color:#8298ab;font-size:9px;line-height:1.45}.custom-options{display:grid;gap:7px;margin-top:14px}.custom-options.periods{grid-template-columns:repeat(4,minmax(0,1fr))}.custom-options.traffic{grid-template-columns:repeat(3,minmax(0,1fr))}.custom-options button{min-width:0;min-height:42px;padding:0 5px;border:1px solid rgba(166,211,244,.1);border-radius:13px;color:#9fb3c4;background:rgba(255,255,255,.025);font:inherit;font-size:10px;font-weight:850}.custom-options button.active{border-color:#79cff8;color:#07131d;background:linear-gradient(135deg,#b8e7ff,#6fc5f3)}.device-stepper{display:grid;grid-template-columns:44px 1fr 44px;align-items:center;gap:12px;margin-top:14px}.device-stepper button{width:44px;height:44px;border:1px solid rgba(166,211,244,.12);border-radius:14px;color:#bde8ff;background:#132637;font-size:22px}.device-stepper button:disabled{opacity:.35}.device-stepper input{width:100%;accent-color:#7bcdf7}.custom-options button:focus-visible,.device-stepper button:focus-visible,.device-stepper input:focus-visible{outline:3px solid #9bd9ff;outline-offset:2px}
   .addons-screen{gap:18px}.addon-block{padding:18px;border:1px solid rgba(166,211,244,.12);border-radius:22px;background:rgba(10,17,27,.86)}.addon-block h2{margin:0 0 14px;font-size:15px}.addon-block>small{display:block;margin-top:10px;color:#8298ab;font-size:9px}.addon-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.addon-grid button{display:flex;align-items:center;justify-content:space-between;min-height:58px;padding:0 15px;border:1px solid rgba(123,203,247,.25);border-radius:16px;color:#eef8ff;background:#102131;font:inherit}.addon-grid button.active{border-color:#83d2fb;background:linear-gradient(135deg,rgba(37,110,144,.72),rgba(15,48,68,.88));box-shadow:inset 0 0 0 1px rgba(139,216,255,.12)}.addon-grid b{font-size:13px}.addon-grid span{color:#91d9ff;font-weight:900}.addon-grid button:disabled{opacity:.55}.addons-screen .device-stepper strong{text-align:center;color:#bce8ff;font-size:22px}
   .purchase-total { margin-top: 16px; padding: 17px; border-radius: 25px; background: linear-gradient(150deg,#10263a,#09131e 68%); }
   .total-row { display: flex; align-items: center; justify-content: space-between; min-height: 34px; color: #d8e3ed; }
@@ -2733,8 +2788,6 @@
   .custom-control header > span { font-size:14px; }
   .custom-control > small,.addon-block > small { font-size:13px; line-height:1.6; }
   .custom-options button { font-size:14px; }
-  .custom-quote small,.custom-quote .custom-saving { font-size:12px; }
-  .custom-quote del { font-size:13px; }
   .screen.addons-screen { display:flex; flex-direction:column; gap:16px; }
   .addons-screen .purchase-total { margin-top:4px; }
   .purchase-screen .plan-summary { margin-top:12px; padding:16px 2px; border:0; border-radius:0; background:none; }
@@ -2824,8 +2877,13 @@
   .flow-preview button { transition:transform .22s cubic-bezier(.22,1,.36,1),background-color .22s,border-color .22s,box-shadow .22s,color .22s; }
   .plan-card { transition:transform .25s cubic-bezier(.22,1,.36,1),background .25s,border-color .25s,box-shadow .25s; }
   .plan-card.active { transform:translateY(-3px); }
-  .dock button.active :global(.arc-icon) { animation:nav-select .35s cubic-bezier(.22,1,.36,1); }
-  @keyframes nav-select { 0% { transform:scale(.8); } 60% { transform:scale(1.08); } 100% { transform:scale(1); } }
+  .dock-selection { position:absolute; z-index:0; top:0; left:0; width:var(--selection-width,0px); height:var(--selection-height,0px); transform:translate3d(var(--selection-x,0px),var(--selection-y,0px),0); border-radius:999px; pointer-events:none; opacity:0; background:linear-gradient(135deg,#b4e5ff,#64bdf0); box-shadow:inset 0 1px 0 rgba(255,255,255,.66),0 9px 26px -15px rgba(82,180,240,.9); }
+  .dock nav.selection-ready .dock-selection { opacity:1; transition:transform .5s cubic-bezier(.3,1.35,.5,1),width .5s cubic-bezier(.3,1.35,.5,1),height .5s cubic-bezier(.3,1.35,.5,1); }
+  .flow-preview .dock nav > button { position:relative; z-index:1; transition:flex .32s cubic-bezier(.22,1,.36,1),color .2s ease,background-color .2s ease,transform .12s ease; }
+  .flow-preview .dock nav > button.active { background:transparent; box-shadow:none; }
+  @media (prefers-reduced-motion:reduce) { .dock nav.selection-ready .dock-selection { transition:none; } }
+  .dock button.active :global(.arc-icon) { animation:nav-select .55s cubic-bezier(.3,1.8,.5,1); }
+  @keyframes nav-select { 0% { transform:scale(1); } 35% { transform:translateY(-3px) scale(1.3); } 100% { transform:scale(1); } }
   .payment-options small,.autorenew small { font-size:13px; line-height:1.5; }
   .payment-method-sheet > p { font-size:12px; line-height:1.6; }
   .promo-field button { font-size:13px; }
@@ -2873,17 +2931,20 @@
   .custom-options button:hover:not(.active),.addon-grid button:hover:not(.active) { background:#1b2a3a; }
   .device-stepper { margin-top:18px; }
   .device-stepper button { border-radius:14px; }
-  .custom-quote { padding:22px; border-radius:24px; gap:24px; align-items:center; }
-  .custom-summary { flex:1; min-width:0; }
-  .custom-summary > span { color:var(--text); font-size:16px; font-weight:700; }
-  .custom-summary dl { display:grid; gap:7px; margin:14px 0 0; }
-  .custom-summary dl > div { display:flex; justify-content:space-between; gap:12px; font-size:14px; }
-  .custom-summary dt { color:#bcc8d7; }
-  .custom-summary dd { margin:0; color:var(--text); }
-  .custom-price { display:flex; flex:none; flex-direction:column; align-items:flex-end; gap:6px; }
-  .custom-price strong { font-size:30px; letter-spacing:-.04em; white-space:nowrap; }
-  .custom-price small,.custom-price del { color:#bcc8d7; font-size:13px; white-space:nowrap; }
-  .custom-summary .custom-saving { display:block; margin-top:12px; font-size:13px; color:#a0d9b8; }
+  .flow-preview .custom-quote { display:grid; align-items:stretch; justify-content:stretch; gap:20px; padding:20px; border:1px solid rgba(166,211,244,.12); border-radius:24px; background:var(--surface); color:var(--text); }
+  .custom-quote h2 { margin:0; color:var(--text); font-size:16px; line-height:24px; font-weight:650; }
+  .custom-summary { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin:0; }
+  .custom-summary > div { display:grid; align-content:start; gap:6px; min-width:0; }
+  .custom-summary > div:nth-child(2) { text-align:center; }
+  .custom-summary > div:last-child { text-align:right; }
+  .custom-summary dt { color:#bcc8d7; font-size:13px; line-height:20px; }
+  .custom-summary dd { margin:0; color:var(--text); font-size:16px; line-height:24px; font-weight:650; font-variant-numeric:tabular-nums; }
+  .custom-total { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:flex-start; gap:10px 16px; padding-top:18px; border-top:1px solid rgba(166,211,244,.12); }
+  .custom-price { display:flex; flex:1 1 150px; flex-direction:column; gap:6px; min-width:0; }
+  .custom-amount { display:flex; flex-wrap:wrap; align-items:baseline; gap:4px 10px; }
+  .custom-amount strong { color:var(--text); font-size:32px; line-height:38px; font-weight:750; letter-spacing:-.035em; white-space:nowrap; }
+  .custom-amount del { color:#9aa9bb; font-size:14px; line-height:22px; font-weight:500; white-space:nowrap; }
+  .custom-monthly { padding-top:9px; color:#bcc8d7; font-size:13px; line-height:20px; white-space:nowrap; }
   .addon-block h2 { margin-bottom:18px; }
   .addon-grid { gap:10px; }
   .addon-grid button { min-height:60px; padding:0 16px; border-radius:16px; }
