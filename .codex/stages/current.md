@@ -1,3 +1,5 @@
+2026-10-29 DIRECT LT ingress restored: runtime8a1b3deb globally delivers Reality88.216.62.135:443, WARP:8444 and Hysteria2UDP443/SNIlt.arccnet.space inJSON+plain. Moscow95.182.120.237 remains only LT server-sideYouTube2444/web and cachedingress compatibility. Auto plain+fragment leastPing/5s30s3, CDN24000fallback, identities/URLs/quotas/routing/names/flags preserved.14focused tests; candidate owner/otherLTE/noLTE17/17/9onlyendpointchanges. ActualAutoLT/YouTubeRU/TGresPQ0.150s,WARPonGoogle204,Hy2LTpassed. Public boundJSON+plain200 and17/17/9 verified, root/subhealth/app200. Subscription-onlyrestart;botactive;nonode/DBmutations. Refresh/reconnect, affectedmobilemediaownercheckopen. Stage lithuania-direct-ingress-20261029.md. Rollbackscopedrendererrevert;keepcachedRUingress. Economy.
+
 # Lithuania owner-only rollout — 2026-10-27
 
 ## Current stage: trial 10% campaign preview — 2026-10-28
