@@ -101,3 +101,20 @@ def test_auto_fragmentation_does_not_add_test_profile():
     assert len(profiles) == 1
     assert profiles[0]['remarks'] == auto['remarks']
     assert profiles[0]['outbounds'][0]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
+
+
+def test_auto_restores_authorized_cdn_fallback_without_estonia_or_hysteria():
+    from monitoring.cdn_fallbacks import outbound
+    lte = reality('lte')
+    lte['settings']['vnext'][0]['users'][0]['id'] = 'separate-lte-uuid'
+    lte['streamSettings'] = {'network': 'xhttp'}
+    auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality(), outbound(lte,4096,'cdn-fast'), outbound(lte,24000,'cdn-safe'), {'tag':'direct','protocol':'freedom'}], 'routing': {'rules':[{'domain':['example.ru'],'outboundTag':'direct'}]}}
+    p=m.apply([auto],STATE)[0]
+    b=p['routing']['balancers']
+    assert b[0]['selector']==['lt-primary'] and b[0]['fallbackTag']=='cdn-stage'
+    assert b[1]['selector']==['cdn-fast'] and b[1]['fallbackTag']=='cdn-safe'
+    cdn=[o for o in p['outbounds'] if o['tag'] in ('cdn-fast','cdn-safe')]
+    assert [o['streamSettings']['xhttpSettings']['path'] for o in cdn]==['/api-lt-test-4096','/api-lt-test-24000']
+    assert all(o['settings']['vnext'][0]['users'][0]['id']=='separate-lte-uuid' for o in cdn)
+    assert any(r.get('outboundTag')=='direct' for r in p['routing']['rules'])
+    assert not any(o.get('tag')=='ee-reserve' or o.get('protocol')=='hysteria' for o in p['outbounds'])

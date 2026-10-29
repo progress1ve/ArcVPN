@@ -81,6 +81,29 @@ def apply(profiles, state):
             p['routing'].pop('balancers', None)
             p.pop('observatory', None)
             p.pop('burstObservatory', None)
+            # Reuse the authorized LTE transports, never the ordinary UUID.
+            cdn = {o.get('tag'): rewrite(copy.deepcopy(o), state)
+                   for o in (original_auto or {}).get('outbounds', [])
+                   if o.get('tag') in ('cdn-fast', 'cdn-safe')
+                   and o.get('streamSettings', {}).get('network') == 'xhttp'}
+            if 'cdn-fast' in cdn and 'cdn-safe' in cdn:
+                p['outbounds'].extend([cdn['cdn-fast'], cdn['cdn-safe'],
+                    {'tag': 'cdn-stage', 'protocol': 'loopback',
+                     'settings': {'inboundTag': 'cdn-stage'}}])
+                for rule in rules:
+                    if rule.get('outboundTag') == 'lt-primary':
+                        rule.pop('outboundTag')
+                        rule['balancerTag'] = 'lt-first'
+                rules.insert(0, {'type': 'field', 'inboundTag': ['cdn-stage'],
+                    'network': 'tcp,udp', 'balancerTag': 'balancer_cdn_fast'})
+                p['routing']['balancers'] = [
+                    {'tag': 'lt-first', 'selector': ['lt-primary'],
+                     'strategy': {'type': 'leastPing'}, 'fallbackTag': 'cdn-stage'},
+                    {'tag': 'balancer_cdn_fast', 'selector': ['cdn-fast'],
+                     'strategy': {'type': 'leastPing'}, 'fallbackTag': 'cdn-safe'}]
+                p['burstObservatory'] = {'subjectSelector': ['lt-primary', 'cdn-fast'],
+                    'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
+                                   'interval': '30s', 'sampling': 3, 'timeout': '2s'}}
     return result
 
 
