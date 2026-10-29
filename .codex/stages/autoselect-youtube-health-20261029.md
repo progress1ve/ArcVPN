@@ -1,0 +1,9 @@
+# AutoSelect health budget / YouTube routing
+
+Owner reports ads in Auto on Wi-Fi; dedicated YouTube profile has none. Live profile: LTReality primary through Moscow1443 with FinalMask tlshello10-20bytes/10-20ms, observed every30s with3samples and2s timeout, CDN24000/10 fallback. LT sends ordinary YouTube to Moscow95.182.120.237:2444; CDN inbounds explicitly exit LT directly. UUIDs, URLs, quota, FinalMask and routing unchanged.
+
+Diagnosis: actual owner primary gstatic HTTP204 took2.364435/2.260481/2.462769s, exceeding2s health budget; primary YouTube page reportsRU. A healthy fragmented connection is therefore rejected by health checks and can move to CDN/LT. User Wi-Fi runtime selection has not been captured; measured false-negative mechanism matches symptom, not a claim of inspected device state.
+
+Repair only monitoring/lithuania_canary.py: health timeout5s. Keep probe URL,30s cadence,3samples, primary/CDN order, separate LTE identity and CDN direct egress. Main route still LT->RU for YouTube. Longer timeout adds up to3s per failed probe; no node/profile/DNS/topology mutation. Rollback scoped code revert, no DB/state restore.
+
+Verification:15 focused Lithuania/CDN tests passed. Actual generated owner Auto with only proposed5s timeout passes Xray syntax and after35s observer warmup returns YouTubeRU (956289byte page), CDN fallback retained. Publication requires owner/nonowner generated5s, production FFpull/subscription-only restart/service+public health. Private test processes use temporary loopback SOCKS and protected configs, never a public host or customer message. Real Wi-Fi/client playback remains owner check; close/reopen YouTube after refreshing/reconnecting subscription.

@@ -97,7 +97,8 @@ def apply(profiles, state):
                      'strategy': {'type': 'leastPing'}, 'fallbackTag': 'cdn-safe'}]
                 p['burstObservatory'] = {'subjectSelector': ['lt-primary'],
                     'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
-                                   'interval': '30s', 'sampling': 3, 'timeout': '2s'}}
+                                   # Fragmented Reality handshakes exceed 2s even on a healthy path.
+                                   'interval': '30s', 'sampling': 3, 'timeout': '5s'}}
     return result
 
 
