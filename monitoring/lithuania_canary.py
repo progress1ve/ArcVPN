@@ -126,4 +126,5 @@ def apply_links(links, state):
             authority = p.netloc.rsplit('@', 1)[0] + '@' + host + (':'+str(port) if port else '')
             link = urllib.parse.urlunsplit((p.scheme, authority, p.path, urllib.parse.urlencode(q), urllib.parse.quote(rename(urllib.parse.unquote(p.fragment)))))
         result.append(link)
-    return result
+    from monitoring.hostup_return import apply_links as apply_hostup_links
+    return apply_hostup_links(result)

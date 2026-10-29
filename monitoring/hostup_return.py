@@ -1,9 +1,43 @@
 """Restore the authorized Sweden peer without changing customer identities."""
 import copy
 import json
+import urllib.parse
 from pathlib import Path
 
 STATE = Path(__file__).resolve().parents[1] / '.secrets/hostup-return-20261029.json'
+
+
+def apply_links(links):
+    try:
+        state = json.loads(STATE.read_text())
+    except (OSError, ValueError):
+        return links
+    if not state.get('enabled'):
+        return links
+    output = []
+    sweden = None
+    for link in links:
+        parsed = urllib.parse.urlsplit(link)
+        name = urllib.parse.unquote(parsed.fragment)
+        if 'Литва' in name and parsed.scheme == 'vless' and sweden is None:
+            sweden = link
+        if any(label in name for label in ('Эстония', 'Нидерланды', 'Нейросети', 'Игровой сервер')):
+            query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+            port = 8444 if 'Нейросети' in name else 443
+            query['sni'] = state['serverName']
+            if parsed.scheme == 'vless':
+                query.update(pbk=state['publicKey'], sid=state['shortId'], fp='firefox')
+            authority = parsed.netloc.rsplit('@', 1)[0] + '@' + state['address'] + ':' + str(port)
+            link = urllib.parse.urlunsplit((parsed.scheme, authority, parsed.path, urllib.parse.urlencode(query), parsed.fragment))
+        output.append(link)
+    if sweden:
+        parsed = urllib.parse.urlsplit(sweden)
+        query = dict(urllib.parse.parse_qsl(parsed.query, keep_blank_values=True))
+        query.update(sni=state['serverName'], pbk=state['publicKey'], sid=state['shortId'], fp='firefox')
+        link = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc.rsplit('@', 1)[0] + '@' + state['address'] + ':443', parsed.path, urllib.parse.urlencode(query), urllib.parse.quote('🇸🇪 Швеция')))
+        index = next((i + 1 for i, value in enumerate(output) if 'Ютуб' in urllib.parse.unquote(urllib.parse.urlsplit(value).fragment)), 0)
+        output.insert(index, link)
+    return output
 
 
 def apply(profiles):
