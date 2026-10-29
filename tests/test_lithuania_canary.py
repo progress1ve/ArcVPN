@@ -1,5 +1,12 @@
 import copy
+import pytest
 from monitoring import lithuania_canary as m
+
+
+@pytest.fixture(autouse=True)
+def isolate_hostup_runtime_state(monkeypatch, tmp_path):
+    from monitoring import hostup_return
+    monkeypatch.setattr(hostup_return, 'STATE', tmp_path / 'no-production-state.json')
 
 STATE = {'public_key': 'node-public-key', 'short_id': '00112233', 'tls_name': 'lt.example'}
 
