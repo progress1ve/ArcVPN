@@ -2024,8 +2024,6 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     lt_canary = load_lt_canary(key.telegram_id)
     if lt_canary:
         rendered_profiles = apply_lt_canary(rendered_profiles, lt_canary)
-    from monitoring.owner_youtube_direct import apply as apply_owner_youtube_direct
-    rendered_profiles = apply_owner_youtube_direct(rendered_profiles, key.telegram_id)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,

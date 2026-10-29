@@ -1,0 +1,196 @@
+{
+  "gates": {
+    "ordinaryExit": "88.216.62.135",
+    "oldProfilesUnchanged": true,
+    "youtubeRegion": "RU",
+    "youtubeWorksWithLithuaniaDisconnected": true,
+    "syntaxProfiles": 3
+  },
+  "samples": [
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.397452,
+      "time_total": 2.106345,
+      "speed_download": 1991271,
+      "mode": "old-lt-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.394839,
+      "time_total": 1.064106,
+      "speed_download": 3941622,
+      "mode": "direct-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.391337,
+      "time_total": 2.921352,
+      "speed_download": 1435740,
+      "mode": "direct-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.29481,
+      "time_total": 0.787718,
+      "speed_download": 5324626,
+      "mode": "old-lt-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.308713,
+      "time_total": 1.051407,
+      "speed_download": 3989229,
+      "mode": "old-lt-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.540801,
+      "time_total": 1.936465,
+      "speed_download": 2165959,
+      "mode": "direct-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 1.427168,
+      "time_total": 16.345241,
+      "speed_download": 256607,
+      "mode": "direct-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 4194304,
+      "time_starttransfer": 0.278404,
+      "time_total": 0.646014,
+      "speed_download": 6492589,
+      "mode": "old-lt-msk",
+      "requestedBytes": 4194304,
+      "limitSeconds": 20,
+      "exitcode": 0
+    },
+    {
+      "http_code": 206,
+      "size_download": 5079008,
+      "time_starttransfer": 0.724231,
+      "time_total": 11.999143,
+      "speed_download": 423280,
+      "mode": "direct-msk",
+      "requestedBytes": 16777216,
+      "limitSeconds": 12,
+      "exitcode": 28
+    },
+    {
+      "http_code": 206,
+      "size_download": 5341152,
+      "time_starttransfer": 0.285944,
+      "time_total": 12.001124,
+      "speed_download": 445054,
+      "mode": "old-lt-msk",
+      "requestedBytes": 16777216,
+      "limitSeconds": 12,
+      "exitcode": 28
+    },
+    {
+      "http_code": 206,
+      "size_download": 5504992,
+      "time_starttransfer": 0.284513,
+      "time_total": 11.999342,
+      "speed_download": 458774,
+      "mode": "old-lt-msk",
+      "requestedBytes": 16777216,
+      "limitSeconds": 12,
+      "exitcode": 28
+    },
+    {
+      "http_code": 206,
+      "size_download": 4784096,
+      "time_starttransfer": 0.711848,
+      "time_total": 11.999583,
+      "speed_download": 398688,
+      "mode": "direct-msk",
+      "requestedBytes": 16777216,
+      "limitSeconds": 12,
+      "exitcode": 28
+    }
+  ],
+  "summary": [
+    {
+      "mode": "old-lt-msk",
+      "requestedBytes": 4194304,
+      "samples": 4,
+      "medianMbps": 37.25542,
+      "medianFirstByteMs": 301.7615,
+      "http206": 4,
+      "completed": 4,
+      "timeCapped": 0
+    },
+    {
+      "mode": "direct-msk",
+      "requestedBytes": 4194304,
+      "samples": 4,
+      "medianMbps": 14.406796,
+      "medianFirstByteMs": 467.82,
+      "http206": 4,
+      "completed": 4,
+      "timeCapped": 0
+    },
+    {
+      "mode": "old-lt-msk",
+      "requestedBytes": 16777216,
+      "samples": 2,
+      "medianMbps": 3.615312,
+      "medianFirstByteMs": 285.2285,
+      "http206": 2,
+      "completed": 0,
+      "timeCapped": 2
+    },
+    {
+      "mode": "direct-msk",
+      "requestedBytes": 16777216,
+      "samples": 2,
+      "medianMbps": 3.287872,
+      "medianFirstByteMs": 718.0395,
+      "http206": 2,
+      "completed": 0,
+      "timeCapped": 2
+    }
+  ],
+  "method": {
+    "source": "Poland control",
+    "sameVideo": "aqz-KE-bpKQ",
+    "format": "298",
+    "sameSignedUrl": true,
+    "ipPinned": false,
+    "protocol": "HTTP/1.1 over SOCKS",
+    "ordering": "ABBA",
+    "zapret": "enabled for both",
+    "longRangeNote": "12-second observation windows; time limit is intentional, not a transport failure"
+  }
+}
