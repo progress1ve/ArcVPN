@@ -1,7 +1,7 @@
-"""Owner-only delivery overlay; inactive for every other customer.
+"""Lithuania delivery overlay, gated by the controller's root-only state.
 
-The controller-created state file is root-only. Removing delivery_enabled is
-the immediate rollback; no global catalog or customer identity is changed.
+Ordinary clients connect directly to Lithuania. Moscow is a server-side
+YouTube egress, not an ingress hop for ordinary, WARP or gaming profiles.
 """
 import copy
 import json
@@ -38,11 +38,11 @@ def rewrite(o, state):
     elif stream.get('security') == 'reality':
         targets = o.get('settings', {}).get('vnext', [])
         for target in targets:
-            target['address'] = '95.182.120.237'
-            target['port'] = 9444 if int(target.get('port', 443)) == 8444 else 1443
+            target['address'] = IP
+            target['port'] = 8444 if int(target.get('port', 443)) in (8444, 9444) else 443
         stream['realitySettings'].update(serverName=state['tls_name'], publicKey=state['public_key'], shortId=state['short_id'], fingerprint='firefox')
     elif o.get('protocol') == 'hysteria':
-        o['settings'].update(address='95.182.120.237', port=443)
+        o['settings'].update(address=IP, port=443)
         stream['tlsSettings'].update(serverName=state['tls_name'], allowInsecure=False)
     return o
 
@@ -114,13 +114,13 @@ def apply_links(links, state):
         q = dict(urllib.parse.parse_qsl(p.query, keep_blank_values=True))
         host = p.hostname; port = p.port
         if p.scheme == 'vless' and q.get('security') == 'reality':
-            host = '95.182.120.237'; port = 9444 if port == 8444 else 1443
+            host = IP; port = 8444 if port in (8444, 9444) else 443
             q.update(sni=state['tls_name'], pbk=state['public_key'], sid=state['short_id'], fp='firefox')
         elif q.get('type') == 'xhttp':
             for field in ('path', 'extra'):
                 if field in q:q[field] = q[field].replace('/api-se', '/api-lt').replace('/api-ee', '/api-lt').replace('/api-test', '/api-lt-test')
         elif p.scheme in ('hysteria2', 'hy2'):
-            host = '95.182.120.237'; port = 443; q.update(sni=state['tls_name'], insecure='0')
+            host = IP; port = 443; q.update(sni=state['tls_name'], insecure='0')
         if host:
             authority = p.netloc.rsplit('@', 1)[0] + '@' + host + (':'+str(port) if port else '')
             link = urllib.parse.urlunsplit((p.scheme, authority, p.path, urllib.parse.urlencode(q), urllib.parse.quote(rename(urllib.parse.unquote(p.fragment)))))

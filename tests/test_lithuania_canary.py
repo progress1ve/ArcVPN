@@ -28,8 +28,8 @@ def test_auto_without_lte_selects_both_main_variants_and_preserves_input():
     old = copy.deepcopy(profiles)
     p = m.apply(profiles, STATE)[0]
     assert profiles == old
-    assert p['outbounds'][0]['settings']['vnext'][0]['address'] == '95.182.120.237'
-    assert p['outbounds'][0]['settings']['vnext'][0]['port'] == 1443
+    assert p['outbounds'][0]['settings']['vnext'][0]['address'] == '88.216.62.135'
+    assert p['outbounds'][0]['settings']['vnext'][0]['port'] == 443
     assert p['outbounds'][0]['tag'] == 'lt-primary'
     assert 'finalmask' not in p['outbounds'][0]['streamSettings']
     assert p['outbounds'][1]['streamSettings']['finalmask']['tcp'][0]['settings'] == {'packets': 'tlshello', 'length': '10-20', 'delay': '10-20'}
@@ -44,7 +44,8 @@ def test_alias_uuid_and_ai_port_preserved():
     p = m.apply(profiles, STATE)[0]
     assert p['remarks'] == '🇸🇪 Нейросети 🤖'
     target = p['outbounds'][0]['settings']['vnext'][0]
-    assert target['port'] == 9444
+    assert target['address'] == '88.216.62.135'
+    assert target['port'] == 8444
     assert target['users'][0]['id'] == 'keep-owner-uuid'
 
 
@@ -63,13 +64,16 @@ def test_auto_excludes_hysteria_and_estonia_but_keeps_game_profile():
     p = result[0]
     primary = p['outbounds'][0]
     assert primary['protocol'] == 'vless' and primary['tag'] == 'lt-primary'
-    assert primary['settings']['vnext'][0]['address'] == '95.182.120.237'
-    assert primary['settings']['vnext'][0]['port'] == 1443
+    assert primary['settings']['vnext'][0]['address'] == '88.216.62.135'
+    assert primary['settings']['vnext'][0]['port'] == 443
     assert not any(o.get('protocol') in ('hysteria', 'loopback') for o in p['outbounds'])
     assert p['routing']['balancers'][0]['fallbackTag'] == 'lt-primary-fragment'
     assert p['routing']['rules'][-1]['balancerTag'] == 'lt-first'
     assert any(r.get('outboundTag') == 'direct' for r in p['routing']['rules'])
     assert result[1]['outbounds'][0]['protocol'] == 'hysteria'
+    assert result[1]['outbounds'][0]['settings']['address'] == '88.216.62.135'
+    assert result[1]['outbounds'][0]['settings']['port'] == 443
+    assert result[1]['outbounds'][0]['streamSettings']['hysteriaSettings']['auth'] == 'user-hysteria-auth'
     assert result[1]['remarks'] == '🇸🇪 Игровой сервер 🎮'
 
 
@@ -93,7 +97,7 @@ def test_cdn_endpoint_and_identity_retained_only_owner_path_changes():
 def test_plain_link_preserves_owner_identity():
     link = 'vless://keep-owner-uuid@ee.example:8444?security=reality&type=tcp&pbk=old#%F0%9F%87%B8%F0%9F%87%AA%20AI'
     result = m.apply_links([link], STATE)[0]
-    assert 'keep-owner-uuid@95.182.120.237:9444' in result
+    assert 'keep-owner-uuid@88.216.62.135:8444' in result
     assert 'pbk=node-public-key' in result
 
 
@@ -150,3 +154,20 @@ def test_no_lte_failure_never_falls_back_to_unprotected_direct():
     assert fallback['protocol'] == 'vless'
     assert fallback['streamSettings']['security'] == 'reality'
     assert p['routing']['rules'][0]['outboundTag'] == 'direct'
+
+
+def test_all_ordinary_share_links_bypass_moscow_preserving_auth_and_sni():
+    import urllib.parse
+    links = [
+        'vless://ordinary-auth@95.182.120.237:1443?security=reality&type=tcp#Lithuania',
+        'vless://ai-auth@95.182.120.237:9444?security=reality&type=tcp#AI',
+        'hysteria2://gaming-auth@95.182.120.237:443?sni=old.example#Games',
+        'vless://lte-auth@cdn-de.arccnet.space:443?type=xhttp&security=tls&path=%2Fapi-lt-test-24000#CDN',
+    ]
+    result = [urllib.parse.urlsplit(s) for s in m.apply_links(links, STATE)]
+    assert [(s.hostname, s.port) for s in result] == [
+        ('88.216.62.135', 443), ('88.216.62.135', 8444),
+        ('88.216.62.135', 443), ('cdn-de.arccnet.space', 443)]
+    assert [s.username for s in result] == ['ordinary-auth', 'ai-auth', 'gaming-auth', 'lte-auth']
+    assert all(urllib.parse.parse_qs(s.query)['sni'] == ['lt.example'] for s in result[:3])
+    assert urllib.parse.parse_qs(result[3].query)['path'] == ['/api-lt-test-24000']
