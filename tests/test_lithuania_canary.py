@@ -111,10 +111,10 @@ def test_auto_restores_authorized_cdn_fallback_without_estonia_or_hysteria():
     auto = {'remarks': '🇸🇴 Автовыбор', 'outbounds': [reality(), outbound(lte,4096,'cdn-fast'), outbound(lte,24000,'cdn-safe'), {'tag':'direct','protocol':'freedom'}], 'routing': {'rules':[{'domain':['example.ru'],'outboundTag':'direct'}]}}
     p=m.apply([auto],STATE)[0]
     b=p['routing']['balancers']
-    assert b[0]['selector']==['lt-primary'] and b[0]['fallbackTag']=='cdn-stage'
-    assert b[1]['selector']==['cdn-fast'] and b[1]['fallbackTag']=='cdn-safe'
+    assert b[0]['selector']==['lt-primary'] and b[0]['fallbackTag']=='cdn-safe'
+    assert len(b)==1
     cdn=[o for o in p['outbounds'] if o['tag'] in ('cdn-fast','cdn-safe')]
-    assert [o['streamSettings']['xhttpSettings']['path'] for o in cdn]==['/api-lt-test-4096','/api-lt-test-24000']
+    assert [o['streamSettings']['xhttpSettings']['path'] for o in cdn]==['/api-lt-test-24000']
     assert all(o['settings']['vnext'][0]['users'][0]['id']=='separate-lte-uuid' for o in cdn)
     assert any(r.get('outboundTag')=='direct' for r in p['routing']['rules'])
     assert not any(o.get('tag')=='ee-reserve' or o.get('protocol')=='hysteria' for o in p['outbounds'])
