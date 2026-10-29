@@ -104,7 +104,8 @@ def apply(profiles, state):
                 'pingConfig': {'destination': 'https://www.gstatic.com/generate_204',
                                # Fragmented Reality handshakes exceed 2s even on a healthy path.
                                'interval': '30s', 'sampling': 3, 'timeout': '5s'}}
-    return result
+    from monitoring.hostup_return import apply as apply_hostup
+    return apply_hostup(result)
 
 
 def apply_links(links, state):
