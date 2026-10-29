@@ -1,5 +1,7 @@
 # AutoSelect health budget / YouTube routing
 
+Published2026-10-29 runtimeed86b1683b68cd30425918378d6bb2d1638552c6 (reviewed local1a65ca81): scoped two-file FFpush and Poland FFpull; subscription service restarted, bot untouched, both active. Fresh owner/nonowner generation17profiles each confirms5s/30s/3samples andcdn-safe fallback. Public arccnet/sub health and app200. Actual generated Auto canary with5s reaches YouTubeRU after35s observer;15 focused tests passed. No identity/URL/node/routing/billing change. Real owner Wi-Fi playback is unverified; refresh subscription, reconnect, restart YouTube. Longer real-failure detection is the only intentional tradeoff. No claim that countryRU guarantees removal of every ad.
+
 Owner reports ads in Auto on Wi-Fi; dedicated YouTube profile has none. Live profile: LTReality primary through Moscow1443 with FinalMask tlshello10-20bytes/10-20ms, observed every30s with3samples and2s timeout, CDN24000/10 fallback. LT sends ordinary YouTube to Moscow95.182.120.237:2444; CDN inbounds explicitly exit LT directly. UUIDs, URLs, quota, FinalMask and routing unchanged.
 
 Diagnosis: actual owner primary gstatic HTTP204 took2.364435/2.260481/2.462769s, exceeding2s health budget; primary YouTube page reportsRU. A healthy fragmented connection is therefore rejected by health checks and can move to CDN/LT. User Wi-Fi runtime selection has not been captured; measured false-negative mechanism matches symptom, not a claim of inspected device state.
