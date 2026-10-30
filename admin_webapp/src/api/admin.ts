@@ -326,6 +326,7 @@ export interface TariffStats {
 }
 
 export interface DashboardStats {
+  online_users?: number | null;
   nodes: NodesOverview;
   subscriptions: SubscriptionStats;
   financial: FinancialStats;

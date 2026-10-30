@@ -1,6 +1,8 @@
 type Json = Record<string, any>;
 const GB = 1024 ** 3;
 let overviewCache: Promise<Json> | null = null;
+let overviewCachedAt = 0;
+const OVERVIEW_CACHE_MS = 10_000;
 const detailCache = new Map<number, Promise<Json>>();
 let referralNetworkCache: Promise<Json> | null = null;
 
@@ -331,10 +333,16 @@ export const access = (): Promise<Json> =>
 export const login = (password: string): Promise<Json> =>
   getJson('/api/admin/login', { method: 'POST', body: JSON.stringify({ password }) });
 export function getOverview(): Promise<Json> {
-  if (!overviewCache)
-    overviewCache = import.meta.env.DEV
+  if (!overviewCache || Date.now() - overviewCachedAt >= OVERVIEW_CACHE_MS) {
+    overviewCachedAt = Date.now();
+    const pending = import.meta.env.DEV
       ? Promise.resolve(mockOverview)
       : getJson('/api/admin/overview');
+    overviewCache = pending;
+    pending.catch(() => {
+      if (overviewCache === pending) overviewCache = null;
+    });
+  }
   return overviewCache;
 }
 export async function getUsers(params: Record<string, unknown> = {}): Promise<Json> {
@@ -559,6 +567,8 @@ export function dashboardStats(data: Json): Json {
   );
   const lifetime = Number(data.financials?.lifetime_rub || 0);
   return {
+    online_users: data.remnawave?.healthy === true && Array.isArray(data.remnawave?.online_users)
+      ? data.remnawave.online_users.length : null,
     nodes: {
       total: nodes.length,
       online: nodes.filter((n: Json) => n.is_connected && !n.is_disabled).length,

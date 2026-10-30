@@ -35,7 +35,6 @@ import {
   ShieldIcon,
   SparklesIcon,
   StatBotIcon,
-  StatCabinetIcon,
   StatPaidIcon,
   StatsChartIcon,
   StatTrialIcon,
@@ -52,7 +51,6 @@ import {
   RadarIcon,
 } from '@/components/icons';
 
-const CABINET_VERSION = __APP_VERSION__;
 const IS_MAC = /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent);
 
 // Section nav icons (24x24 viewBox)
@@ -438,10 +436,11 @@ const StatsBar = memo(function StatsBar({ systemInfo, dashboardStats, loading }:
         colorClass: 'text-accent-400 bg-accent-400/10 border-accent-400/20',
       },
       {
-        icon: <StatCabinetIcon className="h-3.5 w-3.5" />,
-        label: t('admin.panel.statsCabinet'),
-        value: `v${CABINET_VERSION}`,
-        colorClass: 'text-accent-300 bg-accent-300/10 border-accent-300/20',
+        icon: <UsersIcon className="h-3.5 w-3.5" />,
+        label: t('admin.remnawave.overview.usersOnline', 'Онлайн'),
+        numericValue: dashboardStats?.online_users ?? undefined,
+        value: '--',
+        colorClass: 'text-success-400 bg-success-400/10 border-success-400/20',
       },
       {
         icon: <StatTrialIcon className="h-3.5 w-3.5" />,
@@ -695,10 +694,18 @@ export default function AdminPanel() {
                   : undefined,
               cls: 'text-success-400',
             },
+            {
+              icon: <UsersIcon className="h-3.5 w-3.5" />,
+              label: t('admin.remnawave.overview.usersOnline', 'Онлайн'),
+              value: dashboardStats?.online_users?.toLocaleString() ?? '--',
+              cls: 'text-success-400',
+              fullWidth: true,
+            },
           ].map((s, i) => (
             <div
               key={i}
               className={cn(
+                'fullWidth' in s && s.fullWidth && 'col-span-2',
                 'flex items-center gap-2 rounded-xl border border-dark-700/50 bg-dark-800/40 px-2.5 py-2',
                 'light:border-champagne-300/50 light:bg-champagne-100/60',
                 loading && 'animate-pulse',

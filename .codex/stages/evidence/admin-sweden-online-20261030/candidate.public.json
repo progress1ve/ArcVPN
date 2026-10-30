@@ -1,0 +1,80 @@
+{
+  "phase": "candidate",
+  "rows": [
+    {
+      "page": "home",
+      "width": 360,
+      "online": 15,
+      "versionAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "page": "nodes",
+      "width": 360,
+      "sweden": true,
+      "provider": "HostUp",
+      "statisticsLink": true,
+      "noOverflow": true
+    },
+    {
+      "page": "home",
+      "width": 768,
+      "online": 15,
+      "versionAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "page": "nodes",
+      "width": 768,
+      "sweden": true,
+      "provider": "HostUp",
+      "statisticsLink": true,
+      "noOverflow": true
+    },
+    {
+      "page": "home",
+      "width": 1280,
+      "online": 15,
+      "versionAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "page": "nodes",
+      "width": 1280,
+      "sweden": true,
+      "provider": "HostUp",
+      "statisticsLink": true,
+      "noOverflow": true
+    },
+    {
+      "page": "home",
+      "width": 1600,
+      "online": 15,
+      "versionAbsent": true,
+      "noOverflow": true
+    },
+    {
+      "page": "nodes",
+      "width": 1600,
+      "sweden": true,
+      "provider": "HostUp",
+      "statisticsLink": true,
+      "noOverflow": true
+    },
+    {
+      "page": "sweden-detail",
+      "statisticsNavigation": true
+    },
+    {
+      "page": "home-fixture",
+      "healthy": true,
+      "display": "0"
+    },
+    {
+      "page": "home-fixture",
+      "healthy": false,
+      "display": "--"
+    }
+  ],
+  "runtimeErrors": []
+}

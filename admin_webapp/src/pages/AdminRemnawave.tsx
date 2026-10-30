@@ -519,7 +519,7 @@ function NodesTab({
 }: NodesTabProps) {
   const { t } = useTranslation();
   const canManage = usePermissionStore((s) => s.hasPermission('nodes:preflight'));
-  const currentHosts = new Set(['87.251.19.197', '88.216.62.135']);
+  const currentHosts = new Set(['87.251.19.197', '88.216.62.135', '136.148.220.228']);
   const visibleNodes = nodes.filter((node) => currentHosts.has(node.address));
   const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });
   const documentedNodes = (registry?.nodes || []) as Array<{ host: string; alias: string; role: string; location?: string; status?: string }>;

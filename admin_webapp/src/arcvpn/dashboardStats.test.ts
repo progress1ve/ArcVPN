@@ -14,3 +14,18 @@ describe('ArcVPN dashboard subscription stats', () => {
     expect(result.subscriptions.paid).toBe(5);
   });
 });
+
+
+describe('ArcVPN online customers', () => {
+  it('uses unique customer presence rather than summed node sessions', () => {
+    const result = dashboardStats({ remnawave: {
+      healthy: true, online_users: [{}, {}], nodes: [{ users_online: 12 }, { users_online: 8 }],
+    } });
+    expect(result.online_users).toBe(2);
+  });
+  it('distinguishes known zero from unavailable telemetry', () => {
+    expect(dashboardStats({ remnawave: { healthy: true, online_users: [] } }).online_users).toBe(0);
+    expect(dashboardStats({ remnawave: { healthy: false, online_users: [] } }).online_users).toBeNull();
+    expect(dashboardStats({}).online_users).toBeNull();
+  });
+});
