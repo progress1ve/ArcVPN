@@ -2047,3 +2047,7 @@ The dedicated production admin is React `admin_webapp`; the customer application
 2026-10-25: Support human reply pauses AI per ticket until explicit manager resume for future user messages. Late responses cannot override pause/resume; close/reopen preserves manual ownership. Billing, personal compensation promises and repeated failed diagnostics escalate before provider. Legacy active human-owned threads paused; no customer messages or financial changes during verification.
 
 2026-10-29: AutoSelect runtime344adf4c selects plain or fragmented Reality on the same Moscow-to-Lithuania path via leastPing; authorized CDN24000/10 remains last fallback. No Estonia/Hysteria candidates; no-LTE users retry fragmented main. Probe timeout5s, burst30s/3samples (90s window). Keep main/LTE identities, URLs and quotas separate. Normal and two forced-failure YouTube canaries passed; real affected ISP/client compatibility remains a user check. See .codex/stages/autoselect-reality-variants-20261029.md.
+
+
+### 2026-10-30 — Admin presence display
+Admin home Online uses unique customers from Remnawave presence (existing3-minute observation window), refreshes on60s UI poll; unknown is --,knownzero0. Remnawave Nodes visible fleet includes Estonia,Lithuania,SwedenHostUp. This is a view change, not VPN topology.

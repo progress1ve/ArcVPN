@@ -1,0 +1,42 @@
+[
+  {
+    "path": "/",
+    "status": 200
+  },
+  {
+    "path": "/app",
+    "status": 200
+  },
+  {
+    "path": "/admin/",
+    "status": 200
+  },
+  {
+    "path": "/health",
+    "status": 200
+  },
+  {
+    "path": "/api/admin/overview",
+    "unauthenticated": 403
+  },
+  {
+    "asset": "current",
+    "path": "/admin/assets/index-D0BvCjdU.css",
+    "status": 200
+  },
+  {
+    "asset": "current",
+    "path": "/admin/assets/index-z6g0CpvV.js",
+    "status": 200
+  },
+  {
+    "asset": "previous",
+    "path": "/admin/assets/index-Bk6PZj66.css",
+    "status": 200
+  },
+  {
+    "asset": "previous",
+    "path": "/admin/assets/index-b_vIvuGQ.js",
+    "status": 200
+  }
+]
