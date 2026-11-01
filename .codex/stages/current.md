@@ -1,3 +1,7 @@
+# Production YouTube zapret disabled — 2026-11-01
+
+Economy,no subagents. Owner phone test confirmed no-zapret much better, noQUIC no benefit; explicitly authorized all-user rollout. Moscow95.182.120.237 arcvpn-youtube-zapret.service disabled+inactive,NFQUEUE table removed; LT/SE->RU2444 paths unchanged,QUIC allowed. Remnawave/UUID/URL/quota untouched,no node restart. Owner test overlay disabled, isolated canary stopped and exact firewall rules/ports removed. Ordinary Sweden/Lithuania real same-media206/262144bytes+YouTubeRU passed from Poland; bot/APIactive,health200. No universal speed guarantee. Root-only before /root/arcvpn-youtube-no-zapret-before-20261101; rollback systemctl enable --now arcvpn-youtube-zapret.service. Stage .codex/stages/youtube-production-no-zapret-20261101.md. Owner refreshes subscription and selects ordinary profile. Old entries below historical.
+
 # Active: production YouTube without zapret — 2026-11-01
 
 Owner authorized rollout after successful phone test. Contract/evidence: youtube-production-no-zapret-20261101.md. Existing SE/LT->RU2444 path retained, QUIC enabled. Acceptance: real media via both ordinary profiles, NFQUEUE removed, rollback saved.
