@@ -1,3 +1,7 @@
+# Active: production YouTube without zapret — 2026-11-01
+
+Owner authorized rollout after successful phone test. Contract/evidence: youtube-production-no-zapret-20261101.md. Existing SE/LT->RU2444 path retained, QUIC enabled. Acceptance: real media via both ordinary profiles, NFQUEUE removed, rollback saved.
+
 # Owner Shorts canary published — 2026-11-01
 
 Economy,no subagents. Owner accepted Sweden->Moscow three-way test. Runtime38ed60ea pushed/main and PolandFFpulled;subscription restarted,bot/APIactive. Three owner-only JSON profiles appended: Shorts zapret / без zapret / без QUIC. Existing identities, URLs, ordinary routes and quotas preserved. Root-only owner state expires ~11h40; Moscow isolated canary service RuntimeMaxSec12h,no restart/no boot enable. RU2445 bypass mark0x01000000,2446 zapret; source allow Sweden only; exact scoped firewall cleanup ExecStopPost. All3 syntax and real same-media206/262144bytes+YouTubeRU passed; QUIC runtime/phone improvement unverified. Owner renderer21, nonowner public18/no tests. Owner public collector missing device-bound URL receives existing device gate; do not alter device protection. Update existing JSON subscription, compare15-20Shorts/profile. Evidence/rollback .codex/stages/shorts-canary-20261101.md. Signed URLs/temp credential files/diagnostic listeners cleaned. Disable owner state and stop only canary to rollback; ordinary zapret remains active.
