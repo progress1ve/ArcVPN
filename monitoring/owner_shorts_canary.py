@@ -17,11 +17,15 @@ def apply(profiles, telegram_id):
             return profiles
         source = next(p for p in profiles if p.get('remarks') == '🇸🇪 Швеция')
         result = list(profiles)
-        for name, port, tcp_only in [
+        variants = [
             ('🧪 Shorts · zapret', state['on_port'], False),
             ('🧪 Shorts · без zapret', state['off_port'], False),
             ('🧪 Shorts · без QUIC', state['on_port'], True),
-        ]:
+        ]
+        if state.get('experiment') == 'ipv4':
+            variants = [('🧪 Shorts · IPv4 (как раньше)', state['off_port'], False),
+                        ('🧪 Shorts · авто IP', state['on_port'], False)]
+        for name, port, tcp_only in variants:
             p = copy.deepcopy(source)
             p['remarks'] = name
             transport = next(o for o in p['outbounds'] if o.get('protocol') == 'vless')
