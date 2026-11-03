@@ -105,4 +105,5 @@ def apply(profiles):
                 outbound['streamSettings']['realitySettings'].update({key: state[key] for key in ('serverName', 'publicKey', 'shortId')})
         youtube_index = next((i for i, p in enumerate(output) if 'Ютуб' in p.get('remarks', '')), 0)
         output.insert(youtube_index + 1, sweden)
+    auto['routing']['balancers'][0]['strategy'] = {'type': 'leastPing'}
     return output
