@@ -68,7 +68,7 @@ def apply(profiles):
         stream = se['streamSettings']
         stream.pop('finalmask', None)
         stream['realitySettings'].update({key: state[key] for key in ('serverName', 'publicKey', 'shortId')})
-        profile['outbounds'].insert(2, se)
+        profile['outbounds'].insert(1, se)
         balancer = profile['routing']['balancers'][0]
         balancer['selector'] = ['lt-primary', 'se-primary']
         balancer['strategy'] = {'type': 'leastLoad', 'settings': {
@@ -85,7 +85,7 @@ def apply(profiles):
             profile = copy.deepcopy(auto)
             profile['remarks'] = name
             profile['outbounds'] = [o for o in profile['outbounds'] if o.get('streamSettings', {}).get('network') != 'xhttp']
-            profile['routing']['balancers'][0]['fallbackTag'] = 'lt-primary-fragment'
+            profile['routing']['balancers'][0]['fallbackTag'] = 'lt-primary'
             output.append(profile)
             continue
         if any(label in name for label in ('Эстония', 'Нидерланды', 'Нейросети', 'Игровой сервер')):

@@ -1543,7 +1543,6 @@ def _json_outbound_from_share_link(link: str, tag: str) -> Optional[Dict[str, An
             "protocol": "hysteria",
             "settings": {"address": host, "port": port, "version": 2},
             "streamSettings": {
-                "finalmask": {"quicParams": {"congestion": "bbr", "debug": False}},
                 "hysteriaSettings": {"auth": credential, "version": 2},
                 "network": "hysteria",
                 "security": "tls",
@@ -2593,10 +2592,6 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
                 if node.get("hy2_port"):
                     hy2_query = urllib.parse.urlencode({
                         "sni": node["host"],
-                        "fm": json.dumps(
-                            {"quicParams": {"debug": False, "congestion": "bbr"}},
-                            separators=(",", ":"),
-                        ),
                     })
                     hy2_name = urllib.parse.quote(
                         f"{node['flag']} {node['label']} #{node['hy2_number']}", safe=""
@@ -2642,10 +2637,6 @@ async def _generate_links_for_keys(keys: Iterable[ActiveKeyRecord]) -> list[str]
 
             hy2_query = urllib.parse.urlencode({
                 "sni": REMNAWAVE_FRANCE_HOST,
-                "fm": json.dumps(
-                    {"quicParams": {"debug": False, "congestion": "bbr"}},
-                    separators=(",", ":"),
-                ),
             })
             hy2_name = urllib.parse.quote(
                 f"🇫🇷 Франция #{4 if france2_enabled else 2}", safe=""
