@@ -2,6 +2,7 @@
 import copy
 import re
 HOST = 'cdn-de.arccnet.space'
+ALTERNATE_EDGE = '188.72.110.52'
 VARIANTS = {
  4096: {'path':'/api-se-test-4096','tag':'SE_CDN_TEST_4096','port':10012,'key':'X-Session-Token','interval':7},
  24000:{'path':'/api-se-test-24000','tag':'SE_CDN_TEST_24000','port':10013,'key':'X-Request-Trace','interval':10},
@@ -65,6 +66,9 @@ def cdn_only(profile, source):
  rules.append({'type':'field','network':'tcp,udp','balancerTag':'balancer_cdn_only'})
  choices=[(32768,'cdn-medium'),(4096,'cdn-fast'),(24000,'cdn-safe')]
  variants=[outbound(source,size,tag) for size,tag in choices]
+ edge=outbound(source,24000,'cdn-edge-ip')
+ edge['settings']['vnext'][0]['address']=ALTERNATE_EDGE
+ variants.append(edge)
  profile['outbounds']=variants+retained
  routing['rules']=rules
  routing['balancers']=[{'tag':'balancer_cdn_only','selector':[o['tag'] for o in variants],

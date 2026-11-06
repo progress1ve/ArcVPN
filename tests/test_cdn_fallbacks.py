@@ -47,9 +47,13 @@ def test_best_bypass_removes_weighted_reality_but_preserves_split_routing():
  r=apply([p])[0]
  assert p==saved
  proxies=[o for o in r['outbounds'] if o['protocol']=='vless']
- assert len(proxies)==3
+ assert len(proxies)==4
  assert not any(o['protocol']=='loopback' for o in r['outbounds'])
- assert all(o['settings']['vnext'][0]['address']=='cdn-de.arccnet.space' for o in proxies)
+ assert {o['tag']:o['settings']['vnext'][0]['address'] for o in proxies}=={
+  'cdn-fast':'cdn-de.arccnet.space','cdn-safe':'cdn-de.arccnet.space',
+  'cdn-medium':'cdn-de.arccnet.space','cdn-edge-ip':'188.72.110.52'}
+ edge=next(o['streamSettings'] for o in proxies if o['tag']=='cdn-edge-ip')
+ assert edge==next(o['streamSettings'] for o in proxies if o['tag']=='cdn-safe')
  assert all(o['settings']['vnext'][0]['users'][0]['id']=='test-id' for o in proxies)
  assert all(o['streamSettings']['network']=='xhttp' for o in proxies)
  assert r['routing']['rules'][:2]==saved['routing']['rules'][1:3]
@@ -75,6 +79,6 @@ def test_best_bypass_does_not_grant_access_without_existing_cdn_authorization():
 
 def test_best_bypass_uses_only_existing_transport_parameters():
  p=apply([template('🇪🇺 Лучший обход')])[0]
- assert {o['tag'] for o in p['outbounds']}=={'cdn-fast','cdn-safe','cdn-medium','block'}
+ assert {o['tag'] for o in p['outbounds']}=={'cdn-fast','cdn-safe','cdn-medium','cdn-edge-ip','block'}
  assert 'cdn-competitor' not in p['routing']['balancers'][0]['selector']
  assert all(o.get('streamSettings',{}).get('xhttpSettings',{}).get('extra',{}).get('scMaxEachPostBytes')!=524288 for o in p['outbounds'])

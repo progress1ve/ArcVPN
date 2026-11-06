@@ -76,3 +76,9 @@ Correct the Royale loopback TLS target on 127.0.0.1:8443 to serve an index and n
 - XHTTP GET #4 with the same transport/auth completed 12/12 HTTP(S) tests through each origin directly. On Yandex public CDN, HTTP204 probe passed 4/4 but HTTPS passed 4/8. A second public run across four explicit CDN-only profiles found 18/48 HTTPS failures and 23/24 HTTP probe successes, routed via cdn-direct. The old LT origin canary also completed 12/12. This isolates a failure in the public CDN path but does not identify the edge setting or establish an intermittent failure on the direct Reality profile. No origin rollback or CDN settings change was applied. Record the affected profile and time on the owner's network if direct Reality fails again.
 
 - Tested public XHTTP #4 with ALPN forced to h2 and HTTP/1.1 in isolated clients. Neither fixed it. Default reached 8/10 HTTPS responses, h2 reached 5/10, and HTTP/1.1 reached 0/10 in this batch. The direct Royale origin reached 10/10. Leave ALPN as published. A final paired run reached 14/14 HTTPS responses directly at Royale and 7/14 over the public edge, while HTTP checks passed 7/7 over each. No XHTTP error code was captured in that run.
+
+## Alternate CDN edge
+
+Add 188.72.110.52 as a fourth authorized Best Bypass candidate using the existing 24000/10 transport and as a candidate in Auto's LTE reserve. Keep the DNS candidates and DNS fallback. Test candidate identity, transport equality and no-LTE exclusion. Roll back the scoped commit if needed.
+
+Latency Lab in Orel returned 5/5 for this IP versus 3/5 for the current DNS IP in one series. Royale and LT origin locations retain HTTP/1.1 upstream, disabled request/response buffering and no-store for the 24000 path. No nginx change is needed to select a different public edge.
