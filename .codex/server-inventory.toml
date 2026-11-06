@@ -84,10 +84,10 @@ status = "active primary exit; globally enabled 2026-10-27; provider shows 1TB i
 
 [[servers]]
 alias = "nl-royale"
-role = "owner-only-vpn-node"
+role = "production-vpn-node"
 location = "Netherlands/Amsterdam"
 host = "45.141.202.248"
 public_domain = "nl.arccnet.space"
 ssh_user = "root"
-status = "owner-only direct Reality; deployed 2026-11-06"
+status = "shared direct Reality; CDN origin prepared, Yandex switch pending"
 # Local SSH identity: ~/.ssh/id_ed25519_arcvpn_nl_ops
