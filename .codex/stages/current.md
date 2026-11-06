@@ -36,3 +36,20 @@ Owner reports replacing the active Yandex origin with Royale. Prepare admin and 
 - Switched the protected confirmation flag and ran the existing 24000/10 operator job. The timer remains active. First NL batch recorded Beeline, MegaFon and T-Mobile OK; MTS and T2 failed with Yandex control reachable and Google control failing. Restriction state unconfirmed. Last LT batch also failed MTS and failed MegaFon instead of T2. One batch per origin is not comparative coverage evidence.
 - Direct Reality from Moscow returned Royale egress and five YouTube HTTPS204 results in 252–331 ms. Ordinary HTTPS to the masking host nl.arccnet.space has a valid certificate and returns HTTP403 after TLS; masking site was not changed.
 - Rollback if needed: restore 88.216.62.135 in ee-origin, verify public XHTTP egress to LT, clear only `cdn_origin_confirmed` so admin and operator attribution return to LT. Keep client URLs, identities and quota accounting.
+
+## Telegram comparison and Remnawave Nodes repair
+
+Acceptance: compare the same Telegram-hosted media bytes over published Royale and Sweden profiles from a single source, verify egress, and distinguish browser media transport from the native Telegram application. Repair the existing Nodes list so Royale is visible and opens the active CDN check, with current operator rows and manual action only on the active source. Keep LT history. Existing layout and interactions apart from the CDN link are retained. Browser acceptance on phone/tablet/desktop/wide, actual origin and operator payload, TypeScript/build, release assets and subscription health. No Telegram routing mutation is assumed. Roll back the scoped runtime commit if needed.
+
+## HostUp Sweden exit migration
+
+Owner approved moving Sweden-backed profiles to Royale before HostUp expiry and Dutch flags for Games and AI. Preserve the names of Sweden and Estonia as compatibility aliases. Routes:
+
+| Client path | Royale ingress and exit | Compatibility |
+|---|---|---|
+| Sweden and Estonia aliases | nl.arccnet.space TCP443, SNI nl.arccnet.space, existing main Reality -> NL direct | Names and main identities retained. Old cached Sweden IP requires a refresh. |
+| AI 🇳🇱 | nl.arccnet.space TCP8444, SNI nl.arccnet.space, dedicated Reality -> local WARP SOCKS | Existing behavior with separate WARP routing. Verify WARP trace and application HTTPS. |
+| Games 🇳🇱 | nl.arccnet.space UDP443, SNI nl.arccnet.space, Hysteria2 -> NL direct | Existing authentication and TLS validation. Verify native Xray Hysteria2 traffic. |
+| Auto, YouTube and LTE CDN | existing LT/NL and verified Yandex CDN routes | No Sweden endpoint in public config or fallback. Preserve URL, UUID and quota. |
+
+Roll out new inbounds and check actual tunnels before switching rendered endpoints. Keep protected pre-change panel, authorization and overlay snapshots. Confirm public JSON, plain and Base64 with and without LTE, main/AI/Games, CDN and admin. Rollback while HostUp is available uses the original overlay and hosts. Existing CDN serves on Royale throughout.

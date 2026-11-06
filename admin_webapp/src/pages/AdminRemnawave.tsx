@@ -118,12 +118,13 @@ interface NodeCardProps {
   node: NodeInfo;
   registryState?: string;
   providerName?: string;
+  isCdnOrigin?: boolean;
   realtime?: NodeRealtimeStats;
   onAction: (uuid: string, action: 'enable' | 'disable' | 'restart') => void;
   isLoading?: boolean;
 }
 
-function NodeCard({ node, registryState, providerName, realtime, onAction, isLoading }: NodeCardProps) {
+function NodeCard({ node, registryState, providerName, isCdnOrigin, realtime, onAction, isLoading }: NodeCardProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const [geoCheckOpen, setGeoCheckOpen] = useState(false);
@@ -194,8 +195,8 @@ function NodeCard({ node, registryState, providerName, realtime, onAction, isLoa
         onClick={hasBreakdown ? () => setExpanded((v) => !v) : undefined}
       >
         {/* Identity + actions */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-2">
+        <div className={`flex items-center justify-between gap-3 ${isCdnOrigin ? 'max-sm:flex-col max-sm:items-start' : ''}`}>
+          <div className="flex min-w-0 max-w-full items-center gap-2">
             <span
               className={`h-2 w-2 shrink-0 rounded-full ${dotColor} ${isUp ? 'animate-pulse' : ''}`}
               title={statusText}
@@ -226,7 +227,8 @@ function NodeCard({ node, registryState, providerName, realtime, onAction, isLoa
             )}
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {isCdnOrigin && <Link to={`/admin/remnawave/nodes/${encodeURIComponent(node.address)}?tab=availability`} onClick={(event) => event.stopPropagation()} className="rounded-lg bg-primary-500/15 px-2.5 py-1.5 text-xs font-medium text-primary-300 hover:bg-primary-500/25">Проверки CDN</Link>}
             <Link to={`/admin/remnawave/nodes/${encodeURIComponent(node.address)}`} onClick={(event) => event.stopPropagation()} className="rounded-lg bg-accent-500/15 px-2.5 py-1.5 text-xs font-medium text-accent-300 hover:bg-accent-500/25" aria-label={`Открыть статистику ${node.name}`}>Статистика ↗</Link>
             {canReach && (
               <button
@@ -519,7 +521,7 @@ function NodesTab({
 }: NodesTabProps) {
   const { t } = useTranslation();
   const canManage = usePermissionStore((s) => s.hasPermission('nodes:preflight'));
-  const currentHosts = new Set(['87.251.19.197', '88.216.62.135', '136.148.220.228']);
+  const currentHosts = new Set(['87.251.19.197', '88.216.62.135', '136.148.220.228', '45.141.202.248']);
   const visibleNodes = nodes.filter((node) => currentHosts.has(node.address));
   const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });
   const documentedNodes = (registry?.nodes || []) as Array<{ host: string; alias: string; role: string; location?: string; status?: string }>;
@@ -630,7 +632,8 @@ function NodesTab({
               key={node.uuid}
               node={node}
               registryState={documentedNodes.find((server) => server.host === node.address)?.status}
-              providerName={node.address === '88.216.62.135' ? 'Cherry Servers' : node.address === '136.148.220.228' ? 'HostUp' : node.address === '87.251.19.197' ? 'One Cent Host' : providerByUuid[node.uuid]}
+              providerName={node.address === '45.141.202.248' ? 'RoyaleHosting' : node.address === '88.216.62.135' ? 'Cherry Servers' : node.address === '136.148.220.228' ? 'HostUp' : node.address === '87.251.19.197' ? 'One Cent Host' : providerByUuid[node.uuid]}
+              isCdnOrigin={registry?.cdn_origin === node.address}
               realtime={realtimeByUuid[node.uuid]}
               onAction={onAction}
               isLoading={isActionLoading}

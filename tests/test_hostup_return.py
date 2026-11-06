@@ -26,7 +26,7 @@ def test_sweden_identity_selection_and_other_profiles_preserved(tmp_path, monkey
     se = result[0]['outbounds'][1]
     assert se['settings']['vnext'][0]['users'] == main['settings']['vnext'][0]['users']
     balancer = result[0]['routing']['balancers'][0]
-    assert balancer['strategy']['type'] == 'leastLoad'
+    assert balancer['strategy']['type'] == 'leastPing'
     assert balancer['selector'] == ['lt-primary', 'se-primary']
     assert balancer['fallbackTag'] == 'cdn-safe'
     assert result[0]['burstObservatory']['pingConfig'] == auto['burstObservatory']['pingConfig']

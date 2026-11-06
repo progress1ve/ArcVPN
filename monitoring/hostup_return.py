@@ -5,6 +5,13 @@ import urllib.parse
 from pathlib import Path
 
 STATE = Path(__file__).resolve().parents[1] / '.secrets/hostup-return-20261029.json'
+SPECIAL_PROFILES = ('Нейросети', 'Игровой сервер')
+
+
+def _display_name(name, state):
+    if state.get('moved_to_royale') and any(label in name for label in SPECIAL_PROFILES):
+        return name.replace('🇸🇪', '🇳🇱', 1)
+    return name
 
 
 def apply_links(links):
@@ -28,7 +35,7 @@ def apply_links(links):
             if parsed.scheme == 'vless':
                 query.update(pbk=state['publicKey'], sid=state['shortId'], fp='firefox')
             authority = parsed.netloc.rsplit('@', 1)[0] + '@' + state['address'] + ':' + str(port)
-            link = urllib.parse.urlunsplit((parsed.scheme, authority, parsed.path, urllib.parse.urlencode(query), parsed.fragment))
+            link = urllib.parse.urlunsplit((parsed.scheme, authority, parsed.path, urllib.parse.urlencode(query), urllib.parse.quote(_display_name(name, state))))
         output.append(link)
     if sweden:
         parsed = urllib.parse.urlsplit(sweden)
@@ -83,6 +90,7 @@ def apply(profiles):
             continue
         if any(label in name for label in ('Эстония', 'Нидерланды', 'Нейросети', 'Игровой сервер')):
             profile = copy.deepcopy(source)
+            profile['remarks'] = _display_name(name, state)
             for outbound in profile.get('outbounds', []):
                 stream = outbound.get('streamSettings', {})
                 if stream.get('security') == 'reality':

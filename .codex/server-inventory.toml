@@ -89,5 +89,5 @@ location = "Netherlands/Amsterdam"
 host = "45.141.202.248"
 public_domain = "nl.arccnet.space"
 ssh_user = "root"
-status = "shared direct Reality; active Yandex CDN origin and operator monitoring"
+status = "active direct Reality and Yandex CDN origin with operator monitoring"
 # Local SSH identity: ~/.ssh/id_ed25519_arcvpn_nl_ops

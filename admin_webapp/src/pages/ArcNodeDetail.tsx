@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useParams, useSearchParams } from 'react-router';
 import ArcBenchmarks from './ArcBenchmarks';
 import {
   Area,
@@ -66,6 +66,7 @@ type EdgeInfo = {
   id: string;
   name: string;
   origin?: string;
+  origin_host?: string;
   public_host: string;
   inbound_active: boolean;
 };
@@ -209,8 +210,9 @@ function OperatorMark({ code, name }: { code: string; name: string }) {
 
 export default function ArcNodeDetail() {
   const { host = '' } = useParams();
+  const [searchParams] = useSearchParams();
   const [period, setPeriod] = useState<Period>('1h');
-  const [tab, setTab] = useState<NodeTab>('overview');
+  const [tab, setTab] = useState<NodeTab>(searchParams.get('tab') === 'availability' ? 'availability' : 'overview');
   const [overview, setOverview] = useState<Overview | null>(null);
   const [samples, setSamples] = useState<Sample[]>([]);
   const [operatorProbes, setOperatorProbes] = useState<OperatorProbe[]>([]);
@@ -225,14 +227,16 @@ export default function ArcNodeDetail() {
   const [capacity, setCapacity] = useState<Capacity | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const isCdnOrigin = overview?.remnawave?.lte_edges?.some((edge) => edge.origin_host === host) ?? false;
   useEffect(() => {
-    if (import.meta.env.DEV || host !== "88.216.62.135") return;
+    setOperatorNetwork(null);
+    if (import.meta.env.DEV || !isCdnOrigin) return;
     let active = true;
     getJson('/api/admin/nodes/operator-network-status').then((data) => {
       if (active) setOperatorNetwork(data as typeof operatorNetwork);
     }).catch(() => { if (active) setOperatorNetwork(null); });
     return () => { active = false; };
-  }, [host]);
+  }, [host, isCdnOrigin]);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -258,7 +262,7 @@ export default function ArcNodeDetail() {
           })),
         })
       : getJson(`/api/admin/nodes/metrics?host=${encodeURIComponent(host)}&range=${period}`);
-    const operatorRequest = import.meta.env.DEV || host !== "88.216.62.135"
+    const operatorRequest = import.meta.env.DEV
       ? Promise.resolve({ results: [] })
       : getJson(`/api/admin/nodes/operator-probes?host=${encodeURIComponent(host)}`);
     const registryRequest = import.meta.env.DEV
@@ -342,7 +346,7 @@ export default function ArcNodeDetail() {
     setOperatorRunMessage('Запускаем проверку…');
     try {
       await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
-      setOperatorRunMessage('Проверяем CDN Литвы 24000/10 в доступных сетях…');
+      setOperatorRunMessage('Проверяем CDN 24000/10 в доступных сетях…');
       setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : '';
@@ -430,7 +434,7 @@ export default function ArcNodeDetail() {
   const isLte =
     host === '88.216.62.135' ||
     /lte|cdn|xhttp/i.test(`${node?.name || ''} ${server?.name || ''}`) ||
-    (overview?.remnawave?.lte_edges || []).some((edge) => edge.origin === host) ||
+    isCdnOrigin ||
     operatorProbes.length > 0;
   return (
     <div className="space-y-6 p-4 pb-24 md:p-7">
@@ -826,7 +830,7 @@ export default function ArcNodeDetail() {
             <section className="rounded-2xl border border-dark-700 bg-dark-800/50 p-5">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="font-semibold text-dark-100">Доступность CDN · мобильные операторы</h2>
-                {!import.meta.env.DEV && (
+                {!import.meta.env.DEV && isCdnOrigin && (
                   <button type="button" onClick={runAllOperators} disabled={operatorRunBaseline !== null}
                     className="inline-flex items-center gap-2 rounded-xl border border-primary-500/40 bg-primary-500/10 px-3 py-2 text-sm font-medium text-primary-300 transition hover:bg-primary-500/20 disabled:cursor-wait disabled:opacity-50">
                     <GlobeIcon className="h-4 w-4" /> Проверить все сети
@@ -835,13 +839,13 @@ export default function ArcNodeDetail() {
               </div>
               {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
-                Один запуск проверяет CDN Литвы 24000/10 во всех доступных сетях.
+                {isCdnOrigin ? 'Один запуск проверяет CDN 24000/10 во всех доступных сетях. ' : 'Здесь показана история проверок CDN для этой ноды. '}
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
-              <p className="mt-2 text-xs text-dark-400">
+              {isCdnOrigin && <p className="mt-2 text-xs text-dark-400">
                 Точки LatencyLab: {operatorNetwork?.regions.map((region) => region.name).join(', ') || 'статус провайдера недоступен'}.
                 {operatorNetwork?.regions.length === 1 && ' Других активных регионов у провайдера сейчас нет.'}
-              </p>
+              </p>}
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {Object.entries(operatorNames).map(([code, name]) => {
                   const latest = Object.keys(cdnVariants).map(path => operatorProbes.find(probe => probe.operator === code && probe.target_path === path));

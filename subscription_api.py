@@ -5277,9 +5277,11 @@ def api_admin_node_registry():
         path = os.path.join(os.path.dirname(__file__), ".codex", "server-inventory.toml")
         with open(path, "rb") as stream:
             inventory = tomllib.load(stream)
+        from monitoring.cdn_origin import active_origin
         nodes = [{key: item.get(key) for key in ("alias", "role", "location", "host", "status")}
                  for item in inventory.get("servers", []) if isinstance(item, dict)]
-        return _api_no_store(jsonify({"ok": True, "source": "documented_inventory", "nodes": nodes}))
+        return _api_no_store(jsonify({"ok": True, "source": "documented_inventory", "nodes": nodes,
+                                      "cdn_origin": active_origin()}))
     except (OSError, ValueError):
         logger.exception("Admin node registry unavailable")
         return _api_error("node_registry_unavailable", 503)
