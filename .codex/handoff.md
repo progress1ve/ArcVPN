@@ -1,3 +1,7 @@
+# Royale transport and CDN observatory — 2026-11-07
+
+Economy. Runtime daf5a4fe on Poland. Best Bypass and LTE Auto reserve now probe HTTPS on sub.arccnet.space:18443; old HTTP18080 remains for cached clients. Both DNS and pinned 188.72.110.52 remain authorized candidates. Latest Latency Lab Orel 5/5 for both, Moscow public CDN still occasionally times out despite clean direct origin. No useful gain from smaller chunks or frequent H2 reconnect. Real private CUBIC/BBR Reality A/B completed, small pooled median difference reversed with port swap, left production on CUBIC. Temporary diagnostic listeners and logs removed. Owner acceptance remains native Telegram seek and LTE CDN with refreshed subscriptions. Evidence and rollback in current.md.
+
 # Royale intermittent connection audit — 2026-11-06
 
 Economy. Direct Royale routes Telegram locally and has no RU bridge. Corrected the TLS mask to HTTP200/h2 on Royale, Nginx reload only. Fresh MTProto from Moscow and the owner's workstation passed on Royale and Lithuania. Historical Sweden was faster to connect in the Moscow canary. Cold media throughput remains unverified. XHTTP GET over Yandex has reproducible HTTPS failures despite passing HTTP probes, while both direct origins were clean. Leave current topology and authorization in place. If direct Reality fails on owner's network, collect profile, timestamp and network for correlation. Evidence and mask rollback in current.md.
