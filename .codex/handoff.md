@@ -1,3 +1,7 @@
+# Royale intermittent connection audit — 2026-11-06
+
+Economy. Direct Royale routes Telegram locally and has no RU bridge. Corrected the TLS mask to HTTP200/h2 on Royale, Nginx reload only. Fresh MTProto from Moscow and the owner's workstation passed on Royale and Lithuania. Historical Sweden was faster to connect in the Moscow canary. Cold media throughput remains unverified. XHTTP GET over Yandex has reproducible HTTPS failures despite passing HTTP probes, while both direct origins were clean. Leave current topology and authorization in place. If direct Reality fails on owner's network, collect profile, timestamp and network for correlation. Evidence and mask rollback in current.md.
+
 # HostUp profiles moved to Royale — 2026-11-06
 
 Economy. Runtime f54ecd52 pushed and fast-forwarded in Poland. Subscription service restarted. Fresh Sweden and Estonia aliases use Royale Reality TCP443 and direct NL exit. AI uses Royale Reality TCP8444 and local WARP SOCKS40000. Games uses Royale Hysteria2 UDP443 with renewed-domain TLS files mounted read-only. AI/Games show 🇳🇱. Main Remnawave squad and durable sync setting include both new inbounds. Old HostUp left active for cached configs until provider expiry. Existing profiles require refresh. Public JSON/plain/base64 for owner and other LTE/no-LTE users contain no HostUp IP or hostname. Real four-profile tunnels, game UDP and CDN/failover passed. Admin Nodes lists Royale and opens current CDN operator results. Live authenticated browser verified at 360/768/1280/1600px. Lithuania history remains available.
