@@ -141,6 +141,10 @@ async def synchronize(apply: bool, db_path: Path) -> dict:
                 lt_canary = load_lt_canary(key['telegram_id'])
                 if lt_canary and lt_canary.get('main_squad'):
                     payload['activeInternalSquads'].append(lt_canary['main_squad'])
+                from monitoring.royale_owner import load as load_royale_owner
+                royale = load_royale_owner(key['telegram_id'])
+                if royale and royale.get('client_uuid') == str(key['client_uuid']):
+                    payload['activeInternalSquads'].append(royale['squad_uuid'])
                 if apply:
                     if current:
                         payload["id"] = current["id"]

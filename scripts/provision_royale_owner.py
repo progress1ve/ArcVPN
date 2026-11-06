@@ -85,7 +85,8 @@ async def provision(material, identity):
         assert set(memberships) | {squad['uuid']} == actual
         assert verified['vlessUuid'] == identity
         protected_write(STATE, {'enabled': False, 'public_key': material['public_key'],
-            'short_id': material['short_id'], 'node_uuid': node['uuid'], 'squad_uuid': squad['uuid']})
+            'short_id': material['short_id'], 'node_uuid': node['uuid'], 'squad_uuid': squad['uuid'],
+            'client_uuid': identity})
         keygen = await client._request('GET', '/api/keygen')
         protected_write(STATE.with_name('royale-node-secret.json'), {'secret': keygen['secretKey']})
         print('Royale profile, node and exclusive owner assignment prepared')
