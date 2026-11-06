@@ -2026,6 +2026,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         rendered_profiles = apply_lt_canary(rendered_profiles, lt_canary)
     from monitoring.auto_cdn_reserve import apply as apply_auto_cdn_reserve
     rendered_profiles = apply_auto_cdn_reserve(rendered_profiles)
+    from monitoring.royale_owner import apply as apply_royale, load as load_royale
+    rendered_profiles = apply_royale(rendered_profiles, load_royale(key.telegram_id))
     from monitoring.owner_shorts_canary import apply as apply_shorts_canary
     rendered_profiles = apply_shorts_canary(rendered_profiles, key.telegram_id)
     return json.dumps(
@@ -2096,6 +2098,8 @@ def _prepare_subscription(
     lt_canary = load_lt_canary(key.telegram_id)
     if lt_canary:
         visible_links = apply_lt_links(visible_links, lt_canary)
+    from monitoring.royale_owner import apply_links as apply_royale_links, load as load_royale
+    visible_links = apply_royale_links(visible_links, load_royale(key.telegram_id))
     plain_text_subscription = _build_plain_text_subscription(
         "\n".join([*visible_links, *exhausted_links]), routing_link, userinfo_header, announce_base64
     )
