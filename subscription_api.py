@@ -683,6 +683,7 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 # from the code, while the behaviour itself stays enabled by default.
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
+    "45.141.202.248": {"provider": "RoyaleHosting", "location": "Нидерланды"},
     "88.216.62.135": {"provider": "Cherry Servers", "location": "Литва"},
     "136.148.220.228": {"provider": "HostUp", "location": "Швеция"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
@@ -2026,8 +2027,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         rendered_profiles = apply_lt_canary(rendered_profiles, lt_canary)
     from monitoring.auto_cdn_reserve import apply as apply_auto_cdn_reserve
     rendered_profiles = apply_auto_cdn_reserve(rendered_profiles)
-    from monitoring.royale_owner import apply as apply_royale, load as load_royale
-    rendered_profiles = apply_royale(rendered_profiles, load_royale(key.telegram_id))
+    from monitoring.royale_owner import apply as apply_royale, delivery_state as load_royale
+    rendered_profiles = apply_royale(rendered_profiles, load_royale(key.telegram_id), YOUTUBE_PROXY_SITES)
     from monitoring.owner_shorts_canary import apply as apply_shorts_canary
     rendered_profiles = apply_shorts_canary(rendered_profiles, key.telegram_id)
     return json.dumps(
@@ -2098,7 +2099,7 @@ def _prepare_subscription(
     lt_canary = load_lt_canary(key.telegram_id)
     if lt_canary:
         visible_links = apply_lt_links(visible_links, lt_canary)
-    from monitoring.royale_owner import apply_links as apply_royale_links, load as load_royale
+    from monitoring.royale_owner import apply_links as apply_royale_links, delivery_state as load_royale
     visible_links = apply_royale_links(visible_links, load_royale(key.telegram_id))
     plain_text_subscription = _build_plain_text_subscription(
         "\n".join([*visible_links, *exhausted_links]), routing_link, userinfo_header, announce_base64
@@ -7611,6 +7612,7 @@ def api_admin_overview():
                 "uuid": node.get("uuid"),
                 "name": node.get("name") or node.get("address") or "RemnaNode",
                 "address": node.get("address"),
+                **NODE_INVENTORY.get(str(node.get("address") or ""), {}),
                 "country_code": node.get("countryCode"),
                 "connected": bool(node.get("isConnected")),
                 "disabled": bool(node.get("isDisabled")),
@@ -7662,6 +7664,14 @@ def api_admin_overview():
         for node in remnawave.get("nodes", []):
             node["reported_sessions_online"] = int(node.get("users_online") or 0)
             node["users_online"] = int(node_distribution.get(str(node.get("name") or ""), 0))
+            if node.get("provider") == "RoyaleHosting" and not any(s.get("host") == node["address"] for s in server_stats):
+                server_stats.append({
+                    "id": None, "host": node["address"], "name": node["name"],
+                    "provider": node["provider"], "location": node["location"],
+                    "is_active": node["connected"] and not node["disabled"],
+                    "active_clients": node["users_online"], "source": "Remnawave",
+                    "telemetry_available": node["connected"],
+                })
         remnawave["connection_schemes"] = connection_schemes(remnawave["nodes"], node_distribution, lte_edges)
     except Exception as exc:
         remnawave["detail"] = type(exc).__name__
