@@ -47,4 +47,17 @@ def test_paused_sweden_has_no_current_cdn_probes(monkeypatch):
 
 def test_only_24000_operator_checks_are_scheduled():
     from monitoring.lte_operator_worker import NODES
-    assert NODES == ((ESTONIA, '/api-se-test-24000', 'Эстония 24000/10'),)
+    from monitoring.cdn_origin import LITHUANIA
+    assert NODES == ((LITHUANIA, '/api-se-test-24000', 'Литва 24000/10'),)
+
+
+def test_royale_attribution_requires_confirmation(monkeypatch):
+    from monitoring import cdn_origin
+    monkeypatch.setattr(cdn_origin, '_read_state', lambda: {'global_enabled': True})
+    assert cdn_origin.active_origin() == cdn_origin.LITHUANIA
+    monkeypatch.setattr(cdn_origin, '_read_state', lambda: {'cdn_origin_confirmed': True})
+    assert cdn_origin.active_origin() == cdn_origin.ROYALE
+    edges = cdn_edges([{'address': cdn_origin.ROYALE, 'connected': True,
+                       'inbounds': [{'tag': v['tag'].replace('SE_', 'NL_', 1)} for v in VARIANTS.values()]}],
+                     cdn_origin.active_origin())
+    assert all(e['healthy'] and e['origin'] == cdn_origin.ROYALE for e in edges)

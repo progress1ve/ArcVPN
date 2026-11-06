@@ -5106,10 +5106,11 @@ def api_admin_lte_availability():
     """Read operator-specific evidence; absence of a probe is not availability."""
     if not _admin_authorized("nodes.diagnose"):
         return _api_error("admin_forbidden", 403)
-    host = _clean_text(request.args.get("host"), 255).strip().lower()
+    from monitoring.cdn_origin import LITHUANIA, ROYALE, active_origin
+    host = _clean_text(request.args.get("host", active_origin()), 255).strip().lower()
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
         return _api_error("invalid_lte_host", 400)
-    if host != "88.216.62.135":
+    if host not in {LITHUANIA, ROYALE}:
         return _api_no_store(jsonify({"ok": True, "host": host, "operators": [], "results": []}))
     try:
         with get_db() as conn:
@@ -7651,7 +7652,8 @@ def api_admin_overview():
             and str(node.get("address") or "") not in RETIRED_NETHERLANDS_ENDPOINTS
         ]
         from monitoring.admin_node_topology import cdn_edges, connection_schemes
-        lte_edges = cdn_edges(remnawave["nodes"])
+        from monitoring.cdn_origin import active_origin
+        lte_edges = cdn_edges(remnawave["nodes"], active_origin())
         remnawave["lte_edges"] = lte_edges
         node_distribution: Dict[str, int] = {}
         for presence in online_users:

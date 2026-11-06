@@ -1,4 +1,4 @@
-"""Scheduled operator-side VPN checks for the Lithuania CDN 24000/10 variant."""
+"""Scheduled operator-side VPN checks for the public CDN 24000/10 variant."""
 from __future__ import annotations
 
 import asyncio
@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from database.connection import DB_PATH
+from monitoring.cdn_origin import ROYALE, active_origin
 from monitoring.latencylab_client import Client, LatencyLabError, OPERATORS
 from monitoring.lte_operator_alerts import Attempt, record_batch
 
@@ -16,8 +17,9 @@ LOG = logging.getLogger(__name__)
 KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
 from monitoring.cdn_fallbacks import VARIANTS, settings
-NODES = tuple(("88.216.62.135", v["path"], f"Литва {size}/{v['interval']}")
-              for size, v in VARIANTS.items() if size == 24000)
+ORIGIN = active_origin()
+LOCATION = 'Нидерланды' if ORIGIN == ROYALE else 'Литва'
+NODES = ((ORIGIN, VARIANTS[24000]['path'], f'{LOCATION} 24000/10'),)
 
 
 def variant_links(uri):

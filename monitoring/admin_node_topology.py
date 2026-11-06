@@ -1,19 +1,27 @@
-"""Safe admin view of the current fleet and delivered Estonia CDN variants."""
+"""Safe admin view of the current fleet and delivered CDN variants."""
 from monitoring.cdn_fallbacks import HOST, VARIANTS
+from monitoring.cdn_origin import LITHUANIA, ROYALE
 
 SWEDEN = '136.148.220.228'
 ESTONIA = '87.251.19.197'
 DIRECT = {3:4096, 4:24000, 6:65536, 7:32768}
+ORIGINS = {
+    ESTONIA: ('EE', 'ee.arccnet.space', 'Эстония'),
+    LITHUANIA: ('LT', 'lt.arccnet.space', 'Литва'),
+    ROYALE: ('NL', 'nl.arccnet.space', 'Нидерланды'),
+}
 
-def cdn_edges(nodes):
-    parent = next((n for n in nodes if n.get('address') == ESTONIA), {})
+def cdn_edges(nodes, origin=ESTONIA):
+    country, domain, location = ORIGINS[origin]
+    parent = next((n for n in nodes if n.get('address') == origin), {})
     result = []
     for number, size in DIRECT.items():
         variant = VARIANTS[size]
-        inbound = next((i for i in parent.get('inbounds', []) if i.get('tag') == variant['tag'].replace('SE_', 'EE_', 1)), None)
+        tag = variant['tag'].replace('SE_', country + '_', 1)
+        inbound = next((i for i in parent.get('inbounds', []) if i.get('tag') == tag), None)
         result.append({
-            'id': f'lte-se-{size}', 'name': f'Эстония CDN · {size}/{variant["interval"]}',
-            'country_code': 'EE', 'origin_host': ESTONIA, 'origin_domain': 'ee.arccnet.space',
+            'id': f'lte-se-{size}', 'name': f'{location} CDN · {size}/{variant["interval"]}',
+            'country_code': country, 'origin_host': origin, 'origin_domain': domain,
             'public_host': HOST, 'path': variant['path'],
             'profile_name': f'🇪🇺 Обход глушилок #{number}',
             'origin': parent.get('address'), 'node_uuid': parent.get('uuid'),
@@ -27,6 +35,7 @@ def cdn_edges(nodes):
     return result
 
 def connection_schemes(nodes, distribution, edges):
+    origin = edges[0]['origin_host'] if edges else ESTONIA
     members = [{'name': n.get('name') or n.get('address'), 'online': int(n.get('users_online') or 0),
                 'connected': bool(n.get('connected')), 'weight': 100}
                for n in nodes if n.get('address') == ESTONIA and not n.get('disabled')]
@@ -41,6 +50,6 @@ def connection_schemes(nodes, distribution, edges):
             'name':'🇪🇺 Лучший обход' if number == 1 else f'🇪🇺 Обход глушилок #{number}',
             'kind':'direct_cdn' if edge else 'client_cdn_fallback', 'traffic_factor':1,
             'active_only_as_fallback':edge is None, 'strategy':'XHTTP без балансировщика' if edge else fallback,
-            'public_host':HOST, 'origin':ESTONIA, 'path':edge['path'] if edge else None,
+            'public_host':HOST, 'origin':origin, 'path':edge['path'] if edge else None,
             'origins':[HOST], 'healthy':bool(edge['healthy']) if edge else any(e['healthy'] for e in edges)})
     return schemes
