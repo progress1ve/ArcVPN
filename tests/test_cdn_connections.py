@@ -9,6 +9,7 @@ def line(destination, tag='SE_CDN_TEST_4096'):
 
 def test_probe_and_payload_are_separate_without_saving_destinations():
     assert classify(line('tcp:sub.arccnet.space:18080')) == (identity_hash('test-user'), 'probe')
+    assert classify(line('tcp:sub.arccnet.space:18443')) == (identity_hash('test-user'), 'probe')
     assert classify(line('tcp:example.com:443')) == (identity_hash('test-user'), 'user')
     assert classify(line('tcp:example.com:443','EE_CDN_TEST_24000')) == (identity_hash('test-user'), 'user')
     assert classify(line('tcp:www.gstatic.com:80'))[1] == 'legacy'

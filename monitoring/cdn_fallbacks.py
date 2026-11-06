@@ -1,6 +1,9 @@
 """CDN XHTTP variants preserving existing authorization and user identity."""
 import copy
 import re
+
+from monitoring.cdn_connections import HTTPS_PROBE_URL
+
 HOST = 'cdn-de.arccnet.space'
 ALTERNATE_EDGE = '188.72.110.52'
 VARIANTS = {
@@ -77,7 +80,7 @@ def cdn_only(profile, source):
  profile.pop('observatory',None)
  observer=profile.setdefault('burstObservatory',{})
  observer['subjectSelector']=[o['tag'] for o in variants]
- observer.setdefault('pingConfig',{}).update(interval='30s',sampling=3,timeout='2s')
+ observer.setdefault('pingConfig',{}).update(destination=HTTPS_PROBE_URL,interval='30s',sampling=3,timeout='5s')
  return profile
 
 def apply(profiles,reserve_names=()):

@@ -33,6 +33,7 @@ def test_reserve_preserves_authorization_and_primary_strategy():
     assert all(o['settings']['vnext'][0]['users'][0]['id'] == 'test-lte-identity' for o in candidates)
     assert set(reserve['selector']) <= set(result[0]['burstObservatory']['subjectSelector'])
     assert result[0]['routing']['rules'][0]['inboundTag'] == ['auto-cdn-reserve']
+    assert result[0]['burstObservatory']['pingConfig']['destination'] == 'https://sub.arccnet.space:18443/generate_204'
     assert apply(result) == result
 
 

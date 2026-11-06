@@ -5,7 +5,9 @@ import sqlite3
 import time
 
 PROBE_URL = 'http://sub.arccnet.space:18080/generate_204'
-PROBE_TARGETS = {'tcp:sub.arccnet.space:18080', 'tcp:217.60.33.38:18080'}
+HTTPS_PROBE_URL = 'https://sub.arccnet.space:18443/generate_204'
+PROBE_TARGETS = {'tcp:sub.arccnet.space:18080', 'tcp:217.60.33.38:18080',
+                 'tcp:sub.arccnet.space:18443', 'tcp:217.60.33.38:18443'}
 LEGACY_TARGETS = {'tcp:www.gstatic.com:80', 'tcp:www.gstatic.com:443',
                   'tcp:www.google.com:80', 'tcp:www.google.com:443'}
 WINDOW = 180

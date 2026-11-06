@@ -82,3 +82,17 @@ Correct the Royale loopback TLS target on 127.0.0.1:8443 to serve an index and n
 Add 188.72.110.52 as a fourth authorized Best Bypass candidate using the existing 24000/10 transport and as a candidate in Auto's LTE reserve. Keep the DNS candidates and DNS fallback. Test candidate identity, transport equality and no-LTE exclusion. Roll back the scoped commit if needed.
 
 Latency Lab in Orel returned 5/5 for this IP versus 3/5 for the current DNS IP in one series. Royale and LT origin locations retain HTTP/1.1 upstream, disabled request/response buffering and no-store for the 24000 path. No nginx change is needed to select a different public edge.
+
+## Royale transport and CDN probe acceptance
+
+Economy. Owner authorized implementation after the BedolagaBD audit. Keep published endpoints, SNI, XHTTP paths, identities, traffic factors, CDN origin and the current candidate ordering. Correct the proxy health signal without changing the public topology.
+
+| Scope | Current | Proposed and acceptance | Rollback |
+|---|---|---|---|
+| LTE Auto reserve and Best Bypass | HTTP on controller :18080 can pass through a candidate that times out on HTTPS | HTTPS 204 on dedicated controller :18443, healthy cert from every node, probe-only telemetry and real tunnel evidence. Keep HTTP for installed clients. Verify failed candidates are rejected and forced Auto fallback can use the remaining CDN path. | Revert renderer first, keep TLS listener available for cached profiles until refreshed. |
+| Ordinary Royale and Lithuania | CUBIC, unchanged Reality | Isolated CUBIC/BBR A/B on Royale with fixed payload, same source and interleaved runs. Require measured improvement before changing live Reality or kernel defaults. | Remove the canary; retain current service settings. |
+| CDN origin nginx | 24000 route streams to local Xray without buffering | Inspect status and timings on test requests; change production only for a demonstrated origin defect. | Restore the previous vhost and reload only nginx. |
+
+Components: controller nginx and subscription renderer, observatory classifier, active CDN routes, isolated Linux socket canary. Keep Lithuania ordinary authorization and no-LTE behavior. Mobile user and Telegram playback acceptance remains the owner's test.
+
+The public controller answered 204 on both old HTTP and new HTTPS listeners. Direct Moscow tunnels through Royale and Lithuania reached the new HTTPS probe and returned expected egress. XHTTP edge 188.72.110.52 passed HTTP 5/5 but HTTPS 2/5 in the paired series. DNS 24000 passed this probe 5/5 while still occasionally failing other external HTTPS. Forced primary and alternative CDN failure selected the only usable alternate IP in both Auto and Best, with intermittent HTTPS responses. The probe improves detection but does not prove stability for every destination. Direct origin completed 21/21 HTTPS checks. Public edge baseline 12/21, lowered per-request cap 11/21, shorter header chunk 12/21, forced frequent H2 connection rotation 10/21. No XHTTP transport or origin configuration change was promoted. Controller nginx backup /root/arcvpn-cdn-probe-before-https-20261106.conf.

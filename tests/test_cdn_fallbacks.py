@@ -64,7 +64,7 @@ def test_best_bypass_removes_weighted_reality_but_preserves_split_routing():
  assert set(b['selector'])==tags
  assert set(r['burstObservatory']['subjectSelector'])==tags
  assert r['burstObservatory']['pingConfig']=={
-  'destination':'http://probe.invalid/generate_204','interval':'30s','sampling':3,'timeout':'2s'}
+  'destination':'https://sub.arccnet.space:18443/generate_204','interval':'30s','sampling':3,'timeout':'5s'}
  assert all(rule.get('balancerTag','balancer_cdn_only')=='balancer_cdn_only' for rule in r['routing']['rules'])
  assert not any('inboundTag' in rule for rule in r['routing']['rules'])
 

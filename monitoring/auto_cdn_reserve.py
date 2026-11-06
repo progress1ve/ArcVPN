@@ -1,5 +1,7 @@
-"""Keep ordinary leastLoad selection, reserve the existing authorized CDN pool."""
+"""Keep ordinary node selection, reserve the existing authorized CDN pool."""
 import copy
+
+from monitoring.cdn_connections import HTTPS_PROBE_URL
 
 
 def apply(profiles):
@@ -37,7 +39,7 @@ def apply(profiles):
             'inboundTag': ['auto-cdn-reserve'], 'balancerTag': 'auto-cdn-ping'})
         obs = p['burstObservatory']
         obs['subjectSelector'] = list(dict.fromkeys(obs['subjectSelector'] + tags))
-        obs['pingConfig'].update(destination='http://sub.arccnet.space:18080/generate_204',
+        obs['pingConfig'].update(destination=HTTPS_PROBE_URL,
                                  interval='15s', sampling=2, timeout='5s')
         result[index] = p
     return result
