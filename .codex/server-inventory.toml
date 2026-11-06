@@ -8,7 +8,7 @@ host = "136.148.220.228"
 public_domain = "se.arccnet.space"
 ssh_user = "root"
 credential_alias = "se-hostup"
-status = "active restored2026-10-29; Auto+YouTube leastLoad with directLT; EE/NL/AI/Games aliases useSE; YouTube egress Moscow95.182.120.237; CDN remainsLT"
+status = "active legacy HostUp until provider expiry; fresh profiles routed to Royale 2026-11-06"
 
 # Non-secret topology only. Credential aliases map to the local DPAPI vault.
 [[servers]]
@@ -89,5 +89,5 @@ location = "Netherlands/Amsterdam"
 host = "45.141.202.248"
 public_domain = "nl.arccnet.space"
 ssh_user = "root"
-status = "active direct Reality and Yandex CDN origin with operator monitoring"
+status = "active Reality TCP443, AI WARP TCP8444, Games Hysteria2 UDP443 and Yandex CDN origin"
 # Local SSH identity: ~/.ssh/id_ed25519_arcvpn_nl_ops
