@@ -1,3 +1,7 @@
+# Auto comparison and LTE gate — 2026-11-07
+
+Economy. bf659455 deployed on Poland. Best Bypass leastLoad maxRTT relaxed from800ms to3s so working high-latency LTE candidates qualify;5s timeout and existing cadence retained. Public owner/LTE/no-LTE JSON and27 focused tests passed. Compared fresh NN-ID and Leeroy after device-limit removal with archived Midas. Current15s/2 probes catch total failure faster than30s/2 in a controlled Xray test (36.1s versus69.2s), at greater background bytes. No cadence change. Leeroy188.72.103.4 worked on four Latency Lab operators (MegaFon result missing), but completed only1/6 Windows3MiB transfers versus3/6 on110.52, so not added. Full evidence and sources in current.md.
+
 # Royale transport and CDN observatory — 2026-11-07
 
 Economy. Runtime daf5a4fe on Poland. Best Bypass and LTE Auto reserve now probe HTTPS on sub.arccnet.space:18443; old HTTP18080 remains for cached clients. Both DNS and pinned 188.72.110.52 remain authorized candidates. Latest Latency Lab Orel 5/5 for both, Moscow public CDN still occasionally times out despite clean direct origin. No useful gain from smaller chunks or frequent H2 reconnect. Real private CUBIC/BBR Reality A/B completed, small pooled median difference reversed with port swap, left production on CUBIC. Temporary diagnostic listeners and logs removed. Owner acceptance remains native Telegram seek and LTE CDN with refreshed subscriptions. Evidence and rollback in current.md.
