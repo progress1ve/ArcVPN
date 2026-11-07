@@ -20,6 +20,8 @@ def test_restore_is_scoped_and_keeps_authorization(tmp_path, monkeypatch):
         assert target['address']==peers[p['remarks']]['address'] and target['users']==[{'id':'same'}]
         assert next(o for o in p['outbounds'] if o['tag']=='youtube-nl')['settings']['vnext'][0]['address']=='nl.example'
     assert result[2]['routing']['balancers'][0]=={'tag':'lt-first','selector':['nl-primary','lt-primary','se-primary'],'fallbackTag':'cdn-stage','strategy':{'type':'leastLoad','settings':{'expected':2,'maxRTT':'3s','baselines':['1s'],'tolerance':0.2}}}
+    assert result[2]['routing']['rules'][0]=={'domain':['youtube.com'],'outboundTag':'youtube-nl'}
+    assert next(o for o in result[2]['outbounds'] if o['tag']=='youtube-nl')['settings']['vnext'][0]['address']=='nl.example'
     assert m.apply(result)==result
     links=['vless://same@nl.example:443?security=reality#'+__import__('urllib.parse',fromlist=['quote']).quote(n) for n in m.PEERS]
     for link,name in zip(m.apply_links(links),m.PEERS):
