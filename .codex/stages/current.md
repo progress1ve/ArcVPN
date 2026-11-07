@@ -154,3 +154,16 @@ https://core.telegram.org/resources/cidr.txt
 ### Continued study and inactive proposals
 
 Reviewed the exact server and client Xray source plus additional Bedolaga snippets. Qualified the keepalive hypothesis because the default client already sends45s/45s TCP keepalive. Prepared docs/research/ordinary-node-config-review-20261107.md with narrowly scoped routeOnly and keepalive fragments and a separate direct-XHTTP/nginx design. All proposals are inactive. No traffic test, server configuration edit or service restart was performed during this continuation. Read-only routing-context inspection confirms that routeOnly retains the original target IP for IP rules while exposing the sniffed domain to domain rules. It does not bypass sniffing's200ms budget. The existing August Bedolaga audit covers bot/cabinet code rather than node tuning.
+
+## Owner Reality A/B deployment
+
+Owner explicitly authorized the proposed separate temporary Xray and two owner-only test profiles on 2026-11-07. This supersedes the study-only pause for provisioning and bounded acceptance checks. User will perform the actual Telegram playback comparison.
+
+| Profile | Client endpoint / SNI | Backend and route | Authorization and expiry | Rollback |
+|---|---|---|---|---|
+| 🇳🇱 Тест A | nl.arccnet.space:9443 / nl.arccnet.space | Independent Xray process, TCP Reality Vision, current sniffing, routeOnly false, NL DIRECT | Single disposable test identity, owner-only renderer, same identity and Reality material in A/B, expires24h | Stop separate service, close its two firewall rules, disable protected delivery state |
+| 🇳🇱 Тест B | nl.arccnet.space:9445 / nl.arccnet.space | Same sidecar and configuration except routeOnly true | Same owner-only24h grant | Same |
+
+Use existing loopback8443 TLS target, without editing nginx or the production Remnawave profile. Main/public identities and subscription URLs remain stable. Sidecar CPUQuota25%, MemoryMax192M, TasksMax64. DynamicUser and protected systemd credentials. No restart of production remnanode. Expiry independently enforced by renderer timestamp, RuntimeMaxSec and a cleanup timer. Extra test identity is deliberately outside Remnawave and limited to this24h experiment. Physical link capacity is shared. Ports themselves may affect filtering and A/B should be repeated after a port swap if a difference is observed.
+
+Acceptance: focused owner-only/expiry/JSON/plain tests, sidecar syntax and service/port checks, real small TLS requests over both profiles, fresh public owner+LTE+noLTE subscriptions and non-owner equality, automatic expiry schedule readback. No media benchmark. Publish reviewed runtime before enabling delivery; subscription-only restart.
