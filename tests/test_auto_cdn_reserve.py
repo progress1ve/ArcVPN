@@ -34,6 +34,9 @@ def test_reserve_preserves_authorization_and_primary_strategy():
     assert set(reserve['selector']) <= set(result[0]['burstObservatory']['subjectSelector'])
     assert result[0]['routing']['rules'][0]['inboundTag'] == ['auto-cdn-reserve']
     assert result[0]['burstObservatory']['pingConfig']['destination'] == 'https://sub.arccnet.space:18443/generate_204'
+    assert result[0]['burstObservatory']['pingConfig'] == {
+        'destination': 'https://sub.arccnet.space:18443/generate_204',
+        'httpMethod': 'GET', 'interval': '15s', 'sampling': 2, 'timeout': '5s'}
     assert apply(result) == result
 
 

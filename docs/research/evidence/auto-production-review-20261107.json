@@ -1,0 +1,478 @@
+{
+  "methodology": {
+    "failure_phase_seconds_include_followup_transfers": true,
+    "do_not_interpret_as_isolated_failover_time": true,
+    "source": "Moscow VPS, not mobile network"
+  },
+  "cases": {
+    "old": {
+      "source": "Moscow VPS",
+      "phases": [
+        {
+          "phase": "normal",
+          "ok": true,
+          "seconds": 0.66,
+          "attempts": [
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "failed",
+          "ok": true,
+          "seconds": 45.29,
+          "attempts": [
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 28,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-1",
+                "auto-cdn-reserve -> auto-cdn-1"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-1",
+                "auto-cdn-reserve -> auto-cdn-1"
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "ok": true,
+          "seconds": 9.53,
+          "attempts": [
+            {
+              "http": "000",
+              "curl_exit": 28,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            }
+          ]
+        }
+      ],
+      "reserve_transfers": [
+        {
+          "kind": "https204",
+          "ok": true,
+          "metrics": "204,0,0.208355",
+          "exit": 0
+        },
+        {
+          "kind": "https204",
+          "ok": true,
+          "metrics": "204,0,0.173981",
+          "exit": 0
+        },
+        {
+          "kind": "1MiB",
+          "ok": false,
+          "metrics": "000,0,10.001803",
+          "exit": 28
+        },
+        {
+          "kind": "1MiB",
+          "ok": true,
+          "metrics": "200,1048576,0.692297",
+          "exit": 0
+        }
+      ]
+    },
+    "trial": {
+      "source": "Moscow VPS",
+      "phases": [
+        {
+          "phase": "normal",
+          "ok": true,
+          "seconds": 0.77,
+          "attempts": [
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "failed",
+          "ok": true,
+          "seconds": 56.35,
+          "attempts": [
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-1",
+                "auto-cdn-reserve -> auto-cdn-1"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-1",
+                "auto-cdn-reserve -> auto-cdn-1"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-2",
+                "auto-cdn-reserve -> auto-cdn-2"
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "ok": true,
+          "seconds": 28.0,
+          "attempts": [
+            {
+              "http": "000",
+              "curl_exit": 28,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 28,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-3",
+                "auto-cdn-reserve -> auto-cdn-3"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            }
+          ]
+        }
+      ],
+      "reserve_transfers": [
+        {
+          "kind": "https204",
+          "ok": true,
+          "metrics": "204,0,0.116567",
+          "exit": 0
+        },
+        {
+          "kind": "https204",
+          "ok": false,
+          "metrics": "000,0,5.004310",
+          "exit": 35
+        },
+        {
+          "kind": "1MiB",
+          "ok": false,
+          "metrics": "000,0,10.002539",
+          "exit": 28
+        },
+        {
+          "kind": "1MiB",
+          "ok": false,
+          "metrics": "000,0,10.002116",
+          "exit": 28
+        }
+      ]
+    },
+    "get_leastPing": {
+      "source": "Moscow VPS",
+      "phases": [
+        {
+          "phase": "normal",
+          "ok": true,
+          "seconds": 0.62,
+          "attempts": [
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "failed",
+          "ok": true,
+          "seconds": 63.84,
+          "attempts": [
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "000",
+              "curl_exit": 35,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-2",
+                "auto-cdn-reserve -> auto-cdn-2"
+              ]
+            }
+          ]
+        },
+        {
+          "phase": "recovered",
+          "ok": true,
+          "seconds": 14.1,
+          "attempts": [
+            {
+              "http": "000",
+              "curl_exit": 28,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-2",
+                "auto-cdn-reserve -> auto-cdn-2"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-2",
+                "auto-cdn-reserve -> auto-cdn-2"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "auto-cdn-reserve -> auto-cdn-2",
+                "auto-cdn-reserve -> auto-cdn-2"
+              ]
+            },
+            {
+              "http": "204",
+              "curl_exit": 0,
+              "tags": [
+                "gate-socks -> nl-primary"
+              ]
+            }
+          ]
+        }
+      ],
+      "reserve_transfers": [
+        {
+          "kind": "https204",
+          "ok": true,
+          "metrics": "204,0,0.326968",
+          "exit": 0
+        },
+        {
+          "kind": "https204",
+          "ok": true,
+          "metrics": "204,0,0.163347",
+          "exit": 0
+        },
+        {
+          "kind": "1MiB",
+          "ok": false,
+          "metrics": "000,0,10.001828",
+          "exit": 28
+        },
+        {
+          "kind": "1MiB",
+          "ok": false,
+          "metrics": "000,0,10.002121",
+          "exit": 28
+        },
+        {
+          "kind": "1MiB",
+          "ok": false,
+          "metrics": "000,0,10.002956",
+          "exit": 28
+        },
+        {
+          "kind": "1MiB",
+          "ok": true,
+          "metrics": "200,1048576,1.013386",
+          "exit": 0
+        },
+        {
+          "kind": "1MiB",
+          "ok": true,
+          "metrics": "200,1048576,1.566458",
+          "exit": 0
+        },
+        {
+          "kind": "1MiB",
+          "ok": true,
+          "metrics": "200,1048576,1.256381",
+          "exit": 0
+        }
+      ]
+    }
+  }
+}
