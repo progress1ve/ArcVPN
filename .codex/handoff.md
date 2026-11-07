@@ -141,3 +141,7 @@ Other live product invariants remain: website verified-email free day and option
 Next: owner review live admin; full automatic node onboarding still requires its own agreed installation/routing/publication stage. Paid LTE expiry is tested; natural22Oct production expiry remains future. Do not restart runtime for documentation-only changes.
 
 Shareable guide available: docs/guides/vpn-node-setup-guide.ru.md (generic, standalone, no project addresses/credentials). Published f86cce24 and Poland fast-forward pulled; documentation only, no restart.
+
+## Emergency Lithuania evacuation — 2026-11-07
+
+Owner authorized migration after Russia reachability failure. Runtimeaf687911 pushed/Poland FFpulled, subscription-only restart. Final delivery overlay redirects every LT Reality endpoint in JSON/plain/base64 to existing Royale443/SNI nl.arccnet.space and removes LT peer from Auto/YouTube selectors/observer; existing NL/CDN authorization and UUIDs retained. Owner/LTE/noLTE public counts20/18/10 and all formats free of LT IP/SNI.21 actual migrated outbound HTTPS204 checks passed across all cohorts. Initial full-profile harness raced listener startup on LTE#5; repeated with socket-readiness wait passed full profile#5. No main-node restart, no CDN group change. Services active/health200. Cached profiles require refresh/reconnect; Lithuanian-labelled manual alias now exits NL. No-LTE Auto now has only one physical exit, no independent-node redundancy. Rollback scoped renderer revert would restore broken LT. Economy.
