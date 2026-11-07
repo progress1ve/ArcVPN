@@ -2034,6 +2034,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     rendered_profiles = apply_reality_ab(rendered_profiles, key.telegram_id)
     from monitoring.lithuania_evacuation import apply as evacuate_lithuania
     rendered_profiles = evacuate_lithuania(rendered_profiles, load_royale(key.telegram_id))
+    from monitoring.owner_auto_lte import apply as apply_owner_auto_lte
+    rendered_profiles = apply_owner_auto_lte(rendered_profiles, key.telegram_id)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,
