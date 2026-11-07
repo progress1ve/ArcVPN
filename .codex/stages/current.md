@@ -150,3 +150,7 @@ https://github.com/XTLS/Xray-core/blob/v26.7.28/transport/internet/system_dialer
 https://github.com/XTLS/Xray-core/blob/v26.7.28/app/dispatcher/default.go
 https://github.com/XTLS/Xray-core/discussions/4113
 https://core.telegram.org/resources/cidr.txt
+
+### Continued study and inactive proposals
+
+Reviewed the exact server and client Xray source plus additional Bedolaga snippets. Qualified the keepalive hypothesis because the default client already sends45s/45s TCP keepalive. Prepared docs/research/ordinary-node-config-review-20261107.md with narrowly scoped routeOnly and keepalive fragments and a separate direct-XHTTP/nginx design. All proposals are inactive. No traffic test, server configuration edit or service restart was performed during this continuation. Read-only routing-context inspection confirms that routeOnly retains the original target IP for IP rules while exposing the sniffed domain to domain rules. It does not bypass sniffing's200ms budget. The existing August Bedolaga audit covers bot/cabinet code rather than node tuning.
