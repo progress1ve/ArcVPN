@@ -1,0 +1,130 @@
+{
+  "source": "Moscow VPS",
+  "phases": [
+    {
+      "phase": "normal",
+      "ok": true,
+      "seconds": 0.93,
+      "attempts": [
+        {
+          "http": "204",
+          "curl_exit": 0,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "failed",
+      "ok": true,
+      "seconds": 41.4,
+      "attempts": [
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 28,
+          "tags": [
+            "auto-cdn-reserve -> auto-cdn-2",
+            "auto-cdn-reserve -> auto-cdn-2"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "auto-cdn-reserve -> cdn-safe",
+            "auto-cdn-reserve -> cdn-safe"
+          ]
+        },
+        {
+          "http": "204",
+          "curl_exit": 0,
+          "tags": [
+            "auto-cdn-reserve -> cdn-safe",
+            "auto-cdn-reserve -> cdn-safe"
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "recovered",
+      "ok": true,
+      "seconds": 12.18,
+      "attempts": [
+        {
+          "http": "204",
+          "curl_exit": 0,
+          "tags": [
+            "auto-cdn-reserve -> cdn-safe",
+            "auto-cdn-reserve -> cdn-safe"
+          ]
+        },
+        {
+          "http": "204",
+          "curl_exit": 0,
+          "tags": [
+            "auto-cdn-reserve -> cdn-safe",
+            "auto-cdn-reserve -> cdn-safe"
+          ]
+        },
+        {
+          "http": "000",
+          "curl_exit": 35,
+          "tags": [
+            "auto-cdn-reserve -> cdn-safe",
+            "auto-cdn-reserve -> cdn-safe"
+          ]
+        },
+        {
+          "http": "204",
+          "curl_exit": 0,
+          "tags": [
+            "gate-socks -> nl-primary"
+          ]
+        }
+      ]
+    }
+  ]
+}
