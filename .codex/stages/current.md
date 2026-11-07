@@ -198,3 +198,5 @@ Closeout:4c12bdaf pushed and Poland FFpulled, subscription-only restart.15 focus
 ## Shareable guide for another service — 2026-11-07
 
 Owner requested a standalone version for a friend. Created docs/guides/vpn-node-setup-guide.ru.md: generic topology, Reality/TLS target setup, panel synchronization, CDN migration, Auto checks, Telegram/cache methodology, isolated experiments and handoff template. Removed project addresses, private paths, customer/provider identifiers and competitor credentials. Added official XTLS/nginx/Hysteria sources, placeholder configuration and scoped uncertainty. Checked Markdown fences/JSON syntax and absence of project identifiers. Documentation only; no production settings or service restart. Publish and Poland FFpull for repository consistency.
+
+Closeout: f86cce24 committed/pushed and Poland fast-forward pulled. Standalone Markdown delivered; no server configuration change or restart. Existing internal handbook retained.
