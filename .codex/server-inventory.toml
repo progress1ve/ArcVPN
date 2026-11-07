@@ -8,7 +8,7 @@ host = "136.148.220.228"
 public_domain = "se.arccnet.space"
 ssh_user = "root"
 credential_alias = "se-hostup"
-status = "active legacy HostUp until provider expiry; fresh profiles routed to Royale 2026-11-06"
+status = "active legacy HostUp; physical Sweden manual/Auto restored2026-11-08 after real tunnel gates; provider expiry risk remains"
 
 # Non-secret topology only. Credential aliases map to the local DPAPI vault.
 [[servers]]
@@ -80,7 +80,7 @@ location = "Lithuania/Siauliai"
 host = "88.216.62.135"
 ssh_user = "root"
 credential_alias = "lt-cherry"
-status = "active primary exit; globally enabled 2026-10-27; provider shows 1TB included"
+status = "physical Lithuania manual/Auto restored2026-11-08 after regional reachability recovery and real tunnel gates; provider shows 1TB included"
 
 [[servers]]
 alias = "nl-royale"
