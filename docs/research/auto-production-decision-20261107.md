@@ -75,3 +75,18 @@ Remaining issue: CDN HTTPS/file delivery still intermittently fails in all teste
 variants; origin/edge transport diagnosis is a separate next stage. Shared Auto
 retains working direct NL whenever observed available. Forced local failure is
 not reproduction of a particular mobile operator's restrictions.
+
+## Deployment acceptance
+
+Published cde89080, Poland fast-forward pulled, only subscription service
+restarted.28 focused tests passed. Fresh public JSON owner20/LTE18/noLTE10
+matched protected snapshots except explicitGET in LTE Auto and removal of owner
+trial; all plain/base64 lists unchanged. Trial hook removed and private state
+disabled. No-LTE remains NL-only with30s/3/5s and no XHTTP entitlement.
+
+Separate final gate used the actual published Auto without follow-up downloads
+inside its timing: normal NL204; blocked NL relay→successfulCDN204 at21.0s;
+restored relay→NL204 at36.82s. One randomized-probe sample is not a failover SLA
+or a speed ranking. Evidence: `evidence/auto-production-final-gate-20261107.json`.
+All transient client inputs/processes removed, Moscow nginx and control-plane
+bot/API healthy. Existing ordinary nodes were not restarted.
