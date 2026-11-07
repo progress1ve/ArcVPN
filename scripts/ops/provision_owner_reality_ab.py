@@ -38,7 +38,7 @@ def main():
     assert all(not re.search(rf':{port}\b', listeners) and str(port) not in firewall
                for port in PORTS)
     ROOT.mkdir(mode=0o755)
-    PRIVATE.mkdir(mode=0o700)
+    PRIVATE.mkdir(mode=0o700, parents=True)
     pid = run('docker', 'inspect', '--format', '{{.State.Pid}}', 'remnanode').strip()
     binary = run('docker', 'exec', 'remnanode', 'sh', '-c', 'command -v xray').strip()
     assets = run('docker', 'exec', 'remnanode', 'sh', '-c',
