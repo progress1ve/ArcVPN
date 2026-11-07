@@ -58,9 +58,10 @@ def apply(profiles):
             observer = p['burstObservatory']
             observer['subjectSelector'] = list(dict.fromkeys(observer['subjectSelector'] + tags))
             if youtube and youtube_rule:
-                if not any(o.get('tag') == 'youtube-nl' for o in p['outbounds']):
-                    p['outbounds'].append(copy.deepcopy(youtube))
-                rule = next((r for r in p['routing'].get('rules', [])
+                p['outbounds'] = [o for o in p['outbounds'] if o.get('tag') != 'youtube-nl']
+                p['outbounds'].append(copy.deepcopy(youtube))
+                rules = p['routing'].setdefault('rules', [])
+                rule = next((r for r in rules
                              if r.get('domain') == youtube_rule.get('domain')), None)
                 if rule is None:
                     p['routing']['rules'].insert(0, copy.deepcopy(youtube_rule))
