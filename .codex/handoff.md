@@ -1,3 +1,7 @@
+# Ordinary nodes — study only, 2026-11-07
+
+Economy. Owner explicitly paused further self-run tests. Continue configuration/source research only. Existing canary completed before handling the instruction, private XHTTP listener/path removed and nginx restored. Found active Windows Wintun route invalidating the assumption of a clean path in earlier unbound workstation benchmarks; final pre-pause run pinned the physical Wi-Fi interface. Direct XHTTP/Hysteria showed promising short-run figures, no protocol rollout. Static candidates for later evaluation are inbound TCP keepalive and routeOnly sniffing behavior. No ordinary server timer or limit defect established. Full findings and correction in current.md.
+
 # Auto comparison and LTE gate — 2026-11-07
 
 Economy. bf659455 deployed on Poland. Best Bypass leastLoad maxRTT relaxed from800ms to3s so working high-latency LTE candidates qualify;5s timeout and existing cadence retained. Public owner/LTE/no-LTE JSON and27 focused tests passed. Compared fresh NN-ID and Leeroy after device-limit removal with archived Midas. Current15s/2 probes catch total failure faster than30s/2 in a controlled Xray test (36.1s versus69.2s), at greater background bytes. No cadence change. Leeroy188.72.103.4 worked on four Latency Lab operators (MegaFon result missing), but completed only1/6 Windows3MiB transfers versus3/6 on110.52, so not added. Full evidence and sources in current.md.

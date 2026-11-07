@@ -123,3 +123,30 @@ Live Latency Lab comparing110.52 versus103.4 returned success for T-Mobile/Beeli
 Fresh serial-normalized rendering before/after3s change passed for owner, other LTE, no-LTE: only Best Bypass maxRTT differs in each LTE cohort; all no-LTE profiles identical. 27 focused tests passed. Windows fixed 24000/10 transport comparison found103.4 HTTPS7/12 and complete3MiB files1/6,110.52 HTTPS5/12 and files3/6, DNS HTTPS6/12 and files1/6. This batch does not justify adding103.4 to the common pool despite its lower operator latency. No new endpoint added.
 
 Deployed bf659455 on Poland by fast-forward pull, subscription-only restart. Bot/API active and health200. Fresh public bound JSON owner/LTE/no-LTE returned HTTP200 and18/18/10 profiles. Best3s verified in both LTE cohorts; no-LTE has no Best profile. No per-user configuration or identifiers changed. Rollback is the scoped source revert of maxRTT only.
+
+## Ordinary-node transport comparison
+
+Compare current published Royale TCP Reality with direct XHTTP TLS on the same nl.arccnet.space:443 endpoint/SNI and direct NL exit, using a temporary loopback-only Xray inbound and random path behind the existing HTTPS mask. Include current Lithuania Reality and current Royale Hysteria as controls. Keep the existing mask index and Reality listeners. Check fixed-length HTTPS downloads and stateless fresh MTProto nonce replies, then bounded long-session behavior if an alternative shows gains. Temporary path/identity is private and never delivered publicly. Validate nginx before reload, restore original vhost and stop canary after the run. Production protocol selection changes require real gain and client compatibility; native owner Telegram playback remains a separate user gate.
+
+### Owner steering and read-only configuration review
+
+Owner requested study only and paused further self-run traffic tests on 2026-11-07. By the time the instruction was handled, the already-running physical-interface-bound comparison had completed and cleaned up. Confirmed no remaining test client processes, local19073 listener or temporary grpc location. Existing Royale mask vhost restored. Continue reading config/source only until the owner requests tests again.
+
+Method correction: Windows had an active Wintun route for both node IPs. Previous workstation tests did not pin the physical interface, so they may have included an extra VPN hop. Their figures are not a clean device-to-node baseline. The final pre-steering run explicitly used Xray Windows sockopt.interface and sendThrough for the physical Wi-Fi interface. All five paths completed6/6 full3MiB downloads and6/6 fresh Telegram nonce replies. Medians for download completion were1.172s NL Reality,0.727s direct NL XHTTP stream-up,0.745s direct NL XHTTP stream-one,0.562s existing NL Hysteria. These are short synthetic file/connection measurements, not native Telegram playback or operator coverage acceptance. No public protocol change was promoted.
+
+Static findings from BedolagaBD and pinned official Xray/REALITY source:
+- Both ordinary node profiles use local127.0.0.1:8443 targets and Firefox client fingerprints. REALITY contacts the target during handshake but closes it after successful authentication. Nginx HTTP proxy buffers and static-file sendfile settings do not carry the authenticated VPN payload. Their main role on these ordinary paths is TLS masking and connection establishment.
+- Both nginx configurations use worker_processes auto and worker_connections768, with systemd LimitNOFILE524288. This is capacity configuration, not evidence of current saturation. A larger worker_connections value requires capacity evidence.
+- Ordinary node inbounds have no explicit sockopt. Xray26.7.28 DefaultListener disables inbound keepalive by default. Explicit inbound keepalive is a candidate for stale/NAT session behavior, pending a separate controlled check. Outbound dialing already enables45s/45s keepalive, so a blanket kernel keepalive sysctl change does not directly replace the application setting.
+- Server sniffing is enabled and routeOnly is absent. Xray can replace an IP destination with the sniffed hostname and resolve it again. routeOnly can preserve the original destination while retaining domain routing. Changing it must preserve Lithuania's existing YouTube-specific server routes and private/P2P restrictions. Xray sniffing can spend up to200ms looking for more initial data; this does not establish the cause of a minute-long media stall.
+- For a future direct XHTTP TLS path, Bedolaga and XTLS recommend streaming over HTTP/2 with nginx grpc_pass. Its stream-up/stream-one behavior must be assessed separately from CDN GET/header packet-up. Keep current self-SNI and authorization.
+- The official Telegram network list has no overlap with RU ranges in either current or bundled INCY geoip.dat on this workstation. No current Telegram geoip:ru bypass defect was found. Do not conflate the SNI domain rule with native Telegram's IP connections.
+
+Sources:
+https://github.com/Rxflex/BedolagaBD/tree/1b60387
+https://github.com/XTLS/REALITY/blob/9234c772ba8f/tls.go
+https://github.com/XTLS/Xray-core/blob/v26.7.28/transport/internet/system_listener.go
+https://github.com/XTLS/Xray-core/blob/v26.7.28/transport/internet/system_dialer.go
+https://github.com/XTLS/Xray-core/blob/v26.7.28/app/dispatcher/default.go
+https://github.com/XTLS/Xray-core/discussions/4113
+https://core.telegram.org/resources/cidr.txt
