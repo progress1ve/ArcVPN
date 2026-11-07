@@ -65,13 +65,13 @@ status = "active"
 
 [[servers]]
 alias = "msk-budget"
-role = "bridge-node-and-public-web"
+role = "public-web-and-non-vpn-services"
 location = "Russia/Moscow"
 host = "95.182.120.237"
 public_domain = "ru.arccnet.space"
 ssh_user = "root"
 credential_alias = "msk-budget"
-status = "active replacement2026-10-27; 250RUB/month; YouTube zapret2 trial pending real video acceptance"
+status = "web-only; VPN retired2026-11-08: RemnaNode stopped/restart=no and panel node disabled; TCP/UDP VPN forwarding removed; main website HTTP200"
 
 [[servers]]
 alias = "lt-cherry"
