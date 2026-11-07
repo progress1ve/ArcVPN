@@ -91,3 +91,4 @@ public_domain = "nl.arccnet.space"
 ssh_user = "root"
 status = "active Reality TCP443, AI WARP TCP8444, Games Hysteria2 UDP443 and Yandex CDN origin"
 # Local SSH identity: ~/.ssh/id_ed25519_arcvpn_nl_ops
+# Temporary owner A/B: arcvpn-reality-ab.service TCP9443/9445, expiry2026-11-08T06:43:30Z; independent process, main node unchanged.

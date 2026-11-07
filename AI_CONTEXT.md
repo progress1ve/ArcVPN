@@ -2055,3 +2055,5 @@ The dedicated production admin is React `admin_webapp`; the customer application
 
 ### 2026-10-30 — Admin presence display
 Admin home Online uses unique customers from Remnawave presence (existing3-minute observation window), refreshes on60s UI poll; unknown is --,knownzero0. Remnawave Nodes visible fleet includes Estonia,Lithuania,SwedenHostUp. This is a view change, not VPN topology.
+
+2026-11-07 owner Reality A/B: authorized independent Royale TCP9443/9445 experiment, routeOnly false/true with all other A/B settings identical. Owner-only expiring JSON/plain/base64 renderer and disposable standalone identity; no persistent customer identity/quota or Remnawave mutation. Runtime386059ad/installer3e326d87 deployed on Poland, main node not restarted. Expires2026-11-08 09:43MSK, resource-limited service and cleanup timer. Both real small HTTPS/NL egress gates pass; native Telegram comparison belongs to owner with fresh local cache each repetition. Different ports/shared bandwidth/CPU cap prevent claiming a production winner from absolute speed alone. Further autonomous media benchmarks remain paused. Economy.
