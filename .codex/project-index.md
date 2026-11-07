@@ -24,3 +24,5 @@
 
 - Partner operational views: admin_webapp/src/arcvpn/PartnerContent.tsx; shared PeriodPicker.tsx; admin AcquisitionStats.tsx and database/db_acquisition.py provide exclusive direct/referral/campaign registrations.
 - Shared admin/partner heading: admin_webapp/src/components/admin/SectionHeading.tsx, extracted from AdminPayments; partner Marketing menu omits Clients while owned graph/list remains.
+
+- Node tuning lessons and repeatable diagnostic method: `docs/operations/node-tuning-lessons-20261107.md` (read before future node optimization).

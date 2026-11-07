@@ -10,7 +10,8 @@ SPECIAL_PROFILES = ('Нейросети', 'Игровой сервер')
 
 def _display_name(name, state):
     if state.get('moved_to_royale') and any(label in name for label in SPECIAL_PROFILES):
-        return name.replace('🇸🇪', '🇳🇱', 1)
+        flag = '🇺🇸' if 'Нейросети' in name else '🇫🇮'
+        return name.replace('🇸🇪', flag, 1).replace('🇳🇱', flag, 1)
     return name
 
 
