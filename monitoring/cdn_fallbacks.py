@@ -75,7 +75,7 @@ def cdn_only(profile, source):
  profile['outbounds']=variants+retained
  routing['rules']=rules
  routing['balancers']=[{'tag':'balancer_cdn_only','selector':[o['tag'] for o in variants],
-  'strategy':{'type':'leastLoad','settings':{'expected':2,'maxRTT':'800ms',
+  'strategy':{'type':'leastLoad','settings':{'expected':2,'maxRTT':'3s',
    'baselines':['200ms','400ms'],'tolerance':0.05}},'fallbackTag':'cdn-safe'}]
  profile.pop('observatory',None)
  observer=profile.setdefault('burstObservatory',{})

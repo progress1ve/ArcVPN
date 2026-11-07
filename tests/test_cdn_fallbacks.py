@@ -60,6 +60,7 @@ def test_best_bypass_removes_weighted_reality_but_preserves_split_routing():
  b,=r['routing']['balancers']
  assert b['fallbackTag']=='cdn-safe'
  assert b['strategy']['type']=='leastLoad'
+ assert b['strategy']['settings']['maxRTT']=='3s'
  tags={o['tag'] for o in proxies}
  assert set(b['selector'])==tags
  assert set(r['burstObservatory']['subjectSelector'])==tags
