@@ -51,7 +51,10 @@ def apply(profiles):
             for peer_name, tag in PEERS.items():
                 o = retarget(copy.deepcopy(nl), state[peer_name]); o['tag'] = tag
                 p['outbounds'].append(o)
-            next(b for b in p['routing']['balancers'] if b['tag'] == 'lt-first')['selector'] = ['nl-primary'] + tags
+            primary = next(b for b in p['routing']['balancers'] if b['tag'] == 'lt-first')
+            primary['selector'] = ['nl-primary'] + tags
+            primary['strategy'] = {'type': 'leastLoad', 'settings': {
+                'expected': 2, 'maxRTT': '3s', 'baselines': ['1s'], 'tolerance': 0.2}}
             observer = p['burstObservatory']
             observer['subjectSelector'] = list(dict.fromkeys(observer['subjectSelector'] + tags))
     return result
