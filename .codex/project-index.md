@@ -26,3 +26,5 @@
 - Shared admin/partner heading: admin_webapp/src/components/admin/SectionHeading.tsx, extracted from AdminPayments; partner Marketing menu omits Clients while owned graph/list remains.
 
 - Node tuning lessons and repeatable diagnostic method: `docs/operations/node-tuning-lessons-20261107.md` (read before future node optimization).
+
+- Shareable generic VPN setup guide (no ArcVPN identifiers): `docs/guides/vpn-node-setup-guide.ru.md`.
