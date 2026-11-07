@@ -192,3 +192,5 @@ CPU throttle counters unchanged6/305231µs, usage+447254µs, sidecar active/memo
 ## Node tuning handbook and display flags — 2026-11-07
 
 Owner requests all chat lessons in a reusable Markdown guide and display flags games Finland/AI USA. Scope: handbook and discovery links, hostup_return display-name helper only. No endpoint/SNI/routing/identity/geography migration. Acceptance: focused tests and before/after public JSON/plain/base64 owner/LTE/noLTE equal except these two flags; guide distinguishes measured wins, rejected hypotheses, cache/path mistakes and unresolved native/LTE gates. Rollback scoped display helper revert. Deploy subscription-only restart after reviewed commit/push/FF pull.
+
+Closeout:4c12bdaf pushed and Poland FFpulled, subscription-only restart.15 focused tests/py_compile passed. Public owner/LTE/noLTE JSON/plain/base64 exactly match before snapshot except requested AI🇺🇸/games🇫🇮 flags. Endpoints/routes/credentials unchanged; bot/API active, health200 after transient startup502. Handbook linked from project-index/handoff. No performance change or new tunnel test required. Next read the handbook before further node tuning.
