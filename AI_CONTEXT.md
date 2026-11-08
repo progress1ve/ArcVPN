@@ -2075,3 +2075,7 @@ Admin home Online uses unique customers from Remnawave presence (existing3-minut
 
 ### Paid card semantics — 2026-11-08
 Owner requires main count of distinct active commercial subscribers and +N first recorded successful positive subscription payments per user on calendar MSK (UTC+3) dates. Derive MIN paid_at, not new operation label: first conversion after trial can be renew. Exclude demo, trial/email-paid-trial, balance topups, LTE addons and failed/nonpositive payments. Renewals do not duplicate customers or first buyers. Both AdminPanel layouts use subscriptions.first_paid_today; purchased_today remains order metrics elsewhere. Runtime908e95b8 deployed Poland, no payment/user data writes. Historical incomplete payment records limit first-buyer provenance.
+
+
+### Node website design — 2026-11-08
+Owner selected original light Arccnet Tools over dark Northstar-style corporate page. Staticwebsite deploy/node-site/index.html offers genuine in-browser PNG/JPEG/WebPconversion, preview/quality/download, instructions/FAQ/privacy; no registration, fake pricing, external dependencies or fileuploads.20MiB/24MPoneimage cap, JPEGwhitebackground, PNG/WebPalpha, staticoutput and no metadata-preservation guarantee. DeployedindexonlyNL/LT/SEexistingTLSroots, nginx/VPN/CDN/cert/DNS unchanged; no reload/restart. Scopedbackup/atomicdeployer and PlaywrightQA documented in deploy/node-site/README.md. Richerwebsite is a visual/functionality outcome, not evidence of DPIimmunity or VPNspeedgain.
