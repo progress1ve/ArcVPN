@@ -149,6 +149,8 @@ def get_subscriptions_stats() -> Dict[str, Any]:
                 WHERE te.status='active' AND vk.expires_at>datetime('now')
             """).fetchone()[0])
 
+        from database.paid_subscriber_stats import paid_subscriber_stats
+        paid_counts = paid_subscriber_stats(conn)
         return {
             'day': day_count,
             'week': week_count,
@@ -158,7 +160,7 @@ def get_subscriptions_stats() -> Dict[str, Any]:
             'active': active_count,
             'expired': expired_count,
             'trial': trial_count,
-            'paid': max(0, active_count - trial_count),
+            **paid_counts,
         }
 
 

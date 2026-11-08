@@ -582,6 +582,7 @@ export function dashboardStats(data: Json): Json {
       active,
       trial,
       paid: Number(data.subscriptions?.paid ?? Math.max(0, active - trial)),
+      first_paid_today: Number(data.subscriptions?.first_paid_today ?? 0),
       expired: Number(data.subscriptions?.expired || Math.max(0, total - active)),
       purchased_today: Number(data.business?.payments?.day?.orders || 0),
       purchased_week: Number(data.business?.payments?.week?.orders || 0),

@@ -284,6 +284,7 @@ export interface SubscriptionStats {
   active: number;
   trial: number;
   paid: number;
+  first_paid_today?: number;
   expired: number;
   purchased_today: number;
   purchased_week: number;

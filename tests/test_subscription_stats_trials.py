@@ -19,6 +19,11 @@ def test_subscription_stats_count_only_active_linked_trials(monkeypatch):
             vpn_key_id INTEGER,
             status TEXT NOT NULL
         );
+        CREATE TABLE payments (user_id INTEGER,status TEXT,operation_type TEXT,
+            payment_type TEXT,offer_code TEXT,amount_cents INTEGER,amount_stars INTEGER,paid_at TEXT);
+        INSERT INTO payments VALUES
+            (2,'paid','renew','cards',NULL,10000,0,datetime('now','-2 days')),
+            (4,'paid','new','cards',NULL,10000,0,datetime('now','-2 days'));
         INSERT INTO vpn_keys VALUES
             (1,1,datetime('now','-2 days'),datetime('now','+5 days')),
             (2,2,datetime('now','-2 days'),datetime('now','+5 days')),

@@ -420,7 +420,7 @@ const StatsBar = memo(function StatsBar({ systemInfo, dashboardStats, loading }:
     const uptime = systemInfo?.uptime_seconds ?? 0;
     const trial = dashboardStats?.subscriptions.trial ?? 0;
     const paid = dashboardStats?.subscriptions.paid ?? 0;
-    const purchasedToday = dashboardStats?.subscriptions.purchased_today ?? 0;
+    const firstPaidToday = dashboardStats?.subscriptions.first_paid_today ?? 0;
 
     return [
       {
@@ -452,7 +452,7 @@ const StatsBar = memo(function StatsBar({ systemInfo, dashboardStats, loading }:
         icon: <StatPaidIcon className="h-3.5 w-3.5" />,
         label: t('admin.panel.statsPaid'),
         numericValue: paid,
-        delta: purchasedToday > 0 ? `+${purchasedToday}` : undefined,
+        delta: firstPaidToday > 0 ? `+${firstPaidToday}` : undefined,
         colorClass: 'text-success-400 bg-success-400/10 border-success-400/20',
       },
     ];
@@ -689,8 +689,8 @@ export default function AdminPanel() {
               label: t('admin.panel.statsPaid'),
               value: dashboardStats?.subscriptions.paid?.toLocaleString() ?? '--',
               delta:
-                (dashboardStats?.subscriptions.purchased_today ?? 0) > 0
-                  ? `+${dashboardStats?.subscriptions.purchased_today}`
+                (dashboardStats?.subscriptions.first_paid_today ?? 0) > 0
+                  ? `+${dashboardStats?.subscriptions.first_paid_today}`
                   : undefined,
               cls: 'text-success-400',
             },
