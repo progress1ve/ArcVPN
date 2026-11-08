@@ -36,3 +36,19 @@ card should show active versus lifetime population; user currently requested
 verification only. First purchase should derive MIN paid_at per user across all
 qualifying subscription operations, excluding topups/addons/trials/demo, with
 calendarMSK boundaries. Keep success-only paid-record provenance explicit.
+
+
+## Accepted fix — 2026-11-08
+
+Owner selected active paid users for the main card and first buyers today for
+the badge, preserving the layout. Runtime 908e95b8 published and FF-pulled
+on Poland; subscription service restarted, bot remained active, health HTTP200.
+Main count is DISTINCT active user IDs with a positive successful commercial
+subscription payment; active trial-linked keys are excluded. Badge uses the
+first qualifying paid_at per user and calendar UTC+3 boundaries. Renewals do
+not duplicate people; a first payment marked renew after a trial still counts.
+Financial order metrics elsewhere are unchanged. No payment/user data writes.
+Live snapshot after deployment: active keys34, active trials13, unique paid19,
+first buyers today0. Historical missing/imported payment records remain a
+limitation: first means first recorded qualifying payment, not independently
+verified bank settlement.
