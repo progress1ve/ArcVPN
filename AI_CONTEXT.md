@@ -2079,3 +2079,7 @@ Owner requires main count of distinct active commercial subscribers and +N first
 
 ### Node website design — 2026-11-08
 Owner selected original light Arccnet Tools over dark Northstar-style corporate page. Staticwebsite deploy/node-site/index.html offers genuine in-browser PNG/JPEG/WebPconversion, preview/quality/download, instructions/FAQ/privacy; no registration, fake pricing, external dependencies or fileuploads.20MiB/24MPoneimage cap, JPEGwhitebackground, PNG/WebPalpha, staticoutput and no metadata-preservation guarantee. DeployedindexonlyNL/LT/SEexistingTLSroots, nginx/VPN/CDN/cert/DNS unchanged; no reload/restart. Scopedbackup/atomicdeployer and PlaywrightQA documented in deploy/node-site/README.md. Richerwebsite is a visual/functionality outcome, not evidence of DPIimmunity or VPNspeedgain.
+
+
+### Staff exclusion from the paid dashboard
+The web overview passes configured admin Telegram IDs into both paid card counts. The filter joins internal user IDs to Telegram IDs. Billing records and purchase history remain available for accounting.
