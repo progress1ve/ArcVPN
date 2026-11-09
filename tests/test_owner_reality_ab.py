@@ -79,12 +79,12 @@ def test_plain_links_match_owner_json_and_preserve_other_users(state):
     assert m.apply_links(links, 123) is links
 
 
-def test_tcp_tuning_ip_and_domain_share_listener_and_sni(state):
+def test_tcp_tuning_uses_only_domain_based_control_and_bbr(state):
     m.STATE.write_text(json.dumps({**state, 'experiment': 'tcp-tuning'}))
     links = [f'vless://existing@{m.DOMAIN}:443?security=reality#' + quote(m.PUBLIC_NAME)]
     rendered = m.apply([profile()], m.OWNER)[1:]
     shares = m.apply_links(links, m.OWNER)[1:]
-    assert len(rendered) == len(shares) == 4
+    assert len(rendered) == len(shares) == 2
     for item, share in zip(rendered, shares):
         outbound = item['outbounds'][0]
         target = outbound['settings']['vnext'][0]
@@ -92,6 +92,7 @@ def test_tcp_tuning_ip_and_domain_share_listener_and_sni(state):
         assert (target['address'], target['port']) == (parsed.hostname, parsed.port)
         assert outbound['streamSettings']['realitySettings']['serverName'] == m.DOMAIN
         assert f'sni={m.DOMAIN}' in parsed.query
-    assert urlsplit(shares[1]).port == urlsplit(shares[3]).port == 9445
-    assert urlsplit(shares[3]).hostname == '45.141.202.248'
+    assert [(urlsplit(link).hostname, urlsplit(link).port) for link in shares] == [
+        (m.DOMAIN, 9443), (m.DOMAIN, 9445),
+    ]
     assert m.apply_links(links, 123) is links

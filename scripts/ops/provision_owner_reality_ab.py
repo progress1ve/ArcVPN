@@ -15,7 +15,6 @@ UNIT = Path('/etc/systemd/system/arcvpn-reality-tcp-test.service')
 PORT_SETTINGS = {
     9443: {'tcpcongestion': 'cubic'},
     9445: {'tcpcongestion': 'bbr'},
-    9447: {'tcpcongestion': 'cubic', 'tcpKeepAliveIdle': 30, 'tcpKeepAliveInterval': 15},
 }
 PORTS = tuple(PORT_SETTINGS)
 
@@ -124,7 +123,6 @@ CapabilityBoundingSet=
 systemctl stop arcvpn-reality-tcp-test.service
 ufw --force delete allow 9443/tcp >/dev/null 2>&1 || true
 ufw --force delete allow 9445/tcp >/dev/null 2>&1 || true
-ufw --force delete allow 9447/tcp >/dev/null 2>&1 || true
 rm -f /etc/arcvpn/reality-tcp-test/server.json /etc/arcvpn/reality-tcp-test/client.json
 ''')
     cleanup.chmod(0o700)
