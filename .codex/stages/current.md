@@ -292,3 +292,16 @@ Poland Xray with freshly rendered manual user profiles confirmed actual separate
 Read-only. Effective manual NL/LT JSON matches the Nov 7 10:14 MSK snapshot with production DNS flags loaded. SE alias then pointed to NL and now points to physical SE. Against the Nov 8 00:39 MSK snapshot all three manual profiles match. Live Reality TCP443 uses the same node SNI, local TLS8443, HTTP/TLS/QUIC sniffing and no explicit sockopt or routeOnly. Panel comparison proves unchanged LT/SE inbounds and only removal of YOUTUBE_RU with corresponding rules redirected to DIRECT. Kernel and container agree on CUBIC NL/LT and BBR SE. SE BBR/fq sysctl file dates to Oct 5. Short live counter sample showed no new listen overflows. LT had swap in use and some swap-in, which warrants correlation during a real stall and does not explain the Russian TCP failures.
 
 Re-tested Poland tunnels with production DNS flags and a hostname SOCKS request. Five fresh MTProto handshakes passed on each manual node. First media attempt requested a range larger than the discovered object and was rejected with HTTP416. Corrected range returned identical HTTP206 content and 7,385,426 bytes on all three: NL 1.961 s, LT 1.887 s, SE 1.746 s. No node or subscriber settings changed. Native playback on the owner's networks remains the open gate. Capture a timestamped native stall on a named manual profile and correlate TCP/network and process counters before tuning.
+
+## Owner-only NL TCP tuning — 2026-11-09
+
+Owner requests NL BBR and further isolated test profiles. Reuse existing owner-only expiring Reality overlay. Component map is the subscription renderer, Royale standalone Xray and UFW, plus the controller's protected delivery state. Same Royale host and local TLS target, SNI nl.arccnet.space, TCP Reality Vision/Firefox. Existing customer subscription IDs, authorizations and quotas preserved.
+
+| Profile | Client endpoint | Listener configuration |
+| --- | --- | --- |
+| NL CUBIC | nl.arccnet.space:9443 | CUBIC control |
+| NL BBR | nl.arccnet.space:9445 | BBR on accepted TCP sockets |
+| NL BBR Keepalive | nl.arccnet.space:9447 | BBR plus inbound keepalive idle 30s, interval 15s |
+| NL BBR IP | 45.141.202.248:9445 | Same BBR listener, literal IP and same SNI |
+
+CDN group/Host/paths and public URLs have no role in these direct tests. No Auto candidates added. Disposable single identity and standalone process with CPU/memory cap and 24h expiry. Load BBR module while leaving host-wide congestion control CUBIC. Require actual kernel per-socket algorithms, authenticated HTTPS/MTProto via test profiles, owner-only generated JSON/plain/base64 and unchanged non-owner profiles. Distinct ports can confound network filtering, so playback results are provisional. Rollback disable protected controller state and execute scoped sidecar cleanup. Existing RemnaNode stays live.
