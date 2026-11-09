@@ -15,7 +15,7 @@ UNIT = Path('/etc/systemd/system/arcvpn-reality-tcp-test.service')
 PORT_SETTINGS = {
     9443: {'tcpcongestion': 'cubic'},
     9445: {'tcpcongestion': 'bbr'},
-    9447: {'tcpcongestion': 'bbr', 'tcpKeepAliveIdle': 30, 'tcpKeepAliveInterval': 15},
+    9447: {'tcpcongestion': 'cubic', 'tcpKeepAliveIdle': 30, 'tcpKeepAliveInterval': 15},
 }
 PORTS = tuple(PORT_SETTINGS)
 

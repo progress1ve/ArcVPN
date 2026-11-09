@@ -301,7 +301,7 @@ Owner requests NL BBR and further isolated test profiles. Reuse existing owner-o
 | --- | --- | --- |
 | NL CUBIC | nl.arccnet.space:9443 | CUBIC control |
 | NL BBR | nl.arccnet.space:9445 | BBR on accepted TCP sockets |
-| NL BBR Keepalive | nl.arccnet.space:9447 | BBR plus inbound keepalive idle 30s, interval 15s |
+| NL Keepalive | nl.arccnet.space:9447 | CUBIC plus inbound keepalive idle 30s, interval 15s |
 | NL BBR IP | 45.141.202.248:9445 | Same BBR listener, literal IP and same SNI |
 
 CDN group/Host/paths and public URLs have no role in these direct tests. No Auto candidates added. Disposable single identity and standalone process with CPU/memory cap and 24h expiry. Load BBR module while leaving host-wide congestion control CUBIC. Require actual kernel per-socket algorithms, authenticated HTTPS/MTProto via test profiles, owner-only generated JSON/plain/base64 and unchanged non-owner profiles. Distinct ports can confound network filtering, so playback results are provisional. Rollback disable protected controller state and execute scoped sidecar cleanup. Existing RemnaNode stays live.

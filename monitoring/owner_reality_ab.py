@@ -15,7 +15,7 @@ VARIANTS = (('🇳🇱 Тест A', 9443), ('🇳🇱 Тест B', 9445))
 TCP_VARIANTS = (
     ('🇳🇱 NL · CUBIC', 9443, DOMAIN),
     ('🇳🇱 NL · BBR', 9445, DOMAIN),
-    ('🇳🇱 NL · BBR Keepalive', 9447, DOMAIN),
+    ('🇳🇱 NL · Keepalive', 9447, DOMAIN),
     ('🇳🇱 NL · BBR IP', 9445, '45.141.202.248'),
 )
 
