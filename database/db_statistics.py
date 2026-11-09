@@ -84,7 +84,7 @@ def get_new_users_stats() -> Dict[str, int]:
         }
 
 
-def get_subscriptions_stats() -> Dict[str, Any]:
+def get_subscriptions_stats(*, admin_telegram_ids=()) -> Dict[str, Any]:
     """
     Получает статистику покупок подписок за разные периоды.
     """
@@ -150,7 +150,7 @@ def get_subscriptions_stats() -> Dict[str, Any]:
             """).fetchone()[0])
 
         from database.paid_subscriber_stats import paid_subscriber_stats
-        paid_counts = paid_subscriber_stats(conn)
+        paid_counts = paid_subscriber_stats(conn, admin_telegram_ids=admin_telegram_ids)
         return {
             'day': day_count,
             'week': week_count,

@@ -7710,7 +7710,7 @@ def api_admin_overview():
             "traffic": {**traffic_totals, "window": "current_active_cycles"},
             "acquisition": acquisition,
         },
-        "subscriptions": get_subscriptions_stats(),
+        "subscriptions": get_subscriptions_stats(admin_telegram_ids=config.ADMIN_IDS),
         "revenue": get_revenue_stats(),
         "conversion": get_conversion_stats(),
         "activity": get_usage_activity_stats(),

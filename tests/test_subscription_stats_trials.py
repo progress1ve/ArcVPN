@@ -21,9 +21,11 @@ def test_subscription_stats_count_only_active_linked_trials(monkeypatch):
         );
         CREATE TABLE payments (user_id INTEGER,status TEXT,operation_type TEXT,
             payment_type TEXT,offer_code TEXT,amount_cents INTEGER,amount_stars INTEGER,paid_at TEXT);
+        CREATE TABLE users (id INTEGER PRIMARY KEY, telegram_id INTEGER NOT NULL);
+        INSERT INTO users VALUES (2,202), (4,404);
         INSERT INTO payments VALUES
             (2,'paid','renew','cards',NULL,10000,0,datetime('now','-2 days')),
-            (4,'paid','new','cards',NULL,10000,0,datetime('now','-2 days'));
+            (4,'paid','new','cards',NULL,10000,0,datetime('now','+3 hours','start of day','-3 hours'));
         INSERT INTO vpn_keys VALUES
             (1,1,datetime('now','-2 days'),datetime('now','+5 days')),
             (2,2,datetime('now','-2 days'),datetime('now','+5 days')),
@@ -46,3 +48,9 @@ def test_subscription_stats_count_only_active_linked_trials(monkeypatch):
     assert stats["active"] == 3
     assert stats["trial"] == 1
     assert stats["paid"] == 2
+
+    assert stats["first_paid_today"] == 1
+    customer_stats = db_statistics.get_subscriptions_stats(admin_telegram_ids=[404])
+    assert customer_stats["active"] == 3
+    assert customer_stats["paid"] == 1
+    assert customer_stats["first_paid_today"] == 0
