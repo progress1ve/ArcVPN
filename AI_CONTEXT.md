@@ -2083,3 +2083,7 @@ Owner selected original light Arccnet Tools over dark Northstar-style corporate 
 
 ### Staff exclusion from the paid dashboard
 The web overview passes configured admin Telegram IDs into both paid card counts. The filter joins internal user IDs to Telegram IDs. Billing records and purchase history remain available for accounting.
+
+
+### Isolated TCP tuning tests
+Use the expiring owner Reality overlay and separate listener socket options for CUBIC/BBR tests. Verify the algorithm on accepted sockets. A valid Xray JSON config alone does not prove BBR was applied. Keepalive can be compared against a CUBIC control. Use the same BBR listener and SNI for the IP/domain pair.
