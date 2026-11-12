@@ -1,4 +1,8 @@
-# Owner Reality M3T routing trial
+# Shared M3T RU-Direct routing
+
+Economy. Runtime 0a103473 active on Poland. All working customer JSON profiles use pinned M3T 98daeed RU-Direct, with existing local/private exceptions and explicit ArcVPN routes ahead of it. The separate owner trial is hidden. Public bound owner/LTE/no-LTE JSON counts 18/18/10. Legacy plain/base64 share links and routing header are unchanged. NL/SE/Auto/CDN tunneled checks passed from Moscow, NL and SE Telegram MTProto passed. LT timed out with both prior and new routing in that probe. Nodes and transport settings were not edited. Rollback move the protected .secrets/m3t-ru-direct.json and restart subscription API. Telegram seek on the owner's SIM remains unverified.
+
+# Superseded owner Reality M3T routing trial
 
 Economy. Owner chooses TCP Reality because Hysteria2 is unstable on their network. Runtime 355f1b9e published and Poland FF-pulled, subscription service restarted. Owner JSON contains one NL · Reality M3T profile until Nov 13 22:35 MSK. The prior minimal experiment is removed. Clone of ordinary Royale with only remarks and routing changed. M3T RU-Direct 98daeed routing object, 61 rules, original ArcVPN DNS. Live owner JSON 19 profiles and other cohorts/formats match baseline. Fresh Moscow imported published profile verified HTTPS200, Royale IPv4 exit, Telegram MTProto, t.me proxy, Yandex/VK direct. Bot/API active and health200. No Royale changes. Rollback remove the protected owner-m3t-routing state. INCY on Beeline remains the speed and stability gate.
 

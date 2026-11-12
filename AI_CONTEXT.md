@@ -2087,3 +2087,7 @@ The web overview passes configured admin Telegram IDs into both paid card counts
 
 ### Isolated TCP tuning tests
 Use the expiring owner Reality overlay and separate listener socket options for CUBIC/BBR tests. Verify the algorithm on accepted sockets. A valid Xray JSON config alone does not prove BBR was applied. Keepalive can be compared against a CUBIC control. Use the same BBR listener and SNI for the IP/domain pair.
+
+### Shared M3T RU-Direct routing — 2026-11-12
+
+The owner selected the M3T 98daeed RU-Direct routing rules for all working JSON subscription profiles. The pinned rules replace the common ArcVPN direct split after explicit Telegram, YouTube, TikTok and profile-specific routes. Preserve local networks, DNS, endpoint and transport parameters, Auto leastLoad and authorized CDN fallback. Keep legacy URI delivery and its routing header compatible. Deployment and rollback are recorded in .codex/stages/current.md. Compare Telegram seeking on the same video and mobile network after refreshing the subscription.
