@@ -32,6 +32,15 @@ const assert = require('node:assert/strict');
         assert.equal(await page.locator('#menu').getAttribute('aria-expanded'), 'true');
         await page.locator('#navigation a').first().click();
         assert.equal(await page.locator('#menu').getAttribute('aria-expanded'), 'false');
+        await page.evaluate(() => scrollTo(0, 0));
+        const example = page.locator('#example');
+        if (await example.count()) {
+          assert.ok((await page.locator('#tool').boundingBox()).y < 400, 'mobile converter is too low');
+          await example.click();
+          await page.locator('#result').waitFor();
+          assert.equal(await page.locator('#file-name').innerText(), 'arccnet-example.png');
+          assert.match(await page.locator('#download').getAttribute('download'), /\.webp$/);
+        }
       }
     }
     const input = page.locator('#file');
@@ -73,9 +82,9 @@ const assert = require('node:assert/strict');
     assert.match(await page.locator('#error').innerText(), /PNG, JPEG или WebP/);
     assert.equal(await page.locator('#convert').isDisabled(), true);
     await input.setInputFiles({ name: 'corrupt.png', mimeType: 'image/png', buffer: Buffer.from('broken') });
-    await page.waitForFunction(() => document.getElementById('error').textContent.includes('Не удалось открыть'));
+    await page.locator('#error').filter({ hasText: 'Не удалось открыть' }).waitFor();
     await input.setInputFiles({ name: 'too-large.png', mimeType: 'image/png', buffer: Buffer.alloc(20 * 1024 * 1024 + 1) });
-    await page.waitForFunction(() => document.getElementById('error').textContent.includes('больше 20 МБ'));
+    await page.locator('#error').filter({ hasText: 'больше 20 МБ' }).waitFor();
     // Recover after an invalid file, and verify that a name is treated as text.
     await input.setInputFiles({ name: '<img onerror=alert(1)>.png', mimeType: 'image/png', buffer: sample });
     await page.locator('#selected').waitFor();
