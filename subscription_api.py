@@ -2039,6 +2039,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     rendered_profiles = evacuate_lithuania(rendered_profiles, load_royale(key.telegram_id))
     from monitoring.restored_peers import apply as apply_restored_peers
     rendered_profiles = apply_restored_peers(rendered_profiles)
+    from monitoring.owner_minimal_routing import apply as apply_minimal_routing
+    rendered_profiles = apply_minimal_routing(rendered_profiles, key.telegram_id)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,
