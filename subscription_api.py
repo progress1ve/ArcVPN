@@ -124,6 +124,7 @@ from bot.services.billing import create_yookassa_qr_payment, check_yookassa_paym
 from bot.services.vpn_api import disable_key_on_panel, get_client_from_server_data, push_key_to_panel
 from bot.services.reserve import get_reserve_client_info
 from bot.services import support_ai
+from monitoring.m3t_routing import load_rules as load_m3t_rules
 from subscription_pages import render_import_page, render_silent_import_page, render_silent_incy_import_page, render_user_agreement
 
 # Конфиг читаем через getattr с дефолтами: устаревший config.py (а он не
@@ -753,6 +754,8 @@ LOCAL_AND_RESERVED_CIDRS = [
     "fc00::/7",
     "fe80::/10",
 ]
+
+M3T_DIRECT_RULES = load_m3t_rules()
 
 
 def _build_happ_routing_profile() -> Dict[str, Any]:
@@ -1586,6 +1589,11 @@ def _happ_direct_rules() -> list[Dict[str, Any]]:
     Keep explicit domain fallbacks alongside geo-assets: the fallbacks cover
     the most common Russian apps even while Happ is refreshing geo files.
     """
+    if M3T_DIRECT_RULES:
+        return [
+            {"ip": ["geoip:private", *LOCAL_AND_RESERVED_CIDRS], "outboundTag": "direct", "type": "field"},
+            *M3T_DIRECT_RULES,
+        ]
     domains = list(dict.fromkeys([
         *SPLIT_TUNNELING_DIRECT_SITES,
         "regexp:\\.(ru|su)$",
@@ -2039,8 +2047,9 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     rendered_profiles = evacuate_lithuania(rendered_profiles, load_royale(key.telegram_id))
     from monitoring.restored_peers import apply as apply_restored_peers
     rendered_profiles = apply_restored_peers(rendered_profiles)
-    from monitoring.owner_m3t_routing import apply as apply_m3t_routing
-    rendered_profiles = apply_m3t_routing(rendered_profiles, key.telegram_id)
+    if not M3T_DIRECT_RULES:
+        from monitoring.owner_m3t_routing import apply as apply_m3t_routing
+        rendered_profiles = apply_m3t_routing(rendered_profiles, key.telegram_id)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,
