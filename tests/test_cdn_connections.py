@@ -1,6 +1,6 @@
 import sqlite3
 import pytest
-from monitoring.cdn_connections import classify, identity_hash, schema, ingest, states
+from monitoring.cdn_connections import classify, identity_hash, schema, ingest, observations
 
 
 def line(destination, tag='SE_CDN_TEST_4096'):
@@ -14,8 +14,14 @@ def test_probe_and_payload_are_separate_without_saving_destinations():
     assert classify(line('tcp:example.com:443','EE_CDN_TEST_24000')) == (identity_hash('test-user'), 'user')
     assert classify(line('tcp:www.gstatic.com:80'))[1] == 'legacy'
     assert classify(line('tcp:example.com:443', 'EE_1CHOST_VLESS_TCP')) is None
+    assert classify(line('tcp:example.com:443', 'NL_CDN_TEST_24000'))[1] == 'user'
+    assert classify(line('tcp:example.com:443', 'NL_OWNER_DIRECT_XHTTP')) is None
     assert classify('malformed') is None
     assert classify(line('tcp:example.com:443').replace('accepted', 'rejected')) is None
+
+
+def states(conn, identities, now=None):
+    return {uid: state for uid, (state, _) in observations(conn, identities, "87.251.19.197", now).items()}
 
 
 def database():

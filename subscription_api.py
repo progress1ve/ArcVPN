@@ -684,6 +684,7 @@ PROFILE_UPDATE_INTERVAL_HOURS = int(getattr(config, "PROFILE_UPDATE_INTERVAL_HOU
 NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "45.141.202.248": {"provider": "RoyaleHosting", "location": "Нидерланды"},
+    "89.248.65.203": {"provider": "RoyaleHosting", "location": "Нидерланды"},
     "88.216.62.135": {"provider": "Cherry Servers", "location": "Литва"},
     "136.148.220.228": {"provider": "HostUp", "location": "Швеция"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
@@ -4898,8 +4899,9 @@ def api_internal_cdn_connections():
         return _api_error('unauthorized', 401)
     if (request.content_length or 0) > 256000:
         return _api_error('report_too_large', 413)
+    from monitoring.cdn_origin import active_origin
     payload = request.get_json(silent=True)
-    if not isinstance(payload, dict) or payload.get('host') != '87.251.19.197':
+    if not isinstance(payload, dict) or payload.get('host') != active_origin():
         return _api_error('unknown_node', 400)
     from monitoring.cdn_connections import ingest
     try:
@@ -6331,118 +6333,119 @@ def api_admin_user_profile(telegram_id: int):
 
 _ADMIN_PRESENCE_CACHE: tuple[float, bool, dict[int, dict[str, Any]]] = (0.0, False, {})
 _ADMIN_ACTIVITY_CACHE: dict[int, dict[str, Any]] = {}
+_ADMIN_CDN_CACHE: dict[int, tuple[str, float | None]] = {}
+_ADMIN_ONLINE_WINDOW = timedelta(minutes=3)
 
 
-def _admin_live_presence() -> tuple[bool, dict[int, dict[str, Any]]]:
-    """Resolve Remnawave presence to local users by Telegram ID or panel username."""
-    global _ADMIN_PRESENCE_CACHE, _ADMIN_ACTIVITY_CACHE
+async def _admin_panel_users(client):
+    users = []
+    for _ in range(100):
+        page = await client._request("GET", "/api/users", params={"start": len(users), "size": 500})
+        batch = page["users"]
+        total = int(page["total"])
+        users.extend(batch)
+        if len(users) >= total:
+            return {"users": users, "total": total}
+        if not batch:
+            break
+    raise ValueError("Incomplete Remnawave presence snapshot")
+
+
+def _panel_online_time(value):
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+
+
+def _admin_live_presence(snapshot=None) -> tuple[bool, dict[int, dict[str, Any]]]:
+    """Resolve recent panel and CDN activity once per customer."""
+    global _ADMIN_PRESENCE_CACHE, _ADMIN_ACTIVITY_CACHE, _ADMIN_CDN_CACHE
     now = time.monotonic()
     if now - _ADMIN_PRESENCE_CACHE[0] < 10:
         return _ADMIN_PRESENCE_CACHE[1], _ADMIN_PRESENCE_CACHE[2]
     try:
-        runtime = _load_remnawave_runtime_config()
+        if snapshot is None:
+            runtime = _load_remnawave_runtime_config()
 
-        async def _fetch_presence():
-            client = RemnawaveClient({
-                "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
-                "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
-            })
-            try:
-                collected = []
-                for _ in range(100):
-                    page = await client._request('GET', '/api/users', params={'start': len(collected), 'size': 500})
-                    batch = page.get('users', [])
-                    collected.extend(batch)
-                    if not batch or len(collected) >= int(page.get('total') or len(collected)):
-                        break
-                else:
-                    raise ValueError('Presence page limit exceeded')
-                users = {'users': collected}
-                nodes = await client._request("GET", "/api/nodes")
-                return users, nodes
-            finally:
-                await client.close()
+            async def fetch():
+                client = RemnawaveClient({
+                    "panel_api_url": runtime["REMNAWAVE_PANEL_URL"],
+                    "panel_api_token": runtime["REMNAWAVE_API_TOKEN"],
+                })
+                try:
+                    return await _admin_panel_users(client), await client._request("GET", "/api/nodes")
+                finally:
+                    await client.close()
 
-        result, nodes = ASYNC_EXECUTOR.run(_fetch_presence(), timeout=12)
-        node_names = {
-            str(node.get("uuid")): node.get("name") or node.get("address") or "Узел не определён"
-            for node in (nodes or [])
-        }
-        cutoff = datetime.now(timezone.utc) - timedelta(minutes=3)
-        live_by_tg: dict[str, dict[str, Any]] = {}
-        live_by_username: dict[str, dict[str, Any]] = {}
-        activity_by_tg: dict[str, dict[str, Any]] = {}
-        activity_by_name: dict[str, dict[str, Any]] = {}
-        cdn_identities = {}
-        for item in (result or {}).get("users", []):
-            username = str(item.get('username') or '')
-            if re.fullmatch(r'arc_lte_[0-9]+', username):
-                cdn_identities[int(username[8:])] = [username, item.get('uuid'), item.get('id'), item.get('vlessUuid'), item.get('shortUuid')]
-            traffic = item.get("userTraffic") or {}
-            raw_online_at = traffic.get("onlineAt")
-            if not raw_online_at:
-                continue
-            try:
-                online_at = datetime.fromisoformat(str(raw_online_at).replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            node_uuid = str(traffic.get("lastConnectedNodeUuid") or "")
-            presence = {
-                "online_at": raw_online_at,
-                "online_node": node_names.get(node_uuid),
-            }
-            if item.get('telegramId') is not None:
-                identity = str(item['telegramId'])
-                if identity not in activity_by_tg or str(activity_by_tg[identity]['online_at']) < str(raw_online_at):
-                    activity_by_tg[identity] = presence
-            activity_by_name[username.strip().lower()] = presence
-            if online_at < cutoff:
-                continue
-            if item.get("telegramId") is not None:
-                # Keep main and LTE identities independently: they can both be online.
-                previous = live_by_tg.get(str(item.get('telegramId')))
-                if not previous or str(previous['online_at']) < str(raw_online_at):
-                    live_by_tg[str(item.get("telegramId"))] = presence
-            username = str(item.get("username") or "").strip().lower()
-            if username:
-                live_by_username[username] = presence
+            snapshot = ASYNC_EXECUTOR.run(fetch(), timeout=12)
+        result, nodes = snapshot
+        nodes_by_uuid = {str(node["uuid"]): node for node in nodes or [] if node.get("uuid")}
+        from monitoring.cdn_origin import active_origin, origin_host
+        from monitoring.cdn_connections import observations
 
-        resolved: dict[int, dict[str, Any]] = {}
+        cutoff = datetime.now(timezone.utc) - _ADMIN_ONLINE_WINDOW
+        origin = active_origin()
+        cdn_node = next((node for node in nodes_by_uuid.values()
+                         if origin_host(node.get("address")) == origin), {})
         with get_db() as conn:
             rows = conn.execute("""
                 SELECT u.id,u.telegram_id,lower(COALESCE(vk.panel_email,'')) AS panel_email
                 FROM users u LEFT JOIN vpn_keys vk ON vk.user_id=u.id
             """).fetchall()
-        from monitoring.cdn_connections import states
-        # Older standalone CDN links can authenticate with the main identity.
-        # The node's inbound classification, not the account name, proves CDN.
-        for row in rows:
-            values = cdn_identities.setdefault(int(row['id']), [])
-            for item in (result or {}).get('users', []):
-                if (str(item.get('username') or '').lower() == str(row['panel_email'] or '') and row['panel_email']) or (item.get('telegramId') is not None and str(item['telegramId']) == str(row['telegram_id'])):
-                    values.extend(item.get(k) for k in ('username', 'uuid', 'id', 'vlessUuid', 'shortUuid'))
-        with get_db() as conn:
-            cdn_states = states(conn, cdn_identities)
-        for row in rows:
-            lte_presence = live_by_username.get(f"arc_lte_{row['id']}")
-            presence = lte_presence or live_by_tg.get(str(row["telegram_id"])) or live_by_username.get(str(row["panel_email"] or ""))
-            if presence:
-                resolved[int(row["id"])] = {**presence, 'lte_online': bool(lte_presence), 'lte_usage': cdn_states.get(int(row['id']), 'unknown')}
-        activity = {}
-        for row in rows:
-            candidates = [activity_by_tg.get(str(row['telegram_id'])),
-                          activity_by_name.get(str(row['panel_email'] or '')),
-                          activity_by_name.get(f"arc_lte_{row['id']}")]
-            candidates = [item for item in candidates if item]
-            if candidates:
-                activity[int(row['id'])] = max(candidates, key=lambda item: str(item['online_at']))
+            by_telegram = {str(row["telegram_id"]): int(row["id"]) for row in rows
+                           if row["telegram_id"] is not None}
+            by_name = {row["panel_email"]: int(row["id"]) for row in rows if row["panel_email"]}
+            customers = {int(row["id"]): row["telegram_id"] for row in rows}
+            identities = {uid: [f"arc_lte_{uid}"] for uid in customers}
+            activity: dict[int, dict[str, Any]] = {}
+            lte_online = set()
+            for item in result["users"]:
+                username = str(item.get("username") or "").strip().lower()
+                lte_name = re.fullmatch(r"arc_lte_([0-9]+)", username)
+                uid = int(lte_name[1]) if lte_name else by_name.get(username)
+                if uid not in customers:
+                    uid = by_telegram.get(str(item.get("telegramId")))
+                if uid is None:
+                    continue
+                identities[uid].extend(item.get(key) for key in ("username", "uuid", "id", "vlessUuid", "shortUuid"))
+                traffic = item.get("userTraffic") or {}
+                seen = _panel_online_time(traffic.get("onlineAt"))
+                if seen is None:
+                    continue
+                if lte_name and seen >= cutoff:
+                    lte_online.add(uid)
+                stamp = seen.isoformat()
+                if uid in activity and activity[uid]["online_at"] >= stamp:
+                    continue
+                node_uuid = str(traffic.get("lastConnectedNodeUuid") or "") or None
+                activity[uid] = {"online_at": stamp, "online_node": nodes_by_uuid.get(node_uuid, {}).get("name"),
+                                 "node_uuid": node_uuid, "username": item.get("username"),
+                                 "telegram_id": customers[uid]}
+            cdn = observations(conn, identities, origin)
+        for uid, (kind, timestamp) in cdn.items():
+            if kind != "user":
+                continue
+            stamp = datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+            if uid not in activity or activity[uid]["online_at"] < stamp:
+                activity[uid] = {"online_at": stamp, "online_node": cdn_node.get("name"),
+                                 "node_uuid": cdn_node.get("uuid"), "telegram_id": customers[uid]}
+        cutoff_stamp = cutoff.isoformat()
+        resolved = {
+            uid: {**presence, "lte_online": uid in lte_online, "lte_usage": cdn.get(uid, ("unknown", None))[0]}
+            for uid, presence in activity.items() if presence["online_at"] >= cutoff_stamp
+        }
         _ADMIN_ACTIVITY_CACHE = activity
+        _ADMIN_CDN_CACHE = cdn
         _ADMIN_PRESENCE_CACHE = (now, True, resolved)
         return True, resolved
     except Exception:
         logger.exception("Admin live presence refresh failed")
-        # A telemetry outage must not falsely mark everybody offline. Keep the
-        # stored scheduler counters as a degraded fallback.
+        _ADMIN_ACTIVITY_CACHE = {}
+        _ADMIN_CDN_CACHE = {}
         _ADMIN_PRESENCE_CACHE = (now, False, {})
         return False, {}
 
@@ -6554,7 +6557,7 @@ def api_admin_users():
         for row in rows:
             presence = live_presence.get(int(row["id"]))
             row['lte_online'] = bool(presence and presence.get('lte_usage') == 'user')
-            row['lte_usage'] = presence.get('lte_usage', 'unknown') if presence else 'none'
+            row['lte_usage'] = _ADMIN_CDN_CACHE.get(int(row['id']), ('unknown', None))[0]
             row["online_devices"] = 1 if presence else 0
             if presence:
                 row["last_online_at"] = presence["online_at"]
@@ -7551,7 +7554,7 @@ def api_admin_overview():
             })
             try:
                 nodes = await client._request("GET", "/api/nodes")
-                users = await client._request("GET", "/api/users", params={"start": 0, "size": 500})
+                users = await _admin_panel_users(client)
                 squads = await client._request("GET", "/api/internal-squads")
                 return nodes, users, squads
             finally:
@@ -7560,40 +7563,18 @@ def api_admin_overview():
         remna_nodes, remna_users, remna_squads_payload = ASYNC_EXECUTOR.run(_remnawave_telemetry(), timeout=12)
         remna_squads = (remna_squads_payload.get("internalSquads", [])
                          if isinstance(remna_squads_payload, dict) else remna_squads_payload or [])
-        node_names = {
-            str(node.get("uuid")): node.get("name") or node.get("address") or "RemnaNode"
-            for node in (remna_nodes or [])
-        }
-        online_cutoff = datetime.now(timezone.utc) - timedelta(minutes=3)
-        online_users = []
-        for user in (remna_users or {}).get("users", []):
-            traffic = user.get("userTraffic") or {}
-            raw_online_at = traffic.get("onlineAt")
-            if not raw_online_at:
-                continue
-            try:
-                online_at = datetime.fromisoformat(str(raw_online_at).replace("Z", "+00:00"))
-            except ValueError:
-                continue
-            if online_at < online_cutoff:
-                continue
-            node_uuid = str(traffic.get("lastConnectedNodeUuid") or "")
-            online_users.append({
-                "username": user.get("username"),
-                "telegram_id": user.get("telegramId"),
-                "online_at": raw_online_at,
-                "node_uuid": node_uuid or None,
-                "node_name": node_names.get(node_uuid, "Узел не определён"),
-            })
-        # Count customers, not their independent main/LTE panel identities.
-        online_identity_count = len(online_users)
-        from bot.services.admin_presence import unique_customer_presence
-        with get_db() as conn:
-            presence_customers = [dict(row) for row in conn.execute("""
-                SELECT u.id,u.telegram_id,u.lte_panel_username,k.panel_email
-                FROM users u LEFT JOIN vpn_keys k ON k.user_id=u.id
-            """).fetchall()]
-        online_users = unique_customer_presence(online_users, presence_customers)
+        online_cutoff = datetime.now(timezone.utc) - _ADMIN_ONLINE_WINDOW
+        online_identity_count = sum(
+            seen >= online_cutoff for item in remna_users["users"]
+            if (seen := _panel_online_time((item.get("userTraffic") or {}).get("onlineAt"))) is not None
+        )
+        authoritative, live_presence = _admin_live_presence((remna_users, remna_nodes))
+        if not authoritative:
+            raise ValueError("Customer presence unavailable")
+        online_users = [
+            {**presence, "node_name": presence["online_node"] or "Узел не определён"}
+            for presence in live_presence.values()
+        ]
         latest_diagnostics = {}
         with get_db() as conn:
             rows = conn.execute("""

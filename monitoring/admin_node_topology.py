@@ -1,6 +1,6 @@
 """Safe admin view of the current fleet and delivered CDN variants."""
 from monitoring.cdn_fallbacks import HOST, VARIANTS
-from monitoring.cdn_origin import LITHUANIA, ROYALE
+from monitoring.cdn_origin import LITHUANIA, ROYALE, origin_host
 
 SWEDEN = '136.148.220.228'
 ESTONIA = '87.251.19.197'
@@ -13,7 +13,7 @@ ORIGINS = {
 
 def cdn_edges(nodes, origin=ESTONIA):
     country, domain, location = ORIGINS[origin]
-    parent = next((n for n in nodes if n.get('address') == origin), {})
+    parent = next((n for n in nodes if origin_host(n.get('address')) == origin), {})
     result = []
     for number, size in DIRECT.items():
         variant = VARIANTS[size]

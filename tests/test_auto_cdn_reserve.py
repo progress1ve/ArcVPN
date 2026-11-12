@@ -36,7 +36,7 @@ def test_reserve_preserves_authorization_and_primary_strategy():
     assert result[0]['burstObservatory']['pingConfig']['destination'] == 'https://sub.arccnet.space:18443/generate_204'
     assert result[0]['burstObservatory']['pingConfig'] == {
         'destination': 'https://sub.arccnet.space:18443/generate_204',
-        'httpMethod': 'GET', 'interval': '15s', 'sampling': 2, 'timeout': '5s'}
+        'httpMethod': 'GET', 'interval': '20s', 'sampling': 2, 'timeout': '5s'}
     assert apply(result) == result
 
 

@@ -57,7 +57,7 @@ def test_royale_attribution_requires_confirmation(monkeypatch):
     assert cdn_origin.active_origin() == cdn_origin.LITHUANIA
     monkeypatch.setattr(cdn_origin, '_read_state', lambda: {'cdn_origin_confirmed': True})
     assert cdn_origin.active_origin() == cdn_origin.ROYALE
-    edges = cdn_edges([{'address': cdn_origin.ROYALE, 'connected': True,
+    edges = cdn_edges([{'address': cdn_origin.ROYALE_PUBLIC, 'connected': True,
                        'inbounds': [{'tag': v['tag'].replace('SE_', 'NL_', 1)} for v in VARIANTS.values()]}],
                      cdn_origin.active_origin())
-    assert all(e['healthy'] and e['origin'] == cdn_origin.ROYALE for e in edges)
+    assert all(e['healthy'] and e['origin'] == cdn_origin.ROYALE_PUBLIC for e in edges)

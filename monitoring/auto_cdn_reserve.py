@@ -40,6 +40,6 @@ def apply(profiles):
         obs = p['burstObservatory']
         obs['subjectSelector'] = list(dict.fromkeys(obs['subjectSelector'] + tags))
         obs['pingConfig'].update(destination=HTTPS_PROBE_URL, httpMethod='GET',
-                                 interval='15s', sampling=2, timeout='5s')
+                                 interval='20s', sampling=2, timeout='5s')
         result[index] = p
     return result
