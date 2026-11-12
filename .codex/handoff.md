@@ -1,3 +1,7 @@
+# NL video playback retest — 2026-11-12
+
+Economy. Owner resumed remote video diagnostics. Same Moscow VPS and historic Telegram target: NL Reality 3 MiB median 1.425s on Nov7, 2.140s now, Hysteria2 same NL exit 1.353s, SE Reality 1.494s. All ranges complete; Hysteria2 faster than NL Reality in 18/18 matched comparisons across Moscow and Poland. Full ordinary inbound matches archived Nov6/Nov12 configs; current ingress moved and old TCP address timed out from Moscow. Most historical difference after first byte. Native Beeline/Telegram and Speedtest Video still require owner's result. No runtime changes. Full report docs/research/nl-video-retest-20261112.md.
+
 # Royale CDN and admin presence restored — 2026-11-12
 
 Economy. Runtime ef93f085 pushed and Poland FF-pulled; subscription restarted, bot/API active. Royale CDN collector heartbeat fresh, hashed only; scoped access logging in RAM, all 10 inbound IDs preserved. Users/Overview reconciled at 16 recent customers with three CDN payload users during the gate. Probe-only status separate. Actual origin XHTTP HTTPS passed; browser fixtures pass four viewports. LTE Auto now 20s/2/5; regular Auto and Best 30s/3/5. 24 tests passed. LT remains 0/2 from Russian monitor. Current NL/SE 2 MiB controls from Moscow: NL 0.64–0.78s vs SE 0.31–0.34s; Poland results similar. Old NL ingress times out from Moscow. Baseline Reality settings preserved. Gate and rollback in .codex/stages/current.md.
