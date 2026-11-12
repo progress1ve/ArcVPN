@@ -2033,6 +2033,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
     rendered_profiles = apply_shorts_canary(rendered_profiles, key.telegram_id)
     from monitoring.owner_reality_ab import apply as apply_reality_ab
     rendered_profiles = apply_reality_ab(rendered_profiles, key.telegram_id)
+    from monitoring.owner_xhttp_trial import apply as apply_xhttp_trial
+    rendered_profiles = apply_xhttp_trial(rendered_profiles, key.telegram_id, _json_outbound_from_share_link)
     from monitoring.lithuania_evacuation import apply as evacuate_lithuania
     rendered_profiles = evacuate_lithuania(rendered_profiles, load_royale(key.telegram_id))
     from monitoring.restored_peers import apply as apply_restored_peers
@@ -2109,6 +2111,8 @@ def _prepare_subscription(
     visible_links = apply_royale_links(visible_links, load_royale(key.telegram_id))
     from monitoring.owner_reality_ab import apply_links as apply_reality_ab_links
     visible_links = apply_reality_ab_links(visible_links, key.telegram_id)
+    from monitoring.owner_xhttp_trial import apply_links as apply_xhttp_trial_links
+    visible_links = apply_xhttp_trial_links(visible_links, key.telegram_id)
     from monitoring.lithuania_evacuation import apply_links as evacuate_lithuania_links
     visible_links = evacuate_lithuania_links(visible_links, load_royale(key.telegram_id))
     from monitoring.restored_peers import apply_links as apply_restored_links

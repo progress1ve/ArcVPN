@@ -363,3 +363,14 @@ Economy. Scanned all 353 tracked files at 1b60387 and reviewed network and trans
 ## Same-port congestion control and XHTTP traffic — 2026-11-12
 
 Temporary owner diagnostic scope. Moscow-only firewall, isolated XHTTP and Reality on Royale, CUBIC/BBR/CUBIC on same Reality test port. ss confirmed algorithms. Reality 1.645/1.526/1.513 s, parallel live Reality 1.640/2.043/1.584 s. Two complete phases show XHTTP encrypted TCP payload +1.27% and +1.25% for six 3 MiB ranges versus test Reality. Measurements include retransmits and omit IP/TCP headers. Final phase 5/6 on XHTTP and Hy2 with one short response each, so excluded from overhead comparison. Temporary listeners, firewall rules and private configs removed. Global CUBIC and production startup unchanged. See docs/research/nl-video-retest-20261112.md. No tuning promoted. Mobile acceptance still open.
+
+## Owner direct XHTTP comparison — 2026-11-12
+
+Owner requests test profiles after practical tuning ideas are exhausted. Existing profiles serve as Reality and Hysteria2 controls. Offer two temporary direct XHTTP modes only to the owner, on the same test endpoint.
+
+| Profile | Endpoint and SNI | Transport | Scope and expiry |
+| --- | --- | --- | --- |
+| NL XHTTP Stream Up | nl.arccnet.space:18447, TLS SNI nl.arccnet.space | TLS HTTP/2, nginx grpc_pass to Royale loopback Xray, stream-up, default buffer | One disposable identity, owner only, 24h |
+| NL XHTTP Stream One | Same endpoint, path and identity | Same transport except stream-one | Same expiry |
+
+CDN resources, existing URLs, authorizations and traffic factors are preserved. Separate trial service and expiring firewall rule. Verify syntax, both authenticated TLS paths with real Telegram bytes, rendered owner/non-owner JSON and share links, and public health. Rollback disables private delivery state and stops the two trial services with firewall cleanup. No changes to Auto or ordinary node processes. Runtime compatibility in INCY awaits owner test.
