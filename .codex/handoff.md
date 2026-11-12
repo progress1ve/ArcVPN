@@ -1,3 +1,7 @@
+# Royale direct NL follow-up — 2026-11-12 evening
+
+Economy. Sweden route rejected. Healthy Poland control proved IPv4 SYN through TLS and HTTPS200 on IPv4 and IPv6. Beeline Kazan source-filtered incident capture awaits real SIM reproduction. Repeated matching public Telegram ranges from Poland and Moscow, all 6/6. Poland new and old Reality 1.342/1.340 s, Hy2 1.262 s. Moscow Reality 2.262 s with 1.410 s body, Hy2 1.397 s with 0.812 s body, same IPv4 exit. Root cause on SIM and native video acceptance open. No production configuration changes. See docs/research/nl-video-retest-20261112.md.
+
 # NL video playback retest — 2026-11-12
 
 Economy. Owner resumed remote video diagnostics. Same Moscow VPS and historic Telegram target: NL Reality 3 MiB median 1.425s on Nov7, 2.140s now, Hysteria2 same NL exit 1.353s, SE Reality 1.494s. All ranges complete; Hysteria2 faster than NL Reality in 18/18 matched comparisons across Moscow and Poland. Full ordinary inbound matches archived Nov6/Nov12 configs; current ingress moved and old TCP address timed out from Moscow. Most historical difference after first byte. Native Beeline/Telegram and Speedtest Video still require owner's result. No runtime changes. Full report docs/research/nl-video-retest-20261112.md.
