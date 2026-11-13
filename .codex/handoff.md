@@ -1,5 +1,7 @@
 # Shared M3T RU-Direct routing
 
+Admin payment reporting runtime/bundle 810d04bc is live. Payer links open by Telegram ID. Admin ruble amounts use kopecks, including pending cards. Recent dashboard payments are successful and dated, with actual today MSK and seven-day totals. Dashboard and profit share calendar-month subscription allocation by purchased duration. No billing or payment data mutation.
+
 Current CDN monitoring on 6d59db18 runs only 24000/10 through 188.72.110.52 for all available operators. Applies to scheduled and manual checks. The operator API and live panel show only this target. Previous multi-variant results remain stored. Subscription transports and check cadence are unchanged.
 
 2026-11-13 Royale admin and LTE monitoring. Runtime 76fb9e90 and bundle 851b4b89 live on Poland. The current Royale Remnawave address 89.248.65.203 maps to inventory/CDN attribution 45.141.202.248. Normal node card and detail verified live. LatencyLab worker now derives XHTTP probe links from the effective LTE subscription, recording all five variants separately. Oryol 15:11 MSK batch: IP 24000/10 passed 5/5 networks, three domain variants passed Beeline only, 4096/7 + XMUX passed 0/5. No subscription transport changes. Same worker schedule/cooldown and existing operator history.

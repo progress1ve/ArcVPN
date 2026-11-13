@@ -4,6 +4,8 @@
 
 Fix payer links to use Telegram ID. Read RUB payment amounts in kopecks regardless of provider linkage. Show only successful dated payments on the dashboard and use independent Moscow today and rolling seven-day aggregates. Allocate successful subscription payments across calendar months starting in the Moscow payment month, reusing the profit report's cent allocation. Keep unsuccessful records available in the payment registry. Verify the 399 RUB pending order, payer navigation, accurate totals and a 399 RUB/3-month allocation. Preserve payment records and checkout behavior. Keep the current responsive admin layout. Rollback runtime and admin bundle together.
 
+Closeout: runtime and bundle 810d04bc deployed to Poland. Subscription service restarted, bot and API active, bundle and public health HTTP 200 after startup. Eleven focused tests and TypeScript/Vite build passed. Live payer navigation returned HTTP 200 at 360/768/1280/1600 without overflow. Pending cards order displays 399 RUB, keeps pending status and has no payment date. Dashboard shows 0 RUB today MSK, 1293 RUB in the past seven days, and 1531.25 RUB recognized for November. The monthly number matches the profit endpoint. Recent entries are 45 successful dated payments. Browser screenshots at C:/Users/babay/AppData/Local/Temp/arc-admin-payments-evidence-20261113. No payment record mutations.
+
 Economy. Owner authorized shared rollout on 2026-11-12. Use the routing object from M3T 98daeede14d5f88fc9c1c350ede83f9f1f0e9e75, previously checked through the owner-only Reality profile.
 
 | Client path | Accepted behavior |
