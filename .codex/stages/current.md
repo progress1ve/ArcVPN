@@ -1,5 +1,9 @@
 # Shared M3T RU-Direct client routing
 
+## Remove Lithuania from AutoSelect
+
+Owner requests removal after direct Reality and XHTTP failed on their network. Main AutoSelect candidates are direct Netherlands and Sweden with existing leastLoad. Authorized CDN stays the LTE reserve and Netherlands stays the no-LTE fallback. YouTube still routes to Netherlands. Manual Lithuania and owner XHTTP stay in the catalog. No endpoint, quota or authorization changes. Verify bound owner/LTE/no-LTE subscriptions and real traffic. Rollback reverts the scoped renderer change.
+
 ## Owner direct Lithuania XHTTP comparison
 
 Owner requests direct XHTTP without CDN. The existing LT_OWNER_DIRECT_XHTTP listener is LTE-authorized. Use the published owner's LTE identity and existing quota for an additional INCY JSON profile, preserving ordinary Lithuania and Auto. Route: client to 88.216.62.135:443, TLS lt.arccnet.space, existing nginx to XHTTP10002, Cherry egress. No CDN, server, authorization or quota changes. Preflight from Royale confirmed Xray syntax, HTTPS 200 and Cherry egress. Moscow TCP443 failed before TLS, so affected SIM reachability remains unverified. Verify live owner and non-owner catalogs. Rollback revert the renderer hook.

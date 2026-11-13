@@ -6,6 +6,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit, unquote
 
 STATE = Path(__file__).resolve().parents[1] / '.secrets/restored-lt-se-20261108.json'
 PEERS = {'🇱🇹 Литва': 'lt-primary', '🇸🇪 Швеция': 'se-primary'}
+AUTO_PEERS = ('🇸🇪 Швеция',)
 
 
 def load():
@@ -46,9 +47,10 @@ def apply(profiles):
                     p['routing']['rules'].insert(0, copy.deepcopy(youtube_rule))
         if 'Автовыбор' in name:
             nl = next(o for o in p['outbounds'] if o.get('tag') == 'nl-primary')
-            tags = list(PEERS.values())
-            p['outbounds'] = [o for o in p['outbounds'] if o.get('tag') not in tags]
-            for peer_name, tag in PEERS.items():
+            peer_tags = set(PEERS.values())
+            tags = [PEERS[name] for name in AUTO_PEERS]
+            p['outbounds'] = [o for o in p['outbounds'] if o.get('tag') not in peer_tags]
+            for peer_name, tag in zip(AUTO_PEERS, tags):
                 o = retarget(copy.deepcopy(nl), state[peer_name]); o['tag'] = tag
                 p['outbounds'].append(o)
             primary = next(b for b in p['routing']['balancers'] if b['tag'] == 'lt-first')
@@ -56,7 +58,9 @@ def apply(profiles):
             primary['strategy'] = {'type': 'leastLoad', 'settings': {
                 'expected': 2, 'maxRTT': '3s', 'baselines': ['1s'], 'tolerance': 0.2}}
             observer = p['burstObservatory']
-            observer['subjectSelector'] = list(dict.fromkeys(observer['subjectSelector'] + tags))
+            observer['subjectSelector'] = [
+                tag for tag in observer['subjectSelector'] if tag not in peer_tags
+            ] + tags
             if youtube and youtube_rule:
                 p['outbounds'] = [o for o in p['outbounds'] if o.get('tag') != 'youtube-nl']
                 p['outbounds'].append(copy.deepcopy(youtube))
