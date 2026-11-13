@@ -21,3 +21,16 @@ Acceptance: confirm pinned policy equals audited upstream and owner trial, verif
 - Local compile and 27 focused tests passed. One catalog-order test also failed on the parent commit with the local Finland configuration and was excluded from the focused rerun.
 - Moscow loopback Xray validation passed for NL, SE, Auto with and without LTE, and manual CDN. NL kept Royale egress, Telegram MTProto and t.me in the tunnel, and VK/Yandex direct. SE MTProto passed. Paired CDN old/new both returned HTTP 204. Paired LT old/new both timed out through the same proxy outbound. No Moscow forwarding service was deployed.
 - Rollback: move .secrets/m3t-ru-direct.json out of its active path and restart only the subscription API. Previous stage history remains in 931433d7. Next check is same-video seek in INCY on the owner's SIM after subscription refresh.
+
+### November 13 follow-up
+
+Fresh published Reality profiles passed HTTP 200 and MTProto on NL, SE and LT from the same Moscow diagnostic client. The LT exit was the physical Cherry server. Tested 3 MiB ranges around the middle of one public Telegram video, at a fixed media IPv4. Fresh curl requests, alternating order on the same Royale connection profile, no local media cache. Validated HTTP 206, exact Content-Range, length and matching bytes across routes. The CDN cache remained uncontrolled.
+
+| Route | Valid ranges | Median first byte | Median after first byte | Median total |
+|---|---:|---:|---:|---:|
+| NL with M3T | 8/8 | 0.730 s | 0.759 s | 1.510 s |
+| NL with previous rules | 8/8 | 0.743 s | 0.784 s | 1.517 s |
+| SE with M3T | 4/4 | 0.630 s | 0.843 s | 1.471 s |
+| LT with M3T | 4/4 | 0.803 s | 0.945 s | 1.742 s |
+
+The slowest NL range took 2.502 s, including 1.745 s after first byte. The same range with previous rules took 2.192 s, including 1.406 s after first byte. The paired NL data did not show a repeatable gain from routing alone in this series. This is a public HTTPS range proxy for seeking, with a separate MTProto handshake check. Native INCY/Beeline playback remains open. Keep the current runtime and collect TCP retransmission and RTT evidence in both directions during a slow native seek before choosing another transport parameter.
