@@ -1,5 +1,7 @@
 # Shared M3T RU-Direct routing
 
+Owner INCY JSON now includes direct `🇱🇹 Литва XHTTP · тест` on runtime 3ba7ac54. Existing LT HTTPS port and XHTTP listener, Cherry egress, no CDN. Uses owner LTE identity and quota. Published tunnel passed from Royale. Moscow TCP443 could not connect to LT while Poland HTTPS worked. Auto and ordinary Reality are unchanged. Revert the renderer hook to remove the trial.
+
 Admin payment reporting runtime/bundle 810d04bc is live. Payer links open by Telegram ID. Admin ruble amounts use kopecks, including pending cards. Recent dashboard payments are successful and dated, with actual today MSK and seven-day totals. Dashboard and profit share calendar-month subscription allocation by purchased duration. No billing or payment data mutation.
 
 Current CDN monitoring on 6d59db18 runs only 24000/10 through 188.72.110.52 for all available operators. Applies to scheduled and manual checks. The operator API and live panel show only this target. Previous multi-variant results remain stored. Subscription transports and check cadence are unchanged.
