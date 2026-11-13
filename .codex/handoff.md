@@ -1,5 +1,7 @@
 # Shared M3T RU-Direct routing
 
+Runtime 12e9bca3 removes Lithuania from AutoSelect due to regional reachability failure reported by the owner. NL and SE remain leastLoad candidates, with CDN fallback for LTE and NL fallback without LTE. Manual LT, owner direct XHTTP and YouTube via NL remain available in the catalog. Live cohorts and an Auto tunnel through Sweden passed.
+
 Owner INCY JSON now includes direct `🇱🇹 Литва XHTTP · тест` on runtime 3ba7ac54. Existing LT HTTPS port and XHTTP listener, Cherry egress, no CDN. Uses owner LTE identity and quota. Published tunnel passed from Royale. Moscow TCP443 could not connect to LT while Poland HTTPS worked. Auto and ordinary Reality are unchanged. Revert the renderer hook to remove the trial.
 
 Admin payment reporting runtime/bundle 810d04bc is live. Payer links open by Telegram ID. Admin ruble amounts use kopecks, including pending cards. Recent dashboard payments are successful and dated, with actual today MSK and seven-day totals. Dashboard and profit share calendar-month subscription allocation by purchased duration. No billing or payment data mutation.
