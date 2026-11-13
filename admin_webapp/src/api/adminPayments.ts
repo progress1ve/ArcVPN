@@ -63,7 +63,7 @@ export const adminPaymentsApi = {
         amount_kopeks: Math.round(Number(row.amount_rub || 0) * 100), amount_rubles: Number(row.amount_rub || 0),
         status: String(row.status || 'unknown'), status_emoji: '', status_text: String(row.status || 'unknown'),
         is_paid: ['paid', 'succeeded'].includes(String(row.status)), is_checkable: false,
-        created_at: String(row.paid_at || row.created_at || ''), expires_at: null, payment_url: null,
+        created_at: String(row.paid_at_iso || row.paid_at || row.created_at || ''), expires_at: null, payment_url: null,
         user_id: Number(row.user_id || row.telegram_id), user_telegram_id: Number(row.telegram_id),
         user_username: row.username ? String(row.username) : null, user_email: null,
       })),

@@ -432,11 +432,11 @@ export default function AdminPayments() {
                         payment.user_email) && (
                         <div className="mt-2 text-sm text-dark-400">
                           <span className="text-dark-500">{t('admin.payments.user')}:</span>{' '}
-                          {payment.user_id ? (
+                          {payment.user_telegram_id ? (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                navigate(`/admin/users/${payment.user_id}`, backTo(location));
+                                navigate(`/admin/users/${payment.user_telegram_id}`, backTo(location));
                               }}
                               className="inline-flex items-center gap-1 transition-colors hover:underline"
                             >
@@ -480,7 +480,7 @@ export default function AdminPayments() {
 
                       {/* Timestamp */}
                       <div className="mt-1 text-xs text-dark-500">
-                        {new Date(payment.created_at).toLocaleString()}
+                        {payment.created_at ? new Date(payment.created_at).toLocaleString('ru-RU', { timeZone: 'Europe/Moscow' }) : '—'}
                       </div>
                     </div>
 

@@ -503,20 +503,14 @@ export const statsApi = {
         type_display: item.tariff_name || 'Подписка',
         payment_method: item.payment_type || null,
         description: item.tariff_name || null,
-        created_at: item.paid_at,
+        created_at: item.paid_at_iso || item.paid_at,
         is_completed: ['paid', 'succeeded'].includes(item.status),
       }));
     return {
       payments,
       total_count: payments.length,
-      total_today_kopeks: payments.reduce(
-        (sum: number, item: RecentPaymentItem) => sum + item.amount_kopeks,
-        0,
-      ),
-      total_week_kopeks: payments.reduce(
-        (sum: number, item: RecentPaymentItem) => sum + item.amount_kopeks,
-        0,
-      ),
+      total_today_kopeks: Math.round(Number(data.business?.payments?.day?.revenue_rub ?? 0) * 100),
+      total_week_kopeks: Math.round(Number(data.business?.payments?.week?.revenue_rub ?? 0) * 100),
     };
   },
 };

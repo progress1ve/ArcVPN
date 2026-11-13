@@ -1,5 +1,9 @@
 # Shared M3T RU-Direct client routing
 
+## Admin payment reporting
+
+Fix payer links to use Telegram ID. Read RUB payment amounts in kopecks regardless of provider linkage. Show only successful dated payments on the dashboard and use independent Moscow today and rolling seven-day aggregates. Allocate successful subscription payments across calendar months starting in the Moscow payment month, reusing the profit report's cent allocation. Keep unsuccessful records available in the payment registry. Verify the 399 RUB pending order, payer navigation, accurate totals and a 399 RUB/3-month allocation. Preserve payment records and checkout behavior. Keep the current responsive admin layout. Rollback runtime and admin bundle together.
+
 Economy. Owner authorized shared rollout on 2026-11-12. Use the routing object from M3T 98daeede14d5f88fc9c1c350ede83f9f1f0e9e75, previously checked through the owner-only Reality profile.
 
 | Client path | Accepted behavior |

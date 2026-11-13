@@ -5764,6 +5764,44 @@ def api_admin_subscription_catalog():
     }))
 
 
+def _add_report_months(month: str, offset: int) -> str:
+    year, number = map(int, month.split("-"))
+    absolute = year * 12 + number - 1 + offset
+    return f"{absolute // 12:04d}-{absolute % 12 + 1:02d}"
+
+
+def _monthly_subscription_revenue(conn, months: list[str]) -> dict[str, int]:
+    """Allocate the paid order to its Moscow purchase month and following months."""
+    revenue = dict.fromkeys(months, 0)
+    amount_sql = _admin_payment_rub_sql()
+    payments = conn.execute(f"""
+        SELECT strftime('%Y-%m', p.paid_at, '+3 hours') AS paid_month,
+               COALESCE(NULLIF(p.period_days, 0), t.duration_days, 30) AS duration_days,
+               {amount_sql} AS amount_rub
+        FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
+        WHERE p.status IN ('paid','succeeded')
+          AND p.operation_type IN ('new','renew','upgrade')
+          AND COALESCE(p.payment_type,'') NOT IN ('trial','demo')
+          AND p.paid_at IS NOT NULL
+    """)
+    for payment in payments:
+        paid_month = payment["paid_month"]
+        total_cents = round(payment["amount_rub"] * 100)
+        if not paid_month or total_cents <= 0:
+            continue
+        duration = max(1, min(120, round(payment["duration_days"] / 30.4375)))
+        base, remainder = divmod(total_cents, duration)
+        for index in range(duration):
+            month = _add_report_months(paid_month, index)
+            if month in revenue:
+                revenue[month] += base + (index < remainder)
+    return revenue
+
+
+def _moscow_report_month() -> str:
+    return datetime.now(timezone(timedelta(hours=3))).strftime("%Y-%m")
+
+
 @app.route('/api/admin/expenses', methods=['GET', 'POST'])
 @app.route('/api/admin/expenses/<int:expense_id>', methods=['DELETE'])
 def api_admin_expenses(expense_id: Optional[int] = None):
@@ -5798,50 +5836,17 @@ def api_admin_expenses(expense_id: Optional[int] = None):
         if not cursor.rowcount:
             return _api_error("expense_not_found", 404)
         _append_admin_audit_best_effort("expense.delete", "success", actor_id=str(_admin_telegram_id() or "password-session"), target_type="expense", target_id=str(expense_id))
-    selected_month = _clean_text(request.args.get("month"), 7) or datetime.now().strftime("%Y-%m")
+    selected_month = _clean_text(request.args.get("month"), 7) or _moscow_report_month()
     if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", selected_month):
         return _api_error("invalid_month", 400)
 
-    def add_months(month: str, offset: int) -> str:
-        year, number = map(int, month.split("-"))
-        absolute = year * 12 + number - 1 + offset
-        return f"{absolute // 12:04d}-{absolute % 12 + 1:02d}"
-
-    def recognized_months(period_days: Any) -> int:
-        try:
-            days = max(1, int(period_days or 30))
-        except (TypeError, ValueError):
-            days = 30
-        return max(1, min(120, round(days / 30.4375)))
-
-    amount_sql = _admin_payment_rub_sql()
+    series_start = _add_report_months(selected_month, -11)
+    months = [_add_report_months(series_start, index) for index in range(12)]
     with get_db() as conn:
         rows = [dict(row) for row in conn.execute("""SELECT id,title,category,
             amount_cents/100.0 AS amount_rub,incurred_on,recurring_monthly,note,created_at
             FROM service_expenses ORDER BY incurred_on DESC,id DESC LIMIT 500""").fetchall()]
-        payments = [dict(row) for row in conn.execute(f"""
-            SELECT paid_at,period_days,{amount_sql} AS amount_rub
-            FROM payments p
-            WHERE p.status IN ('paid','succeeded')
-              AND COALESCE(p.payment_type,'')!='trial'
-              AND p.paid_at IS NOT NULL
-        """).fetchall()]
-
-    series_start = add_months(selected_month, -11)
-    revenue_cents = {add_months(series_start, index): 0 for index in range(12)}
-    for payment in payments:
-        paid_month = str(payment.get("paid_at") or "")[:7]
-        if not re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", paid_month):
-            continue
-        total_cents = int((Decimal(str(payment.get("amount_rub") or 0)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
-        if total_cents <= 0:
-            continue
-        duration = recognized_months(payment.get("period_days"))
-        base, remainder = divmod(total_cents, duration)
-        for index in range(duration):
-            month = add_months(paid_month, index)
-            if month in revenue_cents:
-                revenue_cents[month] += base + (1 if index < remainder else 0)
+        revenue_cents = _monthly_subscription_revenue(conn, months)
 
     expense_cents = {month: 0 for month in revenue_cents}
     for expense in rows:
@@ -6219,12 +6224,9 @@ def api_admin_user_detail(telegram_id: int):
             FROM vpn_keys vk LEFT JOIN tariffs t ON t.id=vk.tariff_id
             LEFT JOIN servers s ON s.id=vk.server_id
             WHERE vk.user_id=? ORDER BY vk.expires_at DESC,vk.id DESC""", (user_id,)).fetchall()]
-        payments = [dict(row) for row in conn.execute("""SELECT p.order_id,p.payment_type,p.operation_type,
+        payments = [dict(row) for row in conn.execute(f"""SELECT p.order_id,p.payment_type,p.operation_type,
             p.offer_code,p.status,p.period_days,COALESCE(p.paid_at,p.fulfilled_at) AS paid_at,p.is_custom_tariff,p.requested_device_limit,p.requested_lte_quota_gb,p.addon_kind,p.addon_units,p.addon_lte_gb,p.addon_device_units,t.device_limit AS tariff_device_limit,t.lte_quota_gb AS tariff_lte_quota_gb,t.name AS tariff_name,
-            CASE
-              WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN p.amount_cents/100.0
-              WHEN p.payment_type IN ('yookassa','yookassa_qr','cards','balance') THEN p.amount_cents
-              ELSE 0 END AS amount_rub,
+            {_admin_payment_rub_sql()} AS amount_rub,
             CASE WHEN p.payment_type='crypto' THEN p.amount_cents/100.0 ELSE 0 END AS amount_usd,
             COALESCE(p.amount_stars,0) AS amount_stars
             FROM payments p LEFT JOIN tariffs t ON t.id=p.tariff_id
@@ -6541,10 +6543,7 @@ def api_admin_users():
     if not order_sql:
         return _api_error("invalid_sort", 400)
     where_sql = f"WHERE {' AND '.join(where)}" if where else ""
-    rub_amount_sql = """CASE
-      WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN COALESCE(p.amount_cents,0)/100.0
-      WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance') THEN COALESCE(p.amount_cents,0)
-      ELSE 0 END"""
+    rub_amount_sql = _admin_payment_rub_sql()
     with get_db() as conn:
         from database.db_lte_addons import reconcile_lte_addons
         reconcile_lte_addons(conn)
@@ -6615,10 +6614,7 @@ def api_admin_referral_network():
     """Return real referral edges without subscription URLs or UUIDs."""
     if not _admin_authorized("overview.read"):
         return _api_error("admin_forbidden", 403)
-    rub_amount_sql = """CASE
-      WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id!='' THEN COALESCE(p.amount_cents,0)/100.0
-      WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance') THEN COALESCE(p.amount_cents,0)
-      ELSE 0 END"""
+    rub_amount_sql = _admin_payment_rub_sql()
     with get_db() as conn:
         edges = [dict(row) for row in conn.execute("""
             WITH referral_edges AS (
@@ -6732,10 +6728,9 @@ def api_admin_referral_network():
 
 def _admin_payment_rub_sql(alias: str = "p") -> str:
     return f"""CASE
-      WHEN {alias}.yookassa_payment_id IS NOT NULL AND {alias}.yookassa_payment_id!=''
+      WHEN COALESCE({alias}.yookassa_payment_id,'')!=''
+        OR COALESCE({alias}.payment_type,'') IN ('yookassa','yookassa_qr','yookassa_card','cards','balance')
         THEN COALESCE({alias}.amount_cents,0)/100.0
-      WHEN COALESCE({alias}.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
-        THEN COALESCE({alias}.amount_cents,0)
       ELSE 0 END"""
 
 
@@ -6792,6 +6787,8 @@ def api_admin_payments_registry():
         from bot.services.payment_labels import payment_label
         for payment in rows:
             payment["tariff_name"] = payment_label(payment)
+            stamp = _parse_db_datetime(payment["paid_at"])
+            payment["paid_at_iso"] = stamp.isoformat() if stamp else None
         stats_rows = [dict(row) for row in conn.execute(f"""
             SELECT lower(COALESCE(p.status,'unknown')) status,
                    lower(COALESCE(p.payment_type,'unknown')) method,COUNT(*) count
@@ -7093,18 +7090,7 @@ def api_admin_overview():
                  NOT EXISTS(SELECT 1 FROM user_devices d WHERE d.user_id=u.id AND COALESCE(d.is_active,1)=1)
                ) AS awaiting_reimport
         """).fetchone())
-        # Rows linked to YooKassa are reconciled against the provider and stored
-        # in kopecks. Older unlinked payment integrations stored whole RUB and
-        # remain a read-only compatibility fallback.
-        rub_amount_sql = """
-            CASE
-              WHEN p.yookassa_payment_id IS NOT NULL AND p.yookassa_payment_id != ''
-                THEN COALESCE(p.amount_cents,0) / 100.0
-              WHEN COALESCE(p.payment_type,'') IN ('yookassa','yookassa_qr','cards','balance')
-                THEN COALESCE(p.amount_cents,0)
-              ELSE 0
-            END
-        """
+        rub_amount_sql = _admin_payment_rub_sql()
         recent_users = [dict(row) for row in conn.execute(f"""
             SELECT u.telegram_id, u.username, u.first_name, u.created_at,
                    EXISTS(SELECT 1 FROM vpn_keys vk WHERE vk.user_id=u.id AND vk.expires_at > datetime('now')) AS active,
@@ -7172,16 +7158,18 @@ def api_admin_overview():
                    CASE WHEN COALESCE(p.payment_type,'')='crypto' THEN p.amount_cents / 100.0 ELSE 0 END AS display_amount_usd
             FROM payments p JOIN users u ON u.id=p.user_id
             LEFT JOIN tariffs t ON t.id=p.tariff_id
-            WHERE COALESCE(p.payment_type,'') != 'trial'
-            ORDER BY p.id DESC LIMIT 200
+            WHERE p.status IN ('paid','succeeded') AND datetime(p.paid_at) IS NOT NULL
+              AND COALESCE(p.payment_type,'') NOT IN ('trial','demo')
+            ORDER BY datetime(p.paid_at) DESC,p.id DESC LIMIT 200
         """).fetchall()]
         from bot.services.payment_labels import payment_label
         for payment in recent_payments:
             payment["tariff_name"] = payment_label(payment)
+            stamp = _parse_db_datetime(payment["paid_at"])
+            payment["paid_at_iso"] = stamp.isoformat() if stamp else None
         financials = dict(conn.execute(f"""
             SELECT
               SUM(CASE WHEN p.status IN ('paid','succeeded') THEN {rub_amount_sql} ELSE 0 END) AS lifetime_rub,
-              SUM(CASE WHEN p.status IN ('paid','succeeded') AND p.paid_at >= datetime('now','-30 days') THEN {rub_amount_sql} ELSE 0 END) AS month_rub,
               SUM(CASE WHEN p.status IN ('paid','succeeded') AND COALESCE(p.payment_type,'')='crypto' THEN p.amount_cents / 100.0 ELSE 0 END) AS lifetime_usd,
               COUNT(DISTINCT CASE WHEN p.status IN ('paid','succeeded') AND (
                 {rub_amount_sql} > 0 OR
@@ -7196,6 +7184,8 @@ def api_admin_overview():
             FROM payments p
             WHERE COALESCE(p.payment_type,'') != 'trial'
         """).fetchone())
+        report_month = _moscow_report_month()
+        financials["month_rub"] = _monthly_subscription_revenue(conn, [report_month])[report_month] / 100.0
         trial_rating_row = dict(conn.execute("""
             SELECT
               COUNT(*) AS sent,
@@ -7229,16 +7219,18 @@ def api_admin_overview():
             """).fetchall()],
         }
         payment_periods: dict[str, dict[str, Any]] = {}
-        for period, modifier in (("day", "-1 day"), ("week", "-7 days"), ("month", "-30 days")):
+        for period, since in (("day", "datetime(date('now','+3 hours'),'-3 hours')"),
+                              ("week", "datetime('now','-7 days')"),
+                              ("month", "datetime('now','-30 days')")):
             payment_periods[period] = dict(conn.execute(f"""
                 SELECT COUNT(*) AS orders,
                        COALESCE(SUM({rub_amount_sql}),0) AS revenue_rub,
                        COUNT(DISTINCT p.user_id) AS paying_users
                 FROM payments p
                 WHERE p.status IN ('paid','succeeded')
-                  AND COALESCE(p.payment_type,'') != 'trial'
-                  AND p.paid_at >= datetime('now',?)
-            """, (modifier,)).fetchone())
+                  AND COALESCE(p.payment_type,'') NOT IN ('trial','demo')
+                  AND datetime(p.paid_at) BETWEEN {since} AND datetime('now')
+            """).fetchone())
         revenue_series = [dict(row) for row in conn.execute(f"""
             WITH RECURSIVE days(day) AS (
               SELECT date('now','-13 days')

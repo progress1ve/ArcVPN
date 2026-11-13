@@ -895,6 +895,7 @@ export default function AdminDashboard() {
                     <td className="px-2 py-3 text-right">
                       <span className="text-xs text-dark-400">
                         {new Date(payment.created_at).toLocaleString('ru-RU', {
+                          timeZone: 'Europe/Moscow',
                           day: '2-digit',
                           month: '2-digit',
                           hour: '2-digit',
@@ -938,6 +939,7 @@ export default function AdminDashboard() {
                   <span>{payment.payment_method || '-'}</span>
                   <span>
                     {new Date(payment.created_at).toLocaleString('ru-RU', {
+                      timeZone: 'Europe/Moscow',
                       day: '2-digit',
                       month: '2-digit',
                       hour: '2-digit',

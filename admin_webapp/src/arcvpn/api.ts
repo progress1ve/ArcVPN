@@ -563,7 +563,7 @@ export function dashboardStats(data: Json): Json {
   const total = Number(data.subscriptions?.total || active);
   const today = Number(data.business?.payments?.day?.revenue_rub || 0);
   const month = Number(
-    data.financials?.month_rub || data.business?.payments?.month?.revenue_rub || 0,
+    data.financials?.month_rub ?? 0,
   );
   const lifetime = Number(data.financials?.lifetime_rub || 0);
   return {
