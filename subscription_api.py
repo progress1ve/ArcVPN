@@ -5129,6 +5129,7 @@ def api_admin_lte_availability():
     if not _admin_authorized("nodes.diagnose"):
         return _api_error("admin_forbidden", 403)
     from monitoring.cdn_origin import LITHUANIA, ROYALE, active_origin, origin_host
+    from monitoring.lte_operator_worker import MONITORED_TARGET
     host = _clean_text(request.args.get("host", active_origin()), 255).strip().lower()
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
         return _api_error("invalid_lte_host", 400)
@@ -5142,10 +5143,10 @@ def api_admin_lte_availability():
                        allowed_control_ok,blocked_control_ok,region,
                        outcome,rtt_ms,reason,provider,checked_at
                 FROM lte_operator_probe_results
-                WHERE node_host=? AND provider='latencylab' AND test_kind='client_tunnel'
+                WHERE node_host=? AND target_path=? AND provider='latencylab' AND test_kind='client_tunnel'
                       AND checked_at >= datetime('now','-30 days')
                 ORDER BY batch_id DESC, checked_at DESC, operator, target_path LIMIT 1000
-            """, (host,)).fetchall()
+            """, (host, MONITORED_TARGET)).fetchall()
         return _api_no_store(jsonify({"ok": True, "host": host,
             "operators": ["t2", "t_mobile", "megafon", "beeline", "mts"],
             "results": [dict(row) for row in rows]}))

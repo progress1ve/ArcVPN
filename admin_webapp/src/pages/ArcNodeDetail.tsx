@@ -92,14 +92,7 @@ type Capacity = {
   warnings: string[];
 };
 type Period = '15m' | '1h' | '6h' | '24h' | '7d';
-const cdnVariantLabels: Record<string, string> = {
-  '/api-lt-test-4096': '4096/7 + XMUX',
-  '/api-lt-test-24000': '24000/10',
-  '/api-lt-32768': '32768/10',
-  '/api-lt-65536': '65536/60–75',
-  '/api-lt-test-24000@188.72.110.52': '24000/10 · IP',
-  '/api-se-test-24000': '24000/10 · прежний путь',
-};
+const cdnVariantLabel = '24000/10 · IP';
 type NodeTab = 'overview' | 'metrics' | 'services' | 'logs' | 'performance' | 'availability';
 const nodeTabs = [
   { key: 'overview', label: 'Обзор', icon: HeartbeatIcon },
@@ -355,7 +348,7 @@ export default function ArcNodeDetail() {
     setOperatorRunMessage('Запускаем проверку…');
     try {
       await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
-      setOperatorRunMessage('Проверяем все варианты CDN в доступных сетях…');
+      setOperatorRunMessage('Проверяем CDN 24000/10 через IP в доступных сетях…');
       setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : '';
@@ -441,7 +434,6 @@ export default function ArcNodeDetail() {
     mts: 'МТС',
   };
   const latestBatch = operatorProbes.filter((probe) => probe.batch_id === operatorProbes[0]?.batch_id);
-  const variantPaths = Array.from(new Set(latestBatch.map((probe) => probe.target_path)));
   const isLte =
     host === '88.216.62.135' ||
     /lte|cdn|xhttp/i.test(`${node?.name || ''} ${server?.name || ''}`) ||
@@ -850,7 +842,7 @@ export default function ArcNodeDetail() {
               </div>
               {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
-                {isCdnOrigin ? 'Один запуск проверяет все варианты CDN из подписки в доступных сетях. ' : 'Здесь показана история проверок CDN для этой ноды. '}
+                {isCdnOrigin ? 'Проверяется CDN 24000/10 через 188.72.110.52 во всех доступных сетях. ' : 'Здесь показана история проверок CDN для этой ноды. '}
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
               {isCdnOrigin && <p className="mt-2 text-xs text-dark-400">
@@ -859,9 +851,7 @@ export default function ArcNodeDetail() {
               </p>}
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {Object.entries(operatorNames).map(([code, name]) => {
-                  const latest = latestBatch.filter((probe) => probe.operator === code);
-                  const successes = latest.filter((probe) => probe.outcome === 'ok').length;
-                  const failures = latest.filter((probe) => probe.outcome === 'failed').length;
+                  const latest = latestBatch.find((probe) => probe.operator === code);
                   const operatorOffline = operatorNetwork?.operators.find((item) => item.id === code)?.online === false;
                   return (
                     <article
@@ -872,29 +862,19 @@ export default function ArcNodeDetail() {
                         <OperatorMark code={code} name={name} />
                       </div>
                       <strong
-                        className={`mt-3 block text-sm ${successes > 0 ? 'text-success-400' : failures > 0 ? 'text-error-400' : 'text-dark-400'}`}
+                        className={`mt-3 block text-sm ${latest?.outcome === 'ok' ? 'text-success-400' : latest?.outcome === 'failed' ? 'text-error-400' : 'text-dark-400'}`}
                       >
-                        {successes || failures ? `Работает ${successes} из ${variantPaths.length}`
-                          : operatorOffline ? 'Оператор офлайн' : latest.length ? 'Нет результата' : 'Нет проверок'}
+                        {latest?.outcome === 'ok' ? 'VPN подключился'
+                          : latest?.outcome === 'failed' ? 'VPN не подключился'
+                            : operatorOffline ? 'Оператор офлайн' : latest ? 'Нет результата' : 'Нет проверок'}
                       </strong>
-                      <dl className="mt-3 space-y-1 text-xs">
-                        {variantPaths.map((path) => {
-                          const outcome = latest.find((probe) => probe.target_path === path)?.outcome;
-                          return <div key={path} className="flex justify-between gap-2">
-                            <dt className="text-dark-400">{cdnVariantLabels[path] || path}</dt>
-                            <dd className={outcome === 'ok' ? 'text-success-400' : outcome === 'failed' ? 'text-error-400' : 'text-dark-400'}>
-                              {outcome === 'ok' ? 'Успех' : outcome === 'failed' ? 'Сбой' : 'Нет данных'}
-                            </dd>
-                          </div>;
-                        })}
-                      </dl>
                       <p className="mt-1 text-xs text-dark-400">
-                        {operatorOffline ? 'Оператор сейчас офлайн в LatencyLab' : latest.length
+                        {operatorOffline ? 'Оператор сейчас офлайн в LatencyLab' : latest
                           ? 'VPN-ключ · условия ограничений не подтверждены'
                           : 'Ожидаются данные оператора'}
                       </p>
-                      {latest[0] && (
-                        <p className="mt-2 text-[11px] text-dark-500">{operatorTime(latest[0].checked_at)}</p>
+                      {latest && (
+                        <p className="mt-2 text-[11px] text-dark-500">{operatorTime(latest.checked_at)}</p>
                       )}
                     </article>
                   );
@@ -920,7 +900,7 @@ export default function ArcNodeDetail() {
                         >
                           <td className="py-2">{operatorTime(probe.checked_at)}</td>
                           <td>{operatorNames[probe.operator] || probe.operator}</td>
-                          <td className="px-2 whitespace-nowrap">{cdnVariantLabels[probe.target_path] || probe.target_path}</td>
+                          <td className="px-2 whitespace-nowrap">{cdnVariantLabel}</td>
                           <td>
                             {probe.outcome === 'ok'
                               ? 'Успех'

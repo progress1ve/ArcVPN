@@ -62,3 +62,7 @@ Closeout. Runtime 76fb9e90 and admin bundle 851b4b89 deployed to Poland. Subscri
 LatencyLab Oryol batch 20261113T121142Z (15:11 MSK) completed 25/25 operator/variant checks. 24000/10 with alternate IP passed all five, with reported RTT 473–989 ms. Domain 24000/10, 32768/10 and 65536/60–75 passed Beeline only. Domain 4096/7 + XMUX failed all five. The two 24000/10 transports share path, TLS name and settings and differ in the client destination address. TCP controls are recorded, and restriction status remains unconfirmed. No transport promotion from this one-region sample.
 
 Authenticated live browser verified Royale as a normal Remnawave node, one CDN shortcut, no duplicate registry row, resolved detail and five probe variants at widths 360/768/1280/1600. No page errors or document overflow. Screenshots in C:/Users/babay/AppData/Local/Temp/arcvpn-lte-matrix-evidence-20261113. The first after-check opened before the batch committed and was repeated after completion.
+
+### Monitor only CDN 24000/10 through the edge IP
+
+Owner requests one XHTTP monitor target, 24000/10 at 188.72.110.52. The same worker handles scheduled and manual runs across all available LatencyLab operators. Preserve TCP controls, cooldown and probe history in storage. Show only the monitored variant and its history in the admin panel. Verify the worker selects exactly one delivered outbound, API filters by that target, and the live panel displays its operator outcomes. Rollback reverts the worker, API and admin bundle.

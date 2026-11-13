@@ -1,4 +1,4 @@
-"""Scheduled operator-side VPN checks for the delivered LTE CDN transports."""
+"""Operator-side VPN checks for the delivered CDN 24000/10 IP transport."""
 from __future__ import annotations
 
 import asyncio
@@ -11,13 +11,14 @@ from pathlib import Path
 
 from database.connection import DB_PATH
 from monitoring.cdn_origin import active_origin
-from monitoring.cdn_fallbacks import HOST
+from monitoring.cdn_fallbacks import ALTERNATE_EDGE, HOST
 from monitoring.latencylab_client import Client, LatencyLabError, OPERATORS
 from monitoring.lte_operator_alerts import Attempt, record_batch
 
 LOG = logging.getLogger(__name__)
 KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
+MONITORED_TARGET = f"/api-lt-test-24000@{ALTERNATE_EDGE}"
 
 def variant_links(profiles):
     """Serialize distinct CDN outbounds from the effective customer renderer."""
@@ -59,9 +60,9 @@ async def owner_links() -> dict[str, str]:
     import subscription_api as api
     profiles = await asyncio.to_thread(api._effective_customer_profiles)
     links = variant_links(profiles)
-    if not links:
+    if MONITORED_TARGET not in links:
         raise RuntimeError("managed_links_unavailable")
-    return links
+    return {MONITORED_TARGET: links[MONITORED_TARGET]}
 
 
 def rows_by_operator(result: dict) -> dict[str, dict]:
