@@ -34,3 +34,9 @@ Fresh published Reality profiles passed HTTP 200 and MTProto on NL, SE and LT fr
 | LT with M3T | 4/4 | 0.803 s | 0.945 s | 1.742 s |
 
 The slowest NL range took 2.502 s, including 1.745 s after first byte. The same range with previous rules took 2.192 s, including 1.406 s after first byte. The paired NL data did not show a repeatable gain from routing alone in this series. This is a public HTTPS range proxy for seeking, with a separate MTProto handshake check. Native INCY/Beeline playback remains open. Keep the current runtime and collect TCP retransmission and RTT evidence in both directions during a slow native seek before choosing another transport parameter.
+
+### Owner-only Reality fingerprint comparison
+
+Economy. The owner requested new test candidates. Add two 24-hour JSON profiles cloned from ordinary Netherlands. Same Royale address, TCP443, Reality SNI and authorization, Vision, DNS and M3T routing. Only the client fingerprint differs from the Firefox control. Use Chrome for the community hypothesis and Safari as a second Xray-supported fingerprint. No topology, CDN or billing changes.
+
+Acceptance: verify precisely two owner profiles on the bound public subscription, equivalent to ordinary NL after normalizing display name and fingerprint. Verify other cohorts and legacy links, then smoke-test a real tunnel with both candidates using a remote Xray client. Owner runs the INCY comparison. Rollback moves the protected expiry file out of its active path.
