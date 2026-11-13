@@ -1,5 +1,7 @@
 # Shared M3T RU-Direct routing
 
+Owner-only Reality fingerprint trial on runtime 03b98c84. Two temporary JSON clones of ordinary NL, Chrome and Safari, expire November 14 at 14:51 MSK. Same SNI, authorization, M3T and transport. Published owner/LTE/no-LTE counts 20/18/10 and existing profiles verified. Both candidates passed remote Xray HTTPS and Telegram MTProto. Owner will compare in INCY against ordinary Firefox. Rollback move the protected expiry file.
+
 Economy. Runtime 0a103473 active on Poland. All working customer JSON profiles use pinned M3T 98daeed RU-Direct, with existing local/private exceptions and explicit ArcVPN routes ahead of it. The separate owner trial is hidden. Public bound owner/LTE/no-LTE JSON counts 18/18/10. Legacy plain/base64 share links and routing header are unchanged. NL/SE/Auto/CDN tunneled checks passed from Moscow, NL and SE Telegram MTProto passed. LT timed out with both prior and new routing in that probe. Nodes and transport settings were not edited. Rollback move the protected .secrets/m3t-ru-direct.json and restart subscription API. Telegram seek on the owner's SIM remains unverified.
 
 # Superseded owner Reality M3T routing trial
