@@ -2052,6 +2052,8 @@ def _build_happ_json_subscription(key: ActiveKeyRecord, links_text: str) -> str:
         rendered_profiles = apply_m3t_routing(rendered_profiles, key.telegram_id)
     from monitoring.owner_reality_fingerprints import apply as apply_fingerprint_trial
     rendered_profiles = apply_fingerprint_trial(rendered_profiles, key.telegram_id)
+    from monitoring.owner_lithuania_xhttp import apply as apply_lithuania_xhttp
+    rendered_profiles = apply_lithuania_xhttp(rendered_profiles, key.telegram_id)
     return json.dumps(
         rendered_profiles,
         ensure_ascii=False,

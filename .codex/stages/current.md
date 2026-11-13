@@ -1,5 +1,9 @@
 # Shared M3T RU-Direct client routing
 
+## Owner direct Lithuania XHTTP comparison
+
+Owner requests direct XHTTP without CDN. The existing LT_OWNER_DIRECT_XHTTP listener is LTE-authorized. Use the published owner's LTE identity and existing quota for an additional INCY JSON profile, preserving ordinary Lithuania and Auto. Route: client to 88.216.62.135:443, TLS lt.arccnet.space, existing nginx to XHTTP10002, Cherry egress. No CDN, server, authorization or quota changes. Preflight from Royale confirmed Xray syntax, HTTPS 200 and Cherry egress. Moscow TCP443 failed before TLS, so affected SIM reachability remains unverified. Verify live owner and non-owner catalogs. Rollback revert the renderer hook.
+
 ## Admin payment reporting
 
 Fix payer links to use Telegram ID. Read RUB payment amounts in kopecks regardless of provider linkage. Show only successful dated payments on the dashboard and use independent Moscow today and rolling seven-day aggregates. Allocate successful subscription payments across calendar months starting in the Moscow payment month, reusing the profit report's cent allocation. Keep unsuccessful records available in the payment registry. Verify the 399 RUB pending order, payer navigation, accurate totals and a 399 RUB/3-month allocation. Preserve payment records and checkout behavior. Keep the current responsive admin layout. Rollback runtime and admin bundle together.
