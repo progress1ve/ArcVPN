@@ -1,5 +1,6 @@
 import {useEffect,useState} from 'react';
 import {Link} from 'react-router';
+import {nodeInventoryHost} from '../lib/nodeAddress';
 type Node={address:string;name:string;connected:boolean;disabled:boolean;users_online:number};
 type Capacity={network_user_estimate?:{additional_users:number}|null};
 type Traffic={groups:{main:{bytes:number};lte:{bytes:number}}};
@@ -12,11 +13,12 @@ export default function ArcFleetOverview(){
  const [health,setHealth]=useState<string>('Проверяем…');const [error,setError]=useState(false);
  useEffect(()=>{let live=true;const load=async()=>{
   const jobs=await Promise.allSettled([read<{remnawave:{nodes:Node[]}}>('/api/admin/overview'),...hosts.map(h=>read<Capacity>(`/api/admin/nodes/capacity?host=${h}&range=7d`)),read<{results:{operator:string;target_path:string;outcome:string;checked_at:string}[]}>('/api/admin/nodes/operator-probes')]);
-  if(!live)return;const overview=jobs[0];if(overview.status==='fulfilled')setNodes((overview.value as {remnawave:{nodes:Node[]}}).remnawave.nodes.filter(n=>hosts.includes(n.address)||n.address==='45.141.202.248'));else setError(true);
+  if(!live)return;const overview=jobs[0];if(overview.status==='fulfilled')setNodes((overview.value as {remnawave:{nodes:Node[]}}).remnawave.nodes.filter(n=>hosts.includes(n.address)||nodeInventoryHost(n.address)==='45.141.202.248'));else setError(true);
   setCapacity(jobs.slice(1,3).map(r=>r.status==='fulfilled'?r.value as Capacity:null));
   // Unknown/offline provider probes do not establish a node outage.
   const recent=jobs.slice(3).flatMap(r=>{if(r.status!=='fulfilled')return [];const seen=new Set<string>();return ((r.value as {results?:{operator:string;target_path:string;outcome:string;checked_at:string}[]}).results||[]).filter(p=>{const key=`${p.operator}:${p.target_path}`;if(seen.has(key))return false;seen.add(key);return Date.now()-Date.parse(p.checked_at.replace(' ','T')+'Z')<86400000;});});
-  setHealth(recent.some(p=>p.outcome==='failed')?'Есть неуспешные проверки':['/api-se-test-24000'].every(path=>recent.filter(p=>p.target_path===path&&p.outcome==='ok').length>=4)?`VPN работает${recent.some(p=>p.outcome==='unknown')?' · есть недоступные пробы':''}`:'Нет свежих подтверждённых проверок');
+  const successfulOperators=new Set(recent.filter(p=>p.outcome==='ok').map(p=>p.operator));
+  setHealth(successfulOperators.size?`VPN прошёл проверку в ${successfulOperators.size} из 5 сетей`:recent.some(p=>p.outcome==='failed')?'Есть неуспешные проверки':'Нет свежих подтверждённых проверок');
  };load();const timer=setInterval(load,60000);
  Promise.allSettled([read<Traffic>('/api/admin/traffic/period?period=7&limit=10'),read<Traffic>('/api/admin/traffic/period?period=30&limit=10'),read<{main:number;lte:number}>('/api/admin/traffic/retained-total')]).then(r=>{if(!live)return;setTraffic(r.slice(0,2).map(x=>x.status==='fulfilled'?x.value as Traffic:null));if(r[2].status==='fulfilled')setTotal(r[2].value as {main:number;lte:number});});
  return()=>{live=false;clearInterval(timer);};},[]);

@@ -5128,10 +5128,11 @@ def api_admin_lte_availability():
     """Read operator-specific evidence; absence of a probe is not availability."""
     if not _admin_authorized("nodes.diagnose"):
         return _api_error("admin_forbidden", 403)
-    from monitoring.cdn_origin import LITHUANIA, ROYALE, active_origin
+    from monitoring.cdn_origin import LITHUANIA, ROYALE, active_origin, origin_host
     host = _clean_text(request.args.get("host", active_origin()), 255).strip().lower()
     if not host or not re.fullmatch(r"[a-z0-9.:-]+", host):
         return _api_error("invalid_lte_host", 400)
+    host = origin_host(host)
     if host not in {LITHUANIA, ROYALE}:
         return _api_no_store(jsonify({"ok": True, "host": host, "operators": [], "results": []}))
     try:
@@ -5141,8 +5142,9 @@ def api_admin_lte_availability():
                        allowed_control_ok,blocked_control_ok,region,
                        outcome,rtt_ms,reason,provider,checked_at
                 FROM lte_operator_probe_results
-                WHERE node_host=? AND target_path='/api-se-test-24000' AND checked_at >= datetime('now','-30 days')
-                ORDER BY checked_at DESC LIMIT 1000
+                WHERE node_host=? AND provider='latencylab' AND test_kind='client_tunnel'
+                      AND checked_at >= datetime('now','-30 days')
+                ORDER BY batch_id DESC, checked_at DESC, operator, target_path LIMIT 1000
             """, (host,)).fetchall()
         return _api_no_store(jsonify({"ok": True, "host": host,
             "operators": ["t2", "t_mobile", "megafon", "beeline", "mts"],
@@ -5183,7 +5185,7 @@ def api_admin_lte_probe_run():
             return _api_error("lte_probe_start_failed", 503)
         _append_admin_audit_best_effort(
             "node.lte_probe", "started", actor_id=str(_admin_telegram_id() or "password-session"),
-            target_type="monitor", target_id="all-operators", metadata={"nodes": 2},
+            target_type="monitor", target_id="all-operators",
         )
         return _api_no_store(jsonify({"ok": True, "status": "started"})), 202
     except (OSError, subprocess.SubprocessError):

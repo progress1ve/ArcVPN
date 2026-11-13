@@ -68,7 +68,7 @@ def test_lte_incidents_only_reach_selected_owner(audience, monkeypatch):
     import aiogram
     bot = SimpleNamespace(send_message=AsyncMock(), session=SimpleNamespace(close=AsyncMock()))
     monkeypatch.setattr(aiogram, "Bot", lambda **_: bot)
-    host, path, _ = worker.NODES[0]
+    host, path = worker.active_origin(), "/api-lt-test-24000"
     asyncio.run(worker.notify([{"node_host":host,"target_path":path,"operator":"mts","type":"recovery"}]))
     bot.send_message.assert_awaited_once()
     assert bot.send_message.call_args.args[0] == 11

@@ -1,7 +1,8 @@
-"""Scheduled operator-side VPN checks for the public CDN 24000/10 variant."""
+"""Scheduled operator-side VPN checks for the delivered LTE CDN transports."""
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import sqlite3
 import urllib.parse
@@ -9,53 +10,58 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from database.connection import DB_PATH
-from monitoring.cdn_origin import ROYALE, active_origin
+from monitoring.cdn_origin import active_origin
+from monitoring.cdn_fallbacks import HOST
 from monitoring.latencylab_client import Client, LatencyLabError, OPERATORS
 from monitoring.lte_operator_alerts import Attempt, record_batch
 
 LOG = logging.getLogger(__name__)
 KEY_FILE = Path("/etc/arcvpn/latencylab.key")
 LOCK_FILE = Path("/run/lock/arcvpn-lte-monitor.lock")
-from monitoring.cdn_fallbacks import VARIANTS, settings
-ORIGIN = active_origin()
-LOCATION = 'Нидерланды' if ORIGIN == ROYALE else 'Литва'
-NODES = ((ORIGIN, VARIANTS[24000]['path'], f'{LOCATION} 24000/10'),)
 
-
-def variant_links(uri):
-    """Reuse the native user's credentials; replace only transport settings."""
-    parsed = urllib.parse.urlsplit(uri)
-    query = dict(urllib.parse.parse_qsl(parsed.query))
-    result = {}
-    import json
-    for size, variant in VARIANTS.items():
-        q = {**query, "type":"xhttp", "security":"tls", "sni":"cdn-de.arccnet.space",
-             "host":"cdn-de.arccnet.space", "fp":"firefox", "alpn":"h2,http/1.1",
-             "path":variant['path'], "mode":"packet-up", "extra":json.dumps(settings(size), separators=(',',':'))}
-        result[variant['path']] = urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(q)))
-    return result
+def variant_links(profiles):
+    """Serialize distinct CDN outbounds from the effective customer renderer."""
+    links = {}
+    for profile in profiles:
+        for outbound in profile.get("outbounds", []):
+            stream = outbound.get("streamSettings", {})
+            xhttp = stream.get("xhttpSettings", {})
+            if (outbound.get("protocol"), stream.get("network"), stream.get("security"), xhttp.get("host")) != (
+                "vless", "xhttp", "tls", HOST
+            ):
+                continue
+            target = outbound["settings"]["vnext"][0]
+            user = target["users"][0]
+            tls = stream["tlsSettings"]
+            address, path = target["address"], xhttp["path"]
+            # Keep the real path in history and distinguish the alternate edge.
+            probe_id = path if address == HOST else f"{path}@{address}"
+            query = {
+                "type": "xhttp", "security": "tls", "encryption": user.get("encryption", "none"),
+                "sni": tls["serverName"], "host": xhttp["host"], "fp": tls["fingerprint"],
+                "alpn": ",".join(tls["alpn"]), "path": path, "mode": xhttp["mode"],
+                "extra": json.dumps(xhttp.get("extra", {}), separators=(",", ":"), sort_keys=True),
+            }
+            if user.get("flow"):
+                query["flow"] = user["flow"]
+            authority = f'[{address}]' if ":" in address else address
+            uri = f'vless://{user["id"]}@{authority}:{target["port"]}?{urllib.parse.urlencode(query)}'
+            if probe_id in links and links[probe_id] != uri:
+                raise RuntimeError("conflicting_cdn_probe_variants")
+            links[probe_id] = uri
+    return links
 OPERATOR_NAMES = {"tmobile": "Т-Мобайл", "megafon": "МегаФон",
                   "beeline": "Билайн", "mts": "МТС", "t2": "Т2"}
 
 
 async def owner_links() -> dict[str, str]:
-    """Resolve current owner links in memory; never persist or log their URI."""
+    """Read the final customer profiles so delivery overlays are included."""
     import subscription_api as api
-    with sqlite3.connect(str(DB_PATH)) as conn:
-        row = conn.execute("""SELECT k.sub_id FROM vpn_keys k JOIN users u ON u.id=k.user_id
-            WHERE lower(u.username)='progressive_dev' AND k.expires_at>datetime('now')
-            ORDER BY k.expires_at DESC LIMIT 1""").fetchone()
-    if row is None:
-        raise RuntimeError("owner_key_unavailable")
-    key = api.get_active_key_by_subscription_id(row[0])
-    if key is None:
-        raise RuntimeError("owner_key_unavailable")
-    links = await api._native_remnawave_links(key)
-    for uri in links:
-        parsed = urllib.parse.urlsplit(uri)
-        if parsed.scheme == "vless" and parsed.hostname == "cdn-de.arccnet.space":
-            return variant_links(api._normalize_native_share_link(uri))
-    raise RuntimeError("managed_links_unavailable")
+    profiles = await asyncio.to_thread(api._effective_customer_profiles)
+    links = variant_links(profiles)
+    if not links:
+        raise RuntimeError("managed_links_unavailable")
+    return links
 
 
 def rows_by_operator(result: dict) -> dict[str, dict]:
@@ -71,8 +77,8 @@ def outcome(row: dict | None) -> bool | None:
 
 
 async def notify(events: list[dict]) -> None:
-    monitored_hosts = {host for host, _path, _name in NODES}
-    events = [event for event in events if event["node_host"] in monitored_hosts]
+    host = active_origin()
+    events = [event for event in events if event["node_host"] == host]
     if not events:
         return
     from aiogram import Bot
@@ -80,7 +86,7 @@ async def notify(events: list[dict]) -> None:
     bot = Bot(token=config.BOT_TOKEN)
     try:
         for event in events:
-            node = next((name for host, path, name in NODES if host == event["node_host"] and path == event.get("target_path")), event["node_host"])
+            node = f'{host} · {event["target_path"]}'
             operator = OPERATOR_NAMES.get(event["operator"], event["operator"])
             if event["type"] == "alert":
                 message = (f"🚨 LTE-подключение недоступно\nНода: {node}\nОператор: {operator}\n"
@@ -103,13 +109,16 @@ async def notify(events: list[dict]) -> None:
 async def run(*, client: Client | None = None, links: dict[str, str] | None = None) -> dict:
     token = KEY_FILE.read_text(encoding="utf-8").strip() if client is None else None
     client = client or Client(token)
-    if client.remaining_quota() < 2 + len(NODES):
+    host = active_origin()
+    links = links if links is not None else await owner_links()
+    if not links:
+        raise RuntimeError("managed_links_unavailable")
+    if client.remaining_quota() < 2 + len(links):
         raise LatencyLabError("insufficient_free_quota")
     online = client.operators()
     selected = [name for name in OPERATORS if name in online]
     if not selected:
         raise LatencyLabError("no_online_operators")
-    links = links or await owner_links()
     # Controls are only TCP indicators of restrictions, not proof of filtering.
     controls = {}
     for label, target in (("allowed", "yandex.ru"), ("blocked", "google.com")):
@@ -122,10 +131,11 @@ async def run(*, client: Client | None = None, links: dict[str, str] | None = No
     # Complete external probes before opening a database write transaction.
     # External probes can take minutes; API telemetry must remain writable.
     attempts = []
-    for host, path, _name in NODES:
+    for path, uri in links.items():
         try:
-            rows = rows_by_operator(client.vpn_multiscan(links[path], selected))
-        except LatencyLabError:
+            rows = rows_by_operator(client.vpn_multiscan(uri, selected))
+        except LatencyLabError as error:
+            LOG.warning("vpn_probe_failed variant=%s reason=%s", path, error)
             rows = {}
         for operator in OPERATORS:
             row = rows.get(operator)
@@ -149,7 +159,7 @@ async def run(*, client: Client | None = None, links: dict[str, str] | None = No
                 events.append(event)
         conn.commit()
     await notify(events)
-    return {"nodes": len(NODES), "online_operators": len(selected), "transitions": len(events)}
+    return {"variants": len(links), "online_operators": len(selected), "transitions": len(events)}
 
 
 def main() -> None:
@@ -163,7 +173,7 @@ def main() -> None:
             return
         try:
             result = asyncio.run(run())
-            LOG.info("completed nodes=%s online_operators=%s transitions=%s", *result.values())
+            LOG.info("completed variants=%s online_operators=%s transitions=%s", *result.values())
         except Exception as exc:
             # No exception text: upstream errors may contain a private URI.
             LOG.error("check_failed type=%s", type(exc).__name__)

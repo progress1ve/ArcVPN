@@ -42,3 +42,17 @@ Economy. The owner requested new test candidates. Add two 24-hour JSON profiles 
 Acceptance: verify precisely two owner profiles on the bound public subscription, equivalent to ordinary NL after normalizing display name and fingerprint. Verify other cohorts and legacy links, then smoke-test a real tunnel with both candidates using a remote Xray client. Owner runs the INCY comparison. Rollback moves the protected expiry file out of its active path.
 
 Closeout: runtime 03b98c84 deployed on Poland. Restarted the subscription API only. Owner JSON 20 profiles, LTE 18, no-LTE 10. Both clones differ only in name and fingerprint, and existing JSON profiles, plain/base64 links and routing headers match the baseline. Both published candidates passed Xray syntax, HTTPS 200 with Royale egress, and fresh Telegram MTProto from Moscow. Local checks covered owner scope, expiry, absent state and duplicate prevention. The protected `.secrets/owner-reality-fingerprints.json` expires November 14 at 14:51 MSK. INCY playback and fingerprint support on the owner's client build remain for the owner to compare.
+
+### Royale node card and complete LTE operator checks
+
+Economy. Owner requests Royale in the normal node list and checks for every delivered XHTTP variant. Remnawave lists Royale connected on 89.248.65.203; the admin filter uses its inventory and CDN origin address 45.141.202.248. Match the same node across both addresses, preserving the established detail URL and probe history. Show the live Remnawave card and its CDN shortcut.
+
+| Delivered variant | Client endpoint | Current path |
+|---|---|---|
+| 4096/7 + XMUX | Existing CDN domain | /api-lt-test-4096 |
+| 24000/10 | Existing CDN domain | /api-lt-test-24000 |
+| 32768/10 | Existing CDN domain | /api-lt-32768 |
+| 65536/60–75 | Existing CDN domain | /api-lt-65536 |
+| 24000/10 · IP | Existing CDN edge IP | /api-lt-test-24000 |
+
+Use the delivered TLS, Host, XHTTP extras and LTE identity. Keep the existing origin, authorization, cadence and cooldown. A batch records each operator and variant independently, with unknown for missing/offline provider results. In the existing responsive cards, show the number of successful variants and each result. Keep the latest complete batch and previous history. Verify real LatencyLab batch, live node card, CDN detail at mobile/tablet/desktop/wide, and unchanged user-facing subscription configuration. Rollback revert runtime and admin bundle. No Remnawave or CDN mutations.

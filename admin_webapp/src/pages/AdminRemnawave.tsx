@@ -1,4 +1,5 @@
 import ArcFleetOverview from './ArcFleetOverview';
+import { nodeInventoryHost } from '../lib/nodeAddress';
 import { useState, useMemo } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import ArcNodePreflight from './ArcNodePreflight';
@@ -522,10 +523,10 @@ function NodesTab({
   const { t } = useTranslation();
   const canManage = usePermissionStore((s) => s.hasPermission('nodes:preflight'));
   const currentHosts = new Set(['87.251.19.197', '88.216.62.135', '136.148.220.228', '45.141.202.248']);
-  const visibleNodes = nodes.filter((node) => currentHosts.has(node.address));
+  const visibleNodes = nodes.filter((node) => currentHosts.has(nodeInventoryHost(node.address)));
   const { data: registry } = useQuery({ queryKey: ['arcvpn-node-registry'], queryFn: () => import.meta.env.DEV ? Promise.resolve({ nodes: [] }) : getJson('/api/admin/nodes/registry') });
   const documentedNodes = (registry?.nodes || []) as Array<{ host: string; alias: string; role: string; location?: string; status?: string }>;
-  const registryOnly = documentedNodes.filter((server) => currentHosts.has(server.host) && !visibleNodes.some((node) => node.address === server.host));
+  const registryOnly = documentedNodes.filter((server) => currentHosts.has(server.host) && !visibleNodes.some((node) => nodeInventoryHost(node.address) === server.host));
 
   const stats = useMemo(() => {
     const total = visibleNodes.length;
@@ -631,9 +632,9 @@ function NodesTab({
             <NodeCard
               key={node.uuid}
               node={node}
-              registryState={documentedNodes.find((server) => server.host === node.address)?.status}
-              providerName={node.address === '45.141.202.248' ? 'RoyaleHosting' : node.address === '88.216.62.135' ? 'Cherry Servers' : node.address === '136.148.220.228' ? 'HostUp' : node.address === '87.251.19.197' ? 'One Cent Host' : providerByUuid[node.uuid]}
-              isCdnOrigin={registry?.cdn_origin === node.address}
+              registryState={documentedNodes.find((server) => server.host === nodeInventoryHost(node.address))?.status}
+              providerName={nodeInventoryHost(node.address) === '45.141.202.248' ? 'RoyaleHosting' : node.address === '88.216.62.135' ? 'Cherry Servers' : node.address === '136.148.220.228' ? 'HostUp' : node.address === '87.251.19.197' ? 'One Cent Host' : providerByUuid[node.uuid]}
+              isCdnOrigin={registry?.cdn_origin === nodeInventoryHost(node.address)}
               realtime={realtimeByUuid[node.uuid]}
               onAction={onAction}
               isLoading={isActionLoading}

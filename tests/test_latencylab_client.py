@@ -79,14 +79,15 @@ def test_worker_records_each_operator_and_never_alerts_on_missing_result(tmp_pat
                 concurrent.execute("INSERT INTO concurrent_metrics VALUES(1)")
             return {"results": [{"operator": "mts", "ok": True, "latency_ms": 120}]}
 
-    result = asyncio.run(worker.run(client=FakeClient(), links={p:"private-se" for _,p,_ in worker.NODES}))
-    assert result == {"nodes": 1, "online_operators": 2, "transitions": 0}
+    links = {"/api-lt-test-24000": "private-se", "/api-lt-test-24000@188.72.110.52": "private-se"}
+    result = asyncio.run(worker.run(client=FakeClient(), links=links))
+    assert result == {"variants": 2, "online_operators": 2, "transitions": 0}
     assert not events
     with sqlite3.connect(path) as conn:
-        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results").fetchone()[0] == 5
-        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results WHERE outcome='unknown'").fetchone()[0] == 4
-        assert conn.execute("SELECT count(*) FROM lte_operator_alert_state").fetchone()[0] == 1
-        assert {r[0] for r in conn.execute("SELECT DISTINCT target_path FROM lte_operator_probe_results")} == {p for _,p,_ in worker.NODES}
+        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results").fetchone()[0] == 10
+        assert conn.execute("SELECT count(*) FROM lte_operator_probe_results WHERE outcome='unknown'").fetchone()[0] == 8
+        assert conn.execute("SELECT count(*) FROM lte_operator_alert_state").fetchone()[0] == 2
+        assert {r[0] for r in conn.execute("SELECT DISTINCT target_path FROM lte_operator_probe_results")} == set(links)
 
 
 def test_finland_events_are_dropped_before_initializing_telegram():

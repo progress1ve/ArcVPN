@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router';
+import { nodeInventoryHost } from '../lib/nodeAddress';
 import ArcBenchmarks from './ArcBenchmarks';
 import {
   Area,
@@ -91,7 +92,14 @@ type Capacity = {
   warnings: string[];
 };
 type Period = '15m' | '1h' | '6h' | '24h' | '7d';
-const cdnVariants: Record<string,string> = {"/api-se-test-24000":"24000/10"};
+const cdnVariantLabels: Record<string, string> = {
+  '/api-lt-test-4096': '4096/7 + XMUX',
+  '/api-lt-test-24000': '24000/10',
+  '/api-lt-32768': '32768/10',
+  '/api-lt-65536': '65536/60–75',
+  '/api-lt-test-24000@188.72.110.52': '24000/10 · IP',
+  '/api-se-test-24000': '24000/10 · прежний путь',
+};
 type NodeTab = 'overview' | 'metrics' | 'services' | 'logs' | 'performance' | 'availability';
 const nodeTabs = [
   { key: 'overview', label: 'Обзор', icon: HeartbeatIcon },
@@ -209,7 +217,8 @@ function OperatorMark({ code, name }: { code: string; name: string }) {
 }
 
 export default function ArcNodeDetail() {
-  const { host = '' } = useParams();
+  const { host: address = '' } = useParams();
+  const host = nodeInventoryHost(address);
   const [searchParams] = useSearchParams();
   const [period, setPeriod] = useState<Period>('1h');
   const [tab, setTab] = useState<NodeTab>(searchParams.get('tab') === 'availability' ? 'availability' : 'overview');
@@ -335,7 +344,7 @@ export default function ArcNodeDetail() {
       } catch {
         // Retry while the bounded worker is running.
       }
-      if (polls >= 36) {
+      if (polls >= 60) {
         setOperatorRunMessage('Проверка ещё выполняется. Результат появится в истории.');
         setOperatorRunBaseline(null);
       }
@@ -346,7 +355,7 @@ export default function ArcNodeDetail() {
     setOperatorRunMessage('Запускаем проверку…');
     try {
       await getJson('/api/admin/nodes/operator-probes/run', { method: 'POST', body: '{}' });
-      setOperatorRunMessage('Проверяем CDN 24000/10 в доступных сетях…');
+      setOperatorRunMessage('Проверяем все варианты CDN в доступных сетях…');
       setOperatorRunBaseline(operatorProbes[0]?.batch_id || 'none');
     } catch (failure) {
       const code = failure instanceof Error ? failure.message : '';
@@ -355,7 +364,7 @@ export default function ArcNodeDetail() {
         : code.includes('409') ? 'Проверка уже выполняется.' : 'Не удалось запустить проверку.');
     }
   };
-  const node = overview?.remnawave?.nodes?.find((item) => item.address === host);
+  const node = overview?.remnawave?.nodes?.find((item) => nodeInventoryHost(item.address) === host);
   const server = overview?.servers?.find((item) => item.host === host);
   const documented = documentedNodes.find((item) => item.host === host);
   const latest = samples[samples.length - 1];
@@ -431,6 +440,8 @@ export default function ArcNodeDetail() {
     beeline: 'Билайн',
     mts: 'МТС',
   };
+  const latestBatch = operatorProbes.filter((probe) => probe.batch_id === operatorProbes[0]?.batch_id);
+  const variantPaths = Array.from(new Set(latestBatch.map((probe) => probe.target_path)));
   const isLte =
     host === '88.216.62.135' ||
     /lte|cdn|xhttp/i.test(`${node?.name || ''} ${server?.name || ''}`) ||
@@ -448,7 +459,7 @@ export default function ArcNodeDetail() {
           </h1>
           <p className="mt-2 text-sm text-dark-400">
             {server?.location || documented?.location || node?.country_code || 'Расположение не подтверждено'} ·{' '}
-            {server?.provider || (host === '88.216.62.135' ? 'Cherry Servers' : host === '136.148.220.228' ? 'HostUp' : host === '87.251.19.197' ? 'One Cent Host' : 'Провайдер не указан')} · {host}
+            {server?.provider || (host === '45.141.202.248' ? 'RoyaleHosting' : host === '88.216.62.135' ? 'Cherry Servers' : host === '136.148.220.228' ? 'HostUp' : host === '87.251.19.197' ? 'One Cent Host' : 'Провайдер не указан')} · {node?.address || host}
           </p>
         </div>
       </div>
@@ -839,7 +850,7 @@ export default function ArcNodeDetail() {
               </div>
               {operatorRunMessage && <p role="status" className="mt-2 text-sm text-primary-300">{operatorRunMessage}</p>}
               <p className="mt-1 text-sm text-dark-400">
-                {isCdnOrigin ? 'Один запуск проверяет CDN 24000/10 во всех доступных сетях. ' : 'Здесь показана история проверок CDN для этой ноды. '}
+                {isCdnOrigin ? 'Один запуск проверяет все варианты CDN из подписки в доступных сетях. ' : 'Здесь показана история проверок CDN для этой ноды. '}
                 Контрольные TCP-цели помогают оценить условия сети, но сами по себе не подтверждают режим ограничений.
               </p>
               {isCdnOrigin && <p className="mt-2 text-xs text-dark-400">
@@ -848,10 +859,10 @@ export default function ArcNodeDetail() {
               </p>}
               <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {Object.entries(operatorNames).map(([code, name]) => {
-                  const latest = Object.keys(cdnVariants).map(path => operatorProbes.find(probe => probe.operator === code && probe.target_path === path));
-                  const latestProbe = latest.find(p => p?.outcome === 'failed') || latest.find(p => p?.outcome === 'unknown') || latest[0];
+                  const latest = latestBatch.filter((probe) => probe.operator === code);
+                  const successes = latest.filter((probe) => probe.outcome === 'ok').length;
+                  const failures = latest.filter((probe) => probe.outcome === 'failed').length;
                   const operatorOffline = operatorNetwork?.operators.find((item) => item.id === code)?.online === false;
-                  const tunnel = latest.every(p => p?.test_kind === 'client_tunnel');
                   return (
                     <article
                       key={code}
@@ -861,28 +872,29 @@ export default function ArcNodeDetail() {
                         <OperatorMark code={code} name={name} />
                       </div>
                       <strong
-                        className={`mt-3 block text-sm ${latestProbe?.outcome === 'ok' && tunnel && !operatorOffline ? 'text-success-400' : latestProbe?.outcome === 'failed' && tunnel && !operatorOffline ? 'text-error-400' : 'text-dark-400'}`}
+                        className={`mt-3 block text-sm ${successes > 0 ? 'text-success-400' : failures > 0 ? 'text-error-400' : 'text-dark-400'}`}
                       >
-                        {operatorOffline ? 'Оператор офлайн в LatencyLab' : latestProbe
-                          ? tunnel
-                            ? latestProbe.outcome === 'ok'
-                              ? 'VPN подключился'
-                              : latestProbe.outcome === 'failed'
-                                ? 'VPN не подключился'
-                                : latestProbe.reason === 'operator_offline' ? 'Оператор офлайн в LatencyLab' : 'Нет данных'
-                            : 'Нет проверки VPN-ключа'
-                          : 'Нет проверок'}
+                        {successes || failures ? `Работает ${successes} из ${variantPaths.length}`
+                          : operatorOffline ? 'Оператор офлайн' : latest.length ? 'Нет результата' : 'Нет проверок'}
                       </strong>
                       <dl className="mt-3 space-y-1 text-xs">
-                        {Object.entries(cdnVariants).map(([path,label],i) => <div key={path} className="flex justify-between gap-2"><dt className="text-dark-400">{label}</dt><dd className={latest[i]?.outcome === 'ok' ? 'text-success-400' : latest[i]?.outcome === 'failed' ? 'text-error-400' : 'text-dark-400'}>{latest[i]?.outcome === 'ok' ? 'Успех' : latest[i]?.outcome === 'failed' ? 'Сбой' : 'Нет данных'}</dd></div>)}
+                        {variantPaths.map((path) => {
+                          const outcome = latest.find((probe) => probe.target_path === path)?.outcome;
+                          return <div key={path} className="flex justify-between gap-2">
+                            <dt className="text-dark-400">{cdnVariantLabels[path] || path}</dt>
+                            <dd className={outcome === 'ok' ? 'text-success-400' : outcome === 'failed' ? 'text-error-400' : 'text-dark-400'}>
+                              {outcome === 'ok' ? 'Успех' : outcome === 'failed' ? 'Сбой' : 'Нет данных'}
+                            </dd>
+                          </div>;
+                        })}
                       </dl>
                       <p className="mt-1 text-xs text-dark-400">
-                        {operatorOffline ? 'Проверка недоступна у провайдера' : latestProbe
+                        {operatorOffline ? 'Оператор сейчас офлайн в LatencyLab' : latest.length
                           ? 'VPN-ключ · условия ограничений не подтверждены'
                           : 'Ожидаются данные оператора'}
                       </p>
-                      {latestProbe && (
-                        <p className="mt-2 text-[11px] text-dark-500">{operatorTime(latestProbe.checked_at)}</p>
+                      {latest[0] && (
+                        <p className="mt-2 text-[11px] text-dark-500">{operatorTime(latest[0].checked_at)}</p>
                       )}
                     </article>
                   );
@@ -908,7 +920,7 @@ export default function ArcNodeDetail() {
                         >
                           <td className="py-2">{operatorTime(probe.checked_at)}</td>
                           <td>{operatorNames[probe.operator] || probe.operator}</td>
-                          <td className="px-2 whitespace-nowrap">{cdnVariants[probe.target_path] || probe.target_path}</td>
+                          <td className="px-2 whitespace-nowrap">{cdnVariantLabels[probe.target_path] || probe.target_path}</td>
                           <td>
                             {probe.outcome === 'ok'
                               ? 'Успех'
