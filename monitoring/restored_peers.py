@@ -6,7 +6,7 @@ from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit, unquote
 
 STATE = Path(__file__).resolve().parents[1] / '.secrets/restored-lt-se-20261108.json'
 PEERS = {'🇱🇹 Литва': 'lt-primary', '🇸🇪 Швеция': 'se-primary'}
-AUTO_PEERS = ('🇸🇪 Швеция',)
+AUTO_PEERS = tuple(PEERS)
 
 
 def load():

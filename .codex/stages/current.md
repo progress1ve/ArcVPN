@@ -1,5 +1,9 @@
 # Shared M3T RU-Direct client routing
 
+## Restore Lithuania in AutoSelect and diagnose Royale ingress
+
+Owner requests physical Cherry back in leastLoad and migration to Royale 89.248.65.242. Existing CDN reserve, client hostname/SNI, authorization, quotas and YouTube policy stay in place. Cherry passed TCP from two Russian probes and HTTPS from Moscow and Poland. Royale new address is absent from eth0, and both authoritative DNS servers still return 89.248.65.203. Verify delivery of packets for the new IP and real direct tunnels before changing production client or panel endpoints. Rollback scoped renderer revert and removal of any temporary address.
+
 ## Remove Lithuania from AutoSelect
 
 Owner requests removal after direct Reality and XHTTP failed on their network. Main AutoSelect candidates are direct Netherlands and Sweden with existing leastLoad. Authorized CDN stays the LTE reserve and Netherlands stays the no-LTE fallback. YouTube still routes to Netherlands. Manual Lithuania and owner XHTTP stay in the catalog. No endpoint, quota or authorization changes. Verify bound owner/LTE/no-LTE subscriptions and real traffic. Rollback reverts the scoped renderer change.
