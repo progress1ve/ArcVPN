@@ -6,6 +6,7 @@ Authorized scope is the owner INCY profile 🇱🇹 Литва XHTTP · тест
 
 Verify existing bound owner and control subscriptions, preserve the ordinary Lithuania profile, and export one authorized VLESS link for the ordinary Netherlands profile to a private local file.
 
+Closeout: runtime 9687ad02 deployed on Poland, subscription restarted, bot and subscription active. 18 focused checks passed. Existing bound owner INCY JSON 19 to 18, control JSON 18, plain 34 in both. Ordinary Lithuania present; /api-lt-direct absent. Private local export verified against the sole ordinary Netherlands JSON outbound. Refresh in INCY.
 
 ## Restore Lithuania in AutoSelect and diagnose Royale ingress
 

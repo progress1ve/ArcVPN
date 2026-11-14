@@ -1,5 +1,7 @@
 # Shared M3T RU-Direct routing
 
+Owner Lithuania XHTTP trial retired from production JSON on 9687ad02. Verified bound owner/control catalogs and ordinary Lithuania. A fresh INCY subscription update removes the trial.
+
 Runtime 12e9bca3 removes Lithuania from AutoSelect due to regional reachability failure reported by the owner. NL and SE remain leastLoad candidates, with CDN fallback for LTE and NL fallback without LTE. Manual LT, owner direct XHTTP and YouTube via NL remain available in the catalog. Live cohorts and an Auto tunnel through Sweden passed.
 
 Owner INCY JSON now includes direct `🇱🇹 Литва XHTTP · тест` on runtime 3ba7ac54. Existing LT HTTPS port and XHTTP listener, Cherry egress, no CDN. Uses owner LTE identity and quota. Published tunnel passed from Royale. Moscow TCP443 could not connect to LT while Poland HTTPS worked. Auto and ordinary Reality are unchanged. Revert the renderer hook to remove the trial.
