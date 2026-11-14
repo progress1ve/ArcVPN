@@ -1,5 +1,12 @@
 # Shared M3T RU-Direct client routing
 
+## Retire the owner's Lithuania XHTTP trial
+
+Authorized scope is the owner INCY profile 🇱🇹 Литва XHTTP · тест. The direct lt.arccnet.space:443 TLS route to /api-lt-direct is removed from delivery, while the existing listener and LTE authorization remain available for rollback. This was a direct connection without a CDN, at multiplier 1. The existing subscription URL will deliver the remaining catalog after refresh. Rollback restores the owner-only JSON renderer hook.
+
+Verify existing bound owner and control subscriptions, preserve the ordinary Lithuania profile, and export one authorized VLESS link for the ordinary Netherlands profile to a private local file.
+
+
 ## Restore Lithuania in AutoSelect and diagnose Royale ingress
 
 Owner requests physical Cherry back in leastLoad and migration to Royale 89.248.65.242. Existing CDN reserve, client hostname/SNI, authorization, quotas and YouTube policy stay in place. Cherry passed TCP from two Russian probes and HTTPS from Moscow and Poland. Royale new address is absent from eth0, and both authoritative DNS servers still return 89.248.65.203. Verify delivery of packets for the new IP and real direct tunnels before changing production client or panel endpoints. Rollback scoped renderer revert and removal of any temporary address.
