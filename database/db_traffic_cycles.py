@@ -51,6 +51,7 @@ def start_or_preserve_traffic_cycle(
     *,
     activated_at: Optional[datetime | str] = None,
     preserve_existing: bool,
+    reset_panel_on_activation: bool = False,
 ) -> Dict[str, Any]:
     """Start a new cycle after lapse, or preserve one during early renewal."""
     event = _utc(activated_at)
@@ -63,7 +64,8 @@ def start_or_preserve_traffic_cycle(
             raise LookupError(f"user {user_id} not found")
         if (preserve_existing and current["traffic_cycle_anchor_at"]
                 and current["traffic_cycle_reset_at"]
-                and _utc(current["traffic_cycle_reset_at"]) > event):
+                and (_utc(current["traffic_cycle_reset_at"]) > event
+                     or current["traffic_cycle_reset_at"] == current["traffic_cycle_anchor_at"])):
             return {
                 "anchor_at": current["traffic_cycle_anchor_at"],
                 "reset_at": current["traffic_cycle_reset_at"],
@@ -73,6 +75,12 @@ def start_or_preserve_traffic_cycle(
         boundary = calendar_anniversary(event, 1)
         event_sql, boundary_sql = _sql(event), _sql(boundary)
         columns = {row["name"] for row in conn.execute("PRAGMA table_info(users)")}
+        # An existing panel identity can retain bytes from the expired subscription.
+        # Queue the activation boundary for the same acknowledged reset as a monthly rollover.
+        if reset_panel_on_activation and "lte_panel_username" in columns:
+            identity = conn.execute("SELECT lte_panel_username FROM users WHERE id=?", (user_id,)).fetchone()
+            if identity["lte_panel_username"]:
+                boundary_sql = event_sql
         addon_reset = ", lte_notified_pct=100" if "lte_notified_pct" in columns else ""
         conn.execute(
             f"""UPDATE users SET traffic_cycle_anchor_at=?,

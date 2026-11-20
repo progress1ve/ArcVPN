@@ -452,7 +452,7 @@ async def _apply_renew_order(order_id: str, order: Dict[str, Any]) -> Tuple[bool
                 "⚠️ Основная подписка продлена, LTE-доступ проверит поддержка."
             ), _reload_order(order_id)
         start_or_preserve_traffic_cycle(
-            user_internal_id, preserve_existing=was_active
+            user_internal_id, preserve_existing=was_active, reset_panel_on_activation=True
         )
         update_order_fulfillment(order_id, 'applied')
 
@@ -551,7 +551,7 @@ async def _apply_new_subscription_order(order_id: str, order: Dict[str, Any]) ->
 
                 if created_keys:
                     start_or_preserve_traffic_cycle(
-                        user_internal_id, preserve_existing=False
+                        user_internal_id, preserve_existing=False, reset_panel_on_activation=True
                     )
                     logger.info("🎉 Успешно создано %s ключей для заказа %s", len(created_keys), order_id)
                 else:

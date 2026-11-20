@@ -7,6 +7,8 @@ import pytest
 from database import connection
 from database.db_traffic_cycles import (
     calendar_anniversary,
+    claim_traffic_cycle_reset,
+    complete_traffic_cycle_reset,
     get_due_traffic_cycles,
     start_or_preserve_traffic_cycle,
 )
@@ -203,3 +205,17 @@ def test_migration_64_repairs_missing_and_duplicated_anchors_without_zeroing(tmp
     assert rows[4]["traffic_cycle_anchor_at"] == "2026-09-07 09:00:00"
     assert [rows[index]["lte_used_bytes"] for index in range(1, 5)] == [123, 456, 789, 999]
     conn.close()
+
+def test_paid_activation_queues_panel_reset_and_preserves_pending_boundary(cycle_db):
+    with connection.get_db() as conn:
+        conn.execute("ALTER TABLE users ADD COLUMN lte_panel_username TEXT")
+        conn.execute("UPDATE users SET lte_panel_username='test-lte'")
+        conn.execute("INSERT INTO vpn_keys(id,user_id,expires_at,panel_email) VALUES(1,1,'2030-01-01','test')")
+    event = "2026-11-07 14:13:54"
+    start_or_preserve_traffic_cycle(1, activated_at=event, preserve_existing=False, reset_panel_on_activation=True)
+    assert not start_or_preserve_traffic_cycle(1, activated_at="2026-11-08", preserve_existing=True)["started"]
+    assert get_due_traffic_cycles(now=event)[0]["boundary_at"] == event
+    assert claim_traffic_cycle_reset(1, event)
+    assert complete_traffic_cycle_reset(1, event, completed_at=event)
+    assert not get_due_traffic_cycles(now="2026-12-07 14:13:53")
+    assert get_due_traffic_cycles(now="2026-12-07 14:13:54")

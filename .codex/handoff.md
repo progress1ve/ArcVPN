@@ -247,3 +247,5 @@ Moscow retirement actual: removedRUtargetoutboundYOUTUBE_RU from5panelprofiles(E
 Economy. Owner asked verify Paid20/+2. Read-only audit found paid=activekeys minusactivetrialusers, no paymentvalidation; badge=rolling24hordercount inclrenewals. Initial20bucket19commercial; concurrentnewkey final16:00MSK35active/14trial/21bucket/19commercial/2withoutcommercial. Lifetimecommercialunique27. Nov7twoordersbothrenew,1first-recordedbuyer; Nov8calendar0. Don't claim20/21actualpayingusers or+2newbuyers. NoUI/datamodification. Fullsourcecriteria docs/research/paid-counter-audit-20261108.md; await owner metric semantics activevs lifetime before UI change.
 
 Recurring billing (2026-11-20): account API derives the next eligibility window from current key expiry. Claimed cycles no longer consume the queue limit. Revocation erases the provider identifier with a unique local placeholder.
+
+Paid reactivation of an LTE identity now queues a panel traffic reset at the activation boundary. Early renewal keeps the cycle. Scheduler retries failed resets.
