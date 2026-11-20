@@ -101,3 +101,5 @@ Closeout: 6d59db18 deployed on Poland. Subscription API restarted, bot and opera
 
 ## Royale admin and CDN recovery
 Acceptance: live Royale at 89.248.65.242 appears once in the existing nodes list with its inventory and CDN diagnostics. Retain the previous IP alias for compatibility. Verify the public CDN TLS certificate and real mobile tunnel separately. Roll back the admin change by reverting the mapping and rebuilding the bundle.
+Evidence: production fb1f9e54, subscription service active. Public admin serves the rebuilt bundle. The production overview handler returned one connected Royale row at 89.248.65.242 with provider RoyaleHosting. Direct UI verification stopped at the login screen. Build succeeded with esnext and no minification after Windows esbuild temp-file failures.
+Cloud CDN now serves arc-cert-cdn-sub, valid until 2026-12-31 13:23 MSK. Real LTE VPN through the public DNS hostname passed 5/5 LatencyLab operators after rollout. The pinned 188.72.110.52 edge still serves the vendor default certificate and failed 5/5. Keep the working DNS fallback. No subscription, origin-group or monitor-target changes.
