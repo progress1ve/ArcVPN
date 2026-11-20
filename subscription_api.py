@@ -686,6 +686,7 @@ NODE_METRICS_TOKEN = str(getattr(config, "NODE_METRICS_TOKEN", ""))
 NODE_INVENTORY = {
     "45.141.202.248": {"provider": "RoyaleHosting", "location": "Нидерланды"},
     "89.248.65.203": {"provider": "RoyaleHosting", "location": "Нидерланды"},
+    "89.248.65.242": {"provider": "RoyaleHosting", "location": "Нидерланды"},
     "88.216.62.135": {"provider": "Cherry Servers", "location": "Литва"},
     "136.148.220.228": {"provider": "HostUp", "location": "Швеция"},
     "87.121.47.203": {"provider": "1chost", "location": "Германия"},
