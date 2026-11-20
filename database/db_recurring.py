@@ -5,6 +5,11 @@ import json
 from .connection import get_db
 
 
+# Keep legacy methods without an explicit key bound to the latest owned key.
+_EFFECTIVE_KEY = """vk.user_id=rpm.user_id AND vk.id=COALESCE(rpm.vpn_key_id,
+    (SELECT id FROM vpn_keys WHERE user_id=rpm.user_id ORDER BY expires_at DESC, id DESC LIMIT 1))"""
+
+
 def save_recurring_method(
     user_id: int, payment_method_id: str, method_type: str, display_title: str = "",
     vpn_key_id: Optional[int] = None, tariff_id: Optional[int] = None,
@@ -40,12 +45,14 @@ def save_recurring_method(
 
 def get_active_recurring_method(user_id: int) -> Optional[Dict[str, Any]]:
     with get_db() as conn:
-        row = conn.execute("""
-            SELECT id, provider, method_type, display_title, consent_at, updated_at,
-                   vpn_key_id, tariff_id, amount_cents, period_days, next_charge_at,
+        row = conn.execute(f"""
+            SELECT rpm.id, provider, method_type, display_title, consent_at, rpm.updated_at,
+                   rpm.vpn_key_id, rpm.tariff_id, amount_cents, period_days,
+                   strftime('%Y-%m-%dT%H:%M:%SZ', vk.expires_at, '-1 day') AS next_charge_at,
                    last_charge_at, failure_count, last_error
-            FROM recurring_payment_methods WHERE user_id=? AND active=1
-            ORDER BY id DESC LIMIT 1
+            FROM recurring_payment_methods rpm LEFT JOIN vpn_keys vk ON {_EFFECTIVE_KEY}
+            WHERE rpm.user_id=? AND rpm.active=1
+            ORDER BY rpm.id DESC LIMIT 1
         """, (user_id,)).fetchone()
         return dict(row) if row else None
 
@@ -54,7 +61,7 @@ def disable_recurring_methods(user_id: int) -> int:
     with get_db() as conn:
         cursor = conn.execute("""
             UPDATE recurring_payment_methods
-            SET active=0, payment_method_id='', disabled_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+            SET active=0, payment_method_id='revoked:' || id, disabled_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
             WHERE user_id=? AND active=1
         """, (user_id,))
         return int(cursor.rowcount or 0)
@@ -107,22 +114,25 @@ def claim_due_recurring_cycles(limit: int = 20, include_card: bool = True, inclu
     """Atomically claim due card renewals; UNIQUE prevents duplicate charges."""
     claimed: list[Dict[str, Any]] = []
     with get_db() as conn:
-        rows = conn.execute("""
+        rows = conn.execute(f"""
             SELECT rpm.*, vk.id AS effective_vpn_key_id, vk.expires_at, vk.user_id AS key_user_id,
                    COALESCE(rpm.tariff_id, vk.tariff_id) AS effective_tariff_id,
                    COALESCE(rpm.amount_cents, CAST(t.price_rub * 100 AS INTEGER), t.price_cents) AS effective_amount_cents,
                    COALESCE(rpm.period_days, t.duration_days, 30) AS effective_period_days,
                    u.telegram_id
             FROM recurring_payment_methods rpm
-            JOIN vpn_keys vk ON vk.id=COALESCE(rpm.vpn_key_id,
-                (SELECT id FROM vpn_keys WHERE user_id=rpm.user_id ORDER BY expires_at DESC LIMIT 1))
+            JOIN vpn_keys vk ON {_EFFECTIVE_KEY}
             JOIN users u ON u.id=rpm.user_id
             LEFT JOIN tariffs t ON t.id=COALESCE(rpm.tariff_id, vk.tariff_id)
             WHERE rpm.active=1
               AND ((rpm.method_type='bank_card' AND ?=1) OR (rpm.method_type='sbp' AND ?=1))
               AND vk.expires_at BETWEEN datetime('now','-3 days') AND datetime('now','+1 day')
               AND COALESCE(rpm.amount_cents, CAST(t.price_rub * 100 AS INTEGER), t.price_cents, 0) > 0
-            ORDER BY vk.expires_at LIMIT ?
+            AND NOT EXISTS (
+                  SELECT 1 FROM recurring_charge_cycles cycle
+                  WHERE cycle.recurring_method_id=rpm.id AND cycle.vpn_key_id=vk.id
+                    AND cycle.due_key=substr(vk.expires_at,1,16))
+            ORDER BY vk.expires_at, rpm.id LIMIT ?
         """, (int(include_card), int(include_sbp), max(1, min(100, int(limit))))).fetchall()
         for raw in rows:
             item = dict(raw)
