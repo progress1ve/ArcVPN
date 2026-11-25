@@ -66,7 +66,7 @@ def _provider():
     providers = {
         "openai": ("https://api.openai.com/v1/responses", "OPENAI_API_KEY", "gpt-4.1-mini"),
         "groq": ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY", "openai/gpt-oss-120b"),
-        "opencode": ("https://opencode.ai/inference/openai/v1/chat/completions", "OPENCODE_API_KEY", "glm-5.3"),
+        "opencode": ("https://opencode.ai/inference/openai/v1/chat/completions", "OPENCODE_API_KEY", "deepseek-v4.1-flash-free"),
         "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "openrouter/free"),
         "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "GEMINI_API_KEY", "gemini-3.5-flash-lite"),
     }
@@ -124,7 +124,7 @@ def request_reply(messages):
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Authorization": "Bearer " + os.environ[key_name], "Content-Type": "application/json", "User-Agent": "ArcVPN-Support/1.0"},
     )
-    with urllib.request.urlopen(request, timeout=8) as response:
+    with urllib.request.urlopen(request, timeout=25) as response:
         result = json.loads(response.read(100000))
     if key_name == "OPENAI_API_KEY":
         if result.get("status") != "completed":
@@ -154,10 +154,10 @@ def plain_reply(text):
 def verified_reply(text, messages=None):
     """Keep chat text readable and prevent known invented client instructions."""
     users = [row['body'].lower() for row in messages or [] if row['sender']=='user']
-    services = [match.group(0) for body in users for match in re.finditer(r'\bтг\b|телеграм|telegram|ютуб|youtube|instagram|инстаграм|netflix',body)]
+    services = [match.group(0) for body in users if "geosite.dat" not in body for match in re.finditer(r'\bтг\b|телеграм|telegram|ютуб|youtube|instagram|инстаграм|netflix',body)]
     telegram = bool(services and re.search(r'\bтг\b|телеграм|telegram',services[-1]))
     proxy_notes = [body for body in users if 'прокс' in body]
-    proxy_checked = bool(proxy_notes and re.search(r'прокс\w*[^.;,\n]{0,30}(?:выключ|отключ|\bнет\b|не\s+(?:использ|включ))|(?:выключ|отключ|не\s+(?:использ|включ))[^.;,\n]{0,30}прокс|нет\s+прокс', proxy_notes[-1]))
+    proxy_checked = bool(proxy_notes and re.search(r'прокс\w*[^.;,\n]{0,30}(?:выключ|отключ|\bнет\b|не\s+(?:использ|включ))|(?:выключ|отключ|не\s+(?:использ|включ))[^.;,\n]{0,30}прокс|нету?\s+прокс', proxy_notes[-1]))
     failures = sum(max(len(re.findall(r'не помог(?:ла|ло|ли)?', body)), int(bool(re.search(r'не измен|вс[её] (?:равно|ещ[её]) не|по.?прежнему', body)))) for body in users)
     if telegram and failures >= 2:
         return 'Проверки не помогли. Зовём на помощь менеджера — он ответит в этом чате. Повторять те же действия не нужно.'
@@ -255,6 +255,9 @@ def escalation_reason(messages):
         latest,
     ):
         return 'account'
+    previous = next((row["body"].lower() for row in reversed(messages[:-1]) if row["sender"] != "user"), "")
+    if "прокс" in previous and re.search(r"нету?\s+прокс|прокси\s+нету?", latest):
+        return "diagnosis"
     seen, failures, answered = set(), 0, False
     for row in messages:
         if row['sender'] != 'user':

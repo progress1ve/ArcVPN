@@ -70,7 +70,7 @@ def known_reply(messages, reason):
             return "В INCY откройте активный профиль маршрутизации, обновите его геофайлы вручную и снова включите VPN.", None
         return "В Happ проверьте обновление приложения. В INCY откройте активный профиль маршрутизации и обновите его геофайлы. Затем снова включите VPN.", None
 
-    if not reason and re.search(r"не помогло|та же ошибка|ошибка осталась", latest) and any(
+    if not reason and re.search(r"не помогло|та же ошибка|ошибка осталась|ничего не работает", latest) and any(
         row["sender"] == "user" and "geosite.dat" in row["body"].lower() for row in messages[:-1]
     ):
         return "Передали менеджеру результат проверки. Он ответит здесь, повторять шаг не нужно.", "diagnosis"
