@@ -212,3 +212,36 @@ def set_support_ai_enabled(thread_id: int, enabled: bool):
             conn.execute('UPDATE support_threads SET ai_handoff_reason=?,ai_context_start_id=? WHERE id=?', (reason,cutoff,thread_id))
         conn.execute('DELETE FROM support_ai_attempts WHERE thread_id=?', (thread_id,))
         return {'enabled': enabled, 'reason': reason}
+
+def support_plan_summary(thread_id):
+    """Resolve the owner from the conversation; expose only customer-facing facts."""
+    from sqlite3 import OperationalError
+    from bot.services.admin_profile import profile_facts
+    from .db_lte_addons import active_lte_addons
+
+    with get_db() as conn:
+        try:
+            owner = conn.execute("""
+                SELECT u.id, u.device_limit, u.lte_quota_gb
+                FROM support_threads st JOIN users u ON u.id=st.user_id
+                WHERE st.id=? AND NOT COALESCE(u.is_banned,0)
+            """, (thread_id,)).fetchone()
+            if not owner or owner["device_limit"] is None or owner["lte_quota_gb"] is None:
+                return None
+            subs = [dict(row) for row in conn.execute("""
+                SELECT k.id,k.tariff_id,k.created_at,t.name AS tariff_name,
+                       k.expires_at>datetime('now') AND k.panel_disabled_at IS NULL AS active,
+                       EXISTS(SELECT 1 FROM trial_entitlements e WHERE e.vpn_key_id=k.id
+                              AND e.status='active') AS is_trial
+                FROM vpn_keys k LEFT JOIN tariffs t ON t.id=k.tariff_id WHERE k.user_id=?
+            """, (owner["id"],))]
+            current = [s for s in subs if s["active"]]
+            if len(current) != 1:
+                return None
+            profile_facts(conn, owner["id"], subs)
+            addon = active_lte_addons(conn, owner["id"])
+            if addon is None or current[0]["plan_kind"] == "unknown":
+                return None
+            return current[0]["plan_name"], owner["device_limit"], owner["lte_quota_gb"] + addon["bonus_gb"]
+        except OperationalError:
+            return None

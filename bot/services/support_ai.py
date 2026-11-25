@@ -185,7 +185,23 @@ def _reply(thread_id, message_id):
         if not messages:
             return
         reason = escalation_reason(messages)
-        known = known_reply(messages, reason)
+        known = None
+        question = messages[-1]["body"].lower()
+        if reason in {None, "account"} and re.search(
+            r"како[йяе].{0,35}(?:тариф|подписк)|какая.{0,35}подписк|"
+            r"(?:куда|нету?|пропал|отсутствует).{0,28}обход|0\s*[—–-]\s*бесконечност", question
+        ):
+            summary = db_support.support_plan_summary(thread_id)
+            if summary:
+                plan, devices, quota = summary
+                answer = f"У вас активен тариф «{plan}». Лимит устройств — {devices}, лимит обхода — {quota} ГБ."
+                if quota == 0:
+                    answer += " Чтобы пользоваться обходом, можно докупить ГБ на месяц в личном кабинете или выбрать тариф с обходом."
+                elif "обход" in question or "бесконечност" in question:
+                    answer += " Остаток ГБ за текущий период можно посмотреть в кабинете."
+                known = answer, None
+        if known is None:
+            known = known_reply(messages, reason)
         if known:
             answer, handoff = known
             if handoff:
