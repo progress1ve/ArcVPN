@@ -4,6 +4,7 @@ from typing import Any, Dict, Optional
 
 from .connection import get_db
 
+MANAGER_ASSIGNED = frozenset({"requested", "human", "manual"})
 SPAM_HANDOFF = "Вы отправили много сообщений подряд. Зовём на помощь менеджера — он ответит в этом чате. ИИ пока приостановлен."
 
 def _thread_for_telegram_id(telegram_id: int, create: bool = False) -> Optional[Dict[str, Any]]:
@@ -20,7 +21,7 @@ def _thread_for_telegram_id(telegram_id: int, create: bool = False) -> Optional[
 def get_support_messages(telegram_id: int, after_id: int = 0, limit: int = 100) -> Dict[str, Any]:
     thread = _thread_for_telegram_id(telegram_id)
     if not thread:
-        return {"thread_id": None, "messages": []}
+        return {"thread_id": None, "messages": [], "manager_message_id": None, "manager_requested": False}
     with get_db() as conn:
         rows = conn.execute(
             """SELECT id, sender, body, created_at, read_at,
@@ -33,7 +34,49 @@ def get_support_messages(telegram_id: int, after_id: int = 0, limit: int = 100) 
             "WHERE thread_id = ? AND sender = 'admin' AND read_at IS NULL",
             (thread["id"],),
         )
-        return {"thread_id": thread["id"], "messages": [dict(row) for row in rows]}
+        latest = _latest_support_reply(conn, thread["id"])
+        active_ai = (
+            thread["status"] == "open"
+            and latest
+            and latest["sender_telegram_id"] == 0
+            and latest["id"] >= thread["ai_context_start_id"]
+        )
+        return {
+            "thread_id": thread["id"],
+            "messages": [dict(row) for row in rows],
+            "manager_message_id": latest["id"] if active_ai else None,
+            "manager_requested": thread["ai_handoff_reason"] in MANAGER_ASSIGNED,
+        }
+
+
+def _latest_support_reply(conn, thread_id):
+    return conn.execute(
+        "SELECT id, sender_telegram_id FROM support_messages WHERE thread_id=? AND sender='admin' ORDER BY id DESC LIMIT 1",
+        (thread_id,),
+    ).fetchone()
+
+
+def request_support_manager(telegram_id: int, message_id: int):
+    """Claim the active conversation once, even if AI already proposed a handoff."""
+    with get_db() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        thread = conn.execute(
+            """SELECT t.id, t.status, t.ai_handoff_reason, t.ai_context_start_id
+               FROM support_threads t JOIN users u ON u.id=t.user_id WHERE u.telegram_id=?""",
+            (telegram_id,),
+        ).fetchone()
+        if not thread or thread["status"] != "open" or message_id < thread["ai_context_start_id"]:
+            return None
+        latest = _latest_support_reply(conn, thread["id"])
+        if not latest or latest["id"] != message_id or latest["sender_telegram_id"] != 0:
+            return None
+        notify = thread["ai_handoff_reason"] not in MANAGER_ASSIGNED
+        if notify:
+            conn.execute(
+                "UPDATE support_threads SET ai_handoff_reason='requested', updated_at=CURRENT_TIMESTAMP WHERE id=?",
+                (thread["id"],),
+            )
+        return thread["id"], notify
 
 
 def add_user_support_message(telegram_id: int, body: str) -> Optional[Dict[str, Any]]:

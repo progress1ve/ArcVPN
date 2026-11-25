@@ -447,8 +447,26 @@ export const disableRecurringPayment = () =>
     ? Promise.resolve({ ok: true, disabled: true })
     : mutate('/api/billing/recurring', 'DELETE'))
 let devSupportAttempts = 0
+let devManagerRequested = false
 const devSupportPreview = () => new URLSearchParams(location.search).get('support-preview') === 'telegram'
-export const fetchSupportMessages = (after = 0) => (import.meta.env.DEV ? devSupportPreview() ? Promise.resolve({ok:true,messages:MOCK.support.messages.filter(m=>m.id>after),ai:{enabled:true,pending:false,handoff:devSupportAttempts>=10}}) : mock('support') : get(`/api/support/messages?after=${encodeURIComponent(after)}`))
+export const fetchSupportMessages = (after = 0) => {
+  if (!import.meta.env.DEV) return get(`/api/support/messages?after=${encodeURIComponent(after)}`)
+  if (!devSupportPreview()) return mock('support')
+  const lastReply = [...MOCK.support.messages].reverse().find((message) => message.sender === 'admin')
+  return Promise.resolve({
+    ok: true,
+    messages: MOCK.support.messages.filter((message) => message.id > after),
+    manager_message_id: lastReply?.is_ai ? lastReply.id : null,
+    manager_requested: devManagerRequested,
+    ai: { enabled: true, pending: false, handoff: devManagerRequested || devSupportAttempts >= 10 },
+  })
+}
+
+export const requestSupportManager = (messageId) => {
+  if (!import.meta.env.DEV) return post('/api/support/manager', { message_id: messageId })
+  devManagerRequested = true
+  return Promise.resolve({ ok: true, manager_requested: true, ai: { enabled: true, pending: false, handoff: true } })
+}
 
 export async function sendSupportMessage(body) {
   if (import.meta.env.DEV) {
@@ -456,10 +474,10 @@ export async function sendSupportMessage(body) {
     MOCK.support.messages.push(message)
     if (devSupportPreview()) {
       devSupportAttempts += 1
-      const body = devSupportAttempts === 10 ? 'Вы отправили много сообщений подряд. Зовём на помощь менеджера — он ответит в этом чате. ИИ пока приостановлен.' : devSupportAttempts === 1 ? 'Проверим прокси в Telegram.\n1. Откройте Настройки → Данные и память → Прокси. Если он включён, временно выключите.\n2. Перезапустите Telegram, оставив VPN включённым. Остальные сайты открываются?' : ''
+      const body = devManagerRequested ? '' : devSupportAttempts === 10 ? 'Вы отправили много сообщений подряд. Зовём на помощь менеджера — он ответит в этом чате. ИИ пока приостановлен.' : devSupportAttempts === 1 ? 'Проверим прокси в Telegram.\n1. Откройте Настройки → Данные и память → Прокси. Если он включён, временно выключите.\n2. Перезапустите Telegram, оставив VPN включённым. Остальные сайты открываются?' : ''
       const assistant_message = body ? {id:message.id+1,sender:'admin',is_ai:true,body,created_at:message.created_at} : null
       if (assistant_message) MOCK.support.messages.push(assistant_message)
-      return {ok:true,thread_id:1,message,assistant_message,ai:{enabled:true,pending:false,handoff:devSupportAttempts>=10}}
+      return {ok:true,thread_id:1,message,assistant_message,ai:{enabled:true,pending:false,handoff:devManagerRequested || devSupportAttempts>=10}}
     }
     return { ok: true, thread_id: 1, message }
   }

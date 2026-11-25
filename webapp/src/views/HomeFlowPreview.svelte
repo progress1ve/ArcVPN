@@ -7,7 +7,7 @@
   import { status, tariffs, referral, loadStatus, loadTariffs, loadReferral } from '../lib/data.js'
   import { tg, getUser, haptic, selectionHaptic, openExternal, openTelegram, openPayment, setNativeBackHandler } from '../lib/telegram.js'
   import { copyText, toastMsg, toast } from '../lib/ui.js'
-  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createAddonPayment, createEmailTrialPayment, startEmailFreeTrial, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
+  import { fetchAccount, fetchPublicConfig, fetchPreferences, fetchDevices, renameDevice, releaseDevice, fetchSupportMessages, sendSupportMessage, requestSupportManager, savePreferences, requestEmailCode, verifyEmailCode, unlinkEmail, createSbpPayment, createCardPayment, createAddonPayment, createEmailTrialPayment, startEmailFreeTrial, validatePromocode, fetchSbpPayment, fetchRecurringPayment, disableRecurringPayment, logout } from '../lib/api.js'
   import { daysLeft, daysWord, formatBytes, formatDate } from '../lib/format.js'
   import ArcIcon from '../components/ArcIcon.svelte'
   import DeviceIcon from '../components/DeviceIcon.svelte'
@@ -134,6 +134,11 @@
   let supportAiEnabled = false
   let supportAiPending = false
   let supportAiHandoff = false
+  let supportManagerMessageId = null
+  let supportManagerRequested = false
+  let supportManagerBusy = false
+  let supportManagerRevision = 0
+  let supportManagerError = ''
   let supportFetchBusy = false
   let supportLastPoll = 0
   let reducedMotion = typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -264,9 +269,19 @@
   $: purchaseMonthlyRub = Math.round(purchaseTotalRub / purchaseMonths)
   $: addonTotalRub = ({5:20,15:35,30:60,45:90,75:175,115:290}[addonLteGb] || 0) + addonDevices * 25
   $: addonDeviceMax = Math.max(0, 15 - deviceLimit)
+  const supportGuideLinks = new Map([
+    ['https://www.happ.su/main/dev-docs/routing', 'Happ · маршрутизация'],
+    ['https://www.happ.su/main', 'Happ · версии приложения'],
+    ['https://docs.incy.cc/routing/', 'INCY · маршрутизация'],
+    ['https://docs.incy.cc/deep-links/', 'INCY · импорт подписки'],
+  ])
+
   $: supportTimeline = supportMessages.map((message, index) => {
     const day = chatDayKey(message.created_at)
-    return { ...message, showDay: index === 0 || day !== chatDayKey(supportMessages[index - 1]?.created_at), dayLabel: chatDayLabel(message.created_at) }
+    const source = message.is_ai && message.body.match(/\n\n[^\n]+ — (https:\/\/\S+)$/)
+    const guideUrl = source && supportGuideLinks.has(source[1]) ? source[1] : null
+    const body = guideUrl ? message.body.slice(0, source.index) : message.body
+    return { ...message, body, guideUrl, showDay: index === 0 || day !== chatDayKey(supportMessages[index - 1]?.created_at), dayLabel: chatDayLabel(message.created_at) }
   })
   $: remainingDays = primary?.is_active ? daysLeft(primary.expires_at_unix) : 0
   $: onlineDevices = activeKeys.reduce((total, key) => total + Number(key.online_devices || 0), 0)
@@ -1065,13 +1080,19 @@
     if (supportFetchBusy) return
     supportFetchBusy = true
     supportLastPoll = Date.now()
+    const managerRevision = supportManagerRevision
     const followLatest = !supportMessages.length || !supportHistory || supportHistory.scrollHeight - supportHistory.scrollTop - supportHistory.clientHeight < 80
     try {
       const after = supportMessages.at(-1)?.id || 0
       const result = await fetchSupportMessages(after)
-      supportAiEnabled = Boolean(result.ai?.enabled)
-      supportAiPending = Boolean(result.ai?.pending)
-      supportAiHandoff = Boolean(result.ai?.handoff)
+      if (!supportManagerBusy && managerRevision === supportManagerRevision) {
+        supportAiEnabled = Boolean(result.ai?.enabled)
+        supportAiPending = Boolean(result.ai?.pending)
+        supportAiHandoff = Boolean(result.ai?.handoff)
+        if (supportManagerMessageId !== result.manager_message_id) supportManagerError = ''
+        supportManagerMessageId = result.manager_message_id ?? null
+        supportManagerRequested = Boolean(result.manager_requested)
+      }
       const incoming = result.messages || []
       const known = new Set(supportMessages.map((item) => item.id))
       supportMessages = [...supportMessages, ...incoming.filter((item) => !known.has(item.id))]
@@ -1103,6 +1124,26 @@
     supportChatOpen = false
     clearInterval(supportPoll)
     supportPoll = null
+  }
+
+  async function inviteSupportManager(messageId) {
+    if (supportManagerBusy || supportManagerRequested || supportBusy) return
+    supportManagerBusy = true
+    supportManagerRevision += 1
+    supportManagerError = ''
+    try {
+      const result = await requestSupportManager(messageId)
+      supportManagerRequested = Boolean(result.manager_requested)
+      supportAiPending = Boolean(result.ai?.pending)
+      supportAiHandoff = Boolean(result.ai?.handoff)
+      haptic('light')
+    } catch (_) {
+      supportManagerError = 'Не удалось позвать менеджера. Попробуйте ещё раз.'
+    } finally {
+      supportManagerBusy = false
+      supportManagerRevision += 1
+      supportLastPoll = 0
+    }
   }
 
   async function submitSupportMessage(bodyOverride = '') {
@@ -1579,7 +1620,7 @@
           {#if supportChatOpen}
             <header class="chat-toolbar">
               <button class="system-back" class:telegram-mobile-hidden={isTelegramWebApp} aria-label="Назад" on:click={closeSupportChat}><ArcIcon name="back" size={20} weight="bold" /></button>
-              <div><h1>Поддержка ArcVPN</h1><p>{supportAiHandoff ? 'Зовём на помощь менеджера · ИИ приостановлен' : supportAiEnabled ? 'ИИ помогает сразу · менеджер тоже видит диалог' : 'Менеджер ответит в этом чате'}</p></div>
+              <div><h1>Поддержка ArcVPN</h1><p>{supportAiHandoff ? 'Диалог у поддержки · ИИ приостановлен' : supportAiEnabled ? 'ИИ помогает сразу · менеджер тоже видит диалог' : 'Менеджер ответит в этом чате'}</p></div>
             </header>
             <section class="support-chat" bind:this={supportHistory} role="log" aria-label="История диалога" aria-live="polite" aria-relevant="additions text">
               {#if supportLoading && !supportMessages.length}<p class="chat-placeholder" role="status">Загружаем диалог…</p>
@@ -1587,8 +1628,27 @@
               {#each supportTimeline as message (message.id)}
                 {#if message.showDay}<div class="chat-day"><span>{message.dayLabel}</span></div>{/if}
                 <div class:mine={message.sender === 'user'} class:incoming={message.sender !== 'user'} class="chat-row" in:fly={{ y: reducedMotion ? 0 : 6, duration: reducedMotion ? 0 : 180 }}>
-                  <article class:mine={message.sender === 'user'} class="chat-message">{#if message.sender !== 'user'}<b>{message.is_ai ? 'ИИ-помощник ArcVPN' : 'Поддержка ArcVPN'}</b>{/if}<p>{message.body}</p><small>{chatTime(message.created_at)}</small></article>
+                  <article class:mine={message.sender === 'user'} class="chat-message">
+                    {#if message.sender !== 'user'}<b>{message.is_ai ? 'ИИ-помощник ArcVPN' : 'Поддержка ArcVPN'}</b>{/if}
+                    <p>{message.body}</p>
+                    {#if message.guideUrl}
+                      <a class="chat-guide" href={message.guideUrl} target="_blank" rel="noopener noreferrer">{supportGuideLinks.get(message.guideUrl)}</a>
+                    {/if}
+                    <small>{chatTime(message.created_at)}</small>
+                  </article>
                 </div>
+                {#if message.is_ai && message.id === supportManagerMessageId}
+                  <div class="chat-manager">
+                    {#if supportManagerRequested}
+                      <span role="status"><ArcIcon name="check" size={16} />Менеджер приглашён</span>
+                    {:else}
+                      <button type="button" disabled={supportManagerBusy || supportBusy} on:click={() => inviteSupportManager(message.id)}>
+                        <ArcIcon name="headset" size={17} />{supportManagerBusy ? 'Отправляем запрос…' : 'Позвать менеджера'}
+                      </button>
+                      {#if supportManagerError}<p role="alert">{supportManagerError}</p>{/if}
+                    {/if}
+                  </div>
+                {/if}
               {/each}
               {#if supportError}<div class="chat-error" role="alert"><p>{supportError}</p><button disabled={supportBusy} on:click={() => supportSendFailed ? submitSupportMessage() : loadSupportMessages()}>Повторить</button></div>{/if}
               {#if supportAiPending}<div class="chat-typing" role="status" aria-live="polite"><span aria-hidden="true"><i></i><i></i><i></i></span>ИИ готовит ответ</div>{/if}
@@ -2844,6 +2904,14 @@
   .chat-screen .chat-message p { font-size:14px; line-height:1.55; }
   .chat-screen .chat-message > b { font-size:12px; margin-bottom:6px; }
   .chat-screen .chat-message small { font-size:11px; }
+  .chat-guide { display:inline-block; margin-top:7px; color:#9bd8fa; font-size:13px; text-underline-offset:3px; }
+  .chat-manager { align-self:flex-start; margin-top:-5px; max-width:100%; color:#bdd0de; font-size:13px; }
+  .chat-manager button, .chat-manager span { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 12px; }
+  .chat-manager button { border:1px solid #35576d; border-radius:12px; background:#101c29; color:#c6e6fa; font:inherit; font-weight:650; }
+  .chat-manager button:hover:not(:disabled) { background:#1a3041; }
+  .chat-manager button:focus-visible, .chat-guide:focus-visible { outline:2px solid #9bd8fa; outline-offset:3px; }
+  .chat-manager button:disabled { opacity:.65; }
+  .chat-manager p { margin:4px 0 0; color:#ffd8da; }
   .chat-empty { display:flex; align-items:center; justify-content:center; flex:1; flex-direction:column; gap:12px; padding:40px 0; text-align:center; color:#9bd9fb; }
   .chat-empty h2 { margin:0; font-size:21px; color:var(--text); }
   .chat-empty p,.chat-placeholder { margin:0; color:var(--muted); font-size:13px; line-height:1.7; }

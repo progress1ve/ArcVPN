@@ -11,6 +11,7 @@ import urllib.request
 from database.db_support import add_assistant_support_message, get_assistant_context
 from database import db_support
 from bot.services.support_ai_alerts import provider_health
+from bot.services.support_client_docs import cite_client_guide, find_client_guide
 from bot.services.support_knowledge import PRODUCT_FACTS, known_reply
 
 logger = logging.getLogger(__name__)
@@ -102,15 +103,19 @@ def request_reply(messages):
         conversation.append({'role':'user' if row['sender']=='user' else 'assistant', 'content':content})
         remaining -= len(content)
     conversation.reverse()
+    guide = find_client_guide(messages)
+    instructions = INSTRUCTIONS
+    if guide:
+        instructions += f"\nПроверенная выдержка из официальной документации ({guide.title}): {guide.facts}"
     payload = {
         "model": os.getenv("SUPPORT_AI_MODEL", model),
-        "instructions": INSTRUCTIONS,
+        "instructions": instructions,
         "input": conversation,
         "max_output_tokens": 350,
         "store": False,
     }
     if key_name != "OPENAI_API_KEY":
-        payload = {"model": payload["model"], "messages": [{"role": "system", "content": INSTRUCTIONS}, *conversation], "max_tokens": 350}
+        payload = {"model": payload["model"], "messages": [{"role": "system", "content": instructions}, *conversation], "max_tokens": 350}
         if key_name == "GROQ_API_KEY":
             payload.pop("max_tokens")
             payload.update(max_completion_tokens=1024, reasoning_effort="low", include_reasoning=False)
@@ -130,7 +135,7 @@ def request_reply(messages):
         text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
     if not text:
         raise ValueError("empty AI response")
-    return verified_reply(text, messages)
+    return cite_client_guide(verified_reply(text, messages), guide)
 
 
 def plain_reply(text):

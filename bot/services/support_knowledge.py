@@ -2,6 +2,8 @@
 
 import re
 
+from bot.services.support_client_docs import HAPP_ROUTING, INCY_ROUTING, cite_client_guide, identify_client
+
 
 PRODUCT_FACTS = """Сверенные факты кабинета ArcVPN:
 • Первое подключение: «Подключить VPN» → устройство → Happ или INCY → установить приложение.
@@ -26,7 +28,7 @@ PRODUCT_FACTS = """Сверенные факты кабинета ArcVPN:
 def known_reply(messages, reason):
     """Return a verified response and optional handoff reason for a known case."""
     latest = messages[-1]["body"].strip().lower()
-    if reason in {"requested", "account"}:
+    if reason in {"requested", "account", "diagnosis"}:
         return None
 
     if reason in {None, "payment"} and re.fullmatch(
@@ -46,16 +48,41 @@ def known_reply(messages, reason):
     if reason == "payment":
         return None
     # A short clarification can follow an incorrect reply to a pasted app error.
-    app_error = re.search(r"geosite\.dat|критическая ошибка\s+xraycore|ядро не может быть запущено", latest)
-    if not app_error and re.fullmatch(r"это (?:выходит|пишет|появляется) в (?:приложении\s*)?[«“\"]?happ[»”\"]?[.!]?", latest):
+    error_pattern = r"geosite\.dat|критическая ошибка\s+xray\s*core|ядро не может быть запущено"
+    error = latest if re.search(error_pattern, latest) else ""
+    if not error and re.fullmatch(r"(?:это (?:выходит|пишет|появляется) в (?:приложении\s*)?)?[«“\"]?(?:happ|incy|хапп|инси)[»”\"]?[.!]?", latest):
         previous = next((row["body"].lower() for row in reversed(messages[:-1]) if row["sender"] == "user"), "")
-        app_error = re.search(r"geosite\.dat|критическая ошибка\s+xraycore|ядро не может быть запущено", previous)
-    if app_error:
-        return (
-            "Эту ошибку показывает VPN-приложение при запуске ядра. Если можете, напишите, на какой ОС она появляется "
-            "и какая версия VPN-приложения установлена. Менеджер проверит ошибку и ответит в этом чате.",
-            "diagnosis",
+        if re.search(error_pattern, previous):
+            error = previous
+    if error:
+        if "geosite.dat" not in error:
+            return (
+                "Ошибка возникает при запуске ядра VPN-приложения. Пришлите точный текст ошибки и название клиента, "
+                "если вы его ещё не указали. Ссылку подписки и ключи присылать не нужно.",
+                None,
+            )
+        answer = (
+            "Сбой происходит при запуске ядра: правило маршрутизации обращается к секции, которой нет в geosite.dat. "
+            "Упоминание TELEGRAM в такой ошибке означает имя секции в файле."
+            if "telegram" in error else
+            "Сбой происходит при запуске ядра: правило маршрутизации обращается к секции, которой нет в geosite.dat."
         )
+        client = identify_client(messages)
+        if client == "happ":
+            answer += " Если для Happ доступно обновление, установите его из официального источника и попробуйте подключиться снова."
+            return cite_client_guide(answer, HAPP_ROUTING), None
+        if client == "incy":
+            answer += " Откройте используемый профиль маршрутизации в INCY и попробуйте обновить его геофайлы вручную."
+            return cite_client_guide(answer, INCY_ROUTING), None
+        return answer + " В каком приложении это появляется — Happ или INCY?", None
+
+    if not reason and re.search(r"не помогло|та же ошибка|ошибка осталась", latest) and any(
+        row["sender"] == "user" and "geosite.dat" in row["body"].lower() for row in messages[:-1]
+    ):
+        return "Передали менеджеру ошибку geosite.dat и результат проверки. Он ответит здесь, повторять шаг не нужно.", "diagnosis"
+
+    if not reason and re.search(r"\bxray\s*core\b", latest):
+        return "Пришлите точный текст ошибки XrayCore. Если название VPN-приложения ещё не указано, добавьте его. Ссылка подписки не нужна.", None
 
     if reason:
         return None

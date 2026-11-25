@@ -4537,6 +4537,31 @@ def api_support_messages():
     return _api_no_store(jsonify({"ok": True, **result, "ai": support_ai.status(result["thread_id"])}))
 
 
+@app.post('/api/support/manager')
+def api_support_manager():
+    telegram_id = _webapp_telegram_id()
+    if telegram_id is None:
+        return _api_error("unauthorized", 401)
+    if (request.content_length or 0) > 256:
+        return _api_error("invalid_support_message", 400)
+    payload = request.get_json(silent=True)
+    message_id = payload.get("message_id") if isinstance(payload, dict) else None
+    if type(message_id) is not int or not 0 < message_id < 2**63:
+        return _api_error("invalid_support_message", 400)
+    result = support_ai.db_support.request_support_manager(telegram_id, message_id)
+    if not result:
+        return _api_error("support_reply_changed", 409)
+    thread_id, notify = result
+    if notify:
+        threading.Thread(
+            target=_notify_support_admins,
+            args=(thread_id, telegram_id, "Пользователь позвал менеджера из чата поддержки."),
+            daemon=True,
+            name=f"support-manager-{thread_id}",
+        ).start()
+    return _api_no_store(jsonify({"ok": True, "manager_requested": True, "ai": support_ai.status(thread_id)}))
+
+
 @app.route('/api/device/import/<sub_id>', methods=['POST'])
 def api_register_import_device(sub_id: str):
     """Регистрирует устройство в момент нажатия «Открыть в Happ»."""

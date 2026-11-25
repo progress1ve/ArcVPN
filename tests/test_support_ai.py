@@ -474,7 +474,7 @@ def test_legacy_backfill_is_idempotent_and_respects_explicit_resume(support_db):
 @pytest.mark.parametrize(
     "body, expected, reason",
     [
-        ("Критическая ошибка XrayCore: в geosite.dat отсутствует секция TELEGRAM", "запуске ядра", "diagnosis"),
+        ("Критическая ошибка XrayCore: в geosite.dat отсутствует секция TELEGRAM", "в каком приложении", None),
         ("Хочу уточнить платеж автоматически идёт или мне продлить самостоятельно?", "Настройки → Автопродление", None),
         ("Как отключить автопродление?", "текущая подписка", None),
         ("Там написано (0 — бесконечность)", "нельзя определить остаток", None),
@@ -508,8 +508,9 @@ def test_happ_clarification_after_misclassified_core_error():
         {"sender": "user", "body": "это выходит в приложении “happ”"},
     ]
     answer, handoff = known_reply(messages, None)
-    assert handoff == "diagnosis"
-    assert "ядра" in answer and "прокси" not in answer
+    assert handoff is None
+    assert "geosite.dat" in answer and "прокси" not in answer
+    assert "https://www.happ.su/main/dev-docs/routing" in answer
 
 
 def test_opencode_console_uses_fixed_inference_endpoint_and_safe_context(monkeypatch):
@@ -538,3 +539,84 @@ def test_opencode_console_uses_fixed_inference_endpoint_and_safe_context(monkeyp
     ]) == "What error is shown?"
     monkeypatch.delenv("OPENCODE_API_KEY")
     assert not ai.enabled()
+
+
+def test_manager_button_is_authenticated_and_notifies_only_once(support_db, monkeypatch):
+    import subscription_api as api
+
+    monkeypatch.setattr(api, "_webapp_telegram_id", lambda: None)
+    client = api.app.test_client()
+    assert client.post("/api/support/manager", json={"message_id": 2}).status_code == 401
+
+    monkeypatch.setattr(api, "_webapp_telegram_id", lambda: 700001)
+    thread = Mock()
+    monkeypatch.setattr(api.threading, "Thread", thread)
+    assert client.post("/api/support/manager", json={"message_id": True}).status_code == 400
+    assert client.post("/api/support/manager", json={"message_id": 1}).status_code == 409
+    assert db.add_assistant_support_message(10, 1, "Проверим настройку.")
+    next_message = db.add_user_support_message(700001, "Где её найти?")["message"]
+    assert client.get("/api/support/messages").json["manager_message_id"] == 2
+    with support_db() as conn:
+        conn.execute("UPDATE support_threads SET ai_handoff_reason='diagnosis' WHERE id=10")
+
+    for _ in range(2):
+        response = client.post("/api/support/manager", json={"message_id": 2})
+        assert response.status_code == 200
+        assert response.json["manager_requested"] and response.json["ai"]["handoff"]
+    assert db.assistant_handoff_reason(10) == "requested"
+    assert not db.add_assistant_support_message(10, next_message["id"], "Поздний ответ.")
+    assert client.get("/api/support/messages").json["manager_requested"]
+    thread.assert_called_once()
+    assert thread.call_args.kwargs["target"] is api._notify_support_admins
+    assert thread.call_args.kwargs["args"][:2] == (10, 700001)
+
+
+def test_manager_button_cannot_claim_another_or_closed_dialog(support_db):
+    assert db.add_assistant_support_message(10, 1, "Проверим настройку.")
+    with support_db() as conn:
+        conn.execute("INSERT INTO users VALUES(2,700002,'qa2','QA2')")
+        conn.execute("INSERT INTO support_threads(id,user_id) VALUES(20,2)")
+    assert db.request_support_manager(700002, 2) is None
+    with support_db() as conn:
+        conn.execute("UPDATE support_threads SET status='closed' WHERE id=10")
+    assert db.request_support_manager(700001, 2) is None
+    assert db.get_support_messages(700001)["manager_message_id"] is None
+
+
+def test_manager_button_rejects_reply_superseded_by_human(support_db):
+    assert db.add_assistant_support_message(10, 1, "Проверим настройку.")
+    assert db.add_admin_support_message(10, 700017, "Я проверю обращение.")
+    assert db.request_support_manager(700001, 2) is None
+    assert db.get_support_messages(700001)["manager_message_id"] is None
+
+
+def test_incy_geofile_uses_its_own_guide_and_escalates_after_failure():
+    from bot.services.support_knowledge import known_reply
+
+    messages = [{"sender": "user", "body": "В INCY ошибка: нет секции TELEGRAM в geosite.dat"}]
+    answer, handoff = known_reply(messages, None)
+    assert handoff is None and "вручную" in answer
+    assert "https://docs.incy.cc/routing/" in answer and "Happ" not in answer
+
+    messages += [{"sender": "admin", "body": answer}, {"sender": "user", "body": "Не помогло"}]
+    answer, handoff = known_reply(messages, None)
+    assert handoff == "diagnosis" and "результат проверки" in answer
+
+
+def test_model_receives_only_matching_official_guide(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+
+    @contextmanager
+    def response(request, timeout):
+        payload = json.loads(request.data)
+        assert "красный восклицательный знак" in payload["instructions"]
+        assert "сохраняет прежние рабочие файлы" not in payload["instructions"]
+        yield Mock(read=lambda n: json.dumps({"status": "completed", "output": [
+            {"type": "message", "content": [{"type": "output_text", "text": "Проверьте состояние профиля."}]}
+        ]}).encode())
+
+    monkeypatch.setattr(ai.urllib.request, "urlopen", response)
+    result = ai.request_reply([
+        {"sender": "user", "body": "В Happ рядом с профилем маршрутизации восклицательный знак."},
+    ])
+    assert result.endswith("https://www.happ.su/main/dev-docs/routing")
