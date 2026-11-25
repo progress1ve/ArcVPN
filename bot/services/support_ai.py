@@ -67,6 +67,7 @@ def _provider():
         "openai": ("https://api.openai.com/v1/responses", "OPENAI_API_KEY", "gpt-4.1-mini"),
         "groq": ("https://api.groq.com/openai/v1/chat/completions", "GROQ_API_KEY", "openai/gpt-oss-120b"),
         "opencode": ("https://opencode.ai/inference/openai/v1/chat/completions", "OPENCODE_API_KEY", "deepseek-v4.1-flash-free"),
+        "bazaarlink": ("https://api.bazaarlink.ai/v1/chat/completions", "BAZAARLINK_API_KEY", "deepseek/deepseek-v4-flash-0731free:free"),
         "openrouter": ("https://openrouter.ai/api/v1/chat/completions", "OPENROUTER_API_KEY", "openrouter/free"),
         "gemini": ("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "GEMINI_API_KEY", "gemini-3.5-flash-lite"),
     }
@@ -92,6 +93,17 @@ def redact(text):
 
 def request_reply(messages):
     endpoint, key_name, model = _provider()
+    try:
+        return _request_model(messages, endpoint, key_name, os.getenv("SUPPORT_AI_MODEL", model))
+    except (OSError, ValueError, IndexError, KeyError):
+        if key_name != "BAZAARLINK_API_KEY" or not os.getenv("OPENROUTER_API_KEY"):
+            raise
+        logger.warning("Support primary unavailable; trying Nemotron")
+        return _request_model(messages, "https://openrouter.ai/api/v1/chat/completions",
+                              "OPENROUTER_API_KEY", "nvidia/nemotron-3-ultra-550b-a55b:free")
+
+
+def _request_model(messages, endpoint, key_name, model):
     if not endpoint:
         raise ValueError("unknown AI provider")
     conversation = []
@@ -108,7 +120,7 @@ def request_reply(messages):
     if guide:
         instructions += f"\nПроверенная выдержка из официальной документации ({guide.title}): {guide.facts}"
     payload = {
-        "model": os.getenv("SUPPORT_AI_MODEL", model),
+        "model": model,
         "instructions": instructions,
         "input": conversation,
         "max_output_tokens": 350,
@@ -116,6 +128,8 @@ def request_reply(messages):
     }
     if key_name != "OPENAI_API_KEY":
         payload = {"model": payload["model"], "messages": [{"role": "system", "content": instructions}, *conversation], "max_tokens": 350}
+        if key_name in {"BAZAARLINK_API_KEY", "OPENROUTER_API_KEY"}:
+            payload["max_tokens"] = 1500
         if key_name == "GROQ_API_KEY":
             payload.pop("max_tokens")
             payload.update(max_completion_tokens=1024, reasoning_effort="low", include_reasoning=False)
@@ -124,7 +138,9 @@ def request_reply(messages):
         data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
         headers={"Authorization": "Bearer " + os.environ[key_name], "Content-Type": "application/json", "User-Agent": "ArcVPN-Support/1.0"},
     )
-    with urllib.request.urlopen(request, timeout=25) as response:
+    if key_name == "BAZAARLINK_API_KEY":
+        request.add_header("X-Free-Fallback", "false")
+    with urllib.request.urlopen(request, timeout=35) as response:
         result = json.loads(response.read(100000))
     if key_name == "OPENAI_API_KEY":
         if result.get("status") != "completed":
