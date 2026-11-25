@@ -2906,8 +2906,8 @@
   .chat-screen .chat-message small { font-size:11px; }
   .chat-guide { display:inline-block; margin-top:7px; color:#9bd8fa; font-size:13px; text-underline-offset:3px; }
   .chat-manager { align-self:flex-start; margin-top:-5px; max-width:100%; color:#bdd0de; font-size:13px; }
-  .chat-manager button, .chat-manager span { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 12px; }
-  .chat-manager button { border:1px solid #35576d; border-radius:12px; background:#101c29; color:#c6e6fa; font:inherit; font-weight:650; }
+  .chat-manager button, .chat-manager span { display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 8px; }
+  .chat-manager button { border:0; border-radius:8px; background:transparent; color:#a4bdce; font:inherit; font-weight:500; }
   .chat-manager button:hover:not(:disabled) { background:#1a3041; }
   .chat-manager button:focus-visible, .chat-guide:focus-visible { outline:2px solid #9bd8fa; outline-offset:3px; }
   .chat-manager button:disabled { opacity:.65; }
