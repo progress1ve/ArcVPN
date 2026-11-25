@@ -469,3 +469,72 @@ def test_legacy_backfill_is_idempotent_and_respects_explicit_resume(support_db):
     db.set_support_ai_enabled(10, True)
     with support_db() as c:
         assert not pause_existing_human_threads(c)
+
+
+@pytest.mark.parametrize(
+    "body, expected, reason",
+    [
+        ("Критическая ошибка XrayCore: в geosite.dat отсутствует секция TELEGRAM", "запуске ядра", "diagnosis"),
+        ("Хочу уточнить платеж автоматически идёт или мне продлить самостоятельно?", "Настройки → Автопродление", None),
+        ("Как отключить автопродление?", "текущая подписка", None),
+        ("Там написано (0 — бесконечность)", "нельзя определить остаток", None),
+        ("Не обновился трафик на обход глушилок", "ответит в этом чате", "account"),
+        ("Какая подписка у меня щас?", "ответит в этом чате", "account"),
+        ("Продлите пожалуйста впн на 4 дня", "ответит в этом чате", "account"),
+        ("Google Flow не открывается, остальные сайты работают. Happ.", "проверим сбой отдельно", None),
+        ("VPN подключён, ни один сайт не открывается. Автовыбор включен.", "одну обычную локацию вручную", None),
+        ("Позовите менеджера, как отключить автопродление?", "ответит в этом чате", "requested"),
+        ("Списали деньги после отключения автопродления", "ответит в этом чате", "payment"),
+    ],
+)
+def test_verified_support_cases_bypass_provider(support_db, monkeypatch, body, expected, reason):
+    with support_db() as conn:
+        conn.execute("UPDATE support_messages SET body=?", (body,))
+    provider = Mock()
+    monkeypatch.setattr(ai, "request_reply", provider)
+    _run_reserved_reply(monkeypatch)
+    provider.assert_not_called()
+    reply = db.get_support_messages(700001)["messages"][-1]
+    assert expected.lower() in reply["body"].lower()
+    assert db.assistant_handoff_reason(10) == reason
+
+
+def test_happ_clarification_after_misclassified_core_error():
+    from bot.services.support_knowledge import known_reply
+
+    messages = [
+        {"sender": "user", "body": "geosite.dat не содержит секцию TELEGRAM"},
+        {"sender": "admin", "body": "Проверьте прокси в самом Telegram."},
+        {"sender": "user", "body": "это выходит в приложении “happ”"},
+    ]
+    answer, handoff = known_reply(messages, None)
+    assert handoff == "diagnosis"
+    assert "ядра" in answer and "прокси" not in answer
+
+
+def test_opencode_console_uses_fixed_inference_endpoint_and_safe_context(monkeypatch):
+    monkeypatch.setenv("SUPPORT_AI_ENABLED", "true")
+    monkeypatch.setenv("SUPPORT_AI_PROVIDER", "opencode")
+    monkeypatch.setenv("OPENCODE_API_KEY", "test-key")
+    monkeypatch.setenv("SUPPORT_AI_MODEL", "glm-5.3-flash")
+    assert ai.enabled()
+
+    @contextmanager
+    def response(request, timeout):
+        assert request.full_url == "https://opencode.ai/inference/openai/v1/chat/completions"
+        assert request.get_header("Authorization") == "Bearer test-key"
+        assert timeout == 8
+        payload = json.loads(request.data)
+        assert payload["model"] == "glm-5.3-flash"
+        assert payload["messages"][0]["role"] == "system"
+        assert "календарный месяц" in payload["messages"][0]["content"]
+        assert "Google Flow" in payload["messages"][-1]["content"]
+        assert "PRIVATE" not in payload["messages"][-1]["content"]
+        yield Mock(read=lambda n: b'{"choices":[{"message":{"content":"What error is shown?"}}]}')
+
+    monkeypatch.setattr(ai.urllib.request, "urlopen", response)
+    assert ai.request_reply([
+        {"sender": "user", "body": "Google Flow не открывается. @PRIVATE hysteria2://PRIVATE"},
+    ]) == "What error is shown?"
+    monkeypatch.delenv("OPENCODE_API_KEY")
+    assert not ai.enabled()

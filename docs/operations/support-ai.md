@@ -1,10 +1,14 @@
 # ArcVPN AI support and alert routing
 
-Groq GPT-OSS 120B is the active target. The server uses a fixed allowlisted HTTPS endpoint, an 8-second timeout and two concurrent workers. Groq receives a low-reasoning request bounded to 1024 completion tokens, including its internal reasoning; reasoning is excluded from visible replies. Other supported providers are OpenAI Responses, OpenRouter and Gemini OpenAI-compatible API.
+Groq GPT-OSS 120B is the active target. The server uses a fixed allowlisted HTTPS endpoint, an 8-second timeout and two concurrent workers. Groq receives a low-reasoning request bounded to 1024 completion tokens, including its internal reasoning; reasoning is excluded from visible replies. Other supported providers are OpenAI Responses, OpenRouter, Gemini and OpenCode Console pay-as-you-go.
 
 Only the authenticated user's latest16 conversation turns are considered, with1200 characters per text and6000 characters total after redaction. Every new turn rereads its thread; there is no shared provider conversation. Closing a case preserves history and starts fresh model context on the next message. Links, UUIDs, emails, common credential forms and phone numbers are masked. The model has no account tools, credentials or payment authority. Replies are visibly identified as the AI assistant. Payment/refund/person requests go to the manager; failures preserve that handoff. Late replies cannot overwrite a newer turn, human response, closed thread or AI pause.
 
 Telegram diagnosis checks the app's own proxy before generic VPN changes, respects a previously disabled proxy and known client/OS, and hands off after two reported failed checks. It distinguishes connection, messages, media and calls instead of repeatedly suggesting Auto-select or bypass. Settings paths follow [Telegram's proxy documentation](https://core.telegram.org/proxy). Plaintext normalization removes escaped Markdown/entities and separates numbered steps, including old AI replies at read time without rewriting stored history.
+
+Recognized cabinet questions use reviewed replies before any provider call. Device and network diagnosis, LTE allowance, renewal and usage guidance comes from bot/services/support_knowledge.py. Account-specific balance, purchase, plan, reset and exception cases remain with a human manager. See [the November support history audit](support-audit-20261125.md).
+
+OpenCode Console can be configured with SUPPORT_AI_PROVIDER=opencode, SUPPORT_AI_MODEL=glm-5.3 and OPENCODE_API_KEY in the protected service environment. This adapter uses the fixed Console pay-as-you-go Chat Completions endpoint. A valid Console key, workspace access to the selected model and a synthetic live smoke test are required before activation. [Console inference](https://opencode.ai/docs/console/api/inference/)
 
 ## Anti-spam handoff (schema77)
 
