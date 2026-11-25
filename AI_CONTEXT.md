@@ -2091,3 +2091,7 @@ Use the expiring owner Reality overlay and separate listener socket options for 
 ### Shared M3T RU-Direct routing — 2026-11-12
 
 The owner selected the M3T 98daeed RU-Direct routing rules for all working JSON subscription profiles. The pinned rules replace the common ArcVPN direct split after explicit Telegram, YouTube, TikTok and profile-specific routes. Preserve local networks, DNS, endpoint and transport parameters, Auto leastLoad and authorized CDN fallback. Keep legacy URI delivery and its routing header compatible. Deployment and rollback are recorded in .codex/stages/current.md. Compare Telegram seeking on the same video and mobile network after refreshing the subscription.
+
+## Поддержка WebApp — 2026-11-25
+
+Ответы помощника опираются на сверенные шаги кабинета и типовые случаи из истории. Ошибку запуска XrayCore с упоминанием TELEGRAM нужно направлять менеджеру как ошибку VPN-приложения. Персональные лимиты, платежи, сбросы и обещания сверяет менеджер. Общий порядок проверки автопродления можно дать сразу. История поддержки других клиентов не входит в запрос к провайдеру. Отдельный адаптер OpenCode Console использует защищённую конфигурацию и проверяется на синтетике перед переключением.

@@ -1,3 +1,7 @@
+# Поддержка WebApp обновлена — 2026-11-25
+
+Экономный режим, без субагентов. Runtime c65ad808 опубликован в main и применён на Poland. Перезапущен API подписки, бот и API active. 105 сообщений в 12 диалогах проанализированы. Сводка и доступ к защищённому архиву описаны в docs/operations/support-audit-20261125.md. Частые вопросы об автопродлении и типовые ошибки обрабатываются по проверенным правилам. Пропавшие ГБ, конкретный тариф и сбросы передаются менеджеру. 96 тестов, два изолированных авторизованных POST → GET, живой Groq smoke и публичный вход sub.arccnet.space прошли. Для отдельного arccnet.space обнаружен истёкший TLS. В работе GPT-OSS 120B. OpenCode Console адаптер покрыт тестом, Go вернул 401. Следующий шаг смены модели — действующий отдельный ключ Console и сравнение на синтетике. Откат через revert и перезапуск API, без восстановления клиентской БД.
+
 # Shared M3T RU-Direct routing
 
 Owner Lithuania XHTTP trial retired from production JSON on 9687ad02. Verified bound owner/control catalogs and ordinary Lithuania. A fresh INCY subscription update removes the trial.
