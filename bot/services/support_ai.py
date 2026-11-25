@@ -11,7 +11,7 @@ import urllib.request
 from database.db_support import add_assistant_support_message, get_assistant_context
 from database import db_support
 from bot.services.support_ai_alerts import provider_health
-from bot.services.support_client_docs import cite_client_guide, find_client_guide
+from bot.services.support_client_docs import find_client_guide
 from bot.services.support_knowledge import PRODUCT_FACTS, known_reply
 
 logger = logging.getLogger(__name__)
@@ -104,7 +104,7 @@ def request_reply(messages):
         remaining -= len(content)
     conversation.reverse()
     guide = find_client_guide(messages)
-    instructions = INSTRUCTIONS
+    instructions = INSTRUCTIONS + " Начинай с действия. Не пересказывай ошибку и не добавляй ссылки на документацию. Уточняй только то, от чего зависит следующий шаг."
     if guide:
         instructions += f"\nПроверенная выдержка из официальной документации ({guide.title}): {guide.facts}"
     payload = {
@@ -135,7 +135,7 @@ def request_reply(messages):
         text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S).strip()
     if not text:
         raise ValueError("empty AI response")
-    return cite_client_guide(verified_reply(text, messages), guide)
+    return verified_reply(text, messages)
 
 
 def plain_reply(text):

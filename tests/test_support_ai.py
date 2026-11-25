@@ -474,7 +474,7 @@ def test_legacy_backfill_is_idempotent_and_respects_explicit_resume(support_db):
 @pytest.mark.parametrize(
     "body, expected, reason",
     [
-        ("Критическая ошибка XrayCore: в geosite.dat отсутствует секция TELEGRAM", "в каком приложении", None),
+        ("Критическая ошибка XrayCore: в geosite.dat отсутствует секция TELEGRAM", "снова включите VPN", None),
         ("Хочу уточнить платеж автоматически идёт или мне продлить самостоятельно?", "Настройки → Автопродление", None),
         ("Как отключить автопродление?", "текущая подписка", None),
         ("Там написано (0 — бесконечность)", "нельзя определить остаток", None),
@@ -509,8 +509,8 @@ def test_happ_clarification_after_misclassified_core_error():
     ]
     answer, handoff = known_reply(messages, None)
     assert handoff is None
-    assert "geosite.dat" in answer and "прокси" not in answer
-    assert "https://www.happ.su/main/dev-docs/routing" in answer
+    assert "geosite.dat" not in answer and "прокси" not in answer
+    assert "https://" not in answer and "Обновите Happ" in answer
 
 
 def test_opencode_console_uses_fixed_inference_endpoint_and_safe_context(monkeypatch):
@@ -596,7 +596,7 @@ def test_incy_geofile_uses_its_own_guide_and_escalates_after_failure():
     messages = [{"sender": "user", "body": "В INCY ошибка: нет секции TELEGRAM в geosite.dat"}]
     answer, handoff = known_reply(messages, None)
     assert handoff is None and "вручную" in answer
-    assert "https://docs.incy.cc/routing/" in answer and "Happ" not in answer
+    assert "https://" not in answer and "Happ" not in answer
 
     messages += [{"sender": "admin", "body": answer}, {"sender": "user", "body": "Не помогло"}]
     answer, handoff = known_reply(messages, None)
@@ -619,4 +619,4 @@ def test_model_receives_only_matching_official_guide(monkeypatch):
     result = ai.request_reply([
         {"sender": "user", "body": "В Happ рядом с профилем маршрутизации восклицательный знак."},
     ])
-    assert result.endswith("https://www.happ.su/main/dev-docs/routing")
+    assert result == "Проверьте состояние профиля."

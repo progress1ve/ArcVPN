@@ -2,7 +2,7 @@
 
 import re
 
-from bot.services.support_client_docs import HAPP_ROUTING, INCY_ROUTING, cite_client_guide, identify_client
+from bot.services.support_client_docs import identify_client
 
 
 PRODUCT_FACTS = """Сверенные факты кабинета ArcVPN:
@@ -61,25 +61,19 @@ def known_reply(messages, reason):
                 "если вы его ещё не указали. Ссылку подписки и ключи присылать не нужно.",
                 None,
             )
-        answer = (
-            "Сбой происходит при запуске ядра: правило маршрутизации обращается к секции, которой нет в geosite.dat. "
-            "Упоминание TELEGRAM в такой ошибке означает имя секции в файле."
-            if "telegram" in error else
-            "Сбой происходит при запуске ядра: правило маршрутизации обращается к секции, которой нет в geosite.dat."
-        )
         client = identify_client(messages)
+        if error == latest and "без маршрутизирующего профиля" in error and "запуск" in error:
+            return "Для временного подключения нажмите «Запуск» в этом окне. Правила профиля применяться не будут. Если важно сохранить маршрутизацию, оставьте профиль включённым и нажмите «Позвать менеджера».", None
         if client == "happ":
-            answer += " Если для Happ доступно обновление, установите его из официального источника и попробуйте подключиться снова."
-            return cite_client_guide(answer, HAPP_ROUTING), None
+            return "Обновите Happ, если доступна новая версия, и снова включите VPN. Если приложение уже обновлено и подключение не удаётся, нажмите «Позвать менеджера».", None
         if client == "incy":
-            answer += " Откройте используемый профиль маршрутизации в INCY и попробуйте обновить его геофайлы вручную."
-            return cite_client_guide(answer, INCY_ROUTING), None
-        return answer + " В каком приложении это появляется — Happ или INCY?", None
+            return "В INCY откройте активный профиль маршрутизации, обновите его геофайлы вручную и снова включите VPN.", None
+        return "В Happ проверьте обновление приложения. В INCY откройте активный профиль маршрутизации и обновите его геофайлы. Затем снова включите VPN.", None
 
     if not reason and re.search(r"не помогло|та же ошибка|ошибка осталась", latest) and any(
         row["sender"] == "user" and "geosite.dat" in row["body"].lower() for row in messages[:-1]
     ):
-        return "Передали менеджеру ошибку geosite.dat и результат проверки. Он ответит здесь, повторять шаг не нужно.", "diagnosis"
+        return "Передали менеджеру результат проверки. Он ответит здесь, повторять шаг не нужно.", "diagnosis"
 
     if not reason and re.search(r"\bxray\s*core\b", latest):
         return "Пришлите точный текст ошибки XrayCore. Если название VPN-приложения ещё не указано, добавьте его. Ссылка подписки не нужна.", None
